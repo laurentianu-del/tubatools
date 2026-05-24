@@ -1,0 +1,60 @@
+using System.Diagnostics;
+using System.Drawing;
+using System.Security.Cryptography;
+using System.Text;
+
+namespace TubaWinUi3.Services;
+
+public static class ToolIconService
+{
+    private static readonly string CacheRoot = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "TubaWinUi3",
+        "IconCache");
+
+    public static string? GetIconPath(string toolPath)
+    {
+        if (!File.Exists(toolPath))
+        {
+            return null;
+        }
+
+        var extension = Path.GetExtension(toolPath);
+        if (!extension.Equals(".exe", StringComparison.OrdinalIgnoreCase) &&
+            !extension.Equals(".lnk", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        Directory.CreateDirectory(CacheRoot);
+        var iconPath = Path.Combine(CacheRoot, $"{Hash(toolPath)}.png");
+        if (File.Exists(iconPath))
+        {
+            return iconPath;
+        }
+
+        try
+        {
+            using var icon = Icon.ExtractAssociatedIcon(toolPath);
+            if (icon is null)
+            {
+                return null;
+            }
+
+            using var bitmap = icon.ToBitmap();
+            bitmap.Save(iconPath, System.Drawing.Imaging.ImageFormat.Png);
+            return iconPath;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Unable to extract icon for {toolPath}: {ex.Message}");
+            return null;
+        }
+    }
+
+    private static string Hash(string value)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(bytes)[..16].ToLowerInvariant();
+    }
+}

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://example.local/tubawinui3-tools.schema.json",
+  "tools": [
+    {
+      "match": "CPU-Z",
+      "description": "处理器、主板、内存和显卡基础信息查看工具。",
+      "publisher": "CPUID",
+      "tags": [ "CPU", "硬件检测" ]
+    },
+    {
+      "match": "GPU-Z",
+      "description": "显卡型号、核心参数、显存、传感器和 BIOS 信息查看工具。",
+      "publisher": "TechPowerUp",
+      "tags": [ "显卡", "硬件检测" ]
+    },
+    {
+      "match": "CrystalDiskInfo",
+      "description": "硬盘 SMART、健康状态、温度和通电时间查看工具。",
+      "publisher": "Crystal Dew World",
+      "tags": [ "硬盘", "SMART" ]
+    },
+    {
+      "match": "AIDA64",
+      "description": "系统硬件信息、传感器监控和稳定性测试工具。",
+      "publisher": "FinalWire",
+      "tags": [ "综合检测", "传感器" ]
+    },
+    {
+      "match": "HWiNFO",
+      "description": "专业硬件信息读取、传感器监控和日志记录工具。",
+      "publisher": "REALiX",
+      "tags": [ "综合检测", "传感器" ]
+    },
+    {
+      "match": "DiskGenius",
+      "description": "磁盘分区、数据恢复、坏道检测和分区表维护工具。",
+      "publisher": "Eassos",
+      "tags": [ "硬盘", "分区" ]
+    },
+    {
+      "match": "DisplayX",
+      "description": "显示器纯色、坏点、灰阶和几何图形测试工具。",
+      "tags": [ "显示器", "屏幕测试" ]
+    },
+    {
+      "match": "BatteryInfoView",
+      "description": "笔记本电池容量、循环、损耗和实时状态查看工具。",
+      "publisher": "NirSoft",
+      "tags": [ "电池", "其他工具" ]
+    }
+  ]
+}
