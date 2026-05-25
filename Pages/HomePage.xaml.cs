@@ -1,3 +1,4 @@
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 using System.Collections.ObjectModel;
@@ -43,11 +44,34 @@ public sealed partial class HomePage : Page
         }
     }
 
-    private void LaunchButton_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
+    private void LaunchButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button { DataContext: ToolItem tool })
         {
-            LaunchTool(tool);
+            LaunchTool(tool, runAsAdmin: false);
+        }
+    }
+
+    private void RunAsAdminButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: ToolItem tool })
+        {
+            LaunchTool(tool, runAsAdmin: true);
+        }
+    }
+
+    private void FavoriteButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: ToolItem tool })
+        {
+            FavoritesService.ToggleFavorite(tool.Path);
+            tool.IsFavorite = !tool.IsFavorite;
+
+            var idx = _tools.IndexOf(tool);
+            if (idx >= 0)
+            {
+                _tools[idx] = tool;
+            }
         }
     }
 
@@ -69,7 +93,7 @@ public sealed partial class HomePage : Page
             ? "显示所有分类中匹配的工具。"
             : _category is null
                 ? "从左侧选择分类，点击卡片看详情，点击打开运行工具。"
-                : $"正在浏览“{_category}”分类。";
+                : $"正在浏览\u201C{_category}\u201D分类。";
         ToolCountText.Text = $"{_tools.Count} 个工具";
     }
 
@@ -99,7 +123,7 @@ public sealed partial class HomePage : Page
         ToolDetailTip.IsOpen = true;
     }
 
-    private void LaunchTool(ToolItem tool)
+    private void LaunchTool(ToolItem tool, bool runAsAdmin)
     {
         try
         {
@@ -107,10 +131,11 @@ public sealed partial class HomePage : Page
             {
                 FileName = tool.Path,
                 WorkingDirectory = Path.GetDirectoryName(tool.Path) ?? ToolCatalog.ToolsRoot,
-                UseShellExecute = true
+                UseShellExecute = true,
+                Verb = runAsAdmin ? "runAs" : null
             });
 
-            ShowStatus("已启动", tool.Name, InfoBarSeverity.Success);
+            ShowStatus(runAsAdmin ? "已以管理员身份启动" : "已启动", tool.Name, InfoBarSeverity.Success);
         }
         catch (Exception ex)
         {

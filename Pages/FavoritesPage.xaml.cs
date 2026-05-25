@@ -1,0 +1,152 @@
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Navigation;
+using System.Collections.ObjectModel;
+using System.Diagnostics;
+using TubaWinUi3.Models;
+using TubaWinUi3.Services;
+
+namespace TubaWinUi3.Pages;
+
+public sealed partial class FavoritesPage : Page
+{
+    private readonly ObservableCollection<ToolItem> _tools = [];
+
+    public FavoritesPage()
+    {
+        InitializeComponent();
+        ToolsGrid.ItemsSource = _tools;
+    }
+
+    protected override void OnNavigatedTo(NavigationEventArgs e)
+    {
+        base.OnNavigatedTo(e);
+        LoadTools();
+    }
+
+    private void LoadTools()
+    {
+        _tools.Clear();
+
+        var favPaths = FavoritesService.GetFavorites();
+        var favTools = ToolCatalog.GetCategories()
+            .SelectMany(ToolCatalog.GetTools)
+            .Where(t => favPaths.Contains(t.Path, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+
+        foreach (var tool in favTools)
+        {
+            _tools.Add(tool);
+        }
+
+        ToolCountText.Text = _tools.Count > 0 ? $"已收藏 {_tools.Count} 个工具" : "暂无收藏";
+        ClearAllButton.Visibility = _tools.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        EmptyState.Visibility = _tools.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        ToolsGrid.Visibility = _tools.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void ToolsGrid_ItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is ToolItem tool)
+        {
+            ShowToolDetail(tool);
+        }
+    }
+
+    private void LaunchButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: ToolItem tool })
+        {
+            LaunchTool(tool, runAsAdmin: false);
+        }
+    }
+
+    private void RunAsAdminButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: ToolItem tool })
+        {
+            LaunchTool(tool, runAsAdmin: true);
+        }
+    }
+
+    private void RemoveFavoriteButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: ToolItem tool })
+        {
+            FavoritesService.RemoveFavorite(tool.Path);
+            _tools.Remove(tool);
+            ToolCountText.Text = _tools.Count > 0 ? $"已收藏 {_tools.Count} 个工具" : "暂无收藏";
+            ClearAllButton.Visibility = _tools.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            EmptyState.Visibility = _tools.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            ToolsGrid.Visibility = _tools.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
+    private void ClearAllButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ContentDialog
+        {
+            Title = "清空全部收藏",
+            Content = "确定要取消所有工具的收藏吗？此操作不可撤销。",
+            PrimaryButtonText = "清空",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = XamlRoot
+        };
+
+        if (dialog.ShowAsync() is not null)
+        {
+            dialog.PrimaryButtonClick += (_, _) =>
+            {
+                FavoritesService.RemoveAll();
+                LoadTools();
+            };
+        }
+    }
+
+    private void ShowToolDetail(ToolItem tool)
+    {
+        ToolDetailTip.Title = tool.Name;
+        ToolDetailTip.Subtitle = tool.Category;
+        DetailDescriptionText.Text = string.IsNullOrWhiteSpace(tool.Description)
+            ? "暂无介绍。"
+            : tool.Description;
+        DetailPublisherText.Text = $"发布者：{ValueOrUnknown(tool.Publisher)}";
+        DetailVersionText.Text = $"版本：{ValueOrUnknown(tool.Version)}";
+        DetailPathText.Text = tool.Path;
+        ToolDetailTip.IsOpen = true;
+    }
+
+    private void LaunchTool(ToolItem tool, bool runAsAdmin)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = tool.Path,
+                WorkingDirectory = Path.GetDirectoryName(tool.Path) ?? ToolCatalog.ToolsRoot,
+                UseShellExecute = true,
+                Verb = runAsAdmin ? "runAs" : null
+            });
+
+            ShowStatus(runAsAdmin ? "已以管理员身份启动" : "已启动", tool.Name, InfoBarSeverity.Success);
+        }
+        catch (Exception ex)
+        {
+            ShowStatus("启动失败", ex.Message, InfoBarSeverity.Error);
+        }
+    }
+
+    private void ShowStatus(string title, string message, InfoBarSeverity severity)
+    {
+        StatusBar.Title = title;
+        StatusBar.Message = message;
+        StatusBar.Severity = severity;
+        StatusBar.IsOpen = true;
+    }
+
+    private static string ValueOrUnknown(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "未知" : value;
+    }
+}

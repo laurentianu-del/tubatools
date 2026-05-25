@@ -93,7 +93,8 @@ public static class ToolCatalog
             Description = metadata.Description,
             Publisher = metadata.Publisher,
             Version = metadata.Version,
-            DatabaseSource = metadata.DatabaseSource
+            DatabaseSource = metadata.DatabaseSource,
+            IsFavorite = FavoritesService.IsFavorite(path)
         };
     }
 

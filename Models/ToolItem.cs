@@ -22,5 +22,7 @@ public sealed class ToolItem
 
     public string? DatabaseSource { get; init; }
 
+    public bool IsFavorite { get; set; }
+
     public string Folder => System.IO.Path.GetDirectoryName(RelativePath) ?? Category;
 }

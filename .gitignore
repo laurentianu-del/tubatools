@@ -52,3 +52,14 @@ _ReSharper*/
 # Generated files
 Generated\ Files/
 *_wpftmp.csproj
+
+# Certificates and keys
+*.pfx
+*.cer
+
+# Publish output (arch-specific)
+publish_arm64/
+publish_x64/
+
+# Inno Setup output
+SetupOutput/

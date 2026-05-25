@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="TubaWinUi3.Pages.FavoritesPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Page.Resources>
+        <Style x:Key="FavCardStyle" TargetType="GridViewItem">
+            <Setter Property="MinWidth" Value="236" />
+            <Setter Property="MaxWidth" Value="300" />
+            <Setter Property="MinHeight" Value="152" />
+            <Setter Property="Margin" Value="0,0,12,12" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+        </Style>
+    </Page.Resources>
+
+    <Grid Padding="28,18,28,24" RowSpacing="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Spacing="4">
+            <TextBlock
+                FontSize="30"
+                FontWeight="SemiBold"
+                Text="常用工具" />
+            <TextBlock
+                x:Name="SubtitleText"
+                Opacity="0.72"
+                Text="你收藏的工具会显示在这里。" />
+        </StackPanel>
+
+        <Border
+            Grid.Row="1"
+            Padding="18"
+            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderThickness="1"
+            CornerRadius="8">
+            <Grid ColumnSpacing="18">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Border
+                    Width="44"
+                    Height="44"
+                    Background="{ThemeResource AccentFillColorDefaultBrush}"
+                    CornerRadius="8">
+                    <FontIcon
+                        FontSize="22"
+                        Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                        Glyph="&#xE734;" />
+                </Border>
+
+                <StackPanel Grid.Column="1" Spacing="2">
+                    <TextBlock
+                        FontSize="16"
+                        FontWeight="SemiBold"
+                        Text="我的收藏" />
+                    <TextBlock
+                        x:Name="ToolCountText"
+                        Opacity="0.68" />
+                </StackPanel>
+
+                <Button
+                    x:Name="ClearAllButton"
+                    Grid.Column="2"
+                    Padding="12,6"
+                    Click="ClearAllButton_Click"
+                    Visibility="Collapsed">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon FontSize="12" Glyph="&#xE74D;" />
+                        <TextBlock Text="清空全部" />
+                    </StackPanel>
+                </Button>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="2">
+            <GridView
+                x:Name="ToolsGrid"
+                IsItemClickEnabled="True"
+                ItemClick="ToolsGrid_ItemClick"
+                ItemContainerStyle="{StaticResource FavCardStyle}"
+                SelectionMode="None">
+                <GridView.ItemTemplate>
+                    <DataTemplate>
+                        <Border
+                            Padding="16"
+                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8">
+                            <Grid RowSpacing="12">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="42" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border
+                                        Width="42"
+                                        Height="42"
+                                        Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                        CornerRadius="8">
+                                        <Image
+                                            Width="28"
+                                            Height="28"
+                                            Source="{Binding IconPath}"
+                                            Stretch="Uniform" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Spacing="3">
+                                        <TextBlock
+                                            FontSize="16"
+                                            FontWeight="SemiBold"
+                                            Text="{Binding Name}"
+                                            TextTrimming="CharacterEllipsis" />
+                                        <TextBlock
+                                            FontSize="12"
+                                            Opacity="0.64"
+                                            Text="{Binding Category}"
+                                            TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <TextBlock
+                                    Grid.Row="1"
+                                    MaxLines="2"
+                                    Opacity="0.72"
+                                    Text="{Binding Description}"
+                                    TextTrimming="CharacterEllipsis"
+                                    TextWrapping="Wrap" />
+
+                                <Grid Grid.Row="2" ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border
+                                        HorizontalAlignment="Left"
+                                        Padding="8,3"
+                                        Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                        CornerRadius="6">
+                                        <TextBlock
+                                            FontSize="11"
+                                            FontWeight="SemiBold"
+                                            Text="{Binding Extension}" />
+                                    </Border>
+                                    <Button
+                                        Grid.Column="1"
+                                        HorizontalAlignment="Right"
+                                        Padding="10,4"
+                                        Click="RunAsAdminButton_Click"
+                                        ToolTipService.ToolTip="以管理员身份运行">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon FontSize="12" Glyph="&#xE7EF;" />
+                                            <TextBlock FontSize="12" Text="管理员" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button
+                                        Grid.Column="2"
+                                        HorizontalAlignment="Right"
+                                        Padding="10,4"
+                                        Click="LaunchButton_Click"
+                                        Content="打开" />
+                                    <Button
+                                        Grid.Column="3"
+                                        HorizontalAlignment="Right"
+                                        Padding="10,4"
+                                        Click="RemoveFavoriteButton_Click"
+                                        ToolTipService.ToolTip="取消收藏">
+                                        <FontIcon FontSize="12" Glyph="&#xE74D;" />
+                                    </Button>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </GridView.ItemTemplate>
+            </GridView>
+
+            <StackPanel
+                x:Name="EmptyState"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Spacing="12"
+                Visibility="Collapsed">
+                <FontIcon
+                    HorizontalAlignment="Center"
+                    FontSize="48"
+                    Glyph="&#xE734;"
+                    Opacity="0.3" />
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    FontSize="18"
+                    Opacity="0.52"
+                    Text="还没有收藏的工具" />
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    Opacity="0.42"
+                    Text="在全部工具页面点击星标按钮即可收藏" />
+            </StackPanel>
+
+            <TeachingTip
+                x:Name="ToolDetailTip"
+                CloseButtonContent="关闭"
+                PreferredPlacement="Right">
+                <StackPanel MaxWidth="420" Spacing="8">
+                    <TextBlock x:Name="DetailDescriptionText" TextWrapping="Wrap" />
+                    <TextBlock x:Name="DetailPublisherText" Opacity="0.72" TextWrapping="Wrap" />
+                    <TextBlock x:Name="DetailVersionText" Opacity="0.72" TextWrapping="Wrap" />
+                    <TextBlock x:Name="DetailPathText" Opacity="0.72" TextWrapping="Wrap" />
+                </StackPanel>
+            </TeachingTip>
+
+            <InfoBar
+                x:Name="StatusBar"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                IsClosable="True"
+                IsOpen="False" />
+        </Grid>
+    </Grid>
+</Page>

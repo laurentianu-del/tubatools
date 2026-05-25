@@ -47,8 +47,14 @@ public sealed partial class MainWindow : Window
                 case "all":
                     NavFrame.Navigate(typeof(HomePage), null);
                     break;
+                case "favorites":
+                    NavFrame.Navigate(typeof(FavoritesPage));
+                    break;
                 case "hardware":
                     NavFrame.Navigate(typeof(HardwarePage));
+                    break;
+                case "builtin":
+                    NavFrame.Navigate(typeof(BuiltinToolsPage));
                     break;
                 case string category:
                     NavFrame.Navigate(typeof(HomePage), category);
