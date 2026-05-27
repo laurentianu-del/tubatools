@@ -99,12 +99,14 @@ public sealed partial class UpdateDialog : ContentDialog
             if (proxyResults.Count > 0)
             {
                 _selectedProxyUrl = proxyResults[0].BaseUrl;
-                ProxyStatusText.Text = $"已选择最快代理: {proxyResults[0].Name} ({proxyResults[0].LatencyMs:F0}ms)";
+                ProxyStatusText.Text = proxyResults[0].BaseUrl.StartsWith("https://hub.tubawinui3", StringComparison.OrdinalIgnoreCase)
+                    ? $"已选择 Hub 镜像 ({proxyResults[0].LatencyMs:F0}ms)"
+                    : $"已选择最快代理: {proxyResults[0].Name} ({proxyResults[0].LatencyMs:F0}ms)";
             }
             else
             {
                 _selectedProxyUrl = null;
-                ProxyStatusText.Text = "所有代理不可用，将尝试直连下载";
+                ProxyStatusText.Text = "Hub 镜像和代理均不可用，将尝试直连下载";
             }
 
             DownloadSection.Visibility = Visibility.Visible;

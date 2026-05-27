@@ -301,9 +301,11 @@ file sealed class AnalyzerPage : Page
     {
         if (sender is HyperlinkButton btn && btn.Tag is TNode node)
         {
-            while (_nav.Count > 0 && _nav.Peek() != node) _nav.Pop();
-            if (_nav.Count > 0) _nav.Pop();
-            if (_cur != null) _nav.Push(_cur);
+            var list = _nav.ToList();
+            list.Reverse();
+            var idx = list.IndexOf(node);
+            if (idx < 0) return;
+            for (int i = list.Count - 1; i >= idx; i--) _nav.Pop();
             _cur = node;
             _hoveredNode = null;
             SyncUi();
@@ -376,6 +378,9 @@ file sealed class AnalyzerPage : Page
         }
     }
 
+    private volatile bool _scanning;
+    private volatile int _scanDirty;
+
     private async Task ScanAsync(string path, bool keepNav = false)
     {
         _cts?.Cancel();
@@ -387,43 +392,52 @@ file sealed class AnalyzerPage : Page
         _cv.Children.Clear();
         _hoveredNode = null;
         _pBytes = 0; _pItems = 0;
+        _scanning = true;
+        _scanDirty = 0;
 
         GetDiskInfo(path);
 
-        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
-        timer.Tick += (_, _) => { _st.Text = $"正在扫描…  {_pItems:N0} 项  ·  {DiskSpaceAnalyzerTool.Fmt(_pBytes)}"; };
-        timer.Start();
-
-        TNode node;
-        try
-        {
-            var opts = new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = false, ReturnSpecialDirectories = false };
-            node = await Task.Run(() => BuildTree(path, opts, tk), tk);
-        }
-        catch (OperationCanceledException)
-        {
-            timer.Stop(); _pb.Visibility = Visibility.Collapsed; _st.Text = "扫描已取消"; return;
-        }
-
-        timer.Stop(); _pb.Visibility = Visibility.Collapsed;
+        var name = System.IO.Path.GetFileName(path);
+        if (string.IsNullOrEmpty(name)) name = path.TrimEnd('\\');
+        var node = new TNode(name, path);
         _root = node;
         _cur = node;
         if (!keepNav) _nav.Clear();
+
+        var renderTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+        renderTimer.Tick += (_, _) =>
+        {
+            if (Interlocked.Exchange(ref _scanDirty, 0) > 0)
+                RenderIncremental();
+            _st.Text = $"正在扫描…  {_pItems:N0} 项  ·  {DiskSpaceAnalyzerTool.Fmt(_pBytes)}";
+        };
+        renderTimer.Start();
+
+        try
+        {
+            var opts = new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = false, ReturnSpecialDirectories = false };
+            await Task.Run(() => BuildTreeIncremental(path, node, opts, tk), tk);
+        }
+        catch (OperationCanceledException)
+        {
+            renderTimer.Stop(); _pb.Visibility = Visibility.Collapsed; _scanning = false;
+            _st.Text = "扫描已取消"; return;
+        }
+
+        renderTimer.Stop();
+        _scanning = false;
+        node.Children.Sort((a, b) => b.Size.CompareTo(a.Size));
+        _pb.Visibility = Visibility.Collapsed;
         SyncUi();
         _win.AppWindow.Title = $"磁盘分析 - {path}";
         Render();
     }
 
-    private TNode BuildTree(string path, EnumerationOptions opts, CancellationToken tk)
+    private void BuildTreeIncremental(string path, TNode node, EnumerationOptions opts, CancellationToken tk)
     {
         tk.ThrowIfCancellationRequested();
-        var name = System.IO.Path.GetFileName(path);
-        if (string.IsNullOrEmpty(name)) name = path.TrimEnd('\\');
-        var node = new TNode(name, path);
-        long size = 0;
 
         var fileNodes = new List<TNode>();
-
         try
         {
             foreach (var f in new DirectoryInfo(path).EnumerateFiles("*", opts))
@@ -431,7 +445,7 @@ file sealed class AnalyzerPage : Page
                 tk.ThrowIfCancellationRequested();
                 try
                 {
-                    size += f.Length;
+                    node.Size += f.Length;
                     node.FileCount++;
                     Interlocked.Increment(ref _pItems);
                     Interlocked.Add(ref _pBytes, f.Length);
@@ -443,6 +457,12 @@ file sealed class AnalyzerPage : Page
         }
         catch { }
 
+        lock (node.Children)
+        {
+            foreach (var fn in fileNodes) node.Children.Add(fn);
+        }
+        if (fileNodes.Count > 0) Interlocked.Increment(ref _scanDirty);
+
         try
         {
             foreach (var d in new DirectoryInfo(path).EnumerateDirectories("*", opts))
@@ -450,22 +470,151 @@ file sealed class AnalyzerPage : Page
                 tk.ThrowIfCancellationRequested();
                 try
                 {
-                    var child = BuildTree(d.FullName, opts, tk);
-                    if (child.Size > 0) node.Children.Add(child);
+                    var child = new TNode(d.Name, d.FullName);
+                    BuildTreeIncremental(d.FullName, child, opts, tk);
+                    lock (node.Children)
+                    {
+                        node.Children.Add(child);
+                    }
                     node.DirCount++;
                     node.FileCount += child.FileCount;
                     node.DirCount += child.DirCount;
-                    size += child.Size;
+                    node.Size += child.Size;
+                    Interlocked.Increment(ref _scanDirty);
                 }
                 catch { }
             }
         }
         catch { }
+    }
 
-        node.Children.AddRange(fileNodes);
-        node.Size = size;
-        node.Children.Sort((a, b) => b.Size.CompareTo(a.Size));
-        return node;
+    private void RenderIncremental()
+    {
+        if (_cur == null) return;
+        var W = _cv.ActualWidth;
+        var H = _cv.ActualHeight;
+        if (W <= 0 || H <= 0) return;
+
+        var existing = new Dictionary<TNode, Border>();
+        foreach (var c in _cv.Children)
+        {
+            if (c is Border b && b.Tag is TNode n) existing[n] = b;
+        }
+
+        var items = new List<(TNode? Node, double Ratio)>();
+        List<TNode> sortedChildren;
+        lock (_cur.Children)
+        {
+            sortedChildren = _cur.Children.OrderByDescending(c => c.Size).ToList();
+        }
+        var totalSize = _cur.Size;
+        var showFree = _cur == _root && _diskTotal > 0;
+        if (showFree) totalSize = _diskTotal;
+        if (totalSize <= 0) return;
+
+        foreach (var c in sortedChildren)
+        {
+            if (c.Size > 0) items.Add((c, (double)c.Size / totalSize));
+        }
+        var freeSize = showFree ? Math.Max(0, _diskTotal - _cur.Size) : 0;
+        if (showFree && freeSize > 0) items.Add((null, (double)freeSize / totalSize));
+        if (items.Count == 0) return;
+
+        const double gap = 3;
+        var rects = DoSquarifyEx(items, new Rect(gap, gap, W - gap * 2, H - gap * 2));
+
+        var usedNodes = new HashSet<TNode?>();
+        foreach (var (node, rect) in rects)
+        {
+            if (rect.Width < 1.5 || rect.Height < 1.5) continue;
+            usedNodes.Add(node);
+
+            var isFree = node == null;
+            if (node != null && existing.TryGetValue(node, out var oldBrd))
+            {
+                oldBrd.Width = rect.Width;
+                oldBrd.Height = rect.Height;
+                Canvas.SetLeft(oldBrd, rect.X);
+                Canvas.SetTop(oldBrd, rect.Y);
+                var big = rect.Width > 80 && rect.Height > 42;
+                var med = rect.Width > 50 && rect.Height > 26;
+                if (med && oldBrd.Child is StackPanel sp)
+                {
+                    sp.Children.Clear();
+                    sp.Children.Add(new TextBlock { Text = node.Name, FontSize = big ? 13 : 10, Foreground = LabelMain, TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap });
+                    sp.Children.Add(new TextBlock { Text = DiskSpaceAnalyzerTool.Fmt(node.Size), FontSize = big ? 11 : 9, Foreground = LabelSub });
+                }
+                else if (med)
+                {
+                    var sp2 = new StackPanel { Margin = new Thickness(5, 3, 5, 3) };
+                    sp2.Children.Add(new TextBlock { Text = node.Name, FontSize = big ? 13 : 10, Foreground = LabelMain, TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap });
+                    sp2.Children.Add(new TextBlock { Text = DiskSpaceAnalyzerTool.Fmt(node.Size), FontSize = big ? 11 : 9, Foreground = LabelSub });
+                    oldBrd.Child = sp2;
+                }
+            }
+            else
+            {
+                var color = isFree ? ThemeColors.CardBg : NodeColor(node!);
+                var brd = new Border
+                {
+                    Tag = node,
+                    Background = new SolidColorBrush(color),
+                    BorderBrush = NormalBorder,
+                    BorderThickness = new Thickness(0.5),
+                    CornerRadius = new CornerRadius(4),
+                    Width = rect.Width,
+                    Height = rect.Height,
+                    Opacity = 0,
+                };
+
+                var big = rect.Width > 80 && rect.Height > 42;
+                var med = rect.Width > 50 && rect.Height > 26;
+                if (med)
+                {
+                    var sp = new StackPanel { Margin = new Thickness(5, 3, 5, 3) };
+                    if (isFree)
+                    {
+                        sp.Children.Add(new TextBlock { Text = "空闲空间", FontSize = big ? 13 : 10, Foreground = FreeSpaceLabel, TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap });
+                        if (big) sp.Children.Add(new TextBlock { Text = DiskSpaceAnalyzerTool.Fmt(freeSize), FontSize = 11, Foreground = FreeSpaceLabel });
+                    }
+                    else
+                    {
+                        sp.Children.Add(new TextBlock { Text = node!.Name, FontSize = big ? 13 : 10, Foreground = LabelMain, TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap });
+                        sp.Children.Add(new TextBlock { Text = DiskSpaceAnalyzerTool.Fmt(node.Size), FontSize = big ? 11 : 9, Foreground = LabelSub });
+                    }
+                    brd.Child = sp;
+                }
+
+                Canvas.SetLeft(brd, rect.X);
+                Canvas.SetTop(brd, rect.Y);
+                _cv.Children.Add(brd);
+
+                FadeInBorder(brd);
+            }
+        }
+
+        var toRemove = new List<Border>();
+        foreach (var kv in existing)
+        {
+            if (!usedNodes.Contains(kv.Key)) toRemove.Add(kv.Value);
+        }
+        foreach (var b in toRemove) _cv.Children.Remove(b);
+    }
+
+    private static void FadeInBorder(Border brd)
+    {
+        const int steps = 12;
+        const int intervalMs = 16;
+        var step = 0;
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(intervalMs) };
+        timer.Tick += (_, _) =>
+        {
+            step++;
+            var t = (double)step / steps;
+            brd.Opacity = t;
+            if (step >= steps) { timer.Stop(); brd.Opacity = 1.0; }
+        };
+        timer.Start();
     }
 
     private TNode? FindNodeAt(Point p)
@@ -603,6 +752,7 @@ file sealed class AnalyzerPage : Page
 
         _bcPanel.Children.Clear();
         var navList = _nav.ToList();
+        navList.Reverse();
         for (int i = 0; i < navList.Count; i++)
         {
             if (i > 0)
@@ -825,6 +975,7 @@ file sealed class AnalyzerPage : Page
     private static void LayRowEx(List<(TNode? Node, double Area)> items, Rect bounds, List<(TNode? Node, Rect Rect)> result)
     {
         if (items.Count == 0) return;
+        if (bounds.Width <= 0 || bounds.Height <= 0) return;
         if (items.Count == 1) { result.Add((items[0].Node, bounds)); return; }
 
         var shortSide = Math.Min(bounds.Width, bounds.Height);
@@ -843,11 +994,13 @@ file sealed class AnalyzerPage : Page
                 EmitRowEx(row, bounds, result);
                 var rowArea = row.Sum(r => r.Area);
                 var totalArea = bounds.Width * bounds.Height;
-                var frac = rowArea / totalArea;
+                if (totalArea <= 0) return;
+                var frac = Math.Min(1.0, rowArea / totalArea);
+                if (frac >= 1.0) return;
                 var wide = bounds.Width >= bounds.Height;
                 var nb = wide
-                    ? new Rect(bounds.X + bounds.Width * frac, bounds.Y, bounds.Width * (1 - frac), bounds.Height)
-                    : new Rect(bounds.X, bounds.Y + bounds.Height * frac, bounds.Width, bounds.Height * (1 - frac));
+                    ? new Rect(bounds.X + bounds.Width * frac, bounds.Y, Math.Max(0, bounds.Width * (1 - frac)), bounds.Height)
+                    : new Rect(bounds.X, bounds.Y + bounds.Height * frac, bounds.Width, Math.Max(0, bounds.Height * (1 - frac)));
                 LayRowEx(items.Skip(i).ToList(), nb, result);
                 return;
             }
@@ -868,8 +1021,8 @@ file sealed class AnalyzerPage : Page
         {
             if (area <= 0) continue;
             Rect r;
-            if (wide) { var h = area / rowLen; r = new Rect(bounds.X, bounds.Y + off, rowLen, h); off += h; }
-            else { var w = area / rowLen; r = new Rect(bounds.X + off, bounds.Y, w, rowLen); off += w; }
+            if (wide) { var h = area / rowLen; r = new Rect(bounds.X, bounds.Y + off, rowLen, Math.Max(0, h)); off += h; }
+            else { var w = area / rowLen; r = new Rect(bounds.X + off, bounds.Y, Math.Max(0, w), rowLen); off += w; }
             result.Add((node, r));
         }
     }

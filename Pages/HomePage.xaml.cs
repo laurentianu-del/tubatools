@@ -31,6 +31,23 @@ public sealed partial class HomePage : Page
         _category = e.Parameter as string;
         SearchBox.Text = string.Empty;
         ResetAndLoad();
+        ApplyBackground();
+    }
+
+    private void ApplyBackground()
+    {
+        var bmp = BackgroundService.LoadBackgroundImage();
+        if (bmp is not null)
+        {
+            BackgroundImg.Source = bmp;
+            BackgroundImg.Opacity = BackgroundService.GetBackgroundOpacity();
+            BackgroundImg.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            BackgroundImg.Source = null;
+            BackgroundImg.Visibility = Visibility.Collapsed;
+        }
     }
 
     private void SearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)

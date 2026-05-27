@@ -14,6 +14,7 @@ public sealed class UpdateAsset
 {
     public required string Name { get; init; }
     public required string BrowserDownloadUrl { get; init; }
+    public string? OriginalDownloadUrl { get; init; }
     public long Size { get; init; }
     public string? ContentType { get; init; }
 }

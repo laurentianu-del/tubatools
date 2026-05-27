@@ -12,6 +12,8 @@ public static class UpdateService
 {
     private const string Owner = "luolangaga";
     private const string Repo = "tubatool";
+    private const string HubBase = "https://hub.tubawinui3.cn";
+    private const string HubReleaseApi = $"{HubBase}/api/repos/{Owner}/{Repo}/releases/latest";
     private const string ReleaseApi = $"https://api.github.com/repos/{Owner}/{Repo}/releases/latest";
     private const string ReleasePage = $"https://github.com/{Owner}/{Repo}/releases/latest";
 
@@ -76,6 +78,16 @@ public static class UpdateService
     {
         try
         {
+            using var hubClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+            hubClient.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-UpdateChecker");
+            var hubResponse = await hubClient.GetAsync(HubReleaseApi, ct);
+            if (hubResponse.IsSuccessStatusCode)
+                return await hubResponse.Content.ReadAsStringAsync(ct);
+        }
+        catch { }
+
+        try
+        {
             var request = new HttpRequestMessage(HttpMethod.Get, ReleaseApi);
             if (_cachedEtag is not null)
                 request.Headers.Add("If-None-Match", _cachedEtag);
@@ -134,7 +146,8 @@ public static class UpdateService
                 foreach (var asset in assetsEl.EnumerateArray())
                 {
                     var name = asset.GetProperty("name").GetString() ?? "";
-                    var url = asset.GetProperty("browser_download_url").GetString() ?? "";
+                    var originalUrl = asset.GetProperty("browser_download_url").GetString() ?? "";
+                    var url = originalUrl.Replace("https://github.com", HubBase, StringComparison.OrdinalIgnoreCase);
                     var size = asset.TryGetProperty("size", out var sizeEl) ? sizeEl.GetInt64() : 0;
                     var contentType = asset.TryGetProperty("content_type", out var ctEl) ? ctEl.GetString() : null;
 
@@ -147,6 +160,7 @@ public static class UpdateService
                         {
                             Name = name,
                             BrowserDownloadUrl = url,
+                            OriginalDownloadUrl = originalUrl,
                             Size = size,
                             ContentType = contentType
                         });
@@ -173,10 +187,42 @@ public static class UpdateService
     public static async Task<List<ProxySpeedResult>> TestProxySpeedsAsync(
         string originalUrl, IProgress<ProxySpeedResult>? progress = null, CancellationToken ct = default)
     {
+        var results = new List<ProxySpeedResult>();
+
+        try
+        {
+            using var hubClient = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
+            var sw = Stopwatch.StartNew();
+            using var hubResponse = await hubClient.GetAsync($"{HubBase}/favicon.ico", ct);
+            sw.Stop();
+
+            results.Add(new ProxySpeedResult
+            {
+                Name = "Hub 镜像",
+                BaseUrl = HubBase,
+                LatencyMs = sw.Elapsed.TotalMilliseconds,
+                SpeedMbps = 0,
+                IsAvailable = hubResponse.IsSuccessStatusCode,
+                Error = hubResponse.IsSuccessStatusCode ? null : $"HTTP {(int)hubResponse.StatusCode}"
+            });
+            progress?.Report(results[^1]);
+        }
+        catch (Exception ex)
+        {
+            results.Add(new ProxySpeedResult
+            {
+                Name = "Hub 镜像",
+                BaseUrl = HubBase,
+                LatencyMs = double.MaxValue,
+                SpeedMbps = 0,
+                IsAvailable = false,
+                Error = ex.Message
+            });
+            progress?.Report(results[^1]);
+        }
+
         var probeUrl = "https://github.com/favicon.ico";
         var tasks = ProxyList.Select(proxy => TestSingleProxy(proxy, probeUrl, ct)).ToList();
-
-        var results = new List<ProxySpeedResult>();
 
         while (tasks.Count > 0)
         {
@@ -241,10 +287,55 @@ public static class UpdateService
         UpdateAsset asset, string? proxyBaseUrl, IProgress<DownloadProgress>? progress,
         CancellationToken ct = default)
     {
-        var downloadUrl = proxyBaseUrl is not null
-            ? BuildProxyUrl(proxyBaseUrl, asset.BrowserDownloadUrl)
-            : asset.BrowserDownloadUrl;
+        var urls = new List<string>();
 
+        urls.Add(asset.BrowserDownloadUrl);
+
+        var originalUrl = asset.OriginalDownloadUrl ?? asset.BrowserDownloadUrl;
+        var isHubSelected = proxyBaseUrl is not null &&
+                           proxyBaseUrl.Equals(HubBase, StringComparison.OrdinalIgnoreCase);
+
+        if (isHubSelected)
+        {
+            if (originalUrl != asset.BrowserDownloadUrl)
+                urls.Add(originalUrl);
+        }
+        else
+        {
+            if (originalUrl != asset.BrowserDownloadUrl)
+            {
+                if (proxyBaseUrl is not null)
+                    urls.Add(BuildProxyUrl(proxyBaseUrl, originalUrl));
+                urls.Add(originalUrl);
+            }
+            else
+            {
+                if (proxyBaseUrl is not null)
+                    urls.Add(BuildProxyUrl(proxyBaseUrl, asset.BrowserDownloadUrl));
+            }
+        }
+
+        Exception? lastError = null;
+
+        foreach (var downloadUrl in urls)
+        {
+            try
+            {
+                return await DownloadFileAsync(downloadUrl, asset, progress, ct);
+            }
+            catch (Exception ex)
+            {
+                lastError = ex;
+            }
+        }
+
+        throw lastError!;
+    }
+
+    private static async Task<string> DownloadFileAsync(
+        string downloadUrl, UpdateAsset asset, IProgress<DownloadProgress>? progress,
+        CancellationToken ct = default)
+    {
         var tempDir = Path.Combine(Path.GetTempPath(), "TubaWinUi3_Update");
         Directory.CreateDirectory(tempDir);
 

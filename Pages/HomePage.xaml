@@ -29,6 +29,14 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
+        <Image
+            x:Name="BackgroundImg"
+            Stretch="UniformToFill"
+            Opacity="0.15"
+            Grid.RowSpan="3"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center" />
+
         <Grid ColumnSpacing="18">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />

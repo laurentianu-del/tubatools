@@ -23,7 +23,7 @@ public sealed class PowerMonitorTool : IBuiltinTool
 {
     public string Id => "power-monitor";
     public string Name => "硬件监测";
-    public string Description => "实时显示 CPU/GPU 负载和电池放电功耗，支持弹出悬窗置顶显示。";
+    public string Description => "实时显示 CPU/GPU 功耗与负载、电池充放电功率，支持弹出悬窗置顶显示。";
     public string Glyph => "\uE945";
     public string Category => "监测工具";
     public BuiltinToolKind Kind => BuiltinToolKind.BackgroundTask;
@@ -36,7 +36,7 @@ public sealed class PowerMonitorTool : IBuiltinTool
             CloseButtonText = "关闭",
             XamlRoot = context.XamlRoot
         };
-        dialog.Resources["ContentDialogMaxWidth"] = 700;
+        dialog.Resources["ContentDialogMaxWidth"] = 960;
         dialog.Content = BuildDialogContent();
         await dialog.ShowAsync();
     }
@@ -49,9 +49,9 @@ public sealed class PowerMonitorTool : IBuiltinTool
         var cpuLoadText = new TextBlock { FontSize = 28, FontWeight = Microsoft.UI.Text.FontWeights.Bold };
         var gpuLoadText = new TextBlock { FontSize = 28, FontWeight = Microsoft.UI.Text.FontWeights.Bold };
         var batteryText = new TextBlock { FontSize = 28, FontWeight = Microsoft.UI.Text.FontWeights.Bold };
-        var cpuNameText = new TextBlock { FontSize = 11, Opacity = 0.68, Text = "CPU 负载" };
-        var gpuNameText = new TextBlock { FontSize = 11, Opacity = 0.68, Text = "GPU 负载" };
-        var batteryNameText = new TextBlock { FontSize = 11, Opacity = 0.68, Text = "电池放电" };
+        var cpuNameText = new TextBlock { FontSize = 11, Opacity = 0.68, Text = "CPU" };
+        var gpuNameText = new TextBlock { FontSize = 11, Opacity = 0.68, Text = "GPU" };
+        var batteryNameText = new TextBlock { FontSize = 11, Opacity = 0.68, Text = "电池" };
         var refreshCombo = new ComboBox { MinWidth = 90, SelectedIndex = 1 };
         refreshCombo.Items.Add("0.5秒");
         refreshCombo.Items.Add("1秒");
@@ -87,15 +87,29 @@ public sealed class PowerMonitorTool : IBuiltinTool
                 gpuNameText.Text = sample.GpuName;
                 cpuLoadText.Text = $"{sample.CpuLoad:0}%";
                 gpuLoadText.Text = $"{sample.GpuLoad:0}%";
+
                 if (sample.BatteryPercent >= 0)
                 {
-                    batteryText.Text = $"{sample.BatteryDischargeWatts:0.0} W";
-                    batteryNameText.Text = $"电池放电 ({sample.BatteryPercent}%)";
+                    if (sample.IsCharging)
+                    {
+                        batteryNameText.Text = $"充电功率 ({sample.BatteryPercent}%)";
+                        batteryText.Text = sample.BatteryChargeWatts > 0 ? $"{sample.BatteryChargeWatts:0.0} W" : "充电中";
+                    }
+                    else if (sample.BatteryDischargeWatts > 0)
+                    {
+                        batteryNameText.Text = $"放电功率 ({sample.BatteryPercent}%)";
+                        batteryText.Text = $"{sample.BatteryDischargeWatts:0.0} W";
+                    }
+                    else
+                    {
+                        batteryNameText.Text = $"电池 ({sample.BatteryPercent}%)";
+                        batteryText.Text = "已接电源";
+                    }
                 }
                 else
                 {
                     batteryText.Text = "—";
-                    batteryNameText.Text = "电池放电（未检测到）";
+                    batteryNameText.Text = "电池（未检测到）";
                 }
             }
             finally { ticking = false; }
@@ -212,7 +226,7 @@ public sealed class PowerMonitorTool : IBuiltinTool
 
         var window = new Window { Content = page };
         window.AppWindow.Title = "硬件监测";
-        window.AppWindow.Resize(new SizeInt32(340, 420));
+        window.AppWindow.Resize(new SizeInt32(340, 460));
         window.AppWindow.Move(new PointInt32(100, 100));
         window.AppWindow.TitleBar.ExtendsContentIntoTitleBar = true;
         window.AppWindow.TitleBar.ButtonBackgroundColor = AppColors.Transparent;
@@ -255,9 +269,23 @@ public sealed class PowerMonitorTool : IBuiltinTool
 
                 if (sample.BatteryPercent >= 0)
                 {
-                    batLoadText.Text = $"{sample.BatteryDischargeWatts:0.0}W";
-                    batLabel.Text = $"BAT {sample.BatteryPercent}%";
-                    AddHistory(batHistory, sample.BatteryDischargeWatts, maxHistory);
+                    if (sample.IsCharging)
+                    {
+                        batLoadText.Text = sample.BatteryChargeWatts > 0 ? $"{sample.BatteryChargeWatts:0.0}W" : "充电中";
+                        batLabel.Text = $"充电 {sample.BatteryPercent}%";
+                        AddHistory(batHistory, sample.BatteryChargeWatts, maxHistory);
+                    }
+                    else if (sample.BatteryDischargeWatts > 0)
+                    {
+                        batLoadText.Text = $"{sample.BatteryDischargeWatts:0.0}W";
+                        batLabel.Text = $"放电 {sample.BatteryPercent}%";
+                        AddHistory(batHistory, sample.BatteryDischargeWatts, maxHistory);
+                    }
+                    else
+                    {
+                        batLoadText.Text = "已接电源";
+                        batLabel.Text = $"BAT {sample.BatteryPercent}%";
+                    }
                 }
                 else
                 {
@@ -267,7 +295,11 @@ public sealed class PowerMonitorTool : IBuiltinTool
 
                 DrawSparkline(cpuChart, cpuHistory, AppColors.CpuAccent, 0, 100);
                 DrawSparkline(gpuChart, gpuHistory, AppColors.GpuAccent, 0, 100);
-                if (batHistory.Count > 0) DrawSparkline(batChart, batHistory, AppColors.BatAccent, 0, Math.Max(10, batHistory.Max() * 1.2f));
+                if (batHistory.Count > 0)
+                {
+                    var batMax = Math.Max(10, batHistory.Max() * 1.2f);
+                    DrawSparkline(batChart, batHistory, AppColors.BatAccent, 0, batMax);
+                }
             }
             finally { ticking = false; }
         }

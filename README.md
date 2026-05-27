@@ -1,5 +1,7 @@
 # 图吧工具箱 TubaWinUi3
 
+官网：[https://tubawinui3.cn](https://tubawinui3.cn)
+
 一个用 WinUI 3 做的 PC 硬件工具集合，把硬件检测、压力测试、系统优化之类的工具收在一起，打开就能用。
 
 ## 功能
@@ -187,6 +189,222 @@ dotnet run          # 运行（Unpackaged 模式）
 - System.Management（WMI 硬件信息查询）
 - System.Drawing.Common（图标提取）
 - 最低支持 Windows 10 1809
+
+## 新手开发指南
+
+本节面向刚接触本项目的新手开发者，介绍如何为图吧工具箱添加新的内置工具，以及 Git 协作流程。
+
+### 环境准备
+
+1. 安装 [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+2. 安装 [Visual Studio 2022 17.14+](https://visualstudio.microsoft.com/) 或 [VS Code](https://code.visualstudio.com/)（配合 C# Dev Kit 扩展）
+3. 安装 [Git](https://git-scm.com/downloads)
+
+```bash
+git clone <仓库地址>
+cd tubawinui3
+dotnet build        # 确认编译通过
+dotnet run          # 运行（Unpackaged 模式）
+```
+
+---
+
+### 项目结构速览
+
+```
+App.xaml.cs                       → 应用入口，创建 MainWindow
+MainWindow.xaml.cs                → 导航框架，侧边栏 + Frame
+Pages/
+  HomePage.xaml.cs                → 外部工具网格（扫描 Tools/ 文件夹）
+  BuiltinToolsPage.xaml.cs        → 内置工具页面（展示 IBuiltinTool 列表）
+  HardwarePage.xaml.cs            → WMI 硬件信息
+  SettingsPage.xaml.cs            → 设置页
+Services/
+  IBuiltinTool.cs                 → 内置工具接口（核心）
+  BuiltinToolRegistry.cs          → 内置工具注册表
+  BuiltinTools/                   → 所有内置工具的实现
+    KeyboardTestTool.cs
+    DiskSpaceAnalyzerTool.cs
+    ...
+  ToolCatalog.cs                  → 外部工具扫描（Tools/ 文件夹）
+  ToolMetadataService.cs          → 工具元数据（tools.json）
+  *Service.cs                     → 各工具对应的后端服务
+Models/
+  ToolItem.cs                     → 外部工具数据模型
+Metadata/
+  tools.json                      → 外部工具的描述/发布者/下载链接
+Tools/                            → 第三方可执行文件（按中文分类文件夹组织）
+```
+
+---
+
+### 添加内置工具（4 步）
+
+内置工具是直接嵌入在应用中的功能，无需外部 exe。所有内置工具都实现 `IBuiltinTool` 接口。
+
+#### 第 1 步：创建工具类
+
+在 `Services/BuiltinTools/` 下新建一个 `.cs` 文件，实现 `IBuiltinTool` 接口：
+
+```csharp
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Windows.UI;
+
+namespace TubaWinUi3.Services;
+
+public sealed class MyNewTool : IBuiltinTool
+{
+    public string Id => "my-new-tool";           // 唯一标识，用 kebab-case
+    public string Name => "我的工具";              // 显示名称
+    public string Description => "这是一个示例内置工具。"; // 工具描述
+    public string Glyph => "\uE8E5";             // Segoe MDL2 Assets 图标
+    public string Category => "系统工具";          // 分类（已有的：系统工具/网络工具/外设工具/硬件信息...）
+    public BuiltinToolKind Kind => BuiltinToolKind.Dialog; // 工具类型
+
+    public async Task ExecuteAsync(BuiltinToolContext context)
+    {
+        var dialog = new ContentDialog
+        {
+            Title = Name,
+            Content = "Hello from MyNewTool!",
+            CloseButtonText = "关闭",
+            XamlRoot = context.XamlRoot
+        };
+        await dialog.ShowAsync();
+    }
+}
+```
+
+#### 第 2 步：选择工具类型（BuiltinToolKind）
+
+| 类型 | 说明 | 适用场景 |
+|------|------|----------|
+| `Dialog` | 弹窗式，工具 UI 在 ContentDialog 中展示 | 需要交互界面的工具（键盘测试、端口查看） |
+| `BackgroundTask` | 后台执行，完成后通知 | 快速查询类（WiFi 密码查看） |
+| `ProgressTask` | 带进度的长时间任务 | 需要进度条的任务（网速测试、电池报告） |
+| `InstantAction` | 即时操作，无 UI | 一键执行的动作（刷新 DNS） |
+
+#### 第 3 步：注册工具
+
+打开 `Services/BuiltinToolRegistry.cs`，在 `RegisterDefaults()` 方法中添加一行：
+
+```csharp
+public static void RegisterDefaults()
+{
+    // ... 已有工具 ...
+    Register(new MyNewTool());   // ← 添加这一行
+}
+```
+
+#### 第 4 步：运行验证
+
+```bash
+dotnet build
+dotnet run
+```
+
+启动后在左侧导航点击"内置工具"，即可看到新工具出现在列表中。
+
+---
+
+### 内置工具开发模式参考
+
+项目中已有 12 个内置工具，可以作为参考：
+
+| 工具文件 | 类型 | 特点 |
+|----------|------|------|
+| `KeyboardTestTool.cs` | Dialog | 纯弹窗交互，KeyDown/KeyUp 事件处理 |
+| `DiskSpaceAnalyzerTool.cs` | Dialog | 打开独立 Window，Canvas 自绘，复杂 UI |
+| `PortViewerTool.cs` | Dialog | 列表 + 搜索 + 筛选，后台数据加载 |
+| `HostsEditorTool.cs` | Dialog | CRUD 操作，保存/备份，未保存提醒 |
+| `WifiPasswordTool.cs` | BackgroundTask | 后台获取数据，加载状态切换 |
+| `SpeedTestTool.cs` | ProgressTask | 进度条 + 取消，长时间任务 |
+| `BatteryReportTool.cs` | ProgressTask | 异步加载 + 空状态处理 |
+| `BsodAnalysisTool.cs` | Dialog | 文件解析，结果展示 |
+| `JunkCleanerTool.cs` | ProgressTask | 扫描 + 清理两阶段 |
+| `CertBlockTool.cs` | Dialog | 证书管理 |
+| `PowerMonitorTool.cs` | BackgroundTask | 实时监控数据 |
+| `WingetInstallerTool.cs` | Dialog | 软件包管理 |
+
+**常见模式**：
+
+- **状态管理**：工具 UI 中的控件引用通常通过 `ScrollViewer.Tag` 存储一个内部 State 类（如 `SpeedTestState`），避免字段初始化问题。
+- **异步加载**：先显示加载动画（ProgressRing），`await Task.Run(...)` 执行后台操作，完成后切换到内容面板。
+- **颜色常量**：使用 `ThemeColors` 静态类保持风格统一，强调色用 `AccentBlue/Green/Orange/Red/Purple`。
+- **卡片布局**：`MakeStatCard()` 是常用的统计卡片构建方法，在各工具中反复出现，可参考复制。
+
+---
+
+### 添加外部工具（2 步）
+
+外部工具是放在 `Tools/` 文件夹中的第三方可执行文件，应用会自动扫描并展示。
+
+#### 第 1 步：放入工具文件
+
+将工具放在对应的中文分类文件夹下（如 `Tools/硬盘工具/CrystalDiskMark/`）。支持的文件类型：
+
+`.exe` `.bat` `.cmd` `.lnk` `.msc` `.ps1` `.vbs`
+
+如果文件夹内有多个可执行文件，应用会按以下优先级选择主入口：
+1. 文件名与文件夹名完全匹配
+2. 去掉架构后缀（x64/x86/ARM64）后匹配
+3. 根目录下的第一个可执行文件
+
+#### 第 2 步：添加元数据（可选）
+
+编辑 `Metadata/tools.json`，添加描述和下载链接：
+
+```json
+{
+  "match": "CrystalDiskMark",
+  "description": "硬盘读写速度基准测试工具。",
+  "publisher": "Crystal Dew World",
+  "tags": [ "硬盘", "速度测试" ]
+}
+```
+
+- `match`：大小写不敏感的子串匹配，会同时匹配文件名和相对路径
+- `downloadUrl`：如果工具不内置而提供下载，填入下载地址。`gh:用户名/仓库名` 格式表示从 GitHub Release 下载
+- `downloadFilter`：下载文件名通配符筛选，如 `"*UserSetup*x64*.exe"`
+
+---
+
+### 常用 Segoe MDL2 图标
+
+内置工具的 `Glyph` 使用 Segoe MDL2 Assets 字体：
+
+| 图标 | Glyph | 用途 |
+|------|-------|------|
+| 🖥 | `\uE975` | 设备/电脑 |
+| 🔧 | `\uE90F` | 设置/工具 |
+| 📊 | `\uE774` | 图表/监控 |
+| 🔍 | `\uE721` | 搜索 |
+| ⚡ | `\uE8A0` | 电力/性能 |
+| 🌐 | `\uE774` | 网络 |
+| 🗑 | `\uE74D` | 删除 |
+| 📋 | `\uE8C8` | 复制/列表 |
+| ▶ | `\uE768` | 播放/运行 |
+| 🔄 | `\uE72C` | 刷新 |
+
+完整图标列表：[Segoe MDL2 Assets](https://learn.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-icon)
+
+---
+
+### Git 协作流程
+
+```bash
+git clone <仓库地址> && cd tubawinui3   # 克隆
+git checkout -b feature/xxx              # 新建分支开发
+git add <文件> && git commit -m "feat: 添加xxx"  # 提交
+git push origin feature/xxx              # 推送，然后创建 PR
+```
+
+提交信息格式：`feat:` 新功能 / `fix:` 修复 / `docs:` 文档 / `refactor:` 重构
+
+> 提交前确保 `dotnet build` 通过，不要提交 `bin/` `obj/` `.pfx` `.cer` 等文件。
+
+---
 
 ## 致谢
 
