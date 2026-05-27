@@ -71,6 +71,11 @@ public static class ToolIconService
     public static string? GetIconGlyph(string toolPath)
     {
         var extension = Path.GetExtension(toolPath);
+        if (extension.Equals(".exe", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".lnk", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
         return ExtensionGlyphs.TryGetValue(extension, out var glyph) ? glyph : "\uE8B7";
     }
 
