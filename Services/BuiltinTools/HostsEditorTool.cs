@@ -25,17 +25,13 @@ public sealed class HostsEditorTool : IBuiltinTool
 
     public async Task ExecuteAsync(BuiltinToolContext context)
     {
-        var dialog = new ContentDialog
-        {
-            Title = "Hosts 编辑",
-            CloseButtonText = "关闭",
-            XamlRoot = context.XamlRoot
-        };
+        var dialog = context.CreateDialog("Hosts 编辑");
         dialog.Resources["ContentDialogMaxWidth"] = 900;
         dialog.Resources["ContentDialogMaxHeight"] = 720;
 
         var content = BuildDialogContent();
         dialog.Content = content;
+
         dialog.Closing += (s, e) =>
         {
             if (_dirty)
@@ -60,7 +56,8 @@ public sealed class HostsEditorTool : IBuiltinTool
             PrimaryButtonText = "放弃",
             CloseButtonText = "继续编辑",
             DefaultButton = ContentDialogButton.Close,
-            XamlRoot = dialog.XamlRoot
+            XamlRoot = dialog.XamlRoot,
+            RequestedTheme = ThemeService.CurrentElementTheme
         };
         var result = await warn.ShowAsync();
         if (result == ContentDialogResult.Primary)
@@ -301,7 +298,8 @@ public sealed class HostsEditorTool : IBuiltinTool
             PrimaryButtonText = "保存",
             CloseButtonText = "取消",
             DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = state.XamlRoot
+            XamlRoot = state.XamlRoot,
+            RequestedTheme = ThemeService.CurrentElementTheme
         };
 
         var result = await dlg.ShowAsync();

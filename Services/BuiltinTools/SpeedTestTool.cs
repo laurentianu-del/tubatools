@@ -24,12 +24,7 @@ public sealed class SpeedTestTool : IBuiltinTool
 
     public async Task ExecuteAsync(BuiltinToolContext context)
     {
-        var dialog = new ContentDialog
-        {
-            Title = "网速测试",
-            CloseButtonText = "关闭",
-            XamlRoot = context.XamlRoot
-        };
+        var dialog = context.CreateDialog("网速测试");
         dialog.Resources["ContentDialogMaxWidth"] = 860;
         dialog.Closing += (_, args) =>
         {

@@ -332,6 +332,82 @@
 
                 <TextBlock
                     Style="{StaticResource SectionHeaderStyle}"
+                    Text="自定义工具" />
+
+                <Border Style="{StaticResource SettingsCardStyle}">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Style="{StaticResource IconBorderStyle}">
+                            <FontIcon FontSize="18" Glyph="&#xE8E5;" />
+                        </Border>
+
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                            <TextBlock FontWeight="SemiBold" Text="导入自定义工具" />
+                            <TextBlock
+                                x:Name="ImportToolStatusText"
+                                Opacity="0.68"
+                                FontSize="13"
+                                TextWrapping="Wrap"
+                                Text="从压缩包导入工具，选择主程序、架构版本、简介和分类。" />
+                        </StackPanel>
+
+                        <Button
+                            x:Name="ImportToolButton"
+                            Grid.Column="2"
+                            VerticalAlignment="Center"
+                            Padding="14,6"
+                            Click="ImportToolButton_Click">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon FontSize="12" Glyph="&#xE8E5;" />
+                                <TextBlock Text="导入" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <Border Style="{StaticResource SettingsCardStyle}">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Style="{StaticResource IconBorderStyle}">
+                            <FontIcon FontSize="18" Glyph="&#xE896;" />
+                        </Border>
+
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                            <TextBlock FontWeight="SemiBold" Text="导出当前软件" />
+                            <TextBlock
+                                x:Name="ExportAppStatusText"
+                                Opacity="0.68"
+                                FontSize="13"
+                                TextWrapping="Wrap"
+                                Text="把当前程序目录、工具和元数据打包成可分发压缩包。" />
+                        </StackPanel>
+
+                        <Button
+                            x:Name="ExportAppButton"
+                            Grid.Column="2"
+                            VerticalAlignment="Center"
+                            Padding="14,6"
+                            Click="ExportAppButton_Click">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon FontSize="12" Glyph="&#xE896;" />
+                                <TextBlock Text="导出" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <TextBlock
+                    Style="{StaticResource SectionHeaderStyle}"
                     Text="工具来源" />
 
                 <Border Style="{StaticResource SettingsCardStyle}">

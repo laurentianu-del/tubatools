@@ -21,12 +21,7 @@ public sealed class CertBlockTool : IBuiltinTool
     {
         CertBlockService.LoadAsync();
 
-        var dialog = new ContentDialog
-        {
-            Title = "证书拦截",
-            CloseButtonText = "关闭",
-            XamlRoot = context.XamlRoot
-        };
+        var dialog = context.CreateDialog("证书拦截");
         dialog.Resources["ContentDialogMaxWidth"] = 800;
 
         var content = BuildDialogContent();

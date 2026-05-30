@@ -22,18 +22,14 @@ public sealed class BatteryReportTool : IBuiltinTool
 
     public async Task ExecuteAsync(BuiltinToolContext context)
     {
-        var dialog = new ContentDialog
-        {
-            Title = "电池报告",
-            CloseButtonText = "关闭",
-            XamlRoot = context.XamlRoot
-        };
+        var dialog = context.CreateDialog("电池报告");
         dialog.Resources["ContentDialogMaxWidth"] = 860;
 
         var content = BuildDialogContent();
         dialog.Content = content;
 
         _ = LoadBatteryInfoAsync(content);
+
         await dialog.ShowAsync();
     }
 

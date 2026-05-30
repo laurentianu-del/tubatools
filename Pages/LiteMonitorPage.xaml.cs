@@ -152,6 +152,12 @@ public sealed partial class LiteMonitorPage : Page
         var fpsOn = FpsToggle.IsChecked == true;
         var s = _svc.Read(fpsOn);
 
+        UpdateUI(s, fpsOn);
+    }
+
+    private void UpdateUI(MonitorSample s, bool fpsOn)
+    {
+
         Set(_cpuLoad, $"{s.CpuLoad:0}%"); Set(_cpuTemp, s.CpuTemp >= 0 ? $"{s.CpuTemp:0}°C" : "");
         Set(_cpuClock, s.CpuClock > 0 ? $"{s.CpuClock / 1000f:0.0} GHz" : "");
         Set(_cpuPower, s.CpuPower > 0 ? $"{s.CpuPower:0.0} W" : "");
@@ -247,7 +253,8 @@ public sealed partial class LiteMonitorPage : Page
                     Title = "需要管理员权限",
                     Content = "FPS 帧率检测需要以管理员身份运行程序。\n请关闭本程序，右键选择「以管理员身份运行」后再试。",
                     CloseButtonText = "知道了",
-                    XamlRoot = XamlRoot
+                    XamlRoot = XamlRoot,
+                    RequestedTheme = ThemeService.CurrentElementTheme
                 };
                 await tip.ShowAsync();
                 return;
@@ -344,7 +351,8 @@ public sealed partial class LiteMonitorPage : Page
             Content = new ScrollViewer { Content = panel },
             PrimaryButtonText = "保存",
             CloseButtonText = "取消",
-            XamlRoot = XamlRoot
+            XamlRoot = XamlRoot,
+            RequestedTheme = ThemeService.CurrentElementTheme
         };
 
         dialog.PrimaryButtonClick += (_, _) =>
@@ -386,7 +394,6 @@ public sealed partial class LiteMonitorPage : Page
         var isDark = Application.Current.RequestedTheme == ApplicationTheme.Dark;
         var fgColor = isDark ? Color.FromArgb(255, 240, 240, 240) : Color.FromArgb(255, 30, 30, 30);
         var dimColor = isDark ? Color.FromArgb(255, 150, 150, 150) : Color.FromArgb(255, 100, 100, 100);
-
         var topmostBtn = new Button
         {
             Content = new FontIcon { FontSize = 12, Glyph = "\uE840" },
@@ -508,6 +515,8 @@ public sealed partial class LiteMonitorPage : Page
         var fpsH = new List<float>();
         var isTopmost = false;
         bool ticking = false;
+        PopupSettings? cachedCfg = null;
+        int cfgRefreshTick = 0;
 
 void ApplyTopmost()
         {
@@ -544,7 +553,9 @@ void ApplyTopmost()
             {
                 var fpsOn = FpsToggle.IsChecked == true;
                 var sample = _svc.Read(fpsOn);
-                var cfg = PopupSettings.Load();
+                cfgRefreshTick++;
+                if (cachedCfg == null || cfgRefreshTick % 10 == 0) cachedCfg = PopupSettings.Load();
+                var cfg = cachedCfg;
                 if (popupHwnd != IntPtr.Zero) ApplyWindowOpacity(popupHwnd, cfg.Opacity);
 
                 cpuRow.Visibility = cfg.ShowCpu ? Visibility.Visible : Visibility.Collapsed;
@@ -727,6 +738,30 @@ void ApplyTopmost()
         };
     }
 
+    private static readonly Dictionary<Color, SolidColorBrush> _brushCache = [];
+    private static readonly Dictionary<(Color, byte), SolidColorBrush> _fillBrushCache = [];
+
+    private static SolidColorBrush GetBrush(Color color)
+    {
+        if (!_brushCache.TryGetValue(color, out var brush))
+        {
+            brush = new SolidColorBrush(color);
+            _brushCache[color] = brush;
+        }
+        return brush;
+    }
+
+    private static SolidColorBrush GetFillBrush(Color color)
+    {
+        var key = (color, (byte)35);
+        if (!_fillBrushCache.TryGetValue(key, out var brush))
+        {
+            brush = new SolidColorBrush(Color.FromArgb(35, color.R, color.G, color.B));
+            _fillBrushCache[key] = brush;
+        }
+        return brush;
+    }
+
     private static void DrawSparkline(Canvas canvas, List<float> data, Color color, float minVal, float maxVal)
     {
         canvas.Children.Clear();
@@ -747,7 +782,7 @@ void ApplyTopmost()
         }
 
         if (pc.Count >= 2)
-            canvas.Children.Add(new Polyline { Points = pc, Stroke = new SolidColorBrush(color), StrokeThickness = 1.5 });
+            canvas.Children.Add(new Polyline { Points = pc, Stroke = GetBrush(color), StrokeThickness = 1.5 });
 
         var fc = new PointCollection();
         for (int i = 0; i < data.Count; i++)
@@ -759,7 +794,7 @@ void ApplyTopmost()
         }
         fc.Add(new Point((data.Count - 1) * step, h));
         fc.Add(new Point(0, h));
-        canvas.Children.Add(new Polygon { Points = fc, Fill = new SolidColorBrush(Color.FromArgb(35, color.R, color.G, color.B)) });
+        canvas.Children.Add(new Polygon { Points = fc, Fill = GetFillBrush(color) });
     }
 
     [DllImport("user32.dll")]

@@ -5,7 +5,18 @@ namespace TubaWinUi3.Services;
 
 internal static class ThemeColors
 {
-    private static bool IsDark => Application.Current.RequestedTheme == ApplicationTheme.Dark;
+    private static bool IsDark
+    {
+        get
+        {
+            // 优先使用应用手动设置的主题
+            var appTheme = ThemeService.CurrentTheme;
+            if (appTheme == AppTheme.Dark) return true;
+            if (appTheme == AppTheme.Light) return false;
+            // Default 跟随系统
+            return Application.Current.RequestedTheme == ApplicationTheme.Dark;
+        }
+    }
 
     public static Color CardBg => IsDark ? Color.FromArgb(255, 45, 45, 45) : Color.FromArgb(255, 249, 249, 249);
     public static Color BorderColor => IsDark ? Color.FromArgb(255, 60, 60, 60) : Color.FromArgb(255, 229, 229, 229);

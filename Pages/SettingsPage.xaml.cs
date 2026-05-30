@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Media.Imaging;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using TubaWinUi3;
 using TubaWinUi3.Services;
 
 namespace TubaWinUi3.Pages;
@@ -46,8 +47,13 @@ public sealed partial class SettingsPage : Page
     [DllImport("comdlg32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern bool GetOpenFileName(ref OPENFILENAME ofn);
 
+    [DllImport("comdlg32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool GetSaveFileName(ref OPENFILENAME ofn);
+
     private const int OFN_FILEMUSTEXIST = 0x00001000;
     private const int OFN_NOCHANGEDIR = 0x00000008;
+    private const int OFN_OVERWRITEPROMPT = 0x00000002;
+    private const int OFN_PATHMUSTEXIST = 0x00000800;
 
     public SettingsPage()
     {
@@ -249,6 +255,281 @@ public sealed partial class SettingsPage : Page
         _compactModeInitializing = true;
         CompactModeToggle.IsOn = CompactModeService.IsCompactModeEnabled();
         _compactModeInitializing = false;
+    }
+
+    private async void ImportToolButton_Click(object sender, RoutedEventArgs e)
+    {
+        var packagePath = PickOpenFile("选择工具压缩包", "压缩包\0*.zip\0所有文件\0*.*\0\0");
+        if (string.IsNullOrWhiteSpace(packagePath))
+            return;
+
+        ImportToolButton.IsEnabled = false;
+        ImportToolStatusText.Text = "正在读取压缩包...";
+
+        try
+        {
+            var executables = CustomToolPackageService.GetExecutables(packagePath);
+            if (executables.Count == 0)
+            {
+                ImportToolStatusText.Text = "压缩包中没有找到 exe 文件";
+                await ShowMessageAsync("未找到可导入工具", "压缩包里需要至少包含一个 .exe 文件。");
+                return;
+            }
+
+            var request = await ShowImportToolDialogAsync(packagePath, executables);
+            if (request is null)
+            {
+                ImportToolStatusText.Text = "已取消导入";
+                return;
+            }
+
+            ImportToolStatusText.Text = "正在导入工具...";
+            var result = await CustomToolPackageService.ImportAsync(request);
+
+            if (App.MainWindow is MainWindow mainWindow)
+                mainWindow.RefreshToolCategories();
+
+            ImportToolStatusText.Text = $"已导入 {Path.GetFileName(result.ToolDirectory)}";
+            await ShowMessageAsync("导入完成", $"工具已导入到：\n{result.ToolDirectory}");
+        }
+        catch (Exception ex)
+        {
+            ImportToolStatusText.Text = $"导入失败: {ex.Message}";
+            await ShowMessageAsync("导入失败", ex.Message);
+        }
+        finally
+        {
+            ImportToolButton.IsEnabled = true;
+        }
+    }
+
+    private async void ExportAppButton_Click(object sender, RoutedEventArgs e)
+    {
+        var exportPath = PickSaveFile("导出当前软件", "压缩包\0*.zip\0所有文件\0*.*\0\0", "TubaWinUi3-Custom.zip", "zip");
+        if (string.IsNullOrWhiteSpace(exportPath))
+            return;
+
+        if (!exportPath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            exportPath += ".zip";
+
+        ExportAppButton.IsEnabled = false;
+        ExportAppStatusText.Text = "正在打包当前软件...";
+
+        try
+        {
+            await CustomToolPackageService.ExportCurrentAppAsync(exportPath);
+            ExportAppStatusText.Text = $"已导出 {Path.GetFileName(exportPath)}";
+            await ShowMessageAsync("导出完成", $"已保存到：\n{exportPath}");
+        }
+        catch (Exception ex)
+        {
+            ExportAppStatusText.Text = $"导出失败: {ex.Message}";
+            await ShowMessageAsync("导出失败", ex.Message);
+        }
+        finally
+        {
+            ExportAppButton.IsEnabled = true;
+        }
+    }
+
+    private async Task<CustomToolImportRequest?> ShowImportToolDialogAsync(
+        string packagePath,
+        IReadOnlyList<ImportableExecutable> executables)
+    {
+        var primaryComboBox = new ComboBox
+        {
+            ItemsSource = executables,
+            SelectedIndex = 0,
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+
+        var toolNameBox = new TextBox
+        {
+            Header = "工具名称",
+            Text = Path.GetFileNameWithoutExtension(executables[0].FileName),
+            PlaceholderText = "例如 CPU-Z"
+        };
+
+        var categories = ToolCatalog.GetCategories();
+        var categoryBox = new TextBox
+        {
+            Header = "分类",
+            Text = categories.FirstOrDefault() ?? "其他工具",
+            PlaceholderText = "例如 处理器工具"
+        };
+
+        var categoryComboBox = new ComboBox
+        {
+            Header = "已有分类",
+            ItemsSource = categories,
+            SelectedIndex = categories.Count > 0 ? 0 : -1,
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        categoryComboBox.SelectionChanged += (_, _) =>
+        {
+            if (categoryComboBox.SelectedItem is string category)
+                categoryBox.Text = category;
+        };
+
+        var descriptionBox = new TextBox
+        {
+            Header = "简介",
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            MinHeight = 80,
+            PlaceholderText = "输入工具用途、特点或注意事项"
+        };
+
+        var publisherBox = new TextBox
+        {
+            Header = "作者/发布者",
+            PlaceholderText = "可选"
+        };
+
+        var tagsBox = new TextBox
+        {
+            Header = "标签",
+            PlaceholderText = "用逗号分隔，例如 CPU, 跑分, 稳定性测试"
+        };
+
+        var variantsList = new ListView
+        {
+            Header = "多架构文件",
+            ItemsSource = executables,
+            SelectionMode = ListViewSelectionMode.Multiple,
+            MaxHeight = 180
+        };
+
+        var content = new ScrollViewer
+        {
+            MaxHeight = 620,
+            Content = new StackPanel
+            {
+                Spacing = 12,
+                Children =
+                {
+                    toolNameBox,
+                    categoryComboBox,
+                    categoryBox,
+                    new TextBlock { Text = "主程序", Opacity = 0.68, FontSize = 12 },
+                    primaryComboBox,
+                    variantsList,
+                    descriptionBox,
+                    publisherBox,
+                    tagsBox
+                }
+            }
+        };
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = "导入自定义工具",
+            Content = content,
+            PrimaryButtonText = "导入",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Primary,
+            RequestedTheme = ThemeService.CurrentElementTheme
+        };
+
+        var result = await dialog.ShowAsync();
+        if (result != ContentDialogResult.Primary)
+            return null;
+
+        if (primaryComboBox.SelectedItem is not ImportableExecutable primary)
+        {
+            await ShowMessageAsync("请选择主程序", "需要指定一个 exe 作为打开工具时运行的主程序。");
+            return null;
+        }
+
+        var selectedVariants = variantsList.SelectedItems
+            .OfType<ImportableExecutable>()
+            .Select(item => new ImportArchVariant(item.EntryPath, GuessArch(item.EntryPath)))
+            .Where(item => !string.IsNullOrWhiteSpace(item.Arch))
+            .ToList();
+
+        var tags = tagsBox.Text
+            .Split(new[] { ',', '，', ';', '；' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        return new CustomToolImportRequest(
+            packagePath,
+            toolNameBox.Text,
+            categoryBox.Text,
+            primary.EntryPath,
+            descriptionBox.Text,
+            publisherBox.Text,
+            tags,
+            selectedVariants);
+    }
+
+    private static string GuessArch(string path)
+    {
+        var name = Path.GetFileNameWithoutExtension(path);
+        if (name.Contains("arm64", StringComparison.OrdinalIgnoreCase))
+            return "ARM64";
+        if (name.Contains("x64", StringComparison.OrdinalIgnoreCase) ||
+            name.Contains("64", StringComparison.OrdinalIgnoreCase))
+            return "x64";
+        if (name.Contains("x86", StringComparison.OrdinalIgnoreCase) ||
+            name.Contains("32", StringComparison.OrdinalIgnoreCase))
+            return "x86";
+        return "";
+    }
+
+    private static string? PickOpenFile(string title, string filter)
+    {
+        var ofn = new OPENFILENAME
+        {
+            lStructSize = Marshal.SizeOf<OPENFILENAME>(),
+            hwndOwner = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow),
+            lpstrFilter = filter,
+            lpstrFile = new string(new char[1024]),
+            nMaxFile = 1024,
+            lpstrTitle = title,
+            Flags = OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR,
+            nFilterIndex = 1
+        };
+
+        return GetOpenFileName(ref ofn) ? ofn.lpstrFile.TrimEnd('\0') : null;
+    }
+
+    private static string? PickSaveFile(string title, string filter, string defaultFileName, string defaultExtension)
+    {
+        var buffer = defaultFileName + new string('\0', 1024 - defaultFileName.Length);
+        var ofn = new OPENFILENAME
+        {
+            lStructSize = Marshal.SizeOf<OPENFILENAME>(),
+            hwndOwner = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow),
+            lpstrFilter = filter,
+            lpstrFile = buffer,
+            nMaxFile = 1024,
+            lpstrTitle = title,
+            lpstrDefExt = defaultExtension,
+            Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR,
+            nFilterIndex = 1
+        };
+
+        return GetSaveFileName(ref ofn) ? ofn.lpstrFile.TrimEnd('\0') : null;
+    }
+
+    private async Task ShowMessageAsync(string title, string message)
+    {
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = title,
+            Content = new TextBlock
+            {
+                Text = message,
+                TextWrapping = TextWrapping.Wrap
+            },
+            CloseButtonText = "确定",
+            RequestedTheme = ThemeService.CurrentElementTheme
+        };
+
+        await dialog.ShowAsync();
     }
 
     private void ThrowErrorButton_Click(object sender, RoutedEventArgs e)

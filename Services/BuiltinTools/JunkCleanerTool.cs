@@ -23,12 +23,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
 
     public async Task ExecuteAsync(BuiltinToolContext context)
     {
-        var dialog = new ContentDialog
-        {
-            Title = "垃圾清理",
-            CloseButtonText = "关闭",
-            XamlRoot = context.XamlRoot
-        };
+        var dialog = context.CreateDialog("垃圾清理");
         dialog.Resources["ContentDialogMaxWidth"] = 900;
         dialog.Resources["ContentDialogMaxHeight"] = 700;
         dialog.Closing += (_, _) => _cts?.Cancel();
@@ -39,7 +34,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
         await dialog.ShowAsync();
     }
 
-    private ScrollViewer BuildDialogContent()
+    private StackPanel BuildDialogContent()
     {
         var totalSizeText = new TextBlock { FontSize = 22, FontWeight = Microsoft.UI.Text.FontWeights.Bold, Foreground = new SolidColorBrush(AccentBlue) };
         var totalFilesText = new TextBlock { FontSize = 22, FontWeight = Microsoft.UI.Text.FontWeights.Bold, Foreground = new SolidColorBrush(AccentGreen) };
@@ -99,7 +94,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
         var listScroll = new ScrollViewer
         {
             Content = categoryList,
-            MaxHeight = 400,
+            MaxHeight = 320,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto
         };
 
@@ -143,8 +138,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
         root.Children.Add(contentGrid);
         root.Children.Add(resultText);
 
-        var scrollViewer = new ScrollViewer { Content = root, MaxWidth = 900 };
-        scrollViewer.Tag = new JunkCleanerState
+        root.Tag = new JunkCleanerState
         {
             TotalSizeText = totalSizeText,
             TotalFilesText = totalFilesText,
@@ -164,7 +158,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
         {
             _cts?.Cancel();
             _cts = new CancellationTokenSource();
-            await ScanAsync(scrollViewer, _cts.Token);
+            await ScanAsync(root, _cts.Token);
         };
 
         cleanBtn.Click += async (_, _) =>
@@ -181,7 +175,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
             resultText.Text = $"清理完成！释放了 {JunkCleanerService.FormatSize(cleaned)} 空间";
             resultText.Visibility = Visibility.Visible;
 
-            RefreshUI(scrollViewer);
+            RefreshUI(root);
             cleanBtn.IsEnabled = false;
             scanBtn.IsEnabled = true;
         };
@@ -190,20 +184,20 @@ public sealed class JunkCleanerTool : IBuiltinTool
         {
             if (_categories is null) return;
             foreach (var c in _categories) c.Selected = true;
-            RenderCategories(scrollViewer);
+            RenderCategories(root);
         };
 
         deselectAllBtn.Click += (_, _) =>
         {
             if (_categories is null) return;
             foreach (var c in _categories) c.Selected = false;
-            RenderCategories(scrollViewer);
+            RenderCategories(root);
         };
 
-        return scrollViewer;
+        return root;
     }
 
-    private async Task ScanAsync(ScrollViewer root, CancellationToken ct)
+    private async Task ScanAsync(StackPanel root, CancellationToken ct)
     {
         var state = GetState(root);
         if (state is null) return;
@@ -226,7 +220,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
         state.ScanBtn.IsEnabled = true;
     }
 
-    private void RefreshUI(ScrollViewer root)
+    private void RefreshUI(StackPanel root)
     {
         var state = GetState(root);
         if (state is null || _categories is null) return;
@@ -238,7 +232,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
         state.CategoryCountText.Text = _categories.Count.ToString();
     }
 
-    private void RenderCategories(ScrollViewer root)
+    private void RenderCategories(StackPanel root)
     {
         var state = GetState(root);
         if (state is null || _categories is null) return;
@@ -254,7 +248,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
         state.CleanBtn.IsEnabled = _categories.Any(c => c.Selected && c.SizeBytes > 0);
     }
 
-    private Border CreateCategoryRow(JunkCategory cat, ScrollViewer root)
+    private Border CreateCategoryRow(JunkCategory cat, StackPanel root)
     {
         var accent = ParseHex(cat.ColorHex);
         var dimAccent = Color.FromArgb(26, accent.R, accent.G, accent.B);
@@ -348,7 +342,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
         return Color.FromArgb(255, r, g, b);
     }
 
-    private static JunkCleanerState? GetState(ScrollViewer root) => root?.Tag as JunkCleanerState;
+    private static JunkCleanerState? GetState(StackPanel root) => root?.Tag as JunkCleanerState;
 
     private static Border MakeStatCard(string label, TextBlock value, string glyph, Color accent)
     {

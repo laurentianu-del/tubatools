@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
 
 namespace TubaWinUi3.Services;
 
@@ -9,21 +10,24 @@ public static class ThemeService
 
     public static AppTheme CurrentTheme => _currentTheme;
 
+    public static ElementTheme CurrentElementTheme => _currentTheme switch
+    {
+        AppTheme.Light => ElementTheme.Light,
+        AppTheme.Dark => ElementTheme.Dark,
+        _ => ElementTheme.Default
+    };
+
     public static void SetTheme(AppTheme theme)
     {
         _currentTheme = theme;
-
-        var settings = GetSettings();
-        if (settings is not null)
-            settings.Values[Key] = theme.ToString();
-
+        AppSettings.Set(Key, theme.ToString());
         ApplyTheme(theme);
     }
 
     public static void ApplySavedTheme()
     {
-        var settings = GetSettings();
-        if (settings is not null && settings.Values[Key] is string s && Enum.TryParse<AppTheme>(s, out var theme))
+        var saved = AppSettings.Get(Key);
+        if (saved is not null && Enum.TryParse<AppTheme>(saved, out var theme))
             _currentTheme = theme;
 
         ApplyTheme(_currentTheme);
@@ -44,14 +48,23 @@ public static class ThemeService
 
         root.RequestedTheme = elementTheme;
 
+        // Propagate theme to nested elements that might not inherit
+        PropagateTheme(root, elementTheme);
+
         if (window is MainWindow mw)
             mw.ApplyTitleBarTheme(elementTheme);
     }
 
-    private static Windows.Storage.ApplicationDataContainer? GetSettings()
+    private static void PropagateTheme(DependencyObject parent, ElementTheme theme)
     {
-        try { return Windows.Storage.ApplicationData.Current.LocalSettings; }
-        catch { return null; }
+        var count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent);
+        for (int i = 0; i < count; i++)
+        {
+            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
+            if (child is FrameworkElement fe)
+                fe.RequestedTheme = theme;
+            PropagateTheme(child, theme);
+        }
     }
 }
 

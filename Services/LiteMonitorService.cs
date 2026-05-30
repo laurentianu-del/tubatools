@@ -391,7 +391,8 @@ public sealed class LiteMonitorService : IDisposable
             XamlRoot = xamlRoot,
             PrimaryButtonText = "下载",
             CloseButtonText = "取消",
-            DefaultButton = ContentDialogButton.Primary
+            DefaultButton = ContentDialogButton.Primary,
+            RequestedTheme = ThemeService.CurrentElementTheme
         };
 
         var stack = new StackPanel { Spacing = 8 };

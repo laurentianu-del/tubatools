@@ -30,23 +30,13 @@ public sealed class WingetInstallerTool : IBuiltinTool
         var available = await WingetService.IsWingetAvailableAsync();
         if (!available)
         {
-            var errDialog = new ContentDialog
-            {
-                Title = "winget 不可用",
-                Content = "未检测到 winget，请确认系统已安装 App Installer 并更新至最新版本。",
-                CloseButtonText = "确定",
-                XamlRoot = context.XamlRoot
-            };
+            var errDialog = context.CreateDialog("winget 不可用", "确定");
+            errDialog.Content = "未检测到 winget，请确认系统已安装 App Installer 并更新至最新版本。";
             await errDialog.ShowAsync();
             return;
         }
 
-        var dialog = new ContentDialog
-        {
-            Title = "软件安装",
-            CloseButtonText = "关闭",
-            XamlRoot = context.XamlRoot
-        };
+        var dialog = context.CreateDialog("软件安装");
         dialog.Resources["ContentDialogMaxWidth"] = 960;
         dialog.Resources["ContentDialogMaxHeight"] = 900;
         dialog.Closing += (_, args) =>
@@ -65,6 +55,7 @@ public sealed class WingetInstallerTool : IBuiltinTool
         dialog.Content = content;
 
         _ = dialog.ShowAsync();
+
         await CheckInstalledStatus(content);
     }
 

@@ -22,12 +22,7 @@ public sealed class LiteMonitorTool : IBuiltinTool
             if (!driverOk) return;
         }
 
-        var dialog = new ContentDialog
-        {
-            Title = "硬件监控",
-            CloseButtonText = "关闭",
-            XamlRoot = context.XamlRoot
-        };
+        var dialog = context.CreateDialog("硬件监控");
         dialog.Resources["ContentDialogMaxWidth"] = 960;
 
         var page = new LiteMonitorPage();

@@ -20,12 +20,7 @@ public sealed class WifiPasswordTool : IBuiltinTool
 
     public async Task ExecuteAsync(BuiltinToolContext context)
     {
-        var dialog = new ContentDialog
-        {
-            Title = "WiFi 密码查看",
-            CloseButtonText = "关闭",
-            XamlRoot = context.XamlRoot
-        };
+        var dialog = context.CreateDialog("WiFi 密码查看");
         dialog.Resources["ContentDialogMaxWidth"] = 860;
         dialog.Resources["ContentDialogMaxHeight"] = 700;
 
@@ -33,6 +28,7 @@ public sealed class WifiPasswordTool : IBuiltinTool
         dialog.Content = content;
 
         _ = LoadNetworksAsync(content);
+
         await dialog.ShowAsync();
     }
 

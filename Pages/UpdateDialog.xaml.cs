@@ -244,7 +244,8 @@ public sealed partial class UpdateDialog : ContentDialog
             Title = "下载完成",
             XamlRoot = XamlRoot,
             PrimaryButtonText = isExe ? "立即安装" : "打开文件夹",
-            SecondaryButtonText = "稍后手动安装"
+            SecondaryButtonText = "稍后手动安装",
+            RequestedTheme = ThemeService.CurrentElementTheme
         };
 
         var stack = new StackPanel { Spacing = 12 };
