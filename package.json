@@ -4,9 +4,9 @@
   "type": "module",
   "description": "图吧工具箱 TubaWinUi3 官方网站",
   "scripts": {
-    "dev": "vitepress dev docs",
-    "build": "vitepress build docs",
-    "preview": "vitepress preview docs"
+    "dev": "vitepress dev src/docs",
+    "build": "vitepress build src/docs",
+    "preview": "vitepress preview src/docs"
   },
   "devDependencies": {
     "vitepress": "^1.6.4",

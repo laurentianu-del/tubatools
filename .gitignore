@@ -63,3 +63,7 @@ publish_x64/
 
 # Inno Setup output
 SetupOutput/
+
+# VitePress cache and dev server
+src/docs/.vitepress/cache/
+src/docs/.vitepress/dist/
