@@ -87,9 +87,10 @@
             x:Name="BackgroundImg"
             Stretch="UniformToFill"
             Opacity="0.15"
-            Grid.RowSpan="2"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center" />
+            Grid.RowSpan="3"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Stretch"
+            IsHitTestVisible="False" />
 
         <Grid ColumnSpacing="18">
             <Grid.ColumnDefinitions>

@@ -347,17 +347,35 @@ public sealed partial class HomePage : Page
 
     private void FavoriteButton_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is FrameworkElement { DataContext: ToolItem tool })
+        if (sender is FrameworkElement fe && fe.DataContext is ToolItem tool)
         {
             FavoritesService.ToggleFavorite(tool.Path);
             tool.IsFavorite = !tool.IsFavorite;
-
-            var idx = _tools.IndexOf(tool);
-            if (idx >= 0)
-            {
-                _tools[idx] = tool;
-            }
+            AnimateFavoriteButton(fe);
         }
+    }
+
+    private static void AnimateFavoriteButton(FrameworkElement target)
+    {
+        var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(target);
+        if (visual is null) return;
+        var compositor = visual.Compositor;
+
+        var scaleUp = compositor.CreateVector3KeyFrameAnimation();
+        scaleUp.InsertKeyFrame(0f, new System.Numerics.Vector3(1f, 1f, 1f));
+        scaleUp.InsertKeyFrame(0.4f, new System.Numerics.Vector3(1.35f, 1.35f, 1f));
+        scaleUp.InsertKeyFrame(1f, new System.Numerics.Vector3(1f, 1f, 1f));
+        scaleUp.Duration = TimeSpan.FromMilliseconds(350);
+
+        var opacityAnim = compositor.CreateScalarKeyFrameAnimation();
+        opacityAnim.InsertKeyFrame(0f, 1f);
+        opacityAnim.InsertKeyFrame(0.3f, 0.4f);
+        opacityAnim.InsertKeyFrame(1f, 1f);
+        opacityAnim.Duration = TimeSpan.FromMilliseconds(350);
+
+        visual.CenterPoint = new System.Numerics.Vector3((float)target.ActualSize.X / 2, (float)target.ActualSize.Y / 2, 0f);
+        visual.StartAnimation("Scale", scaleUp);
+        visual.StartAnimation("Opacity", opacityAnim);
     }
 
     private void SendToDesktopButton_Click(object sender, RoutedEventArgs e)
