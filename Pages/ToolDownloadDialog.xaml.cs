@@ -147,7 +147,8 @@ public sealed partial class ToolDownloadDialog : ContentDialog
             Title = "下载完成",
             XamlRoot = XamlRoot,
             PrimaryButtonText = info.IsInstaller ? "已启动安装" : "完成",
-            DefaultButton = ContentDialogButton.Primary
+            DefaultButton = ContentDialogButton.Primary,
+            RequestedTheme = ThemeService.CurrentElementTheme
         };
 
         var stack = new StackPanel { Spacing = 12 };

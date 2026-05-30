@@ -27,7 +27,7 @@ public sealed class DiskSpaceAnalyzerTool : IBuiltinTool
 
         if (drives.Count == 0)
         {
-            var d = new ContentDialog { Title = "磁盘分析", Content = "未检测到可用磁盘。", CloseButtonText = "关闭", XamlRoot = context.XamlRoot };
+            var d = new ContentDialog { Title = "磁盘分析", Content = "未检测到可用磁盘。", CloseButtonText = "关闭", XamlRoot = context.XamlRoot, RequestedTheme = ThemeService.CurrentElementTheme };
             await d.ShowAsync();
             return;
         }
@@ -45,7 +45,7 @@ public sealed class DiskSpaceAnalyzerTool : IBuiltinTool
             list.Children.Add(btn);
         }
         sp.Children.Add(list);
-        var dlg = new ContentDialog { Title = "磁盘分析", Content = sp, CloseButtonText = "取消", XamlRoot = context.XamlRoot };
+        var dlg = new ContentDialog { Title = "磁盘分析", Content = sp, CloseButtonText = "取消", XamlRoot = context.XamlRoot, RequestedTheme = ThemeService.CurrentElementTheme };
         dlg.Resources["ContentDialogMaxWidth"] = 500;
         await dlg.ShowAsync();
     }
@@ -349,6 +349,7 @@ file sealed class AnalyzerPage : Page
             CloseButtonText = "取消",
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = Content.XamlRoot,
+            RequestedTheme = ThemeService.CurrentElementTheme,
         };
         dlg.Resources["ContentDialogMaxWidth"] = 480;
 
@@ -374,6 +375,7 @@ file sealed class AnalyzerPage : Page
                 Content = ex.Message,
                 CloseButtonText = "关闭",
                 XamlRoot = Content.XamlRoot,
+                RequestedTheme = ThemeService.CurrentElementTheme,
             };
             await errDlg.ShowAsync();
         }

@@ -30,14 +30,12 @@ public sealed class PowerMonitorTool : IBuiltinTool
 
     public async Task ExecuteAsync(BuiltinToolContext context)
     {
-        var dialog = new ContentDialog
-        {
-            Title = "硬件监测",
-            CloseButtonText = "关闭",
-            XamlRoot = context.XamlRoot
-        };
+        var dialog = context.CreateDialog("硬件监测");
         dialog.Resources["ContentDialogMaxWidth"] = 960;
-        dialog.Content = BuildDialogContent();
+
+        var content = BuildDialogContent();
+        dialog.Content = content;
+
         await dialog.ShowAsync();
     }
 

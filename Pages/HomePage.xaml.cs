@@ -287,7 +287,8 @@ public sealed partial class HomePage : Page
             Title = $"选择架构 - {tool.Name}",
             PrimaryButtonText = "打开",
             CloseButtonText = "取消",
-            XamlRoot = XamlRoot
+            XamlRoot = XamlRoot,
+            RequestedTheme = ThemeService.CurrentElementTheme
         };
 
         var panel = new StackPanel { Spacing = 8 };

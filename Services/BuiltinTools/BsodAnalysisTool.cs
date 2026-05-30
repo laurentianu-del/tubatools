@@ -25,12 +25,7 @@ public sealed class BsodAnalysisTool : IBuiltinTool
 
     public async Task ExecuteAsync(BuiltinToolContext context)
     {
-        var dialog = new ContentDialog
-        {
-            Title = "蓝屏分析",
-            CloseButtonText = "关闭",
-            XamlRoot = context.XamlRoot
-        };
+        var dialog = context.CreateDialog("蓝屏分析");
         dialog.Resources["ContentDialogMaxWidth"] = 960;
         dialog.Resources["ContentDialogMaxHeight"] = 760;
 

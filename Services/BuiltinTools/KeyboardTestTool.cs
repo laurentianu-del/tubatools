@@ -20,27 +20,22 @@ public sealed class KeyboardTestTool : IBuiltinTool
     private static readonly Color AccentGreen = Color.FromArgb(255, 74, 222, 128);
 
     private readonly Dictionary<VirtualKey, Border> _keyMap = [];
+    private Grid? _keyGrid;
     private int _totalPressed;
 
     public async Task ExecuteAsync(BuiltinToolContext context)
     {
-        var dialog = new ContentDialog
-        {
-            Title = "键盘测试",
-            CloseButtonText = "关闭",
-            XamlRoot = context.XamlRoot
-        };
-        dialog.Resources["ContentDialogMaxWidth"] = 960;
-        dialog.Resources["ContentDialogMaxHeight"] = 540;
+        _keyGrid = null;
+        var dialog = context.CreateDialog("键盘测试");
+        dialog.Resources["ContentDialogMaxWidth"] = 1080;
+        dialog.Resources["ContentDialogMaxHeight"] = 680;
 
         var content = BuildDialogContent();
         dialog.Content = content;
 
         dialog.Opened += (_, _) =>
         {
-            var grid = content.FindName("KeyGrid") as Grid;
-            if (grid is not null)
-                grid.Focus(FocusState.Programmatic);
+            _keyGrid?.Focus(FocusState.Programmatic);
         };
 
         await dialog.ShowAsync();
@@ -85,12 +80,12 @@ public sealed class KeyboardTestTool : IBuiltinTool
 
         var keyGrid = new Grid
         {
-            Name = "KeyGrid",
             Background = new SolidColorBrush(ThemeColors.KeyboardBg),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(12, 10, 12, 10),
             IsTabStop = true
         };
+        _keyGrid = keyGrid;
 
         BuildKeyboardLayout(keyGrid, countText, lastKeyText);
 
@@ -152,13 +147,16 @@ public sealed class KeyboardTestTool : IBuiltinTool
             Foreground = new SolidColorBrush(ThemeColors.DimText)
         };
 
-        var root = new StackPanel { Spacing = 14, MaxWidth = 920 };
-        root.Children.Add(tipText);
-        root.Children.Add(statsBar);
-        root.Children.Add(keyGrid);
-        root.Children.Add(resetBtn);
+        var actionBar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        actionBar.Children.Add(statsBar);
+        actionBar.Children.Add(resetBtn);
 
-        return new ScrollViewer { Content = root, MaxWidth = 960 };
+        var root = new StackPanel { Spacing = 14, MaxWidth = 1040 };
+        root.Children.Add(tipText);
+        root.Children.Add(actionBar);
+        root.Children.Add(keyGrid);
+
+        return new ScrollViewer { Content = root, MaxWidth = 1080, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     }
 
     private void BuildKeyboardLayout(Grid rootGrid, TextBlock countText, TextBlock lastKeyText)

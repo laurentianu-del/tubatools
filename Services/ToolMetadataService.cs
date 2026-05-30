@@ -19,6 +19,11 @@ public static class ToolMetadataService
 {
     private static IReadOnlyList<JsonToolMetadata>? _metadata;
 
+    public static void InvalidateCache()
+    {
+        _metadata = null;
+    }
+
     public static bool HasDownloadUrl(string category, string toolDir)
     {
         var dirName = Path.GetFileName(toolDir);

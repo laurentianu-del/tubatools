@@ -46,6 +46,10 @@ public sealed partial class MainWindow : Window
             tb.ButtonHoverBackgroundColor = Color.FromArgb(255, 50, 50, 50);
             tb.ButtonPressedForegroundColor = Color.FromArgb(255, 180, 180, 180);
             tb.ButtonPressedBackgroundColor = Color.FromArgb(255, 30, 30, 30);
+
+            // Fix dark theme white edge at top
+            tb.BackgroundColor = Color.FromArgb(255, 32, 32, 32);
+            tb.InactiveBackgroundColor = Color.FromArgb(255, 32, 32, 32);
         }
         else
         {
@@ -54,6 +58,9 @@ public sealed partial class MainWindow : Window
             tb.ButtonHoverBackgroundColor = Color.FromArgb(255, 230, 230, 230);
             tb.ButtonPressedForegroundColor = Color.FromArgb(255, 100, 100, 100);
             tb.ButtonPressedBackgroundColor = Color.FromArgb(255, 210, 210, 210);
+
+            tb.BackgroundColor = Color.FromArgb(0, 255, 255, 255);
+            tb.InactiveBackgroundColor = Color.FromArgb(0, 255, 255, 255);
         }
 
         tb.ButtonInactiveForegroundColor = Color.FromArgb(255, 160, 160, 160);
@@ -110,6 +117,11 @@ public sealed partial class MainWindow : Window
 
     private void PopulateCategories()
     {
+        while (NavView.MenuItems.Count > 5)
+        {
+            NavView.MenuItems.RemoveAt(5);
+        }
+
         var categories = ToolCatalog.GetCategories();
         var otherCategory = categories.FirstOrDefault(c => c.Contains("其他"));
         var restCategories = categories.Where(c => !c.Contains("其他"));
@@ -198,5 +210,10 @@ public sealed partial class MainWindow : Window
         }
 
         return "\uE8B7";
+    }
+
+    public void RefreshToolCategories()
+    {
+        PopulateCategories();
     }
 }

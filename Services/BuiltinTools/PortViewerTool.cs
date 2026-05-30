@@ -26,12 +26,7 @@ public sealed class PortViewerTool : IBuiltinTool
 
     public async Task ExecuteAsync(BuiltinToolContext context)
     {
-        var dialog = new ContentDialog
-        {
-            Title = "端口占用",
-            CloseButtonText = "关闭",
-            XamlRoot = context.XamlRoot
-        };
+        var dialog = context.CreateDialog("端口占用");
         dialog.Resources["ContentDialogMaxWidth"] = 900;
         dialog.Resources["ContentDialogMaxHeight"] = 720;
 

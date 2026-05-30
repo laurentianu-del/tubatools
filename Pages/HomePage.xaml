@@ -227,16 +227,18 @@
                                         TextTrimming="CharacterEllipsis"
                                         Visibility="{Binding TagsText, Converter={StaticResource NullToCollapse}}" />
 
-                                    <Grid Grid.Row="3" ColumnSpacing="8">
+                                    <Grid Grid.Row="3" ColumnSpacing="6">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <Border
                                             HorizontalAlignment="Left"
+                                            VerticalAlignment="Center"
                                             Padding="8,3"
                                             Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                             CornerRadius="6">
@@ -250,6 +252,7 @@
                                             MinWidth="64"
                                             Padding="6,2"
                                             FontSize="12"
+                                            VerticalAlignment="Center"
                                             ItemsSource="{Binding ArchOptions}"
                                             SelectedItem="{Binding SelectedArch, Mode=TwoWay}"
                                             Visibility="{Binding ArchOptions.Count, Converter={StaticResource ArchOptionsCountConverter}}">
@@ -260,16 +263,18 @@
                                             </ComboBox.ItemTemplate>
                                         </ComboBox>
                                         <Button
-                                            Grid.Column="2"
+                                            Grid.Column="3"
                                             HorizontalAlignment="Right"
+                                            VerticalAlignment="Center"
                                             Padding="6,4"
                                             Click="SendToDesktopButton_Click"
                                             ToolTipService.ToolTip="发送到桌面快捷方式">
                                             <FontIcon FontSize="12" Glyph="&#xE8BD;" />
                                         </Button>
                                         <Button
-                                            Grid.Column="3"
+                                            Grid.Column="4"
                                             HorizontalAlignment="Right"
+                                            VerticalAlignment="Center"
                                             Padding="10,4"
                                             Click="RunAsAdminButton_Click"
                                             ToolTipService.ToolTip="以管理员身份运行"
@@ -280,8 +285,9 @@
                                             </StackPanel>
                                         </Button>
                                         <Button
-                                            Grid.Column="4"
+                                            Grid.Column="5"
                                             HorizontalAlignment="Right"
+                                            VerticalAlignment="Center"
                                             Padding="10,4"
                                             Click="LaunchButton_Click"
                                             Content="{Binding LaunchButtonText}"

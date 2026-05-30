@@ -29,4 +29,18 @@ public sealed class BuiltinToolContext
     public Action<string>? OnProgress { get; init; }
     public Func<string, string, ContentDialogResult>? ShowDialog { get; init; }
     public CancellationToken CancellationToken { get; init; }
+
+    /// <summary>
+    /// Creates a ContentDialog that automatically inherits the current app theme.
+    /// </summary>
+    public ContentDialog CreateDialog(string title, string closeButtonText = "关闭")
+    {
+        return new ContentDialog
+        {
+            Title = title,
+            CloseButtonText = closeButtonText,
+            XamlRoot = XamlRoot,
+            RequestedTheme = ThemeService.CurrentElementTheme
+        };
+    }
 }

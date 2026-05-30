@@ -151,7 +151,8 @@ public sealed partial class FavoritesPage : Page
             PrimaryButtonText = "清空",
             CloseButtonText = "取消",
             DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot
+            XamlRoot = XamlRoot,
+            RequestedTheme = ThemeService.CurrentElementTheme
         };
 
         if (dialog.ShowAsync() is not null)

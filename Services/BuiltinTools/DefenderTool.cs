@@ -44,14 +44,9 @@ public sealed class DefenderTool : IBuiltinTool
     {
         if (context.XamlRoot is null) return;
 
-        var dialog = new ContentDialog
-        {
-            Title = "需要下载 dControl",
-            Content = "dControl.exe 未找到。此工具可能被杀毒软件报毒，需要单独下载。\n\n是否从镜像站下载？",
-            PrimaryButtonText = "下载",
-            CloseButtonText = "取消",
-            XamlRoot = context.XamlRoot
-        };
+        var dialog = context.CreateDialog("需要下载 dControl", "取消");
+        dialog.Content = "dControl.exe 未找到。此工具可能被杀毒软件报毒，需要单独下载。\n\n是否从镜像站下载？";
+        dialog.PrimaryButtonText = "下载";
 
         var result = await dialog.ShowAsync();
         if (result == ContentDialogResult.Primary)

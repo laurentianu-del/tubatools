@@ -19,12 +19,7 @@ public sealed class WindowsActivationTool : IBuiltinTool
 
     public async Task ExecuteAsync(BuiltinToolContext context)
     {
-        var dialog = new ContentDialog
-        {
-            Title = "Windows 激活",
-            CloseButtonText = "关闭",
-            XamlRoot = context.XamlRoot
-        };
+        var dialog = context.CreateDialog("Windows 激活");
         dialog.Resources["ContentDialogMaxWidth"] = 860;
 
         var content = BuildDialogContent();
