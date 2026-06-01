@@ -611,6 +611,11 @@ file sealed class AnalyzerPage : Page
 
     private static void FadeInBorder(Border brd)
     {
+        if (FastModeService.IsFastModeEnabled())
+        {
+            brd.Opacity = 1.0;
+            return;
+        }
         const int steps = 12;
         const int intervalMs = 16;
         var step = 0;
@@ -844,7 +849,7 @@ file sealed class AnalyzerPage : Page
 
         var rects = DoSquarifyEx(items, new Rect(gap, gap, W - gap * 2, H - gap * 2));
 
-        var animate = originRect.HasValue;
+        var animate = originRect.HasValue && !FastModeService.IsFastModeEnabled();
         var ox = originRect?.X ?? W / 2;
         var oy = originRect?.Y ?? H / 2;
 

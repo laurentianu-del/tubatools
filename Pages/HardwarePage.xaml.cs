@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using TubaWinUi3.Models;
 using TubaWinUi3.Services;
@@ -66,6 +67,7 @@ public sealed partial class HardwarePage : Page
 
     private void Card_PointerEntered(object sender, PointerRoutedEventArgs e)
     {
+        if (FastModeService.IsFastModeEnabled()) return;
         if (sender is not Border border) return;
         var sb = new Storyboard();
         var scaleX = new DoubleAnimation { To = 1.02, Duration = TimeSpan.FromMilliseconds(120), EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } };
@@ -81,6 +83,7 @@ public sealed partial class HardwarePage : Page
 
     private void Card_PointerExited(object sender, PointerRoutedEventArgs e)
     {
+        if (FastModeService.IsFastModeEnabled()) return;
         if (sender is not Border border) return;
         var sb = new Storyboard();
         var scaleX = new DoubleAnimation { To = 1.0, Duration = TimeSpan.FromMilliseconds(180), EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } };
@@ -98,8 +101,15 @@ public sealed partial class HardwarePage : Page
     {
         if (_dataLoaded)
         {
-            ExitStoryboard.Begin();
-            await Task.Delay(200);
+            if (FastModeService.IsFastModeEnabled())
+            {
+                SetElementStatesToExit();
+            }
+            else
+            {
+                ExitStoryboard.Begin();
+                await Task.Delay(200);
+            }
         }
 
         SetLoading(true);
@@ -136,11 +146,38 @@ public sealed partial class HardwarePage : Page
         ModelText.Text = summary.FirstOrDefault(item => item.Label == "设备型号")?.Value ?? "未知";
         SystemText.Text = system.FirstOrDefault(item => item.Label == "系统")?.Value ?? "未知";
         UpdateUptime();
-        _animatingDetails = true;
+        _animatingDetails = !FastModeService.IsFastModeEnabled();
         DetailsRepeater.ItemsSource = details;
 
-        EntranceStoryboard.Begin();
+        if (FastModeService.IsFastModeEnabled())
+        {
+            SetElementStatesToVisible();
+        }
+        else
+        {
+            EntranceStoryboard.Begin();
+        }
         _dataLoaded = true;
+    }
+
+    private void SetElementStatesToVisible()
+    {
+        HeaderPanel.Opacity = 1;
+        HeaderPanel.RenderTransform = new TranslateTransform { Y = 0 };
+        MetricsPanel.Opacity = 1;
+        MetricsPanel.RenderTransform = new TranslateTransform { Y = 0 };
+        Card1.RenderTransform = new ScaleTransform { ScaleX = 1, ScaleY = 1 };
+        Card2.RenderTransform = new ScaleTransform { ScaleX = 1, ScaleY = 1 };
+        Card3.RenderTransform = new ScaleTransform { ScaleX = 1, ScaleY = 1 };
+        DetailsPanel.Opacity = 1;
+        DetailsPanel.RenderTransform = new TranslateTransform { Y = 0 };
+    }
+
+    private void SetElementStatesToExit()
+    {
+        HeaderPanel.Opacity = 0;
+        MetricsPanel.Opacity = 0;
+        DetailsPanel.Opacity = 0;
     }
 
     private void SetLoading(bool isLoading)
@@ -159,8 +196,8 @@ public sealed partial class HardwarePage : Page
 
     private void DetailItem_Tapped(object sender, TappedRoutedEventArgs e)
     {
-        if (sender is not Border border) return;
-        if (border.DataContext is not HardwareInfoItem item) return;
+        if (sender is not FrameworkElement fe) return;
+        if (fe.DataContext is not HardwareInfoItem item) return;
         CopyToClipboard(item.Value);
     }
 
@@ -182,7 +219,19 @@ public sealed partial class HardwarePage : Page
 
     private void DetailsRepeater_ElementPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
     {
-        if (!_animatingDetails || args.Index < 0 || args.Element is not Border el) return;
+        if (args.Index < 0 || args.Element is not Grid el) return;
+
+        if (args.Index % 2 == 1)
+        {
+            var brush = App.Current.Resources.TryGetValue("SubtleFillColorSecondaryBrush", out var b) ? b : null;
+            if (brush is not null) el.Background = (Microsoft.UI.Xaml.Media.Brush)brush;
+        }
+
+        if (!_animatingDetails)
+        {
+            el.Opacity = 1;
+            return;
+        }
 
         var idx = (int)args.Index;
         el.Opacity = 0;

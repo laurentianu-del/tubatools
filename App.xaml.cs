@@ -28,6 +28,7 @@ public partial class App : Application
         _window.Activate();
         ThemeService.ApplySavedTheme();
         ToolIconService.CleanExpiredCache();
+        HardwareInfoService.Preload();
 
         _ = CheckForUpdateSilentAsync();
     }
