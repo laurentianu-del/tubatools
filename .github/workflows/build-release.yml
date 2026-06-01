@@ -12,6 +12,11 @@ on:
         required: false
         type: boolean
         default: false
+      draft:
+        description: 'Create as draft release'
+        required: false
+        type: boolean
+        default: true
       from_ref:
         description: 'Changelog start ref (tag/commit/branch). Leave empty to auto-detect from last successful workflow run.'
         required: false
@@ -244,6 +249,7 @@ jobs:
         with:
           tag_name: v${{ inputs.version }}
           name: 图吧工具箱WinUI3 v${{ inputs.version }}
+          draft: ${{ inputs.draft }}
           prerelease: ${{ inputs.prerelease }}
           files: release_files/*
           body: |

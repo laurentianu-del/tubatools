@@ -15,6 +15,7 @@ public sealed partial class SettingsPage : Page
     private bool _isCheckingUpdate;
     private bool _opacityChanging;
     private bool _compactModeInitializing;
+    private bool _fastModeInitializing;
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct OPENFILENAME
@@ -68,6 +69,7 @@ public sealed partial class SettingsPage : Page
         LoadGitHubAvatar();
         InitThemeComboBox();
         InitCompactModeToggle();
+        InitFastModeToggle();
         LoadBackgroundSettings();
     }
 
@@ -272,6 +274,26 @@ public sealed partial class SettingsPage : Page
         _compactModeInitializing = true;
         CompactModeToggle.IsOn = CompactModeService.IsCompactModeEnabled();
         _compactModeInitializing = false;
+    }
+
+    private void FastModeToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_fastModeInitializing) return;
+        var enabled = FastModeToggle.IsOn;
+        FastModeService.SetFastModeEnabled(enabled);
+        if (enabled)
+            ContentPanel.Transitions.Clear();
+        else
+            ContentPanel.Transitions.Add(new RepositionThemeTransition());
+    }
+
+    private void InitFastModeToggle()
+    {
+        _fastModeInitializing = true;
+        FastModeToggle.IsOn = FastModeService.IsFastModeEnabled();
+        if (FastModeToggle.IsOn)
+            ContentPanel.Transitions.Clear();
+        _fastModeInitializing = false;
     }
 
     private async void ImportToolButton_Click(object sender, RoutedEventArgs e)
@@ -557,7 +579,15 @@ public sealed partial class SettingsPage : Page
     private void OpenSourceButton_Click(object sender, RoutedEventArgs e)
     {
         DrawerOverlay.Visibility = Visibility.Visible;
-        DrawerOpenStoryboard.Begin();
+        if (FastModeService.IsFastModeEnabled())
+        {
+            DrawerOverlayBackground.Opacity = 1;
+            DrawerPanelTransform.X = 0;
+        }
+        else
+        {
+            DrawerOpenStoryboard.Begin();
+        }
     }
 
     private void DrawerCloseButton_Click(object sender, RoutedEventArgs e)
@@ -572,6 +602,13 @@ public sealed partial class SettingsPage : Page
 
     private void CloseDrawer()
     {
+        if (FastModeService.IsFastModeEnabled())
+        {
+            DrawerOverlay.Visibility = Visibility.Collapsed;
+            DrawerOverlayBackground.Opacity = 0;
+            DrawerPanelTransform.X = 420;
+            return;
+        }
         DrawerCloseStoryboard.Completed += OnDrawerCloseCompleted;
         DrawerCloseStoryboard.Begin();
     }

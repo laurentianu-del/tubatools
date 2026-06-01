@@ -224,6 +224,35 @@
                     </Grid>
                 </Border>
 
+                <Border Style="{StaticResource SettingsCardStyle}">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Style="{StaticResource IconBorderStyle}">
+                            <FontIcon FontSize="18" Glyph="&#xEB3F;" />
+                        </Border>
+
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                            <TextBlock FontWeight="SemiBold" Text="快速模式" />
+                            <TextBlock
+                                Opacity="0.68"
+                                FontSize="13"
+                                TextWrapping="Wrap"
+                                Text="禁用所有动画，提升响应速度" />
+                        </StackPanel>
+
+                        <ToggleSwitch
+                            x:Name="FastModeToggle"
+                            Grid.Column="2"
+                            VerticalAlignment="Center"
+                            Toggled="FastModeToggle_Toggled" />
+                    </Grid>
+                </Border>
+
                 <TextBlock
                     Style="{StaticResource SectionHeaderStyle}"
                     Text="外观" />

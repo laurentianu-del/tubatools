@@ -6,9 +6,19 @@ namespace TubaWinUi3.Services;
 public static class HardwareInfoService
 {
     private static IReadOnlyList<HardwareInfoSection>? _cache;
-    private static DateTime _cacheTime;
-    private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(5);
     private static readonly object _lock = new();
+
+    public static void Preload()
+    {
+        Task.Run(() =>
+        {
+            try
+            {
+                _ = LoadAsync();
+            }
+            catch { }
+        });
+    }
 
     public static Task<IReadOnlyList<HardwareInfoSection>> LoadAsync(bool forceRefresh = false)
     {
@@ -16,7 +26,7 @@ public static class HardwareInfoService
         {
             lock (_lock)
             {
-                if (!forceRefresh && _cache != null && DateTime.UtcNow - _cacheTime < CacheDuration)
+                if (!forceRefresh && _cache != null)
                     return _cache;
             }
 
@@ -29,7 +39,6 @@ public static class HardwareInfoService
             lock (_lock)
             {
                 _cache = sections;
-                _cacheTime = DateTime.UtcNow;
             }
 
             return sections;

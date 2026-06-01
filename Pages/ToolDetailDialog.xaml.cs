@@ -53,10 +53,17 @@ public sealed partial class ToolDetailDialog : UserControl
 
         _popup.Closed += OnPopupClosed;
 
-        PrepareAnimation();
+        if (FastModeService.IsFastModeEnabled())
+        {
+            SkipAnimationToVisible();
+        }
+        else
+        {
+            PrepareAnimation();
 
-        await Task.Delay(16);
-        PlayOpenAnimation();
+            await Task.Delay(16);
+            PlayOpenAnimation();
+        }
     }
 
     private void OnPopupClosed(object? sender, object e)
@@ -67,6 +74,16 @@ public sealed partial class ToolDetailDialog : UserControl
     private void Close()
     {
         if (_isClosing || !_isOpen) return;
+        if (FastModeService.IsFastModeEnabled())
+        {
+            if (_popup is not null)
+            {
+                _popup.IsOpen = false;
+                _popup.Closed -= OnPopupClosed;
+            }
+            _isClosing = false;
+            return;
+        }
         PlayCloseAnimation();
     }
 
@@ -168,6 +185,33 @@ public sealed partial class ToolDetailDialog : UserControl
 
             if (_heroVisual is not null)
                 _heroVisual.Opacity = 0f;
+        }
+        catch { }
+    }
+
+    private void SkipAnimationToVisible()
+    {
+        try
+        {
+            _smokeVisual = ElementCompositionPreview.GetElementVisual(SmokeLayer);
+            _contentVisual = ElementCompositionPreview.GetElementVisual(ContentPanel);
+            _heroVisual = ElementCompositionPreview.GetElementVisual(HeroSection);
+
+            if (_smokeVisual is not null)
+                _smokeVisual.Opacity = 1f;
+
+            if (_contentVisual is not null)
+            {
+                _contentVisual.Opacity = 1f;
+                _contentVisual.Scale = new System.Numerics.Vector3(1f, 1f, 1f);
+            }
+
+            if (_heroVisual is not null)
+            {
+                _heroVisual.Opacity = 1f;
+                _heroVisual.Offset = new System.Numerics.Vector3(0, 0, 0);
+                _heroVisual.Scale = new System.Numerics.Vector3(1f, 1f, 1f);
+            }
         }
         catch { }
     }
