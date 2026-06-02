@@ -43,18 +43,19 @@ public sealed partial class MainWindow : Window
         if (isDark)
         {
             tb.ButtonForegroundColor = Color.FromArgb(255, 255, 255, 255);
+            tb.ButtonBackgroundColor = Color.FromArgb(0, 255, 255, 255);
             tb.ButtonHoverForegroundColor = Color.FromArgb(255, 255, 255, 255);
             tb.ButtonHoverBackgroundColor = Color.FromArgb(255, 50, 50, 50);
             tb.ButtonPressedForegroundColor = Color.FromArgb(255, 180, 180, 180);
             tb.ButtonPressedBackgroundColor = Color.FromArgb(255, 30, 30, 30);
 
-            // Fix dark theme white edge at top
             tb.BackgroundColor = Color.FromArgb(255, 32, 32, 32);
             tb.InactiveBackgroundColor = Color.FromArgb(255, 32, 32, 32);
         }
         else
         {
             tb.ButtonForegroundColor = Color.FromArgb(255, 30, 30, 30);
+            tb.ButtonBackgroundColor = Color.FromArgb(0, 255, 255, 255);
             tb.ButtonHoverForegroundColor = Color.FromArgb(255, 30, 30, 30);
             tb.ButtonHoverBackgroundColor = Color.FromArgb(255, 230, 230, 230);
             tb.ButtonPressedForegroundColor = Color.FromArgb(255, 100, 100, 100);

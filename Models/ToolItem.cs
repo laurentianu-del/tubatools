@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using TubaWinUi3.Services;
 
 namespace TubaWinUi3.Models;
@@ -159,8 +160,12 @@ public sealed class ToolItem : INotifyPropertyChanged
         {
             ArchOptions.Add(new ArchOption { Name = v.Name, Path = v.Path, Arch = v.Arch });
         }
+        var isArm64 = RuntimeInformation.ProcessArchitecture == Architecture.Arm64;
+        var isX64 = Environment.Is64BitOperatingSystem && !isArm64;
         var preferred = ArchOptions.FirstOrDefault(a =>
-            a.Arch.Equals("x64", StringComparison.OrdinalIgnoreCase) && Environment.Is64BitOperatingSystem)
+            a.Arch.Equals("ARM64", StringComparison.OrdinalIgnoreCase) && isArm64)
+            ?? ArchOptions.FirstOrDefault(a =>
+                a.Arch.Equals("x64", StringComparison.OrdinalIgnoreCase) && isX64)
             ?? ArchOptions.FirstOrDefault(a =>
                 a.Arch.Equals("x86", StringComparison.OrdinalIgnoreCase) && !Environment.Is64BitOperatingSystem)
             ?? primary;

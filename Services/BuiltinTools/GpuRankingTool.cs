@@ -58,6 +58,7 @@ public sealed class GpuRankingTool : IBuiltinTool
         if (isDark)
         {
             tb.ButtonForegroundColor = Color.FromArgb(255, 255, 255, 255);
+            tb.ButtonBackgroundColor = Color.FromArgb(0, 255, 255, 255);
             tb.ButtonHoverForegroundColor = Color.FromArgb(255, 255, 255, 255);
             tb.ButtonHoverBackgroundColor = Color.FromArgb(255, 50, 50, 50);
             tb.ButtonPressedForegroundColor = Color.FromArgb(255, 180, 180, 180);
@@ -68,6 +69,7 @@ public sealed class GpuRankingTool : IBuiltinTool
         else
         {
             tb.ButtonForegroundColor = Color.FromArgb(255, 30, 30, 30);
+            tb.ButtonBackgroundColor = Color.FromArgb(0, 255, 255, 255);
             tb.ButtonHoverForegroundColor = Color.FromArgb(255, 30, 30, 30);
             tb.ButtonHoverBackgroundColor = Color.FromArgb(255, 230, 230, 230);
             tb.ButtonPressedForegroundColor = Color.FromArgb(255, 100, 100, 100);
