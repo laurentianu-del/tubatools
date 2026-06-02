@@ -9,7 +9,7 @@ using Windows.UI;
 
 namespace TubaWinUi3.Pages;
 
-public sealed class CpuRankingPage : Page
+public sealed class GpuRankingPage : Page
 {
     private readonly Window _window;
     private string _category = "desktop";
@@ -23,13 +23,15 @@ public sealed class CpuRankingPage : Page
     private static readonly Color Gold = Color.FromArgb(255, 255, 215, 0);
     private readonly Color Silver = Color.FromArgb(255, 192, 192, 192);
     private readonly Color Bronze = Color.FromArgb(255, 205, 127, 50);
-    private static readonly Color IntelBlue = Color.FromArgb(255, 0, 114, 198);
+    private static readonly Color NvidiaGreen = Color.FromArgb(255, 118, 185, 0);
     private static readonly Color AmdRed = Color.FromArgb(255, 237, 28, 36);
+    private static readonly Color IntelBlue = Color.FromArgb(255, 0, 114, 198);
     private static readonly Color AppleGray = Color.FromArgb(255, 160, 160, 160);
     private static readonly Color QualcommPurple = Color.FromArgb(255, 99, 71, 217);
 
-    private static SvgImageSource? IntelLogo;
+    private static SvgImageSource? NvidiaLogo;
     private static SvgImageSource? AmdLogo;
+    private static SvgImageSource? IntelLogo;
     private static SvgImageSource? AppleLogo;
     private static SvgImageSource? QualcommLogo;
 
@@ -42,10 +44,10 @@ public sealed class CpuRankingPage : Page
     private FrameworkElement _filterRow = null!;
     private FrameworkElement _statsRow = null!;
 
-    public CpuRankingPage(Window window)
+    public GpuRankingPage(Window window)
     {
         _window = window;
-        CpuRankingService.Load();
+        GpuRankingService.Load();
         LoadBrandLogos();
 
         var root = BuildUI();
@@ -56,11 +58,12 @@ public sealed class CpuRankingPage : Page
 
     private static void LoadBrandLogos()
     {
-        if (IntelLogo is not null) return;
+        if (NvidiaLogo is not null) return;
 
         var brandsDir = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "Brands");
-        IntelLogo = LoadSvg(System.IO.Path.Combine(brandsDir, "intel.svg"));
+        NvidiaLogo = LoadSvg(System.IO.Path.Combine(brandsDir, "nvidia.svg"));
         AmdLogo = LoadSvg(System.IO.Path.Combine(brandsDir, "amd.svg"));
+        IntelLogo = LoadSvg(System.IO.Path.Combine(brandsDir, "intel.svg"));
         AppleLogo = LoadSvg(System.IO.Path.Combine(brandsDir, "apple.svg"));
         QualcommLogo = LoadSvg(System.IO.Path.Combine(brandsDir, "qualcomm.svg"));
     }
@@ -78,11 +81,18 @@ public sealed class CpuRankingPage : Page
 
     private static SvgImageSource? GetBrandLogo(string brand) => brand switch
     {
-        "Intel" => IntelLogo,
+        "Nvidia" => NvidiaLogo,
         "AMD" => AmdLogo,
+        "Intel" => IntelLogo,
         "Apple" => AppleLogo,
         "Qualcomm" => QualcommLogo,
         _ => null
+    };
+
+    private static Color GetBrandColor(string brand) => brand switch
+    {
+        "Nvidia" => NvidiaGreen, "AMD" => AmdRed, "Intel" => IntelBlue,
+        "Apple" => AppleGray, "Qualcomm" => QualcommPurple, _ => ThemeColors.DimText
     };
 
     private Grid BuildUI()
@@ -120,14 +130,14 @@ public sealed class CpuRankingPage : Page
     {
         var title = new TextBlock
         {
-            Text = "CPU 天梯图",
+            Text = "GPU 天梯图",
             FontSize = 28,
             FontWeight = Microsoft.UI.Text.FontWeights.Bold
         };
 
         _subtitleText = new TextBlock
         {
-            Text = $"数据来源 NanoReview · 更新于 {CpuRankingService.LastUpdated ?? "内置数据"} · 按 Cinebench 2024 排列",
+            Text = $"数据来源 NanoReview · 更新于 {GpuRankingService.LastUpdated ?? "内置数据"} · 综合性能排列",
             FontSize = 12,
             Foreground = new SolidColorBrush(ThemeColors.DimText),
             Margin = new Thickness(0, 4, 0, 0)
@@ -185,9 +195,9 @@ public sealed class CpuRankingPage : Page
     {
         if (_isRefreshing) return;
 
-        if (!CpuRankingService.CanRefresh)
+        if (!GpuRankingService.CanRefresh)
         {
-            var remaining = CpuRankingService.CooldownTime - (DateTime.Now - CpuRankingService.LastRefreshTime);
+            var remaining = GpuRankingService.CooldownTime - (DateTime.Now - GpuRankingService.LastRefreshTime);
             _infoBar.Title = "提示";
             _infoBar.Message = $"数据已是最新，{remaining.Minutes} 分钟后可再次刷新";
             _infoBar.Severity = InfoBarSeverity.Warning;
@@ -199,7 +209,7 @@ public sealed class CpuRankingPage : Page
         _loadingBar.Visibility = Visibility.Visible;
         _infoBar.IsOpen = false;
 
-        var refreshResult = await CpuRankingService.RefreshFromNetworkAsync();
+        var refreshResult = await GpuRankingService.RefreshFromNetworkAsync();
 
         _isRefreshing = false;
         _loadingBar.Visibility = Visibility.Collapsed;
@@ -211,7 +221,7 @@ public sealed class CpuRankingPage : Page
             _infoBar.Severity = InfoBarSeverity.Success;
             _infoBar.IsOpen = true;
 
-            _subtitleText.Text = $"数据来源 NanoReview · 更新于 {CpuRankingService.LastUpdated} · 按 Cinebench 2024 排列";
+            _subtitleText.Text = $"数据来源 NanoReview · 更新于 {GpuRankingService.LastUpdated} · 综合性能排列";
             RefreshList();
         }
         else
@@ -241,7 +251,7 @@ public sealed class CpuRankingPage : Page
 
         var searchBox = new AutoSuggestBox
         {
-            PlaceholderText = "搜索 CPU 名称、制程...",
+            PlaceholderText = "搜索 GPU 名称...",
             QueryIcon = new SymbolIcon(Symbol.Find),
             MinWidth = 200
         };
@@ -260,16 +270,16 @@ public sealed class CpuRankingPage : Page
             Header = null
         };
         sortCombo.Items.Add("综合评分");
-        sortCombo.Items.Add("单核性能");
-        sortCombo.Items.Add("多核性能");
+        sortCombo.Items.Add("游戏性能");
+        sortCombo.Items.Add("渲染性能");
         sortCombo.Items.Add("排名顺序");
         sortCombo.SelectionChanged += (s, e) =>
         {
             _sortBy = sortCombo.SelectedIndex switch
             {
                 0 => "rating",
-                1 => "singleCore",
-                2 => "multiCore",
+                1 => "gaming",
+                2 => "render",
                 _ => "rank"
             };
             RefreshList();
@@ -360,10 +370,11 @@ public sealed class CpuRankingPage : Page
 
     private StackPanel BuildBrandFilter()
     {
-        var brands = new[] { "全部", "Intel", "AMD", "Apple", "Qualcomm" };
+        var brands = new[] { "全部", "Nvidia", "AMD", "Intel", "Apple", "Qualcomm" };
         var brandColors = new Dictionary<string, Color?>
         {
-            ["全部"] = null, ["Intel"] = IntelBlue, ["AMD"] = AmdRed, ["Apple"] = AppleGray, ["Qualcomm"] = QualcommPurple
+            ["全部"] = null, ["Nvidia"] = NvidiaGreen, ["AMD"] = AmdRed,
+            ["Intel"] = IntelBlue, ["Apple"] = AppleGray, ["Qualcomm"] = QualcommPurple
         };
 
         var stack = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
@@ -422,7 +433,8 @@ public sealed class CpuRankingPage : Page
     {
         var brandColors = new Dictionary<string, Color?>
         {
-            ["全部"] = null, ["Intel"] = IntelBlue, ["AMD"] = AmdRed, ["Apple"] = AppleGray, ["Qualcomm"] = QualcommPurple
+            ["全部"] = null, ["Nvidia"] = NvidiaGreen, ["AMD"] = AmdRed,
+            ["Intel"] = IntelBlue, ["Apple"] = AppleGray, ["Qualcomm"] = QualcommPurple
         };
 
         foreach (var btn in stack.Children.OfType<Button>())
@@ -450,14 +462,14 @@ public sealed class CpuRankingPage : Page
 
     private Grid BuildStatsCards()
     {
-        var entries = CpuRankingService.GetByCategory(_category);
+        var entries = GpuRankingService.GetByCategory(_category);
         var total = entries.Count;
-        var intelCount = entries.Count(e => e.Brand == "Intel");
+        var nvidiaCount = entries.Count(e => e.Brand == "Nvidia");
         var amdCount = entries.Count(e => e.Brand == "AMD");
         var topRating = entries.Count > 0 ? entries.MaxBy(e => e.Rating)?.Rating ?? 0 : 0;
 
         var totalCard = MakeStatCard("总计", $"{total} 款", "\uE9D9", ThemeColors.AccentBlue, null);
-        var intelCard = MakeStatCard("Intel", $"{intelCount} 款", "\uE912", IntelBlue, IntelLogo);
+        var nvidiaCard = MakeStatCard("Nvidia", $"{nvidiaCount} 款", "\uE912", NvidiaGreen, NvidiaLogo);
         var amdCard = MakeStatCard("AMD", $"{amdCount} 款", "\uE9D5", AmdRed, AmdLogo);
         var topCard = MakeStatCard("最高分", $"{topRating} 分", "\uE8CA", Color.FromArgb(255, 251, 191, 36), null);
 
@@ -467,7 +479,7 @@ public sealed class CpuRankingPage : Page
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.Children.Add(totalCard);
-        grid.Children.Add(intelCard); Grid.SetColumn(intelCard, 1);
+        grid.Children.Add(nvidiaCard); Grid.SetColumn(nvidiaCard, 1);
         grid.Children.Add(amdCard); Grid.SetColumn(amdCard, 2);
         grid.Children.Add(topCard); Grid.SetColumn(topCard, 3);
 
@@ -525,19 +537,17 @@ public sealed class CpuRankingPage : Page
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100) });
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
 
         AddHeader(headerGrid, "#", 0);
-        AddHeader(headerGrid, "CPU", 1);
+        AddHeader(headerGrid, "GPU", 1);
         AddHeader(headerGrid, "品牌", 2);
         AddHeader(headerGrid, "评分", 3);
         AddHeader(headerGrid, "等级", 4);
-        AddHeader(headerGrid, "单核/多核", 5);
-        AddHeader(headerGrid, "核心数", 6);
-        AddHeader(headerGrid, "功耗", 7);
+        AddHeader(headerGrid, "游戏/渲染", 5);
+        AddHeader(headerGrid, "TFLOPS", 6);
 
         var headerBorder = new Border
         {
@@ -626,13 +636,13 @@ public sealed class CpuRankingPage : Page
     {
         if (_listContainer is null) return;
 
-        var entries = CpuRankingService.GetByCategory(_category);
-        entries = CpuRankingService.Filter(entries, _brand, _keyword);
+        var entries = GpuRankingService.GetByCategory(_category);
+        entries = GpuRankingService.Filter(entries, _brand, _keyword);
 
         entries = _sortBy switch
         {
-            "singleCore" => entries.OrderByDescending(e => e.SingleCore).ToList(),
-            "multiCore" => entries.OrderByDescending(e => e.MultiCore).ToList(),
+            "gaming" => entries.OrderByDescending(e => e.Gaming).ToList(),
+            "render" => entries.OrderByDescending(e => e.Render).ToList(),
             "rating" => entries.OrderByDescending(e => e.Rating).ToList(),
             _ => entries.OrderBy(e => e.Rank).ToList()
         };
@@ -649,7 +659,7 @@ public sealed class CpuRankingPage : Page
         RefreshStats(entries);
     }
 
-    private void RefreshStats(List<CpuRankingEntry> filtered)
+    private void RefreshStats(List<GpuRankingEntry> filtered)
     {
         var mainGrid = Content as Grid;
         if (mainGrid is null) return;
@@ -660,30 +670,26 @@ public sealed class CpuRankingPage : Page
             statsGrid.Children.Clear();
 
             var total = filtered.Count;
-            var intelCount = filtered.Count(e => e.Brand == "Intel");
+            var nvidiaCount = filtered.Count(e => e.Brand == "Nvidia");
             var amdCount = filtered.Count(e => e.Brand == "AMD");
             var topRating = filtered.Count > 0 ? filtered.MaxBy(e => e.Rating)?.Rating ?? 0 : 0;
 
             var totalCard = MakeStatCard("总计", $"{total} 款", "\uE9D9", ThemeColors.AccentBlue, null);
-            var intelCard = MakeStatCard("Intel", $"{intelCount} 款", "\uE912", IntelBlue, IntelLogo);
+            var nvidiaCard = MakeStatCard("Nvidia", $"{nvidiaCount} 款", "\uE912", NvidiaGreen, NvidiaLogo);
             var amdCard = MakeStatCard("AMD", $"{amdCount} 款", "\uE9D5", AmdRed, AmdLogo);
             var topCard = MakeStatCard("最高分", $"{topRating} 分", "\uE8CA", Color.FromArgb(255, 251, 191, 36), null);
 
             statsGrid.Children.Add(totalCard);
-            statsGrid.Children.Add(intelCard); Grid.SetColumn(intelCard, 1);
+            statsGrid.Children.Add(nvidiaCard); Grid.SetColumn(nvidiaCard, 1);
             statsGrid.Children.Add(amdCard); Grid.SetColumn(amdCard, 2);
             statsGrid.Children.Add(topCard); Grid.SetColumn(topCard, 3);
         }
     }
 
-    private Border CreateRow(CpuRankingEntry entry, int displayRank)
+    private Border CreateRow(GpuRankingEntry entry, int displayRank)
     {
         var rankColor = displayRank <= 3 ? (displayRank == 1 ? Gold : displayRank == 2 ? Silver : Bronze) : ThemeColors.DimText;
-        var brandColor = entry.Brand switch
-        {
-            "Intel" => IntelBlue, "AMD" => AmdRed, "Apple" => AppleGray, "Qualcomm" => QualcommPurple, _ => ThemeColors.DimText
-        };
-
+        var brandColor = GetBrandColor(entry.Brand);
         var brandLogo = GetBrandLogo(entry.Brand);
 
         FrameworkElement rankBadge;
@@ -716,16 +722,6 @@ public sealed class CpuRankingPage : Page
             Text = entry.Name, FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText), VerticalAlignment = VerticalAlignment.Center
         };
-
-        var processText = new TextBlock
-        {
-            Text = entry.Process, FontSize = 10, Foreground = new SolidColorBrush(ThemeColors.DimText),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-
-        var namePanel = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
-        namePanel.Children.Add(nameText);
-        namePanel.Children.Add(processText);
 
         FrameworkElement brandContent;
         if (brandLogo is not null)
@@ -769,19 +765,13 @@ public sealed class CpuRankingPage : Page
 
         var scoreText = new TextBlock
         {
-            Text = $"{entry.SingleCore} / {entry.MultiCore}", FontSize = 12,
+            Text = $"{entry.Gaming} / {entry.Render}", FontSize = 12,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText), VerticalAlignment = VerticalAlignment.Center
         };
 
-        var coresText = new TextBlock
+        var tflopsText = new TextBlock
         {
-            Text = entry.Cores, FontSize = 12, Foreground = new SolidColorBrush(ThemeColors.DimText),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-
-        var tdpText = new TextBlock
-        {
-            Text = entry.Tdp, FontSize = 12, Foreground = new SolidColorBrush(ThemeColors.DimText),
+            Text = entry.Tflops, FontSize = 12, Foreground = new SolidColorBrush(ThemeColors.DimText),
             VerticalAlignment = VerticalAlignment.Center
         };
 
@@ -790,19 +780,17 @@ public sealed class CpuRankingPage : Page
         rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-        rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+        rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
         rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100) });
-        rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
         rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
 
         rowGrid.Children.Add(rankBadge); Grid.SetColumn(rankBadge, 0);
-        rowGrid.Children.Add(namePanel); Grid.SetColumn(namePanel, 1);
+        rowGrid.Children.Add(nameText); Grid.SetColumn(nameText, 1);
         rowGrid.Children.Add(brandBadge); Grid.SetColumn(brandBadge, 2);
         rowGrid.Children.Add(ratingBar); Grid.SetColumn(ratingBar, 3);
         rowGrid.Children.Add(gradeBadge); Grid.SetColumn(gradeBadge, 4);
         rowGrid.Children.Add(scoreText); Grid.SetColumn(scoreText, 5);
-        rowGrid.Children.Add(coresText); Grid.SetColumn(coresText, 6);
-        rowGrid.Children.Add(tdpText); Grid.SetColumn(tdpText, 7);
+        rowGrid.Children.Add(tflopsText); Grid.SetColumn(tflopsText, 6);
 
         return new Border
         {
