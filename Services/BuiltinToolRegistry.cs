@@ -32,6 +32,7 @@ public static class BuiltinToolRegistry
         Register(new WindowsActivationTool());
         Register(new DefenderTool());
         Register(new CpuRankingTool());
+        Register(new GpuRankingTool());
     }
 
     public static IReadOnlyList<string> GetCategories()
