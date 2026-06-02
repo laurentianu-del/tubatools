@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using TubaWinUi3.Models;
 
 namespace TubaWinUi3.Services;
@@ -230,7 +231,7 @@ public static class ToolCatalog
 
                 alternates.Add(new ArchVariant
                 {
-                    Name = CleanupName(otherFileName),
+                    Name = CleanupName(StripArchSuffix(otherFileName)),
                     Path = otherLaunchable,
                     Arch = FormatArchDisplay(otherArch)
                 });
@@ -272,7 +273,7 @@ public static class ToolCatalog
             var vName = System.IO.Path.GetFileNameWithoutExtension(variantPath);
             alternates.Add(new ArchVariant
             {
-                Name = CleanupName(vName),
+                Name = CleanupName(StripArchSuffix(vName)),
                 Path = variantPath,
                 Arch = jv.Arch ?? FormatArchDisplay(DetectArch(vName)) ?? "x86"
             });
@@ -317,7 +318,7 @@ public static class ToolCatalog
 
         var item = new ToolItem
         {
-            Name = CleanupName(name),
+            Name = CleanupName(StripArchSuffix(name)),
             Category = category,
             Path = path,
             RelativePath = relativePath,
@@ -350,9 +351,14 @@ public static class ToolCatalog
         "w64", "w32", "_Win64", "_Win32", "ARM64", "_ARM64"
     ];
 
-    private static readonly string[] Arch64Patterns =
+    private static readonly string[] ArchX64Patterns =
     [
-        "x64", "_x64", "64", "_64", "w64", "_Win64", "ARM64", "_ARM64"
+        "x64", "_x64", "w64", "_Win64"
+    ];
+
+    private static readonly string[] ArchArm64Patterns =
+    [
+        "ARM64", "_ARM64", "arm64", "_arm64"
     ];
 
     private static readonly string[] Arch32Patterns =
@@ -360,19 +366,25 @@ public static class ToolCatalog
         "x86", "_x86", "32", "_32", "w32", "_Win32"
     ];
 
-    private static bool Is64BitOS => Environment.Is64BitOperatingSystem;
+    private static bool IsArm64OS => RuntimeInformation.ProcessArchitecture == Architecture.Arm64;
+    private static bool IsX64OS => Environment.Is64BitOperatingSystem && !IsArm64OS;
 
     private static string? DetectArch(string name)
     {
-        foreach (var p in Arch64Patterns)
+        foreach (var p in ArchArm64Patterns)
         {
             if (name.EndsWith(p, StringComparison.OrdinalIgnoreCase))
-                return p.TrimStart('_') is "Win64" or "ARM64" ? p.TrimStart('_') : "x64";
+                return "ARM64";
+        }
+        foreach (var p in ArchX64Patterns)
+        {
+            if (name.EndsWith(p, StringComparison.OrdinalIgnoreCase))
+                return "x64";
         }
         foreach (var p in Arch32Patterns)
         {
             if (name.EndsWith(p, StringComparison.OrdinalIgnoreCase))
-                return p.TrimStart('_') is "Win32" ? "x86" : "x86";
+                return "x86";
         }
         return null;
     }
@@ -381,7 +393,8 @@ public static class ToolCatalog
     {
         return arch switch
         {
-            "x64" or "Win64" or "ARM64" => "x64",
+            "ARM64" => "ARM64",
+            "x64" or "Win64" => "x64",
             "x86" or "Win32" => "x86",
             _ => arch ?? ""
         };
@@ -418,7 +431,7 @@ public static class ToolCatalog
 
             variants.Add(new ArchVariant
             {
-                Name = CleanupName(fileName),
+                Name = CleanupName(StripArchSuffix(fileName)),
                 Path = filePath,
                 Arch = FormatArchDisplay(arch)
             });
@@ -481,12 +494,30 @@ public static class ToolCatalog
 
     private static string PickPreferredArch(List<string> candidates)
     {
-        if (Is64BitOS)
+        if (IsArm64OS)
+        {
+            var arm64 = candidates.FirstOrDefault(f =>
+            {
+                var name = Path.GetFileNameWithoutExtension(f);
+                return ArchArm64Patterns.Any(p => name.EndsWith(p, StringComparison.OrdinalIgnoreCase));
+            });
+            if (arm64 is not null)
+                return arm64;
+
+            var x64 = candidates.FirstOrDefault(f =>
+            {
+                var name = Path.GetFileNameWithoutExtension(f);
+                return ArchX64Patterns.Any(p => name.EndsWith(p, StringComparison.OrdinalIgnoreCase));
+            });
+            if (x64 is not null)
+                return x64;
+        }
+        else if (IsX64OS)
         {
             var x64 = candidates.FirstOrDefault(f =>
             {
                 var name = Path.GetFileNameWithoutExtension(f);
-                return Arch64Patterns.Any(p => name.EndsWith(p, StringComparison.OrdinalIgnoreCase));
+                return ArchX64Patterns.Any(p => name.EndsWith(p, StringComparison.OrdinalIgnoreCase));
             });
             if (x64 is not null)
                 return x64;
@@ -523,6 +554,8 @@ public static class ToolCatalog
         return name
             .Replace("_x64", " x64", StringComparison.OrdinalIgnoreCase)
             .Replace("_x86", " x86", StringComparison.OrdinalIgnoreCase)
+            .Replace("_ARM64", " ARM64", StringComparison.OrdinalIgnoreCase)
+            .Replace("_arm64", " ARM64", StringComparison.OrdinalIgnoreCase)
             .Replace("_", " ");
     }
 

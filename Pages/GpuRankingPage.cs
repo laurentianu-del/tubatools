@@ -155,6 +155,9 @@ public sealed class GpuRankingPage : Page
                     new TextBlock { Text = "刷新数据", FontSize = 13 }
                 }
             },
+            Background = new SolidColorBrush(ThemeColors.SubtleBg),
+            Foreground = new SolidColorBrush(ThemeColors.PrimaryText),
+            BorderBrush = new SolidColorBrush(ThemeColors.BorderColor),
             Padding = new Thickness(14, 6, 14, 6),
             CornerRadius = new CornerRadius(6),
             VerticalAlignment = VerticalAlignment.Center
@@ -363,9 +366,9 @@ public sealed class GpuRankingPage : Page
         active.Foreground = new SolidColorBrush(accentColor);
         active.BorderBrush = new SolidColorBrush(accentColor);
 
-        inactive.Background = new SolidColorBrush(Color.FromArgb(0, 0, 0, 0));
+        inactive.Background = new SolidColorBrush(ThemeColors.SubtleBg);
         inactive.Foreground = new SolidColorBrush(ThemeColors.DimText);
-        inactive.BorderBrush = new SolidColorBrush(Color.FromArgb(0, 0, 0, 0));
+        inactive.BorderBrush = new SolidColorBrush(ThemeColors.SubtleBg);
     }
 
     private StackPanel BuildBrandFilter()
@@ -452,9 +455,9 @@ public sealed class GpuRankingPage : Page
             }
             else
             {
-                btn.Background = new SolidColorBrush(Color.FromArgb(0, 0, 0, 0));
+                btn.Background = new SolidColorBrush(ThemeColors.SubtleBg);
                 btn.Foreground = new SolidColorBrush(ThemeColors.DimText);
-                btn.BorderBrush = new SolidColorBrush(Color.FromArgb(0, 0, 0, 0));
+                btn.BorderBrush = new SolidColorBrush(ThemeColors.SubtleBg);
                 btn.BorderThickness = new Thickness(0);
             }
         }

@@ -29,6 +29,8 @@ internal static class ThemeColors
     public static Color KeyBorder => IsDark ? Color.FromArgb(255, 75, 75, 75) : Color.FromArgb(255, 200, 200, 200);
     public static Color KeyText => IsDark ? Color.FromArgb(255, 210, 210, 210) : Color.FromArgb(255, 30, 30, 30);
     public static Color KeyboardBg => IsDark ? Color.FromArgb(255, 35, 35, 35) : Color.FromArgb(255, 240, 240, 240);
+    public static Color SubtleBg => IsDark ? Color.FromArgb(255, 50, 50, 50) : Color.FromArgb(255, 240, 240, 240);
+    public static Color SubtleBgHover => IsDark ? Color.FromArgb(255, 60, 60, 60) : Color.FromArgb(255, 230, 230, 230);
     public static Color Separator => IsDark ? Color.FromArgb(255, 50, 50, 50) : Color.FromArgb(255, 220, 220, 220);
 
     public static readonly Color AccentBlue = Color.FromArgb(255, 96, 165, 250);
