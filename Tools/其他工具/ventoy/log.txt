@@ -1,0 +1,43 @@
+[2026/06/03 19:38:56.531] 
+##################################################################################
+############################## Ventoy2DiskX64  #############################
+##################################################################################
+[2026/06/03 19:38:56.531] Current Directory <D:\Scoop\apps\ventoy\current\altexe>
+[2026/06/03 19:38:56.531] Exe file path <D:\scoop\apps\ventoy\current\altexe\Ventoy2Disk_X64.exe>
+[2026/06/03 19:38:56.531] Change current dir to exe <D:\scoop\apps\ventoy\current\altexe>
+[2026/06/03 19:38:56.531] altexe detected, change current dir to <D:\scoop\apps\ventoy\current>
+[2026/06/03 19:38:56.534] Current directory:<D:\scoop\apps\ventoy\current>
+[2026/06/03 19:38:56.535] ######### Current Ventoy Version: Ventoy2DiskX64 1.1.12 ########
+[2026/06/03 19:38:56.544] id=38064/15252
+[2026/06/03 19:38:56.545] PPath:<C:\Windows\explorer.exe>
+[2026/06/03 19:38:56.545] PSize:<3396792 3317KB>
+[2026/06/03 19:38:56.546] Lunch main process 0
+[2026/06/03 19:38:56.547] Control Flag: 0 1 1
+[2026/06/03 19:38:56.548] GetSystemWow64DirectoryA=<C:\WINDOWS\SysWOW64>
+[2026/06/03 19:38:56.550] Windows Version: <<Windows 11 Pro, 64-bit (Build 26300.8553)>>
+[2026/06/03 19:38:56.550] 
+===================== Enum All PhyDrives =====================
+[2026/06/03 19:38:56.551] RegOpenKeyExA <SYSTEM\CurrentControlSet\Services\disk\Enum> Ret:0
+[2026/06/03 19:38:56.551] RegQueryValueExA <Count> ret:0  Size:4 Value:1
+[2026/06/03 19:38:56.551] GetPhysicalDriveCount: 1
+[2026/06/03 19:38:56.551] Logical Drives: 0xc
+[2026/06/03 19:38:56.552] LogicalDrive:\\.\C: PhyDrive:0 Num:1 Offset:122683392 ExtentLength:429915111424
+[2026/06/03 19:38:56.552] C --> 0
+[2026/06/03 19:38:56.552] LogicalDrive:\\.\D: PhyDrive:0 Num:1 Offset:430038843392 ExtentLength:594170682880
+[2026/06/03 19:38:56.554] D --> 0
+[2026/06/03 19:38:56.555] Create file Handle:00000000000000E4 \\.\PhysicalDrive0 status:0
+[2026/06/03 19:38:56.556] PHYSICALDRIVE0 size 1024209543168 bytes
+[2026/06/03 19:38:56.556] PhyDrv:0 BusType:Nvme Removable:0 Size:1024GB(1024209543168) Sector:512/4096 Name: YMTC PC41Q-1TB-B
+[2026/06/03 19:38:56.557] LogicalDrive:\\.\C: PhyDrive:0 Num:1 Offset:122683392 ExtentLength:429915111424
+[2026/06/03 19:38:56.557] Logical Drive:C  ===> PhyDrive:0
+[2026/06/03 19:38:56.557] LogicalDrive:\\.\D: PhyDrive:0 Num:1 Offset:430038843392 ExtentLength:594170682880
+[2026/06/03 19:38:56.557] Logical Drive:D  ===> PhyDrive:0
+[2026/06/03 19:38:56.558] < YMTC PC41Q-1TB-B> is filtered for not USB type.
+[2026/06/03 19:38:56.595] Load languages from json file ...
+[2026/06/03 19:38:56.597] language json file len:293123 json parse:0
+[2026/06/03 19:38:56.599] Total 53 languages ...
+[2026/06/03 19:38:56.644] Courier New font <C:\WINDOWS\Fonts\couri.ttf> exist OK.
+[2026/06/03 19:38:56.644] system_dir=<C:\WINDOWS\system32>
+[2026/06/03 19:38:56.645] sysnative_dir=<C:\WINDOWS\system32>
+[2026/06/03 19:38:56.646] LoadLibrary shell32.dll.mui SUCCESS
+[2026/06/03 19:38:56.647] SetAlertPromptHook SUCCESS
