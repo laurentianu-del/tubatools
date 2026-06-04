@@ -42,7 +42,7 @@ public static class ConfigManager
         return ConfigLocation.AppData;
     }
 
-    public static void SetConfigLocation(ConfigLocation location)
+    public static bool SetConfigLocation(ConfigLocation location)
     {
         try
         {
@@ -56,9 +56,13 @@ public static class ConfigManager
                 var markerPath = Path.Combine(AppRootDir, ".config_location");
                 if (File.Exists(markerPath)) File.Delete(markerPath);
             }
+            lock (_lock) { _cachedDataDir = null; }
+            return true;
         }
-        catch { }
-        lock (_lock) { _cachedDataDir = null; }
+        catch
+        {
+            return false;
+        }
     }
 
     public static string GetSettingsPath() => Path.Combine(GetDataDir(), "settings.json");
@@ -90,7 +94,7 @@ public static class ConfigManager
         catch { return "未知"; }
     }
 
-    public static bool MigrateData(ConfigLocation targetLocation, bool deleteOld)
+    public static bool MigrateData(ConfigLocation targetLocation, bool migrate)
     {
         var sourceDir = GetDataDir();
         var targetDir = targetLocation == ConfigLocation.AppRoot ? AppRootDir : AppDataDir;
@@ -99,35 +103,33 @@ public static class ConfigManager
 
         try
         {
-            if (!Directory.Exists(sourceDir)) { SetConfigLocation(targetLocation); return true; }
-
-            Directory.CreateDirectory(targetDir);
-
-            var excludeDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "IconCache", "Metadata" };
-            var excludeFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "sensor_dump.txt" };
-
-            foreach (var file in Directory.EnumerateFiles(sourceDir))
+            if (migrate && Directory.Exists(sourceDir))
             {
-                var name = Path.GetFileName(file);
-                if (excludeFiles.Contains(name)) continue;
-                var dest = Path.Combine(targetDir, name);
-                File.Copy(file, dest, true);
-            }
+                Directory.CreateDirectory(targetDir);
 
-            foreach (var dir in Directory.EnumerateDirectories(sourceDir))
-            {
-                var name = Path.GetFileName(dir);
-                if (excludeDirs.Contains(name)) continue;
-                var destDir = Path.Combine(targetDir, name);
-                CopyDirectory(dir, destDir);
-            }
+                var excludeDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "IconCache", "Metadata" };
+                var excludeFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "sensor_dump.txt" };
 
-            SetConfigLocation(targetLocation);
+                foreach (var file in Directory.EnumerateFiles(sourceDir))
+                {
+                    var name = Path.GetFileName(file);
+                    if (excludeFiles.Contains(name)) continue;
+                    var dest = Path.Combine(targetDir, name);
+                    File.Copy(file, dest, true);
+                }
 
-            if (deleteOld)
-            {
+                foreach (var dir in Directory.EnumerateDirectories(sourceDir))
+                {
+                    var name = Path.GetFileName(dir);
+                    if (excludeDirs.Contains(name)) continue;
+                    var destDir = Path.Combine(targetDir, name);
+                    CopyDirectory(dir, destDir);
+                }
+
                 try { Directory.Delete(sourceDir, true); } catch { }
             }
+
+            if (!SetConfigLocation(targetLocation)) return false;
 
             return true;
         }
