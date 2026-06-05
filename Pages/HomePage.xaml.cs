@@ -699,6 +699,12 @@ public sealed partial class HomePage : Page
             return;
         }
 
+        if (!string.IsNullOrWhiteSpace(tool.RemoteUrl) && !File.Exists(tool.EffectivePath))
+        {
+            _ = HandleRemoteDownloadAsync(tool, runAsAdmin);
+            return;
+        }
+
         var exePath = tool.EffectivePath;
         if (!File.Exists(exePath))
         {
@@ -723,6 +729,203 @@ public sealed partial class HomePage : Page
         {
             ShowStatus("启动失败", ex.Message, InfoBarSeverity.Error);
         }
+    }
+
+    private async Task HandleRemoteDownloadAsync(ToolItem tool, bool runAsAdmin)
+    {
+        var toolDir = Path.GetDirectoryName(tool.Path) ?? Path.Combine(ToolCatalog.ToolsRoot, tool.Category, tool.Folder);
+        Directory.CreateDirectory(toolDir);
+
+        var dialog = new ContentDialog
+        {
+            Title = $"下载 {tool.Name}",
+            PrimaryButtonText = "开始下载",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot,
+            RequestedTheme = ThemeService.CurrentElementTheme
+        };
+        dialog.Resources["ContentDialogMaxWidth"] = 520;
+
+        var progressPanel = new StackPanel { Spacing = 10, Visibility = Visibility.Collapsed };
+        var progressBar = new ProgressBar { IsIndeterminate = false };
+        var percentText = new TextBlock
+        {
+            FontSize = 12,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentTextFillColorPrimaryBrush"],
+            Text = "0%"
+        };
+        var speedText = new TextBlock
+        {
+            FontSize = 12,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+            Text = "--"
+        };
+        var sizeText = new TextBlock
+        {
+            FontSize = 12,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+            Text = "--"
+        };
+        var timeText = new TextBlock
+        {
+            FontSize = 12,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+            Text = "--"
+        };
+
+        progressPanel.Children.Add(progressBar);
+        progressPanel.Children.Add(new StackPanel
+        {
+            Orientation = Microsoft.UI.Xaml.Controls.Orientation.Horizontal,
+            Spacing = 16,
+            Children = { speedText, sizeText, timeText }
+        });
+        progressPanel.Children.Add(percentText);
+
+        var descText = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 13,
+            Text = $"「{tool.Name}」尚未安装，需要从远程下载并解压到本地。"
+        };
+
+        var errorBar = new InfoBar
+        {
+            IsOpen = false,
+            IsClosable = true,
+            Severity = InfoBarSeverity.Error,
+            Title = "下载失败"
+        };
+
+        var contentStack = new StackPanel { Spacing = 12, MinWidth = 420 };
+        contentStack.Children.Add(descText);
+        contentStack.Children.Add(progressPanel);
+        contentStack.Children.Add(errorBar);
+        dialog.Content = contentStack;
+
+        var cts = new CancellationTokenSource();
+        var downloadStarted = false;
+
+        dialog.PrimaryButtonClick += async (s, e) =>
+        {
+            if (downloadStarted) { e.Cancel = true; return; }
+            var deferral = e.GetDeferral();
+            e.Cancel = true;
+
+            downloadStarted = true;
+            dialog.IsPrimaryButtonEnabled = false;
+
+            try
+            {
+                descText.Visibility = Visibility.Collapsed;
+                progressPanel.Visibility = Visibility.Visible;
+                dialog.PrimaryButtonText = "下载中...";
+
+                var progress = new Progress<ToolDownloadProgress>(p =>
+                {
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        progressBar.Value = p.Percentage;
+                        percentText.Text = $"{p.Percentage:F1}%";
+                        speedText.Text = ToolDownloaderService.FormatSpeed(p.SpeedMbps);
+                        sizeText.Text = $"{ToolDownloaderService.FormatSize(p.BytesReceived)} / {ToolDownloaderService.FormatSize(p.TotalBytes)}";
+                        timeText.Text = ToolDownloaderService.FormatTime(p.EstimatedRemaining);
+                    });
+                });
+
+                var fileName = Path.GetFileName(new Uri(tool.RemoteUrl!).AbsolutePath);
+                if (string.IsNullOrWhiteSpace(fileName))
+                    fileName = $"{tool.Name}.zip";
+
+                var filePath = await ToolDownloaderService.DownloadToFileAsync(
+                    tool.RemoteUrl!, toolDir, fileName, progress, cts.Token);
+
+                percentText.Text = "解压中...";
+                progressBar.IsIndeterminate = true;
+                await ToolDownloaderService.ExtractArchiveAsync(filePath, toolDir, cts.Token);
+
+                dialog.Hide();
+
+                ToolCatalog.InvalidateTagsCache();
+                ToolMetadataService.InvalidateCache();
+
+                var exePath = FindLaunchableInDir(toolDir, tool.Name);
+                if (exePath is not null)
+                {
+                    try
+                    {
+                        Process.Start(new ProcessStartInfo
+                        {
+                            FileName = exePath,
+                            WorkingDirectory = Path.GetDirectoryName(exePath),
+                            UseShellExecute = true,
+                            Verb = runAsAdmin ? "runAs" : null
+                        });
+                        LaunchHistoryService.RecordLaunch(tool.Path);
+                        ShowStatus("已启动", tool.Name, InfoBarSeverity.Success);
+                    }
+                    catch (Exception ex)
+                    {
+                        ShowStatus("启动失败", ex.Message, InfoBarSeverity.Error);
+                    }
+                }
+                else
+                {
+                    ShowStatus("下载完成", $"「{tool.Name}」已下载解压，请刷新后重试打开。", InfoBarSeverity.Success);
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                errorBar.Message = ex.Message;
+                errorBar.IsOpen = true;
+                progressPanel.Visibility = Visibility.Collapsed;
+                descText.Visibility = Visibility.Visible;
+                dialog.IsPrimaryButtonEnabled = true;
+                dialog.PrimaryButtonText = "重试";
+                downloadStarted = false;
+            }
+            finally
+            {
+                try { deferral.Complete(); } catch { }
+            }
+        };
+
+        await dialog.ShowAsync();
+    }
+
+    private static string? FindLaunchableInDir(string dir, string toolName)
+    {
+        if (!Directory.Exists(dir)) return null;
+
+        var launchables = Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories)
+            .Where(f =>
+            {
+                var ext = Path.GetExtension(f);
+                return ext.Equals(".exe", StringComparison.OrdinalIgnoreCase) ||
+                       ext.Equals(".bat", StringComparison.OrdinalIgnoreCase) ||
+                       ext.Equals(".cmd", StringComparison.OrdinalIgnoreCase);
+            })
+            .ToList();
+
+        if (launchables.Count == 0) return null;
+
+        var match = launchables.FirstOrDefault(f =>
+            Path.GetFileNameWithoutExtension(f).Equals(toolName, StringComparison.OrdinalIgnoreCase));
+        if (match is not null) return match;
+
+        match = launchables.FirstOrDefault(f =>
+            Path.GetFileNameWithoutExtension(f).Contains(toolName, StringComparison.OrdinalIgnoreCase));
+        if (match is not null) return match;
+
+        return launchables.FirstOrDefault(f =>
+        {
+            var name = Path.GetFileNameWithoutExtension(f);
+            return !name.Equals("uninstall", StringComparison.OrdinalIgnoreCase) &&
+                   !name.Equals("uninst", StringComparison.OrdinalIgnoreCase);
+        });
     }
 
     private async Task HandleWingetToolAsync(ToolItem tool)

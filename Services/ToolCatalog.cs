@@ -252,7 +252,7 @@ public static class ToolCatalog
         var name = GetDisplayName(path);
         var relativePath = Path.GetRelativePath(categoryRoot, path);
         var metadata = ToolMetadataService.GetMetadata(category, path);
-        var isPlaceholder = !File.Exists(path) && (!string.IsNullOrWhiteSpace(metadata.DownloadUrl) || !string.IsNullOrWhiteSpace(metadata.WingetId));
+        var isPlaceholder = !File.Exists(path) && (!string.IsNullOrWhiteSpace(metadata.DownloadUrl) || !string.IsNullOrWhiteSpace(metadata.WingetId) || !string.IsNullOrWhiteSpace(metadata.RemoteUrl));
 
         var primaryArch = DetectArch(Path.GetFileNameWithoutExtension(path));
         var archDisplay = FormatArchDisplay(primaryArch);
@@ -350,6 +350,7 @@ public static class ToolCatalog
             Version = metadata.Version,
             DatabaseSource = metadata.DatabaseSource,
             DownloadUrl = metadata.DownloadUrl,
+            RemoteUrl = metadata.RemoteUrl,
             DownloadFilter = metadata.DownloadFilter,
             WingetId = metadata.WingetId,
             Tags = metadata.Tags ?? [],
@@ -367,7 +368,7 @@ public static class ToolCatalog
         var name = GetDisplayName(path);
         var relativePath = Path.GetRelativePath(categoryRoot, path);
         var metadata = ToolMetadataService.GetMetadata(category, path);
-        var isPlaceholder = !File.Exists(path) && (!string.IsNullOrWhiteSpace(metadata.DownloadUrl) || !string.IsNullOrWhiteSpace(metadata.WingetId));
+        var isPlaceholder = !File.Exists(path) && (!string.IsNullOrWhiteSpace(metadata.DownloadUrl) || !string.IsNullOrWhiteSpace(metadata.WingetId) || !string.IsNullOrWhiteSpace(metadata.RemoteUrl));
 
         var item = new ToolItem
         {
@@ -383,6 +384,7 @@ public static class ToolCatalog
             Version = metadata.Version,
             DatabaseSource = metadata.DatabaseSource,
             DownloadUrl = metadata.DownloadUrl,
+            RemoteUrl = metadata.RemoteUrl,
             DownloadFilter = metadata.DownloadFilter,
             WingetId = metadata.WingetId,
             Tags = metadata.Tags ?? [],
