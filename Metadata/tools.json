@@ -54,7 +54,8 @@
       "match": "ThrottleStop",
       "description": "CPU 降频监控和功耗控制工具，可解除笔记本 CPU 功耗限制。",
       "publisher": "uWebb Software",
-      "tags": [ "CPU", "降频", "功耗控制" ]
+      "tags": [ "CPU", "降频", "功耗控制" ],
+      "remoteUrl": "https://us3-dl.techpowerup.com/files/0ExjqXLkUiycHiYGyZfhuA/1780683452/ThrottleStop_9.7.zip"
     },
     {
       "match": "wPrime",

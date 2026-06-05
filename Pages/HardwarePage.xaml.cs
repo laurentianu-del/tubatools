@@ -421,8 +421,7 @@ public sealed partial class HardwarePage : Page
                 DrawWatermark(g, totalW, totalH, watermarkText, watermarkFont, watermarkBarBg, watermarkTextColor);
             }
 
-            var downloadsFolder = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+            var downloadsFolder = GetDownloadsFolderPath();
             var timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
             var fileName = $"硬件信息_{timestamp}.png";
             var filePath = Path.Combine(downloadsFolder, fileName);
@@ -500,6 +499,31 @@ public sealed partial class HardwarePage : Page
             pixels[i] = (a << 24) | (b << 16) | (g << 8) | r;
         }
         return pixels;
+    }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern int SHGetKnownFolderPath(
+        [In] ref Guid rfid, uint dwFlags, IntPtr hToken, out IntPtr ppszPath);
+
+    private static string GetDownloadsFolderPath()
+    {
+        try
+        {
+            var folderId = new Guid("374DE290-123F-4565-9164-39C4925E467B");
+            var hr = SHGetKnownFolderPath(ref folderId, 0, IntPtr.Zero, out var pPath);
+            if (hr == 0 && pPath != IntPtr.Zero)
+            {
+                var path = Marshal.PtrToStringUni(pPath);
+                Marshal.FreeCoTaskMem(pPath);
+                if (!string.IsNullOrEmpty(path) && Directory.Exists(path))
+                    return path;
+            }
+        }
+        catch { }
+        var fallback = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+        if (Directory.Exists(fallback))
+            return fallback;
+        return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
     }
 
     private static T? FindChild<T>(DependencyObject parent) where T : FrameworkElement
