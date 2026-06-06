@@ -12,6 +12,8 @@ namespace TubaWinUi3;
 public sealed partial class MainWindow : Window
 {
     private CancellationTokenSource? _searchCts;
+    private SearchResult? _pendingSearchResult;
+    private bool _syncingNavSelection;
 
     public MainWindow()
     {
@@ -124,6 +126,8 @@ public sealed partial class MainWindow : Window
 
     private async void NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
+        if (_syncingNavSelection) return;
+
         if (args.IsSettingsSelected)
         {
             NavFrame.Navigate(typeof(SettingsPage));
@@ -333,11 +337,30 @@ public sealed partial class MainWindow : Window
 
     private void GlobalSearchBox_SuggestionChosen(AutoSuggestBox sender, AutoSuggestBoxSuggestionChosenEventArgs args)
     {
-        sender.Text = string.Empty;
-
         if (args.SelectedItem is SearchResult result)
         {
+            _pendingSearchResult = result;
+        }
+    }
+
+    private void GlobalSearchBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
+    {
+        if (_pendingSearchResult is not null)
+        {
+            var result = _pendingSearchResult;
+            _pendingSearchResult = null;
+            sender.Text = string.Empty;
             HandleSearchResult(result);
+        }
+        else if (!string.IsNullOrWhiteSpace(args.QueryText))
+        {
+            var first = (sender.ItemsSource as System.Collections.IList)?
+                .Cast<SearchResult>().FirstOrDefault();
+            if (first is not null)
+            {
+                sender.Text = string.Empty;
+                HandleSearchResult(first);
+            }
         }
     }
 
@@ -362,6 +385,7 @@ public sealed partial class MainWindow : Window
             case SearchItemKind.BuiltinTool:
                 NavFrame.Navigate(typeof(BuiltinToolsPage),
                     new SearchNavigationTarget { HighlightBuiltinId = result.MatchKey });
+                SyncNavSelection("builtin");
                 break;
             case SearchItemKind.Setting:
                 NavFrame.Navigate(typeof(SettingsPage),
@@ -375,6 +399,20 @@ public sealed partial class MainWindow : Window
         ThemeService.ApplySavedTheme();
     }
 
+    private void SyncNavSelection(string tag)
+    {
+        _syncingNavSelection = true;
+        foreach (var item in NavView.MenuItems)
+        {
+            if (item is NavigationViewItem navItem && navItem.Tag is string t && t == tag)
+            {
+                NavView.SelectedItem = navItem;
+                break;
+            }
+        }
+        _syncingNavSelection = false;
+    }
+
     private void NavigateToTool(string toolPath)
     {
         try
@@ -385,6 +423,9 @@ public sealed partial class MainWindow : Window
             {
                 NavFrame.Navigate(typeof(HomePage),
                     new SearchNavigationTarget { HighlightToolPath = toolPath });
+
+                if (!string.IsNullOrEmpty(tool.Category))
+                    SyncNavSelection(tool.Category);
             }
         }
         catch { }
@@ -399,15 +440,19 @@ public sealed partial class MainWindow : Window
         {
             case "hardware":
                 NavFrame.Navigate(typeof(HardwarePage));
+                SyncNavSelection("hardware");
                 break;
             case "monitor":
                 _ = NavigateToMonitorAsync();
+                SyncNavSelection("monitor");
                 break;
             case "favorites":
                 NavFrame.Navigate(typeof(FavoritesPage));
+                SyncNavSelection("favorites");
                 break;
             case "builtin":
                 NavFrame.Navigate(typeof(BuiltinToolsPage));
+                SyncNavSelection("builtin");
                 break;
             case "settings":
                 NavFrame.Navigate(typeof(SettingsPage));

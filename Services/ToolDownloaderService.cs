@@ -18,6 +18,15 @@ public sealed record ToolDownloadProgress(
     double SpeedMbps,
     TimeSpan? EstimatedRemaining);
 
+public sealed record ToolUpdateInfo(
+    string VersionTag,
+    DateTimeOffset? PublishedDate,
+    string DownloadUrl,
+    string FileName,
+    long Size,
+    bool IsArchive,
+    bool IsInstaller);
+
 public static class ToolDownloaderService
 {
     private const string HubBase = "https://hub.tubawinui3.cn";
@@ -283,6 +292,126 @@ public static class ToolDownloaderService
     private static string ExtractVersion(string href)
     {
         var match = System.Text.RegularExpressions.Regex.Match(href, @"(\d+\.\d+\.\d+)");
+        return match.Success ? match.Groups[1].Value : "";
+    }
+
+    public static async Task<ToolUpdateInfo?> CheckForUpdateAsync(
+        string? remoteUrl, string? downloadUrl, string? downloadFilter,
+        string? localVersion, DateTime? localLastWrite, CancellationToken ct = default)
+    {
+        if (!string.IsNullOrWhiteSpace(downloadUrl))
+            return await CheckGitHubUpdateAsync(downloadUrl, downloadFilter, localVersion, ct);
+
+        if (!string.IsNullOrWhiteSpace(remoteUrl))
+            return await CheckDirectUrlUpdateAsync(remoteUrl, localVersion, localLastWrite, ct);
+
+        return null;
+    }
+
+    private static async Task<ToolUpdateInfo?> CheckGitHubUpdateAsync(
+        string downloadUrl, string? filter, string? localVersion, CancellationToken ct)
+    {
+        if (!downloadUrl.StartsWith("gh:", StringComparison.OrdinalIgnoreCase)) return null;
+
+        var repo = downloadUrl[3..];
+        var apiUrl = $"{HubBase}/api/repos/{repo}/releases/latest";
+
+        try
+        {
+            var json = await _httpClient.GetStringAsync(apiUrl, ct);
+            var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            var tag = root.TryGetProperty("tag_name", out var tagEl) ? tagEl.GetString() ?? "" : "";
+            DateTimeOffset? published = root.TryGetProperty("published_at", out var pubEl)
+                && pubEl.ValueKind == JsonValueKind.String
+                ? pubEl.GetDateTimeOffset() : null;
+
+            if (!string.IsNullOrWhiteSpace(localVersion) && !string.IsNullOrWhiteSpace(tag))
+            {
+                var remoteVer = NormalizeVersion(tag);
+                var localVer = NormalizeVersion(localVersion);
+                if (!string.IsNullOrEmpty(remoteVer) && !string.IsNullOrEmpty(localVer)
+                    && string.Compare(remoteVer, localVer, StringComparison.OrdinalIgnoreCase) <= 0)
+                    return null;
+            }
+
+            if (!root.TryGetProperty("assets", out var assetsEl)) return null;
+
+            JsonElement bestAsset = default;
+            var found = false;
+
+            if (!string.IsNullOrWhiteSpace(filter))
+            {
+                foreach (var asset in assetsEl.EnumerateArray())
+                {
+                    var name = asset.GetProperty("name").GetString() ?? "";
+                    if (LikeMatch(name, filter)) { bestAsset = asset; found = true; break; }
+                }
+            }
+
+            if (!found)
+            {
+                foreach (var asset in assetsEl.EnumerateArray())
+                {
+                    var name = asset.GetProperty("name").GetString() ?? "";
+                    if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
+                        name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+                    { bestAsset = asset; found = true; break; }
+                }
+            }
+
+            if (!found) return null;
+
+            var assetName = bestAsset.GetProperty("name").GetString() ?? "";
+            var assetUrl = bestAsset.GetProperty("browser_download_url").GetString() ?? "";
+            var assetSize = bestAsset.TryGetProperty("size", out var sizeEl) ? sizeEl.GetInt64() : 0L;
+            var finalUrl = assetUrl.Replace("https://github.com", HubBase, StringComparison.OrdinalIgnoreCase);
+
+            var isArchive = assetName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
+                            assetName.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase);
+            var isInstaller = assetName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
+                              assetName.EndsWith(".msi", StringComparison.OrdinalIgnoreCase);
+
+            return new ToolUpdateInfo(tag, published, finalUrl, assetName, assetSize, isArchive, isInstaller);
+        }
+        catch { return null; }
+    }
+
+    private static async Task<ToolUpdateInfo?> CheckDirectUrlUpdateAsync(
+        string remoteUrl, string? localVersion, DateTime? localLastWrite, CancellationToken ct)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Head, remoteUrl);
+            using var response = await _httpClient.SendAsync(request, ct);
+
+            var fileName = Path.GetFileName(new Uri(remoteUrl).AbsolutePath);
+            if (string.IsNullOrWhiteSpace(fileName)) fileName = "download";
+
+            var remoteLastModified = response.Content.Headers.LastModified;
+            var size = response.Content.Headers.ContentLength ?? 0L;
+
+            if (localLastWrite.HasValue && remoteLastModified.HasValue)
+            {
+                if (remoteLastModified.Value.UtcDateTime <= localLastWrite.Value.ToUniversalTime())
+                    return null;
+            }
+
+            var isArchive = fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
+                            fileName.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase);
+            var isInstaller = fileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
+                              fileName.EndsWith(".msi", StringComparison.OrdinalIgnoreCase);
+
+            var versionTag = remoteLastModified?.ToString("yyyy-MM-dd") ?? "";
+            return new ToolUpdateInfo(versionTag, remoteLastModified, remoteUrl, fileName, size, isArchive, isInstaller);
+        }
+        catch { return null; }
+    }
+
+    private static string NormalizeVersion(string ver)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(ver, @"(\d+(?:\.\d+)+)");
         return match.Success ? match.Groups[1].Value : "";
     }
 

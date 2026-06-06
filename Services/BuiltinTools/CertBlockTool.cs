@@ -1,7 +1,10 @@
+using Microsoft.UI;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using TubaWinUi3.Models;
+using Windows.Graphics;
 using Windows.UI;
 
 namespace TubaWinUi3.Services;
@@ -17,23 +20,47 @@ public sealed class CertBlockTool : IBuiltinTool
     public string Category => "安全工具";
     public BuiltinToolKind Kind => BuiltinToolKind.Dialog;
 
-    public async Task ExecuteAsync(BuiltinToolContext context)
+    public Task ExecuteAsync(BuiltinToolContext context)
     {
         CertBlockService.LoadAsync();
 
-        var dialog = context.CreateDialog("证书拦截");
-        dialog.Resources["ContentDialogMaxWidth"] = 800;
-
+        var window = new Window();
         var content = BuildDialogContent();
-        dialog.Content = content;
+
+        var page = new Page { Content = content };
+        page.RequestedTheme = ThemeService.CurrentElementTheme;
+
+        window.Content = page;
+        window.AppWindow.Title = "证书拦截";
+        window.AppWindow.Resize(new SizeInt32(860, 720));
+
+        try
+        {
+            var mainPos = App.MainWindow?.AppWindow.Position;
+            if (mainPos is not null)
+            {
+                window.AppWindow.Move(new PointInt32(
+                    mainPos.Value.X + 40,
+                    mainPos.Value.Y + 40));
+            }
+        }
+        catch { }
+
+        window.AppWindow.TitleBar.ExtendsContentIntoTitleBar = true;
+        window.AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
+
+        ApplyTitleBarTheme(window);
+        BackdropService.ApplyBackdrop(window);
 
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        timer.Tick += (_, _) => RefreshUI(content);
+        timer.Tick += (_, _) => RefreshUI();
         timer.Start();
 
-        dialog.Closing += (_, e) => { timer.Stop(); };
+        window.Closed += (_, _) => { timer.Stop(); _state = null; };
 
-        await dialog.ShowAsync();
+        window.Activate();
+
+        return Task.CompletedTask;
     }
 
     private ScrollViewer BuildDialogContent()
@@ -85,7 +112,6 @@ public sealed class CertBlockTool : IBuiltinTool
         var listScroll = new ScrollViewer
         {
             Content = vendorList,
-            MaxHeight = 400,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto
         };
 
@@ -102,16 +128,15 @@ public sealed class CertBlockTool : IBuiltinTool
         contentGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         contentGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         contentGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        contentGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         contentGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
         contentGrid.Children.Add(statsGrid); Grid.SetRow(statsGrid, 0);
         contentGrid.Children.Add(adminWarning); Grid.SetRow(adminWarning, 1);
         contentGrid.Children.Add(actionBar); Grid.SetRow(actionBar, 2);
-        contentGrid.Children.Add(loadingPanel); Grid.SetRow(loadingPanel, 4);
-        contentGrid.Children.Add(listScroll); Grid.SetRow(listScroll, 4);
+        contentGrid.Children.Add(loadingPanel); Grid.SetRow(loadingPanel, 3);
+        contentGrid.Children.Add(listScroll); Grid.SetRow(listScroll, 3);
 
-        var root = new StackPanel { Spacing = 14, MaxWidth = 760 };
+        var root = new StackPanel { Spacing = 14, Padding = new Thickness(24, 48, 24, 16) };
         root.Children.Add(new TextBlock
         {
             Text = "Malware-Patch 证书拦截引擎 · 将厂商证书加入系统不信任列表",
@@ -134,10 +159,10 @@ public sealed class CertBlockTool : IBuiltinTool
             UnblockAllBtn = unblockAllBtn
         };
 
-        return new ScrollViewer { Content = root, MaxWidth = 800 };
+        return new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     }
 
-    private void RefreshUI(ScrollViewer root)
+    private void RefreshUI()
     {
         var state = _state;
         if (state is null) return;
@@ -315,6 +340,38 @@ public sealed class CertBlockTool : IBuiltinTool
             CornerRadius = new CornerRadius(6),
             Child = grid
         };
+    }
+
+    private static void ApplyTitleBarTheme(Window window)
+    {
+        var tb = window.AppWindow.TitleBar;
+        var isDark = ThemeService.CurrentTheme == AppTheme.Dark ||
+                     (ThemeService.CurrentTheme == AppTheme.Default && Application.Current.RequestedTheme == ApplicationTheme.Dark);
+
+        if (isDark)
+        {
+            tb.ButtonForegroundColor = Color.FromArgb(255, 255, 255, 255);
+            tb.ButtonBackgroundColor = Color.FromArgb(0, 255, 255, 255);
+            tb.ButtonHoverForegroundColor = Color.FromArgb(255, 255, 255, 255);
+            tb.ButtonHoverBackgroundColor = Color.FromArgb(255, 50, 50, 50);
+            tb.ButtonPressedForegroundColor = Color.FromArgb(255, 180, 180, 180);
+            tb.ButtonPressedBackgroundColor = Color.FromArgb(255, 30, 30, 30);
+            tb.BackgroundColor = Color.FromArgb(255, 32, 32, 32);
+            tb.InactiveBackgroundColor = Color.FromArgb(255, 32, 32, 32);
+        }
+        else
+        {
+            tb.ButtonForegroundColor = Color.FromArgb(255, 30, 30, 30);
+            tb.ButtonBackgroundColor = Color.FromArgb(0, 255, 255, 255);
+            tb.ButtonHoverForegroundColor = Color.FromArgb(255, 30, 30, 30);
+            tb.ButtonHoverBackgroundColor = Color.FromArgb(255, 230, 230, 230);
+            tb.ButtonPressedForegroundColor = Color.FromArgb(255, 100, 100, 100);
+            tb.ButtonPressedBackgroundColor = Color.FromArgb(255, 210, 210, 210);
+            tb.BackgroundColor = Color.FromArgb(0, 255, 255, 255);
+            tb.InactiveBackgroundColor = Color.FromArgb(0, 255, 255, 255);
+        }
+
+        tb.ButtonInactiveForegroundColor = Color.FromArgb(255, 160, 160, 160);
     }
 
     private sealed class DialogState

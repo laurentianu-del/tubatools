@@ -409,8 +409,19 @@ public sealed partial class HardwarePage : Page
             Marshal.Copy(pixels, 0, bmpData.Scan0, pixels.Length);
             contentBmp.UnlockBits(bmpData);
 
+            Bitmap? bgBmp = null;
+            if (BackgroundImg.Visibility == Visibility.Visible && BackgroundImg.Source is not null)
+            {
+                var bgRtb = new RenderTargetBitmap();
+                await bgRtb.RenderAsync(BackgroundImg);
+                var bgPixels = await GetPixelsAsync(bgRtb);
+                bgBmp = new Bitmap(bgRtb.PixelWidth, bgRtb.PixelHeight, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                var bgBmpData = bgBmp.LockBits(new System.Drawing.Rectangle(0, 0, bgRtb.PixelWidth, bgRtb.PixelHeight), ImageLockMode.WriteOnly, bgBmp.PixelFormat);
+                Marshal.Copy(bgPixels, 0, bgBmpData.Scan0, bgPixels.Length);
+                bgBmp.UnlockBits(bgBmpData);
+            }
+
             var padding = 56;
-            var cornerRadius = 16;
             var totalW = pixelWidth + padding * 2;
             var totalH = pixelHeight + padding * 2;
 
@@ -423,12 +434,6 @@ public sealed partial class HardwarePage : Page
             var outerBg2 = isDark
                 ? System.Drawing.Color.FromArgb(255, 24, 24, 40)
                 : System.Drawing.Color.FromArgb(255, 235, 238, 248);
-            var cardBg = isDark
-                ? System.Drawing.Color.FromArgb(255, 44, 44, 44)
-                : System.Drawing.Color.FromArgb(255, 249, 249, 249);
-            var borderColor = isDark
-                ? System.Drawing.Color.FromArgb(60, 255, 255, 255)
-                : System.Drawing.Color.FromArgb(60, 0, 0, 0);
             var watermarkBarBg = isDark
                 ? System.Drawing.Color.FromArgb(40, 0, 0, 0)
                 : System.Drawing.Color.FromArgb(30, 0, 0, 0);
@@ -450,18 +455,26 @@ public sealed partial class HardwarePage : Page
                 g.FillRectangle(bgBrush, 0, 0, totalW, totalH);
             }
 
-            using (var cardPath = CreateRoundedRectPath(padding, padding, pixelWidth, pixelHeight, cornerRadius))
+            if (bgBmp is not null)
             {
-                using var cardBrush = new SolidBrush(cardBg);
-                g.FillPath(cardBrush, cardPath);
-
-                g.SetClip(cardPath);
-                g.DrawImage(contentBmp, padding, padding, pixelWidth, pixelHeight);
-                g.ResetClip();
-
-                using var borderPen = new Pen(borderColor, 1);
-                g.DrawPath(borderPen, cardPath);
+                float bgOpacity = (float)BackgroundImg.Opacity;
+                var bgColorMatrix = new System.Drawing.Imaging.ColorMatrix(new float[][]
+                {
+                    new float[] {1, 0, 0, 0, 0},
+                    new float[] {0, 1, 0, 0, 0},
+                    new float[] {0, 0, 1, 0, 0},
+                    new float[] {0, 0, 0, bgOpacity, 0},
+                    new float[] {0, 0, 0, 0, 1}
+                });
+                using var bgImgAttr = new System.Drawing.Imaging.ImageAttributes();
+                bgImgAttr.SetColorMatrix(bgColorMatrix, ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
+                g.DrawImage(bgBmp,
+                    new System.Drawing.Rectangle(padding, padding, pixelWidth, pixelHeight),
+                    0, 0, bgBmp.Width, bgBmp.Height,
+                    GraphicsUnit.Pixel, bgImgAttr);
             }
+
+            g.DrawImage(contentBmp, padding, padding, pixelWidth, pixelHeight);
 
             var showWatermark = AppSettings.GetBool("ScreenshotWatermark", true);
             if (showWatermark)
@@ -471,15 +484,24 @@ public sealed partial class HardwarePage : Page
                 DrawWatermark(g, totalW, totalH, watermarkText, watermarkFont, watermarkBarBg, watermarkTextColor);
             }
 
-            var downloadsFolder = GetDownloadsFolderPath();
-            var timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
-            var fileName = $"硬件信息_{timestamp}.png";
-            var filePath = Path.Combine(downloadsFolder, fileName);
+            using var ms = new MemoryStream();
+            finalBmp.Save(ms, ImageFormat.Png);
+            ms.Seek(0, SeekOrigin.Begin);
 
-            finalBmp.Save(filePath, ImageFormat.Png);
+            var inMemStream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+            var bytes = ms.ToArray();
+            var winBuffer = System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsBuffer(bytes);
+            await inMemStream.WriteAsync(winBuffer);
+            inMemStream.Seek(0);
 
-            StatusBar.Title = "截图已保存";
-            StatusBar.Message = filePath;
+            var dataPackage = new DataPackage();
+            dataPackage.SetBitmap(Windows.Storage.Streams.RandomAccessStreamReference.CreateFromStream(inMemStream));
+            dataPackage.RequestedOperation = DataPackageOperation.Copy;
+            Clipboard.SetContent(dataPackage);
+            Clipboard.Flush();
+
+            StatusBar.Title = "截图已复制到剪贴板";
+            StatusBar.Message = "可直接粘贴使用";
             StatusBar.Severity = InfoBarSeverity.Success;
             StatusBar.IsOpen = true;
         }
@@ -551,30 +573,6 @@ public sealed partial class HardwarePage : Page
         return pixels;
     }
 
-    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
-    private static extern int SHGetKnownFolderPath(
-        [In] ref Guid rfid, uint dwFlags, IntPtr hToken, out IntPtr ppszPath);
-
-    private static string GetDownloadsFolderPath()
-    {
-        try
-        {
-            var folderId = new Guid("374DE290-123F-4565-9164-39C4925E467B");
-            var hr = SHGetKnownFolderPath(ref folderId, 0, IntPtr.Zero, out var pPath);
-            if (hr == 0 && pPath != IntPtr.Zero)
-            {
-                var path = Marshal.PtrToStringUni(pPath);
-                Marshal.FreeCoTaskMem(pPath);
-                if (!string.IsNullOrEmpty(path) && Directory.Exists(path))
-                    return path;
-            }
-        }
-        catch { }
-        var fallback = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
-        if (Directory.Exists(fallback))
-            return fallback;
-        return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-    }
 
     private static T? FindChild<T>(DependencyObject parent) where T : FrameworkElement
     {

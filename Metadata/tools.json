@@ -55,7 +55,7 @@
       "description": "CPU 降频监控和功耗控制工具，可解除笔记本 CPU 功耗限制。",
       "publisher": "uWebb Software",
       "tags": [ "CPU", "降频", "功耗控制" ],
-      "remoteUrl": "https://us3-dl.techpowerup.com/files/0ExjqXLkUiycHiYGyZfhuA/1780683452/ThrottleStop_9.7.zip"
+      "remoteUrl": "https://raw.gitcode.com/gcw_uDDNaqJw/tubatoolr/blobs/5011359714964d7473427b3fa1193c19bad77136/ThrottleStop_9.7.zip"
     },
     {
       "match": "wPrime",
@@ -604,6 +604,16 @@
         { "file": "Procmon.exe", "arch": "x86" },
         { "file": "Procmon64.exe", "arch": "x64" },
         { "file": "Procmon64a.exe", "arch": "ARM64" }
+      ]
+    },
+    {
+      "match": "BOOTICE",
+      "description": "磁盘引导扇区管理工具，支持 MBR/GPT 分区表编辑、引导记录备份恢复和 U盘启动制作。",
+      "publisher": "Pauly",
+      "tags": [ "硬盘", "引导扇区", "MBR", "GPT" ],
+      "archVariants": [
+        { "file": "BOOTICEx86_2016.06.17_v1.3.4.0.exe", "arch": "x86" },
+        { "file": "BOOTICEx64_2016.06.17_v1.3.4.0.exe", "arch": "x64" }
       ]
     }
   ]
