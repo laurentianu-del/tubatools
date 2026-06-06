@@ -31,6 +31,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- Version Header -->
@@ -82,9 +83,66 @@
             </Grid>
         </Border>
 
+        <!-- GitCode Download Button -->
+        <Button
+            x:Name="GitCodeDownloadButton"
+            Grid.Row="1"
+            HorizontalAlignment="Stretch"
+            Click="OnGitCodeDownloadClick"
+            Visibility="Collapsed">
+            <Border
+                Padding="16,10"
+                Background="Transparent"
+                CornerRadius="8"
+                Width="420">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border
+                        Width="36"
+                        Height="36"
+                        Background="#1A7F37"
+                        CornerRadius="8">
+                        <FontIcon
+                            FontSize="18"
+                            Foreground="White"
+                            Glyph="&#xE896;" />
+                    </Border>
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                        <TextBlock
+                            FontSize="14"
+                            FontWeight="SemiBold"
+                            Text="从 GitCode 下载" />
+                        <TextBlock
+                            FontSize="11"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="国内加速，无需代理" />
+                    </StackPanel>
+
+                    <Border
+                        Grid.Column="2"
+                        Padding="8,3"
+                        Background="#1A7F37"
+                        CornerRadius="4"
+                        VerticalAlignment="Center">
+                        <TextBlock
+                            FontSize="10"
+                            FontWeight="SemiBold"
+                            Foreground="White"
+                            Text="推荐" />
+                    </Border>
+                </Grid>
+            </Border>
+        </Button>
+
         <!-- Changelog -->
         <Border
-            Grid.Row="1"
+            Grid.Row="2"
             Padding="16"
             Background="{ThemeResource SubtleFillColorSecondaryBrush}"
             CornerRadius="10"
@@ -102,7 +160,7 @@
         <!-- Proxy Speed Test Section (hidden until update starts) -->
         <StackPanel
             x:Name="ProxySection"
-            Grid.Row="2"
+            Grid.Row="3"
             Spacing="8"
             Visibility="Collapsed">
 
@@ -144,7 +202,7 @@
         <!-- Download Progress Section -->
         <StackPanel
             x:Name="DownloadSection"
-            Grid.Row="3"
+            Grid.Row="4"
             Spacing="10"
             Visibility="Collapsed">
 
@@ -220,7 +278,7 @@
         <!-- Error Section -->
         <InfoBar
             x:Name="ErrorInfoBar"
-            Grid.Row="4"
+            Grid.Row="5"
             IsOpen="False"
             IsClosable="True"
             Severity="Error"

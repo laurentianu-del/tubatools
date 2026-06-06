@@ -2,8 +2,8 @@
 layout: home
 
 hero:
-  name: 图吧工具箱
-  text: PC 硬件检测与系统维护工具集
+  name: 图吧工具箱WinUI3
+  text: 更现代化的图吧工具箱
   tagline: 专为 PC 硬件爱好者和系统维护人员打造 · WinUI 3 现代界面 · 82 款专业工具一键启动
   image:
     src: /logo.png

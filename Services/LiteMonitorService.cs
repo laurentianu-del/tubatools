@@ -437,6 +437,7 @@ public sealed class LiteMonitorService : IDisposable
             Title = "安装硬件监控驱动",
             XamlRoot = xamlRoot,
             PrimaryButtonText = "安装",
+            SecondaryButtonText = "手动安装",
             CloseButtonText = "取消",
             DefaultButton = ContentDialogButton.Primary,
             RequestedTheme = ThemeService.CurrentElementTheme
@@ -455,12 +456,19 @@ public sealed class LiteMonitorService : IDisposable
         {
             args.Cancel = true;
             dialog.IsPrimaryButtonEnabled = false;
+            dialog.IsSecondaryButtonEnabled = false;
             descLabel.Text = "正在下载驱动...";
             progressBar.Visibility = Visibility.Visible;
             detailLabel.Visibility = Visibility.Visible;
             detailLabel.Text = "准备中...";
 
             RunDriverInstall(dialog, descLabel, progressBar, detailLabel, tempZip, tcs, cts);
+        };
+
+        dialog.SecondaryButtonClick += (_, _) =>
+        {
+            OpenPawnIODownloadPage();
+            tcs.TrySetResult(false);
         };
 
         dialog.CloseButtonClick += (_, _) =>
@@ -568,6 +576,8 @@ public sealed class LiteMonitorService : IDisposable
                 progressBar.IsIndeterminate = false;
                 progressBar.Value = 0;
                 dialog.CloseButtonText = "关闭";
+                dialog.SecondaryButtonText = "手动下载";
+                dialog.IsSecondaryButtonEnabled = true;
                 tcs.TrySetResult(false);
                 return;
             }
@@ -600,6 +610,8 @@ public sealed class LiteMonitorService : IDisposable
                 progressBar.IsIndeterminate = false;
                 progressBar.Value = 0;
                 dialog.CloseButtonText = "关闭";
+                dialog.SecondaryButtonText = "手动下载";
+                dialog.IsSecondaryButtonEnabled = true;
                 tcs.TrySetResult(false);
                 return;
             }
@@ -615,6 +627,8 @@ public sealed class LiteMonitorService : IDisposable
                 progressBar.IsIndeterminate = false;
                 progressBar.Value = 0;
                 dialog.CloseButtonText = "关闭";
+                dialog.SecondaryButtonText = "手动下载";
+                dialog.IsSecondaryButtonEnabled = true;
                 tcs.TrySetResult(false);
                 return;
             }
@@ -647,6 +661,8 @@ public sealed class LiteMonitorService : IDisposable
                 progressBar.IsIndeterminate = false;
                 progressBar.Value = 0;
                 dialog.CloseButtonText = "关闭";
+                dialog.SecondaryButtonText = "手动下载";
+                dialog.IsSecondaryButtonEnabled = true;
                 tcs.TrySetResult(false);
                 return;
             }
@@ -871,6 +887,19 @@ public sealed class LiteMonitorService : IDisposable
             return buf[0] == 0x4D && buf[1] == 0x5A;
         }
         catch { return false; }
+    }
+
+    private static void OpenPawnIODownloadPage()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "https://litemonitor.cn/update/driver.zip",
+                UseShellExecute = true
+            });
+        }
+        catch { }
     }
 
     private static bool Has(string source, string sub) =>

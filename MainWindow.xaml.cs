@@ -1,6 +1,8 @@
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
+using TubaWinUi3.Models;
 using TubaWinUi3.Pages;
 using TubaWinUi3.Services;
 using Windows.UI;
@@ -9,6 +11,8 @@ namespace TubaWinUi3;
 
 public sealed partial class MainWindow : Window
 {
+    private CancellationTokenSource? _searchCts;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -21,6 +25,9 @@ public sealed partial class MainWindow : Window
 
         ApplyTitleBarTheme(ElementTheme.Default);
 
+        BackdropService.ApplyBackdrop(this);
+        BackdropService.BackdropChanged += OnBackdropChanged;
+
         WindowSizeService.ApplySavedWindowSize(this);
 
         Closed += MainWindow_Closed;
@@ -28,12 +35,20 @@ public sealed partial class MainWindow : Window
 
         PopulateCategories();
         NavigateToDefaultPage();
+
+        PopulateSearchSuggestions();
     }
 
     private void MainWindow_Closed(object sender, WindowEventArgs args)
     {
+        BackdropService.BackdropChanged -= OnBackdropChanged;
         AppWindow.Changed -= AppWindow_Changed;
         WindowSizeService.SaveWindowSize(this);
+    }
+
+    private void OnBackdropChanged()
+    {
+        DispatcherQueue.TryEnqueue(() => BackdropService.ApplyBackdrop(this));
     }
 
     private void AppWindow_Changed(AppWindow sender, AppWindowChangedEventArgs args)
@@ -274,5 +289,139 @@ public sealed partial class MainWindow : Window
     public void RefreshToolCategories()
     {
         PopulateCategories();
+    }
+
+    private void PopulateSearchSuggestions()
+    {
+        var items = UnifiedSearchService.GetQuickPanelItems();
+        GlobalSearchBox.ItemsSource = items;
+    }
+
+    private void GlobalSearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    {
+        if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput) return;
+
+        var query = sender.Text.Trim();
+
+        if (query.Length == 0)
+        {
+            PopulateSearchSuggestions();
+            return;
+        }
+
+        _searchCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _searchCts = cts;
+
+        _ = SearchAsync(query, cts.Token);
+    }
+
+    private async Task SearchAsync(string query, CancellationToken ct)
+    {
+        try
+        {
+            var results = await Task.Run(() => UnifiedSearchService.Search(query), ct);
+            ct.ThrowIfCancellationRequested();
+
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                GlobalSearchBox.ItemsSource = results;
+            });
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private void GlobalSearchBox_SuggestionChosen(AutoSuggestBox sender, AutoSuggestBoxSuggestionChosenEventArgs args)
+    {
+        sender.Text = string.Empty;
+
+        if (args.SelectedItem is SearchResult result)
+        {
+            HandleSearchResult(result);
+        }
+    }
+
+    private void GlobalSearchBox_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            GlobalSearchBox.Text = string.Empty;
+            GlobalSearchBox.IsSuggestionListOpen = false;
+            e.Handled = true;
+        }
+    }
+
+    private void HandleSearchResult(SearchResult result)
+    {
+        switch (result.Kind)
+        {
+            case SearchItemKind.ExternalTool:
+            case SearchItemKind.CustomTool:
+                NavigateToTool(result.MatchKey);
+                break;
+            case SearchItemKind.BuiltinTool:
+                NavFrame.Navigate(typeof(BuiltinToolsPage),
+                    new SearchNavigationTarget { HighlightBuiltinId = result.MatchKey });
+                break;
+            case SearchItemKind.Setting:
+                NavFrame.Navigate(typeof(SettingsPage),
+                    new SearchNavigationTarget { HighlightSettingKey = result.MatchKey });
+                break;
+            case SearchItemKind.QuickAction:
+                HandleQuickAction(result.MatchKey);
+                break;
+        }
+
+        ThemeService.ApplySavedTheme();
+    }
+
+    private void NavigateToTool(string toolPath)
+    {
+        try
+        {
+            var tools = ToolCatalog.GetAllToolsLazy(0, int.MaxValue);
+            var tool = tools.FirstOrDefault(t => t.Path.Equals(toolPath, StringComparison.OrdinalIgnoreCase));
+            if (tool is not null)
+            {
+                NavFrame.Navigate(typeof(HomePage),
+                    new SearchNavigationTarget { HighlightToolPath = toolPath });
+            }
+        }
+        catch { }
+    }
+
+    private void HandleQuickAction(string action)
+    {
+        if (!action.StartsWith("navigate:")) return;
+        var target = action["navigate:".Length..];
+
+        switch (target)
+        {
+            case "hardware":
+                NavFrame.Navigate(typeof(HardwarePage));
+                break;
+            case "monitor":
+                _ = NavigateToMonitorAsync();
+                break;
+            case "favorites":
+                NavFrame.Navigate(typeof(FavoritesPage));
+                break;
+            case "builtin":
+                NavFrame.Navigate(typeof(BuiltinToolsPage));
+                break;
+            case "settings":
+                NavFrame.Navigate(typeof(SettingsPage));
+                break;
+        }
+    }
+
+    private async Task NavigateToMonitorAsync()
+    {
+        if (!LiteMonitorService.IsDriverReady())
+        {
+            var ok = await LiteMonitorService.Instance.EnsureDriverAsync(Content.XamlRoot);
+            if (!ok) return;
+        }
+        NavFrame.Navigate(typeof(Pages.LiteMonitorPage), false);
     }
 }

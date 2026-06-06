@@ -19,6 +19,8 @@ public sealed partial class HomePage : Page
     private string? _selectedTag;
     private CancellationTokenSource? _loadCts;
     private bool _compactMode;
+    private string? _highlightToolPath;
+    private string _searchQuery = string.Empty;
 
     public HomePage()
     {
@@ -96,8 +98,30 @@ public sealed partial class HomePage : Page
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
-        _category = e.Parameter as string;
-        SearchBox.Text = string.Empty;
+
+        if (e.Parameter is SearchNavigationTarget target && target.HighlightToolPath is not null)
+        {
+            _highlightToolPath = target.HighlightToolPath;
+            try
+            {
+                var tool = ToolCatalog.GetAllToolsLazy(0, int.MaxValue)
+                    .FirstOrDefault(t => t.Path.Equals(_highlightToolPath, StringComparison.OrdinalIgnoreCase));
+                _category = tool?.Category;
+            }
+            catch { }
+        }
+        else if (e.Parameter is string category)
+        {
+            _highlightToolPath = null;
+            _category = category;
+        }
+        else
+        {
+            _highlightToolPath = null;
+            _category = null;
+        }
+
+        _searchQuery = string.Empty;
         _selectedTag = null;
         ApplyBackground();
         UpdateTitle();
@@ -171,7 +195,7 @@ public sealed partial class HomePage : Page
 
     private void UpdateTitle()
     {
-        var query = SearchBox.Text.Trim();
+        var query = _searchQuery;
         var title = _category?.Replace("工具", "") ?? "全部";
         if (query.Length > 0)
             title = $"搜索：{query}";
@@ -195,7 +219,7 @@ public sealed partial class HomePage : Page
 
         _tools.Clear();
 
-        var query = SearchBox.Text.Trim();
+        var query = _searchQuery;
 
         try
         {
@@ -225,8 +249,77 @@ public sealed partial class HomePage : Page
                         : "没有找到任何工具，请检查 Tools 目录。";
 
             StartIconLoading(tools);
+
+            if (_highlightToolPath is not null)
+            {
+                _ = HighlightToolAsync(_highlightToolPath);
+                _highlightToolPath = null;
+            }
         }
         catch (OperationCanceledException) { }
+    }
+
+    private async Task HighlightToolAsync(string toolPath)
+    {
+        var grid = _compactMode ? CompactGrid : ToolsGrid;
+        var index = -1;
+        for (var i = 0; i < _tools.Count; i++)
+        {
+            if (_tools[i].Path.Equals(toolPath, StringComparison.OrdinalIgnoreCase))
+            {
+                index = i;
+                break;
+            }
+        }
+
+        if (index < 0) return;
+
+        grid.ScrollIntoView(_tools[index]);
+        await Task.Delay(100);
+
+        var container = grid.ContainerFromItem(_tools[index]) as GridViewItem;
+        if (container is null) return;
+
+        var scrollViewer = FindChildScrollViewer(grid);
+        if (scrollViewer is not null)
+        {
+            var transform = container.TransformToVisual(scrollViewer.Content as UIElement ?? scrollViewer);
+            var point = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
+            var targetOffset = scrollViewer.VerticalOffset + point.Y - scrollViewer.ViewportHeight / 2 + container.ActualHeight / 2;
+            targetOffset = Math.Max(0, Math.Min(targetOffset, scrollViewer.ExtentHeight - scrollViewer.ViewportHeight));
+            scrollViewer.ChangeView(null, targetOffset, null, disableAnimation: false);
+            await Task.Delay(600);
+        }
+
+        var border = FindChildBorder(container);
+        if (border is not null)
+            SearchHighlightService.HighlightBorder(border);
+    }
+
+    private static ScrollViewer? FindChildScrollViewer(DependencyObject parent)
+    {
+        var count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent);
+        for (var i = 0; i < count; i++)
+        {
+            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
+            if (child is ScrollViewer sv) return sv;
+            var result = FindChildScrollViewer(child);
+            if (result is not null) return result;
+        }
+        return null;
+    }
+
+    private static Border? FindChildBorder(DependencyObject parent)
+    {
+        var count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent);
+        for (var i = 0; i < count; i++)
+        {
+            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
+            if (child is Border border) return border;
+            var result = FindChildBorder(child);
+            if (result is not null) return result;
+        }
+        return null;
     }
 
     private void ApplyBackground()
@@ -242,15 +335,6 @@ public sealed partial class HomePage : Page
         {
             BackgroundImg.Source = null;
             BackgroundImg.Visibility = Visibility.Collapsed;
-        }
-    }
-
-    private void SearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
-    {
-        if (args.Reason is AutoSuggestionBoxTextChangeReason.UserInput or AutoSuggestionBoxTextChangeReason.ProgrammaticChange)
-        {
-            UpdateTitle();
-            _ = LoadToolsAsync();
         }
     }
 

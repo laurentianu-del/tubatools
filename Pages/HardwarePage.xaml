@@ -190,7 +190,7 @@
         </Storyboard>
     </Page.Resources>
 
-    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+    <Grid Background="Transparent">
         <Image
             x:Name="BackgroundImg"
             Stretch="UniformToFill"
@@ -206,7 +206,7 @@
             <Grid
                 x:Name="LayoutRoot"
                 Width="1100"
-                Padding="20,12,20,12"
+                Padding="32,20,32,20"
                 RowSpacing="16">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -228,17 +228,35 @@
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Spacing="4">
-                        <TextBlock
-                            FontSize="34"
-                            FontWeight="SemiBold"
-                            Text="硬件信息" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock
+                                FontSize="34"
+                                FontWeight="SemiBold"
+                                Text="硬件信息" />
+                            <Border
+                                x:Name="CpuzBadge"
+                                Visibility="Collapsed"
+                                Padding="8,2"
+                                CornerRadius="4"
+                                VerticalAlignment="Center"
+                                Margin="0,6,0,0">
+                                <Border.Background>
+                                    <SolidColorBrush Color="#2600C864" />
+                                </Border.Background>
+                                <TextBlock
+                                    FontSize="12"
+                                    FontWeight="SemiBold"
+                                    Foreground="#FF00C864"
+                                    Text="CPU-Z" />
+                            </Border>
+                        </StackPanel>
                         <TextBlock
                             FontSize="16"
                             Opacity="0.72"
                             Text="汇总本机型号、系统和关键硬件参数。" />
                     </StackPanel>
 
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                    <StackPanel x:Name="HeaderButtons" Grid.Column="1" Orientation="Horizontal" Spacing="8">
                         <Button
                             Padding="16,8"
                             Click="RefreshButton_Click">
@@ -361,7 +379,7 @@
                         Text="详细信息" />
 
                     <Border
-                        Padding="4"
+                        Padding="16"
                         CornerRadius="8"
                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
@@ -380,6 +398,7 @@
                                             <ColumnDefinition Width="90" />
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock
@@ -400,8 +419,24 @@
                                             Text="{Binding Value}"
                                             TextWrapping="Wrap"
                                             VerticalAlignment="Center" />
-                                        <Image
+                                        <Border
+                                            x:Name="VerifiedBadge"
                                             Grid.Column="3"
+                                            Padding="6,1"
+                                            CornerRadius="3"
+                                            Visibility="Collapsed"
+                                            VerticalAlignment="Center">
+                                            <Border.Background>
+                                                <SolidColorBrush Color="#2600C864" />
+                                            </Border.Background>
+                                            <TextBlock
+                                                FontSize="11"
+                                                FontWeight="SemiBold"
+                                                Foreground="#FF00C864"
+                                                Text="真" />
+                                        </Border>
+                                        <Image
+                                            Grid.Column="4"
                                             Width="20"
                                             Height="20"
                                             Margin="8,0,0,0"

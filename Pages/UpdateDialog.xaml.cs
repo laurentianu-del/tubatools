@@ -33,6 +33,11 @@ public sealed partial class UpdateDialog : ContentDialog
 
         _selectedAsset = UpdateService.FindBestAsset(updateInfo.Assets);
 
+        if (_selectedAsset is not null && !string.IsNullOrEmpty(_selectedAsset.GitCodeDownloadUrl))
+        {
+            GitCodeDownloadButton.Visibility = Visibility.Visible;
+        }
+
         if (_selectedAsset is null)
         {
             ErrorInfoBar.Message = $"未找到适用于 {UpdateService.CurrentArchitecture} 架构的更新文件";
@@ -69,6 +74,47 @@ public sealed partial class UpdateDialog : ContentDialog
     {
         _cts?.Cancel();
         SkipThisVersion = true;
+    }
+
+    private async void OnGitCodeDownloadClick(object sender, RoutedEventArgs e)
+    {
+        if (_isDownloading || _selectedAsset is null) return;
+
+        _cts = new CancellationTokenSource();
+        _isDownloading = true;
+        GitCodeDownloadButton.Visibility = Visibility.Collapsed;
+        IsPrimaryButtonEnabled = false;
+        IsSecondaryButtonEnabled = false;
+
+        try
+        {
+            DownloadSection.Visibility = Visibility.Visible;
+
+            var downloadProgress = new Progress<DownloadProgress>(p =>
+            {
+                DispatcherQueue.TryEnqueue(() => UpdateDownloadProgress(p));
+            });
+
+            var filePath = await UpdateService.DownloadFromGitCodeAsync(
+                _selectedAsset, downloadProgress, _cts.Token);
+
+            Hide();
+            await ShowDownloadCompleteDialog(filePath);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            ErrorInfoBar.Message = $"GitCode 下载失败: {ex.Message}";
+            ErrorInfoBar.IsOpen = true;
+            IsPrimaryButtonEnabled = true;
+            IsSecondaryButtonEnabled = true;
+        }
+        finally
+        {
+            _isDownloading = false;
+        }
     }
 
     private async Task StartUpdateProcess()

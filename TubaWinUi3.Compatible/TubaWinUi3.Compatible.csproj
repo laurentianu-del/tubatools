@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net45</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>TubaWinUi3.Compatible</RootNamespace>
+    <ApplicationIcon>..\Assets\AppIcon.ico</ApplicationIcon>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>TubaWinUi3.Compatible</AssemblyName>
+    <Version>1.0.2</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MetroModernUI" Version="1.4.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="System.Management" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\Assets\AppIcon.ico">
+      <Link>Assets\AppIcon.ico</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <Target Name="CopyToOriginalBin" AfterTargets="Build">
+    <PropertyGroup>
+      <OriginalBinDir>..\bin\Debug\net10.0-windows10.0.26100.0\win-x64\</OriginalBinDir>
+    </PropertyGroup>
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(OriginalBinDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(TargetDir)$(TargetName).pdb" DestinationFolder="$(OriginalBinDir)" SkipUnchangedFiles="true" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
+    <Copy SourceFiles="$(TargetDir)MetroFramework.dll" DestinationFolder="$(OriginalBinDir)" SkipUnchangedFiles="true" Condition="Exists('$(TargetDir)MetroFramework.dll')" />
+    <Copy SourceFiles="$(TargetDir)MetroFramework.Design.dll" DestinationFolder="$(OriginalBinDir)" SkipUnchangedFiles="true" Condition="Exists('$(TargetDir)MetroFramework.Design.dll')" />
+    <Copy SourceFiles="$(TargetDir)MetroFramework.Fonts.dll" DestinationFolder="$(OriginalBinDir)" SkipUnchangedFiles="true" Condition="Exists('$(TargetDir)MetroFramework.Fonts.dll')" />
+    <Copy SourceFiles="$(TargetDir)Newtonsoft.Json.dll" DestinationFolder="$(OriginalBinDir)" SkipUnchangedFiles="true" Condition="Exists('$(TargetDir)Newtonsoft.Json.dll')" />
+  </Target>
+</Project>

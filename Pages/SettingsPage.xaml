@@ -68,7 +68,7 @@
         </Storyboard>
     </Page.Resources>
 
-    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+    <Grid Background="Transparent">
         <ScrollViewer
             HorizontalScrollMode="Disabled"
             VerticalScrollBarVisibility="Auto">
@@ -100,7 +100,7 @@
                     Style="{StaticResource SectionHeaderStyle}"
                     Text="关于" />
 
-                <Border Style="{StaticResource SettingsCardStyle}">
+                <Border x:Name="SettingsAboutCard" Style="{StaticResource SettingsCardStyle}">
                     <Grid ColumnSpacing="16">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -132,7 +132,7 @@
                     Style="{StaticResource SectionHeaderStyle}"
                     Text="常规" />
 
-                <Border Style="{StaticResource SettingsCardStyle}">
+                <Border x:Name="SettingsUpdateCard" Style="{StaticResource SettingsCardStyle}">
                     <Grid ColumnSpacing="16">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -167,7 +167,7 @@
                     </Grid>
                 </Border>
 
-                <Border Style="{StaticResource SettingsCardStyle}">
+                <Border x:Name="SettingsThemeCard" Style="{StaticResource SettingsCardStyle}">
                     <Grid ColumnSpacing="16">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -195,7 +195,7 @@
                     </Grid>
                 </Border>
 
-                <Border Style="{StaticResource SettingsCardStyle}">
+                <Border x:Name="SettingsCompactModeCard" Style="{StaticResource SettingsCardStyle}">
                     <Grid ColumnSpacing="16">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -224,7 +224,7 @@
                     </Grid>
                 </Border>
 
-                <Border Style="{StaticResource SettingsCardStyle}">
+                <Border x:Name="SettingsBrandLogoCard" Style="{StaticResource SettingsCardStyle}">
                     <Grid ColumnSpacing="16">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -253,7 +253,7 @@
                     </Grid>
                 </Border>
 
-                <Border Style="{StaticResource SettingsCardStyle}">
+                <Border x:Name="SettingsDefaultPageCard" Style="{StaticResource SettingsCardStyle}">
                     <Grid ColumnSpacing="16">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -282,7 +282,7 @@
                     </Grid>
                 </Border>
 
-                <Border Style="{StaticResource SettingsCardStyle}">
+                <Border x:Name="SettingsFastModeCard" Style="{StaticResource SettingsCardStyle}">
                     <Grid ColumnSpacing="16">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -311,7 +311,7 @@
                     </Grid>
                 </Border>
 
-                <Border Style="{StaticResource SettingsCardStyle}">
+                <Border x:Name="SettingsWatermarkCard" Style="{StaticResource SettingsCardStyle}">
                     <Grid RowSpacing="12">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -411,7 +411,7 @@
                     </Grid>
                 </Border>
 
-                <Border Style="{StaticResource SettingsCardStyle}">
+                <Border x:Name="SettingsRememberWindowCard" Style="{StaticResource SettingsCardStyle}">
                     <Grid ColumnSpacing="16">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -444,7 +444,7 @@
                     Style="{StaticResource SectionHeaderStyle}"
                     Text="配置管理" />
 
-                <Border Style="{StaticResource SettingsCardStyle}">
+                <Border x:Name="SettingsConfigManagerCard" Style="{StaticResource SettingsCardStyle}">
                     <Grid ColumnSpacing="16">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -483,7 +483,7 @@
                     Style="{StaticResource SectionHeaderStyle}"
                     Text="硬件监控" />
 
-                <Border Style="{StaticResource SettingsCardStyle}">
+                <Border x:Name="SettingsMonitorDriverCard" Style="{StaticResource SettingsCardStyle}">
                     <Grid RowSpacing="12">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -565,11 +565,386 @@
                     </Grid>
                 </Border>
 
+                <Border x:Name="SettingsCpuzDataSourceCard" Style="{StaticResource SettingsCardStyle}">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Style="{StaticResource IconBorderStyle}">
+                            <FontIcon FontSize="18" Glyph="&#xE950;" />
+                        </Border>
+
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                            <TextBlock FontWeight="SemiBold" Text="硬件信息数据源" />
+                            <TextBlock
+                                x:Name="CpuzDataSourceStatusText"
+                                Opacity="0.68"
+                                FontSize="13"
+                                TextWrapping="Wrap"
+                                Text="使用 CPU-Z 读取真实硬件信息，防止厂商伪造" />
+                        </StackPanel>
+
+                        <Button
+                            x:Name="CpuzDataSourceButton"
+                            Grid.Column="2"
+                            VerticalAlignment="Center"
+                            Padding="14,6"
+                            Click="CpuzDataSourceButton_Click">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon x:Name="CpuzDataSourceIcon" FontSize="12" Glyph="&#xE950;" />
+                                <TextBlock x:Name="CpuzDataSourceButtonText" Text="切换" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </Border>
+
                 <TextBlock
                     Style="{StaticResource SectionHeaderStyle}"
                     Text="外观" />
 
-                <Border Style="{StaticResource SettingsCardStyle}">
+<Border x:Name="SettingsBackdropCard" Style="{StaticResource SettingsCardStyle}">
+                    <Grid RowSpacing="14">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Style="{StaticResource IconBorderStyle}">
+                                <FontIcon FontSize="18" Glyph="&#xE7F3;" />
+                            </Border>
+
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <TextBlock FontWeight="SemiBold" Text="窗口材质" />
+                                <TextBlock
+                                    Opacity="0.68"
+                                    FontSize="13"
+                                    TextWrapping="Wrap"
+                                    Text="选择窗口背景的视觉材质效果" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Grid.Row="1" ColumnSpacing="8" HorizontalAlignment="Stretch">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border
+                                x:Name="BackdropMicaOption"
+                                Tag="Mica"
+                                CornerRadius="8"
+                                BorderThickness="2"
+                                BorderBrush="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                                Padding="10,8"
+                                Tapped="BackdropOption_Tapped"
+                                PointerEntered="BackdropOption_PointerEntered"
+                                PointerExited="BackdropOption_PointerExited">
+                                <StackPanel HorizontalAlignment="Center" Spacing="4">
+                                    <Border
+                                        Width="48"
+                                        Height="32"
+                                        CornerRadius="4"
+                                        Background="#1A000000">
+                                        <Border
+                                            CornerRadius="3"
+                                            Margin="3"
+                                            Background="#0CFFFFFF">
+                                            <Border
+                                                CornerRadius="2"
+                                                Margin="2"
+                                                Background="#08FFFFFF" />
+                                        </Border>
+                                    </Border>
+                                    <TextBlock
+                                        FontSize="11"
+                                        HorizontalAlignment="Center"
+                                        Text="Mica" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border
+                                x:Name="BackdropMicaAltOption"
+                                Grid.Column="1"
+                                Tag="MicaAlt"
+                                CornerRadius="8"
+                                BorderThickness="2"
+                                BorderBrush="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                                Padding="10,8"
+                                Tapped="BackdropOption_Tapped"
+                                PointerEntered="BackdropOption_PointerEntered"
+                                PointerExited="BackdropOption_PointerExited">
+                                <StackPanel HorizontalAlignment="Center" Spacing="4">
+                                    <Border
+                                        Width="48"
+                                        Height="32"
+                                        CornerRadius="4"
+                                        Background="#2A000000">
+                                        <Border
+                                            CornerRadius="3"
+                                            Margin="3"
+                                            Background="#14FFFFFF">
+                                            <Border
+                                                CornerRadius="2"
+                                                Margin="2"
+                                                Background="#0AFFFFFF" />
+                                        </Border>
+                                    </Border>
+                                    <TextBlock
+                                        FontSize="11"
+                                        HorizontalAlignment="Center"
+                                        Text="Mica Alt" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border
+                                x:Name="BackdropAcrylicOption"
+                                Grid.Column="2"
+                                Tag="Acrylic"
+                                CornerRadius="8"
+                                BorderThickness="2"
+                                BorderBrush="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                                Padding="10,8"
+                                Tapped="BackdropOption_Tapped"
+                                PointerEntered="BackdropOption_PointerEntered"
+                                PointerExited="BackdropOption_PointerExited">
+                                <StackPanel HorizontalAlignment="Center" Spacing="4">
+                                    <Border
+                                        Width="48"
+                                        Height="32"
+                                        CornerRadius="4">
+                                        <Border.Background>
+                                            <AcrylicBrush
+                                                TintColor="#FF202020"
+                                                TintOpacity="0.8"
+                                                TintLuminosityOpacity="0.3" />
+                                        </Border.Background>
+                                        <Border
+                                            CornerRadius="3"
+                                            Margin="4"
+                                            Background="#18FFFFFF" />
+                                    </Border>
+                                    <TextBlock
+                                        FontSize="11"
+                                        HorizontalAlignment="Center"
+                                        Text="毛玻璃" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <Border
+                            Grid.Row="2"
+                            x:Name="BackdropAcrylicDivider"
+                            Padding="0,1"
+                            Background="{ThemeResource DividerStrokeColorDefaultBrush}"
+                            Visibility="Collapsed" />
+
+                        <StackPanel
+                            Grid.Row="3"
+                            x:Name="BackdropAcrylicPanel"
+                            Spacing="14"
+                            Visibility="Collapsed">
+
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <Border Style="{StaticResource IconBorderStyle}">
+                                    <FontIcon FontSize="18" Glyph="&#xE7F3;" />
+                                </Border>
+
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock FontWeight="SemiBold" Text="着色颜色" />
+                                    <TextBlock
+                                        Opacity="0.68"
+                                        FontSize="13"
+                                        TextWrapping="Wrap"
+                                        Text="选择毛玻璃效果的着色颜色" />
+                                </StackPanel>
+
+                                <Button
+                                    x:Name="CustomColorButton"
+                                    Grid.Column="2"
+                                    VerticalAlignment="Center"
+                                    Padding="6"
+                                    MinWidth="36"
+                                    MinHeight="36"
+                                    Click="CustomColorButton_Click">
+                                    <Border
+                                        x:Name="CustomColorPreview"
+                                        Width="20"
+                                        Height="20"
+                                        CornerRadius="4"
+                                        Background="#FF202020" />
+                                </Button>
+                            </Grid>
+
+                            <Grid ColumnSpacing="8" HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <Border
+                                    x:Name="PresetColor0"
+                                    Tag="#FF2D2D2D"
+                                    Width="32"
+                                    Height="32"
+                                    CornerRadius="6"
+                                    Background="#FF2D2D2D"
+                                    BorderThickness="2"
+                                    BorderBrush="Transparent"
+                                    Tapped="PresetColor_Tapped"
+                                    PointerEntered="PresetColor_PointerEntered"
+                                    PointerExited="PresetColor_PointerExited" />
+
+                                <Border
+                                    x:Name="PresetColor1"
+                                    Grid.Column="1"
+                                    Tag="#FF0063B1"
+                                    Width="32"
+                                    Height="32"
+                                    CornerRadius="6"
+                                    Background="#FF0063B1"
+                                    BorderThickness="2"
+                                    BorderBrush="Transparent"
+                                    Tapped="PresetColor_Tapped"
+                                    PointerEntered="PresetColor_PointerEntered"
+                                    PointerExited="PresetColor_PointerExited" />
+
+                                <Border
+                                    x:Name="PresetColor2"
+                                    Grid.Column="2"
+                                    Tag="#FF6B4FBB"
+                                    Width="32"
+                                    Height="32"
+                                    CornerRadius="6"
+                                    Background="#FF6B4FBB"
+                                    BorderThickness="2"
+                                    BorderBrush="Transparent"
+                                    Tapped="PresetColor_Tapped"
+                                    PointerEntered="PresetColor_PointerEntered"
+                                    PointerExited="PresetColor_PointerExited" />
+
+                                <Border
+                                    x:Name="PresetColor3"
+                                    Grid.Column="3"
+                                    Tag="#FF0E7A5B"
+                                    Width="32"
+                                    Height="32"
+                                    CornerRadius="6"
+                                    Background="#FF0E7A5B"
+                                    BorderThickness="2"
+                                    BorderBrush="Transparent"
+                                    Tapped="PresetColor_Tapped"
+                                    PointerEntered="PresetColor_PointerEntered"
+                                    PointerExited="PresetColor_PointerExited" />
+
+                                <Border
+                                    x:Name="PresetColor4"
+                                    Grid.Column="4"
+                                    Tag="#FFB4006D"
+                                    Width="32"
+                                    Height="32"
+                                    CornerRadius="6"
+                                    Background="#FFB4006D"
+                                    BorderThickness="2"
+                                    BorderBrush="Transparent"
+                                    Tapped="PresetColor_Tapped"
+                                    PointerEntered="PresetColor_PointerEntered"
+                                    PointerExited="PresetColor_PointerExited" />
+
+                                <Border
+                                    x:Name="PresetColor5"
+                                    Grid.Column="5"
+                                    Tag="#FFCA5010"
+                                    Width="32"
+                                    Height="32"
+                                    CornerRadius="6"
+                                    Background="#FFCA5010"
+                                    BorderThickness="2"
+                                    BorderBrush="Transparent"
+                                    Tapped="PresetColor_Tapped"
+                                    PointerEntered="PresetColor_PointerEntered"
+                                    PointerExited="PresetColor_PointerExited" />
+
+                                <Border
+                                    x:Name="PresetColor6"
+                                    Grid.Column="6"
+                                    Tag="#FFE84855"
+                                    Width="32"
+                                    Height="32"
+                                    CornerRadius="6"
+                                    Background="#FFE84855"
+                                    BorderThickness="2"
+                                    BorderBrush="Transparent"
+                                    Tapped="PresetColor_Tapped"
+                                    PointerEntered="PresetColor_PointerEntered"
+                                    PointerExited="PresetColor_PointerExited" />
+
+                                <Border
+                                    x:Name="PresetColor7"
+                                    Grid.Column="7"
+                                    Tag="#FFF3F3F3"
+                                    Width="32"
+                                    Height="32"
+                                    CornerRadius="6"
+                                    Background="#FFF3F3F3"
+                                    BorderThickness="2"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    Tapped="PresetColor_Tapped"
+                                    PointerEntered="PresetColor_PointerEntered"
+                                    PointerExited="PresetColor_PointerExited" />
+
+                                <Border
+                                    x:Name="PresetColorReset"
+                                    Grid.Column="8"
+                                    Width="32"
+                                    Height="32"
+                                    CornerRadius="6"
+                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                    Tapped="PresetColorReset_Tapped"
+                                    PointerEntered="PresetColor_PointerEntered"
+                                    PointerExited="PresetColor_PointerExited"
+                                    ToolTipService.ToolTip="重置为默认颜色">
+                                    <FontIcon
+                                        FontSize="12"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Glyph="&#xE72C;" />
+                                </Border>
+                            </Grid>
+
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Border x:Name="SettingsBackgroundCard" Style="{StaticResource SettingsCardStyle}">
                     <Grid RowSpacing="12">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -672,7 +1047,7 @@
                     Style="{StaticResource SectionHeaderStyle}"
                     Text="自定义工具" />
 
-                <Border Style="{StaticResource SettingsCardStyle}">
+                <Border x:Name="SettingsCustomToolCard" Style="{StaticResource SettingsCardStyle}">
                     <Grid ColumnSpacing="16">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -707,7 +1082,7 @@
                     </Grid>
                 </Border>
 
-                <Border Style="{StaticResource SettingsCardStyle}">
+                <Border x:Name="SettingsExportAppCard" Style="{StaticResource SettingsCardStyle}">
                     <Grid ColumnSpacing="16">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />

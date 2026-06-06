@@ -16,6 +16,9 @@ public static class UpdateService
     private const string HubReleaseApi = $"{HubBase}/api/repos/{Owner}/{Repo}/releases/latest";
     private const string ReleaseApi = $"https://api.github.com/repos/{Owner}/{Repo}/releases/latest";
     private const string ReleasePage = $"https://github.com/{Owner}/{Repo}/releases/latest";
+    private const string GitCodeOwner = "gcw_uDDNaqJw";
+    private const string GitCodeRepo = "tubatool";
+    private const string GitCodeReleaseApiBase = $"https://api.gitcode.com/api/v5/repos/{GitCodeOwner}/{GitCodeRepo}/releases";
 
     private static readonly HttpClient _httpClient = new()
     {
@@ -71,7 +74,27 @@ public static class UpdateService
         _cachedJson = json;
         _lastCheckTime = DateTime.Now;
 
-        return ParseUpdateJson(json);
+        var updateInfo = ParseUpdateJson(json);
+        if (updateInfo is null) return null;
+
+        var tagName = $"v{updateInfo.Version}";
+        var gitCodeTask = FetchGitCodeAssetsAsync(tagName, ct);
+
+        try
+        {
+            var gitCodeAssets = await gitCodeTask;
+            if (gitCodeAssets is not null)
+            {
+                foreach (var asset in updateInfo.Assets)
+                {
+                    if (gitCodeAssets.TryGetValue(asset.Name, out var gitCodeUrl))
+                        asset.GitCodeDownloadUrl = gitCodeUrl;
+                }
+            }
+        }
+        catch { }
+
+        return updateInfo;
     }
 
     private static async Task<string?> FetchReleaseJsonAsync(CancellationToken ct)
@@ -122,6 +145,40 @@ public static class UpdateService
         }
 
         return null;
+    }
+
+    public static async Task<Dictionary<string, string>?> FetchGitCodeAssetsAsync(string tagName, CancellationToken ct = default)
+    {
+        try
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+            client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-UpdateChecker");
+
+            var url = $"{GitCodeReleaseApiBase}/tags/{Uri.EscapeDataString(tagName)}";
+            var response = await client.GetAsync(url, ct);
+            if (!response.IsSuccessStatusCode) return null;
+
+            var json = await response.Content.ReadAsStringAsync(ct);
+            var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            if (!root.TryGetProperty("assets", out var assetsEl)) return null;
+
+            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var asset in assetsEl.EnumerateArray())
+            {
+                var name = asset.GetProperty("name").GetString() ?? "";
+                var downloadUrl = asset.GetProperty("browser_download_url").GetString() ?? "";
+                if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(downloadUrl))
+                    result[name] = downloadUrl;
+            }
+
+            return result.Count > 0 ? result : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static UpdateInfo? ParseUpdateJson(string json)
@@ -321,6 +378,15 @@ public static class UpdateService
                 SpeedMbps = 0, IsAvailable = false, Error = ex.Message
             };
         }
+    }
+
+    public static async Task<string> DownloadFromGitCodeAsync(
+        UpdateAsset asset, IProgress<DownloadProgress>? progress, CancellationToken ct = default)
+    {
+        if (string.IsNullOrEmpty(asset.GitCodeDownloadUrl))
+            throw new InvalidOperationException("GitCode 下载链接不可用");
+
+        return await DownloadFileAsync(asset.GitCodeDownloadUrl, asset, progress, ct);
     }
 
     public static async Task<string> DownloadUpdateAsync(

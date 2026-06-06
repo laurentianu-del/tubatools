@@ -24,7 +24,7 @@ public sealed class GpuRankingTool : IBuiltinTool
         page.RequestedTheme = ThemeService.CurrentElementTheme;
 
         window.Content = page;
-        window.SystemBackdrop = new MicaBackdrop();
+        BackdropService.ApplyBackdrop(window);
         window.AppWindow.Title = "GPU 天梯图";
         window.AppWindow.Resize(new SizeInt32(1100, 780));
 

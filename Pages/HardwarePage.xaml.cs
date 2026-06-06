@@ -32,6 +32,15 @@ public sealed partial class HardwarePage : Page
         Loaded += HardwarePage_Loaded;
         Unloaded += HardwarePage_Unloaded;
         LoadBrandLogos();
+        AppSettings.SettingChanged += OnSettingChanged;
+    }
+
+    private void OnSettingChanged(string key)
+    {
+        if (key == "UseCpuzDataSource")
+        {
+            _ = LoadHardwareInfoAsync();
+        }
     }
 
     private static void LoadBrandLogos()
@@ -98,6 +107,7 @@ public sealed partial class HardwarePage : Page
     {
         _uptimeTimer?.Stop();
         _uptimeTimer = null;
+        AppSettings.SettingChanged -= OnSettingChanged;
     }
 
     private void UpdateUptime()
@@ -163,6 +173,26 @@ public sealed partial class HardwarePage : Page
         try
         {
             var sections = await HardwareInfoService.LoadAsync(forceRefresh);
+
+            var useCpuz = AppSettings.GetBool("UseCpuzDataSource", false);
+            if (useCpuz)
+            {
+                var cpuzInfo = CpuzInfoService.CachedInfo;
+                if (cpuzInfo == null)
+                {
+                    try
+                    {
+                        cpuzInfo = await CpuzInfoService.FetchAsync(timeoutMs: 30000);
+                    }
+                    catch { }
+                }
+
+                if (cpuzInfo != null)
+                {
+                    sections = HardwareInfoService.ApplyCpuzOverride(sections, cpuzInfo);
+                }
+            }
+
             ApplySections(sections);
             StatusBar.IsOpen = false;
         }
@@ -194,6 +224,10 @@ public sealed partial class HardwarePage : Page
         UpdateUptime();
         _animatingDetails = !FastModeService.IsFastModeEnabled();
         DetailsRepeater.ItemsSource = details;
+
+        CpuzBadge.Visibility = details.Any(it => it.IsVerified)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
         if (FastModeService.IsFastModeEnabled())
         {
@@ -273,27 +307,39 @@ public sealed partial class HardwarePage : Page
             if (brush is not null) el.Background = (Microsoft.UI.Xaml.Media.Brush)brush;
         }
 
-        var logoImage = FindChild<Microsoft.UI.Xaml.Controls.Image>(el);
-        if (logoImage is not null && DetailsRepeater.ItemsSource is IReadOnlyList<HardwareInfoItem> items && args.Index < items.Count)
+        if (DetailsRepeater.ItemsSource is IReadOnlyList<HardwareInfoItem> items && args.Index < items.Count)
         {
             var item = items[args.Index];
-            var showLogo = AppSettings.GetBool("ShowBrandLogo", true);
-            if (showLogo && !string.IsNullOrEmpty(item.BrandKey))
+
+            var logoImage = FindChild<Microsoft.UI.Xaml.Controls.Image>(el);
+            if (logoImage is not null)
             {
-                var logo = GetBrandLogo(item.BrandKey);
-                if (logo is not null)
+                var showLogo = AppSettings.GetBool("ShowBrandLogo", true);
+                if (showLogo && !string.IsNullOrEmpty(item.BrandKey))
                 {
-                    logoImage.Source = logo;
-                    logoImage.Visibility = Visibility.Visible;
+                    var logo = GetBrandLogo(item.BrandKey);
+                    if (logo is not null)
+                    {
+                        logoImage.Source = logo;
+                        logoImage.Visibility = Visibility.Visible;
+                    }
+                    else
+                    {
+                        logoImage.Visibility = Visibility.Collapsed;
+                    }
                 }
                 else
                 {
                     logoImage.Visibility = Visibility.Collapsed;
                 }
             }
-            else
+
+            var verifiedBadge = FindChildByName<Border>(el, "VerifiedBadge");
+            if (verifiedBadge is not null)
             {
-                logoImage.Visibility = Visibility.Collapsed;
+                verifiedBadge.Visibility = item.IsVerified
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
             }
         }
 
@@ -345,8 +391,12 @@ public sealed partial class HardwarePage : Page
             var statusWasOpen = StatusBar.IsOpen;
             StatusBar.IsOpen = false;
 
+            HeaderButtons.Visibility = Visibility.Collapsed;
+
             var rtb = new RenderTargetBitmap();
             await rtb.RenderAsync(LayoutRoot);
+
+            HeaderButtons.Visibility = Visibility.Visible;
 
             if (statusWasOpen) StatusBar.IsOpen = true;
 
@@ -359,7 +409,7 @@ public sealed partial class HardwarePage : Page
             Marshal.Copy(pixels, 0, bmpData.Scan0, pixels.Length);
             contentBmp.UnlockBits(bmpData);
 
-            var padding = 32;
+            var padding = 56;
             var cornerRadius = 16;
             var totalW = pixelWidth + padding * 2;
             var totalH = pixelHeight + padding * 2;
@@ -496,7 +546,7 @@ public sealed partial class HardwarePage : Page
             var r = (c >> 16) & 0xFF;
             var g = (c >> 8) & 0xFF;
             var b = c & 0xFF;
-            pixels[i] = (a << 24) | (b << 16) | (g << 8) | r;
+            pixels[i] = (a << 24) | (r << 16) | (g << 8) | b;
         }
         return pixels;
     }
@@ -534,6 +584,19 @@ public sealed partial class HardwarePage : Page
             var child = VisualTreeHelper.GetChild(parent, i);
             if (child is T found) return found;
             var result = FindChild<T>(child);
+            if (result is not null) return result;
+        }
+        return null;
+    }
+
+    private static T? FindChildByName<T>(DependencyObject parent, string name) where T : FrameworkElement
+    {
+        var count = VisualTreeHelper.GetChildrenCount(parent);
+        for (var i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T found && found.Name == name) return found;
+            var result = FindChildByName<T>(child, name);
             if (result is not null) return result;
         }
         return null;
