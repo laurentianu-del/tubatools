@@ -99,7 +99,7 @@ public sealed class GpuRankingPage : Page
     {
         var mainGrid = new Grid
         {
-            Padding = new Thickness(28, 20, 28, 20),
+            Padding = new Thickness(28, 48, 28, 20),
             RowSpacing = 14
         };
         mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });

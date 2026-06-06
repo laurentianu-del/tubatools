@@ -64,6 +64,38 @@ public partial class App : Application
         ToolIconService.CleanExpiredCache();
         HardwareInfoService.Preload();
 
+        _ = RunStartupSequenceAsync();
+    }
+
+    private static async Task RunStartupSequenceAsync()
+    {
+        try
+        {
+            if (AppSettings.Get("SetupCompleted") == null)
+            {
+                await Task.Delay(500);
+
+                if (MainWindow?.Content is FrameworkElement root)
+                {
+                    var wizard = new SetupWizardDialog
+                    {
+                        XamlRoot = root.XamlRoot,
+                        RequestedTheme = ThemeService.CurrentElementTheme
+                    };
+                    await wizard.ShowAsync();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Setup] Wizard failed: {ex.Message}");
+        }
+        finally
+        {
+            if (AppSettings.Get("SetupCompleted") == null)
+                AppSettings.Set("SetupCompleted", true);
+        }
+
         _ = CheckForUpdateSilentAsync();
     }
 

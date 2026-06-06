@@ -280,33 +280,17 @@ public sealed partial class HomePage : Page
         var container = grid.ContainerFromItem(_tools[index]) as GridViewItem;
         if (container is null) return;
 
-        var scrollViewer = FindChildScrollViewer(grid);
-        if (scrollViewer is not null)
+        container.StartBringIntoView(new BringIntoViewOptions
         {
-            var transform = container.TransformToVisual(scrollViewer.Content as UIElement ?? scrollViewer);
-            var point = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
-            var targetOffset = scrollViewer.VerticalOffset + point.Y - scrollViewer.ViewportHeight / 2 + container.ActualHeight / 2;
-            targetOffset = Math.Max(0, Math.Min(targetOffset, scrollViewer.ExtentHeight - scrollViewer.ViewportHeight));
-            scrollViewer.ChangeView(null, targetOffset, null, disableAnimation: false);
-            await Task.Delay(600);
-        }
+            AnimationDesired = true,
+            VerticalAlignmentRatio = 0.5
+        });
+
+        await Task.Delay(500);
 
         var border = FindChildBorder(container);
         if (border is not null)
             SearchHighlightService.HighlightBorder(border);
-    }
-
-    private static ScrollViewer? FindChildScrollViewer(DependencyObject parent)
-    {
-        var count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent);
-        for (var i = 0; i < count; i++)
-        {
-            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
-            if (child is ScrollViewer sv) return sv;
-            var result = FindChildScrollViewer(child);
-            if (result is not null) return result;
-        }
-        return null;
     }
 
     private static Border? FindChildBorder(DependencyObject parent)
@@ -357,6 +341,7 @@ public sealed partial class HomePage : Page
         {
             var flyout = (MenuFlyout)CompactGrid.Resources["CompactItemFlyout"];
             PopulateArchSubmenu(flyout, tool);
+            UpdateCheckUpdateVisibility(flyout, tool, "CompactMenuCheckUpdate");
             flyout.ShowAt(fe, e.GetPosition(fe));
         }
     }
@@ -395,6 +380,7 @@ public sealed partial class HomePage : Page
         {
             var flyout = (MenuFlyout)ToolsGrid.Resources["NormalItemFlyout"];
             PopulateArchSubmenu(flyout, tool);
+            UpdateCheckUpdateVisibility(flyout, tool, "NormalMenuCheckUpdate");
             flyout.ShowAt(fe, e.GetPosition(fe));
         }
     }
@@ -472,6 +458,294 @@ public sealed partial class HomePage : Page
             };
             submenu.Items.Add(item);
         }
+    }
+
+    private void UpdateCheckUpdateVisibility(MenuFlyout flyout, ToolItem tool, string menuItemName)
+    {
+        var menuItem = flyout.Items.OfType<MenuFlyoutItem>().FirstOrDefault(i => i.Name == menuItemName);
+        if (menuItem is null) return;
+        menuItem.Visibility = tool.HasUpdateSource ? Visibility.Visible : Visibility.Collapsed;
+        menuItem.DataContext = tool;
+    }
+
+    private void NormalMenu_CheckUpdate(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuFlyoutItem { DataContext: ToolItem tool })
+            _ = CheckToolUpdateAsync(tool);
+    }
+
+    private void CompactMenu_CheckUpdate(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuFlyoutItem { DataContext: ToolItem tool })
+            _ = CheckToolUpdateAsync(tool);
+    }
+
+    private async Task CheckToolUpdateAsync(ToolItem tool)
+    {
+        var progress = new ContentDialog
+        {
+            Title = $"检查更新 — {tool.Name}",
+            Content = new StackPanel
+            {
+                Spacing = 12,
+                Children =
+                {
+                    new ProgressRing { IsIndeterminate = true },
+                    new TextBlock { Text = "正在检查远程版本信息...", }
+                }
+            },
+            CloseButtonText = "取消",
+            XamlRoot = XamlRoot,
+            RequestedTheme = ThemeService.CurrentElementTheme
+        };
+
+        var cts = new CancellationTokenSource();
+        progress.CloseButtonClick += (_, _) => cts.Cancel();
+
+        var checkTask = Task.Run(async () =>
+        {
+            string? localVersion = null;
+            DateTime? localLastWrite = null;
+            var localFile = tool.EffectivePath;
+            if (File.Exists(localFile))
+            {
+                localLastWrite = File.GetLastWriteTime(localFile);
+                try
+                {
+                    var fvi = System.Diagnostics.FileVersionInfo.GetVersionInfo(localFile);
+                    localVersion = fvi.FileVersion;
+                }
+                catch { }
+            }
+
+            return await ToolDownloaderService.CheckForUpdateAsync(
+                tool.RemoteUrl, tool.DownloadUrl, tool.DownloadFilter,
+                localVersion, localLastWrite, cts.Token);
+        }, cts.Token);
+
+        var dialogTask = progress.ShowAsync();
+        ToolUpdateInfo? updateInfo = null;
+
+        try
+        {
+            updateInfo = await checkTask;
+        }
+        catch (OperationCanceledException) { return; }
+        catch { }
+        finally
+        {
+            progress.Hide();
+        }
+
+        if (updateInfo is null)
+        {
+            var noUpdateDialog = new ContentDialog
+            {
+                Title = tool.Name,
+                Content = "当前已是最新版本，无需更新。",
+                CloseButtonText = "确定",
+                XamlRoot = XamlRoot,
+                RequestedTheme = ThemeService.CurrentElementTheme
+            };
+            await noUpdateDialog.ShowAsync();
+            return;
+        }
+
+        var versionLine = !string.IsNullOrWhiteSpace(updateInfo.VersionTag)
+            ? $"远程版本：{updateInfo.VersionTag}" : "";
+        var dateLine = updateInfo.PublishedDate.HasValue
+            ? $"发布日期：{updateInfo.PublishedDate.Value.LocalDateTime:yyyy-MM-dd HH:mm}" : "";
+        var sizeLine = updateInfo.Size > 0
+            ? $"文件大小：{ToolDownloaderService.FormatSize(updateInfo.Size)}" : "";
+
+        var infoLines = new List<string>();
+        if (!string.IsNullOrWhiteSpace(versionLine)) infoLines.Add(versionLine);
+        if (!string.IsNullOrWhiteSpace(dateLine)) infoLines.Add(dateLine);
+        if (!string.IsNullOrWhiteSpace(sizeLine)) infoLines.Add(sizeLine);
+
+        var infoText = infoLines.Count > 0
+            ? string.Join("\n", infoLines)
+            : "发现新版本。";
+
+        var confirmDialog = new ContentDialog
+        {
+            Title = $"发现更新 — {tool.Name}",
+            Content = new StackPanel
+            {
+                Spacing = 8,
+                Children =
+                {
+                    new TextBlock { Text = infoText, TextWrapping = TextWrapping.Wrap },
+                    new TextBlock
+                    {
+                        Text = "是否下载更新？更新将覆盖现有文件。",
+                        TextWrapping = TextWrapping.Wrap,
+                        Opacity = 0.72
+                    }
+                }
+            },
+            PrimaryButtonText = "更新",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot,
+            RequestedTheme = ThemeService.CurrentElementTheme
+        };
+
+        var result = await confirmDialog.ShowAsync();
+        if (result != ContentDialogResult.Primary) return;
+
+        if (!string.IsNullOrWhiteSpace(tool.DownloadUrl))
+        {
+            _ = ShowDownloadDialogAsync(tool);
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(tool.RemoteUrl))
+        {
+            _ = HandleUpdateDownloadAsync(tool);
+        }
+    }
+
+    private async Task HandleUpdateDownloadAsync(ToolItem tool)
+    {
+        var toolDir = Path.GetDirectoryName(tool.Path) ?? Path.Combine(ToolCatalog.ToolsRoot, tool.Category, tool.Folder);
+        Directory.CreateDirectory(toolDir);
+
+        var dialog = new ContentDialog
+        {
+            Title = $"更新 {tool.Name}",
+            PrimaryButtonText = "开始下载",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot,
+            RequestedTheme = ThemeService.CurrentElementTheme
+        };
+        dialog.Resources["ContentDialogMaxWidth"] = 520;
+
+        var progressBar = new ProgressBar { IsIndeterminate = false };
+        var percentText = new TextBlock
+        {
+            FontSize = 12,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentTextFillColorPrimaryBrush"],
+            Text = "0%"
+        };
+        var speedText = new TextBlock
+        {
+            FontSize = 12,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+            Text = "--"
+        };
+        var sizeText = new TextBlock
+        {
+            FontSize = 12,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+            Text = "--"
+        };
+        var timeText = new TextBlock
+        {
+            FontSize = 12,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+            Text = "--"
+        };
+
+        var progressPanel = new StackPanel { Spacing = 10 };
+        progressPanel.Children.Add(progressBar);
+        progressPanel.Children.Add(new StackPanel
+        {
+            Orientation = Microsoft.UI.Xaml.Controls.Orientation.Horizontal,
+            Spacing = 16,
+            Children = { speedText, sizeText, timeText }
+        });
+        progressPanel.Children.Add(percentText);
+
+        var descText = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 13,
+            Text = $"「{tool.Name}」发现新版本，将下载并覆盖现有文件。"
+        };
+
+        var errorBar = new InfoBar
+        {
+            IsOpen = false,
+            IsClosable = true,
+            Severity = InfoBarSeverity.Error,
+            Title = "下载失败"
+        };
+
+        var contentStack = new StackPanel { Spacing = 12, MinWidth = 420 };
+        contentStack.Children.Add(descText);
+        contentStack.Children.Add(progressPanel);
+        contentStack.Children.Add(errorBar);
+        dialog.Content = contentStack;
+
+        var cts = new CancellationTokenSource();
+        var downloadStarted = false;
+
+        dialog.PrimaryButtonClick += async (s, e) =>
+        {
+            if (downloadStarted) { e.Cancel = true; return; }
+            var deferral = e.GetDeferral();
+            e.Cancel = true;
+
+            downloadStarted = true;
+            dialog.IsPrimaryButtonEnabled = false;
+
+            try
+            {
+                descText.Visibility = Visibility.Collapsed;
+                progressPanel.Visibility = Visibility.Visible;
+                dialog.PrimaryButtonText = "下载中...";
+
+                var progress = new Progress<ToolDownloadProgress>(p =>
+                {
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        progressBar.Value = p.Percentage;
+                        percentText.Text = $"{p.Percentage:F1}%";
+                        speedText.Text = ToolDownloaderService.FormatSpeed(p.SpeedMbps);
+                        sizeText.Text = $"{ToolDownloaderService.FormatSize(p.BytesReceived)} / {ToolDownloaderService.FormatSize(p.TotalBytes)}";
+                        timeText.Text = ToolDownloaderService.FormatTime(p.EstimatedRemaining);
+                    });
+                });
+
+                var fileName = Path.GetFileName(new Uri(tool.RemoteUrl!).AbsolutePath);
+                if (string.IsNullOrWhiteSpace(fileName))
+                    fileName = $"{tool.Name}.zip";
+
+                var filePath = await ToolDownloaderService.DownloadToFileAsync(
+                    tool.RemoteUrl!, toolDir, fileName, progress, cts.Token);
+
+                percentText.Text = "解压中...";
+                progressBar.IsIndeterminate = true;
+                await ToolDownloaderService.ExtractArchiveAsync(filePath, toolDir, cts.Token);
+
+                dialog.Hide();
+
+                ToolCatalog.InvalidateTagsCache();
+                ToolMetadataService.InvalidateCache();
+
+                ShowStatus("更新完成", $"「{tool.Name}」已更新到最新版本", InfoBarSeverity.Success);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                errorBar.Message = ex.Message;
+                errorBar.IsOpen = true;
+                progressPanel.Visibility = Visibility.Collapsed;
+                descText.Visibility = Visibility.Visible;
+                dialog.IsPrimaryButtonEnabled = true;
+                dialog.PrimaryButtonText = "重试";
+                downloadStarted = false;
+            }
+            finally
+            {
+                try { deferral.Complete(); } catch { }
+            }
+        };
+
+        await dialog.ShowAsync();
     }
 
     private async Task DeleteToolAsync(ToolItem tool)

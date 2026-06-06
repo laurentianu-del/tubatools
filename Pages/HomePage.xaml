@@ -137,6 +137,11 @@
                                     <FontIcon Glyph="&#xE912;" />
                                 </MenuFlyoutSubItem.Icon>
                             </MenuFlyoutSubItem>
+                            <MenuFlyoutItem x:Name="NormalMenuCheckUpdate" Text="检查更新" Click="NormalMenu_CheckUpdate" Visibility="Collapsed">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE946;" />
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
                             <MenuFlyoutSeparator />
                             <MenuFlyoutItem Text="删除工具" Click="NormalMenu_DeleteTool" Foreground="{ThemeResource SystemFillColorCriticalBrush}">
                                 <MenuFlyoutItem.Icon>
@@ -326,6 +331,11 @@
                                     <FontIcon Glyph="&#xE912;" />
                                 </MenuFlyoutSubItem.Icon>
                             </MenuFlyoutSubItem>
+                            <MenuFlyoutItem x:Name="CompactMenuCheckUpdate" Text="检查更新" Click="CompactMenu_CheckUpdate" Visibility="Collapsed">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE946;" />
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
                             <MenuFlyoutSeparator />
                             <MenuFlyoutItem Text="删除工具" Click="CompactMenu_DeleteTool" Foreground="{ThemeResource SystemFillColorCriticalBrush}">
                                 <MenuFlyoutItem.Icon>

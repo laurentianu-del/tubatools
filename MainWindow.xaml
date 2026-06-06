@@ -35,6 +35,7 @@
                     VerticalAlignment="Center"
                     TextChanged="GlobalSearchBox_TextChanged"
                     SuggestionChosen="GlobalSearchBox_SuggestionChosen"
+                    QuerySubmitted="GlobalSearchBox_QuerySubmitted"
                     KeyDown="GlobalSearchBox_KeyDown"
                     UpdateTextOnSelect="False">
                     <AutoSuggestBox.ItemTemplate>

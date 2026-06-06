@@ -65,6 +65,8 @@ public sealed class ToolItem : INotifyPropertyChanged
 
     public bool NeedsRemoteDownload => !string.IsNullOrWhiteSpace(RemoteUrl) && !File.Exists(EffectivePath);
 
+    public bool HasUpdateSource => !string.IsNullOrWhiteSpace(RemoteUrl) || !string.IsNullOrWhiteSpace(DownloadUrl);
+
     public bool NeedsWingetInstall => !string.IsNullOrWhiteSpace(WingetId);
 
     private bool _isWingetInstalled;
