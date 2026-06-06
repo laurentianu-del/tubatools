@@ -1,13 +1,17 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Media.Imaging;
 using System.Drawing.Text;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using TubaWinUi3;
+using TubaWinUi3.Models;
 using TubaWinUi3.Services;
+using Windows.UI;
 using static TubaWinUi3.Services.ConfigManager;
 
 namespace TubaWinUi3.Pages;
@@ -25,6 +29,11 @@ public sealed partial class SettingsPage : Page
     private bool _defaultPageInitializing;
     private bool _brandLogoInitializing;
     private bool _driverBusy;
+    private bool _cpuzBusy;
+    private bool _backdropInitializing;
+
+    private Border[] _backdropOptions = [];
+    private Border[] _presetColorBorders = [];
 
     private static readonly (string Tag, string DisplayName)[] DefaultPageOptions =
     [
@@ -74,6 +83,36 @@ public sealed partial class SettingsPage : Page
     private const int OFN_OVERWRITEPROMPT = 0x00000002;
     private const int OFN_PATHMUSTEXIST = 0x00000800;
 
+    private string? _pendingHighlightKey;
+
+    private static readonly Dictionary<string, string> SettingKeyToCardName = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Theme"] = "SettingsThemeCard",
+        ["CompactMode"] = "SettingsCompactModeCard",
+        ["BrandLogo"] = "SettingsBrandLogoCard",
+        ["DefaultPage"] = "SettingsDefaultPageCard",
+        ["FastMode"] = "SettingsFastModeCard",
+        ["Watermark"] = "SettingsWatermarkCard",
+        ["RememberWindow"] = "SettingsRememberWindowCard",
+        ["Background"] = "SettingsBackgroundCard",
+        ["Backdrop"] = "SettingsBackdropCard",
+        ["Update"] = "SettingsUpdateCard",
+        ["ConfigManager"] = "SettingsConfigManagerCard",
+        ["CustomToolManager"] = "SettingsCustomToolCard",
+        ["MonitorDriver"] = "SettingsMonitorDriverCard",
+        ["ExportApp"] = "SettingsExportAppCard",
+    };
+
+    protected override void OnNavigatedTo(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
+    {
+        base.OnNavigatedTo(e);
+
+        if (e.Parameter is SearchNavigationTarget target && target.HighlightSettingKey is not null)
+        {
+            _pendingHighlightKey = target.HighlightSettingKey;
+        }
+    }
+
     public SettingsPage()
     {
         InitializeComponent();
@@ -93,7 +132,41 @@ public sealed partial class SettingsPage : Page
         InitBrandLogoToggle();
         InitWatermarkSettings();
         LoadBackgroundSettings();
+        InitBackdropSettings();
         InitDriverStatus();
+        InitCpuzDataSourceStatus();
+
+        Loaded += SettingsPage_Loaded;
+    }
+
+    private void SettingsPage_Loaded(object sender, RoutedEventArgs e)
+    {
+        Loaded -= SettingsPage_Loaded;
+
+        if (_pendingHighlightKey is not null)
+        {
+            _ = HighlightSettingAsync(_pendingHighlightKey);
+            _pendingHighlightKey = null;
+        }
+    }
+
+    private async Task HighlightSettingAsync(string settingKey)
+    {
+        if (!SettingKeyToCardName.TryGetValue(settingKey, out var cardName)) return;
+
+        await Task.Delay(300);
+
+        var border = FindName(cardName) as Border;
+        if (border is null) return;
+
+        border.StartBringIntoView(new BringIntoViewOptions
+        {
+            AnimationDesired = true,
+            VerticalAlignmentRatio = 0.5
+        });
+
+        await Task.Delay(500);
+        SearchHighlightService.HighlightBorder(border);
     }
 
     private void LoadSettingsGif()
@@ -667,5 +740,431 @@ public sealed partial class SettingsPage : Page
     {
         DrawerCloseStoryboard.Completed -= OnDrawerCloseCompleted;
         DrawerOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    private void InitCpuzDataSourceStatus()
+    {
+        UpdateCpuzDataSourceUI();
+    }
+
+    private void UpdateCpuzDataSourceUI()
+    {
+        var useCpuz = AppSettings.GetBool("UseCpuzDataSource", false);
+        var cpuzAvailable = CpuzInfoService.FindCpuzExe() != null;
+
+        if (useCpuz && CpuzInfoService.CachedInfo != null)
+        {
+            CpuzDataSourceStatusText.Text = "当前使用 CPU-Z 数据源（真实硬件读取）";
+            CpuzDataSourceButtonText.Text = "切回默认";
+            CpuzDataSourceIcon.Glyph = "\uE73E";
+        }
+        else if (useCpuz)
+        {
+            CpuzDataSourceStatusText.Text = cpuzAvailable
+                ? "CPU-Z 数据源已启用，等待获取数据..."
+                : "CPU-Z 数据源已启用，但未找到 CPU-Z";
+            CpuzDataSourceButtonText.Text = "切回默认";
+            CpuzDataSourceIcon.Glyph = "\uE950;";
+        }
+        else
+        {
+            CpuzDataSourceStatusText.Text = cpuzAvailable
+                ? "当前使用 WMI 数据源，可切换为 CPU-Z 获取真实信息"
+                : "当前使用 WMI 数据源（未找到 CPU-Z 工具）";
+            CpuzDataSourceButtonText.Text = "切换";
+            CpuzDataSourceIcon.Glyph = "\uE950";
+        }
+    }
+
+    private async void CpuzDataSourceButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_cpuzBusy) return;
+
+        var useCpuz = AppSettings.GetBool("UseCpuzDataSource", false);
+
+        if (useCpuz)
+        {
+            AppSettings.Set("UseCpuzDataSource", false);
+            UpdateCpuzDataSourceUI();
+            return;
+        }
+
+        var cpuzExe = CpuzInfoService.FindCpuzExe();
+        if (cpuzExe == null)
+        {
+            await ShowMessageAsync("未找到 CPU-Z", "在工具目录中未找到 CPU-Z 可执行文件，无法使用此功能。\n\n请确保 Tools/处理器工具/CPUZ/ 目录下存在 cpuz_x64.exe。");
+            return;
+        }
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = "切换硬件信息数据源",
+            PrimaryButtonText = "确认切换",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Close,
+            RequestedTheme = ThemeService.CurrentElementTheme
+        };
+
+        var stack = new StackPanel { Spacing = 12 };
+
+        stack.Children.Add(new TextBlock
+        {
+            Text = "当前硬件信息通过 WMI（Windows 管理规范）获取，数据来源于厂商在 SMBIOS/DMI 中填写的内容。",
+            TextWrapping = TextWrapping.Wrap,
+            Opacity = 0.85
+        });
+
+        var problemBorder = new Border
+        {
+            Padding = new Thickness(12),
+            CornerRadius = new CornerRadius(6),
+            Background = new SolidColorBrush(
+                ThemeService.CurrentTheme == AppTheme.Dark
+                    ? Color.FromArgb(40, 255, 185, 0)
+                    : Color.FromArgb(30, 200, 130, 0)),
+            BorderBrush = new SolidColorBrush(
+                ThemeService.CurrentTheme == AppTheme.Dark
+                    ? Color.FromArgb(80, 255, 185, 0)
+                    : Color.FromArgb(60, 200, 130, 0)),
+            BorderThickness = new Thickness(1)
+        };
+        problemBorder.Child = new StackPanel
+        {
+            Spacing = 4,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = "⚠ WMI 数据可能被伪造",
+                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    FontSize = 14
+                },
+                new TextBlock
+                {
+                    Text = "部分厂商或商家可能通过修改 BIOS/SMBIOS 信息来伪造 CPU 型号、内存品牌、主板型号等，导致 WMI 读取到的信息与实际硬件不符。",
+                    TextWrapping = TextWrapping.Wrap,
+                    Opacity = 0.85,
+                    FontSize = 13
+                }
+            }
+        };
+        stack.Children.Add(problemBorder);
+
+        var solutionBorder = new Border
+        {
+            Padding = new Thickness(12),
+            CornerRadius = new CornerRadius(6),
+            Background = new SolidColorBrush(
+                ThemeService.CurrentTheme == AppTheme.Dark
+                    ? Color.FromArgb(40, 0, 200, 100)
+                    : Color.FromArgb(25, 0, 160, 80)),
+            BorderBrush = new SolidColorBrush(
+                ThemeService.CurrentTheme == AppTheme.Dark
+                    ? Color.FromArgb(80, 0, 200, 100)
+                    : Color.FromArgb(60, 0, 160, 80)),
+            BorderThickness = new Thickness(1)
+        };
+        solutionBorder.Child = new StackPanel
+        {
+            Spacing = 4,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = "✓ CPU-Z 读取原理",
+                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    FontSize = 14
+                },
+                new TextBlock
+                {
+                    Text = "CPU-Z 通过 CPUID 指令直接读取 CPU 硬件寄存器，通过 PCI 枚举直接扫描硬件，通过 SPD 芯片直接读取内存条信息——这些是底层硬件级别的数据，厂商无法通过修改 SMBIOS 来伪造。",
+                    TextWrapping = TextWrapping.Wrap,
+                    Opacity = 0.85,
+                    FontSize = 13
+                }
+            }
+        };
+        stack.Children.Add(solutionBorder);
+
+        var warnBorder = new Border
+        {
+            Padding = new Thickness(12),
+            CornerRadius = new CornerRadius(6),
+            Background = new SolidColorBrush(
+                ThemeService.CurrentTheme == AppTheme.Dark
+                    ? Color.FromArgb(40, 100, 150, 255)
+                    : Color.FromArgb(25, 60, 120, 255)),
+            BorderBrush = new SolidColorBrush(
+                ThemeService.CurrentTheme == AppTheme.Dark
+                    ? Color.FromArgb(80, 100, 150, 255)
+                    : Color.FromArgb(60, 60, 120, 255)),
+            BorderThickness = new Thickness(1)
+        };
+        warnBorder.Child = new StackPanel
+        {
+            Spacing = 4,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = "⏱ 注意事项",
+                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    FontSize = 14
+                },
+                new TextBlock
+                {
+                    Text = "• 使用 CPU-Z 获取信息需要约 3~8 秒，期间会短暂启动 CPU-Z 进程\n• 获取完成后会自动关闭 CPU-Z 进程\n• 切换后可在设置中随时切回 WMI 数据源",
+                    TextWrapping = TextWrapping.Wrap,
+                    Opacity = 0.85,
+                    FontSize = 13
+                }
+            }
+        };
+        stack.Children.Add(warnBorder);
+
+        dialog.Content = new ScrollViewer
+        {
+            MaxHeight = 400,
+            Content = stack
+        };
+
+        var result = await dialog.ShowAsync();
+        if (result != ContentDialogResult.Primary) return;
+
+        _cpuzBusy = true;
+        CpuzDataSourceButton.IsEnabled = false;
+        CpuzDataSourceStatusText.Text = "正在通过 CPU-Z 获取硬件信息，请稍候...";
+
+        try
+        {
+            var cpuzInfo = await CpuzInfoService.FetchAsync(timeoutMs: 30000);
+
+            if (cpuzInfo != null)
+            {
+                AppSettings.Set("UseCpuzDataSource", true);
+                UpdateCpuzDataSourceUI();
+            }
+            else
+            {
+                CpuzInfoService.KillCpuzProcesses();
+                await ShowMessageAsync("获取失败", "CPU-Z 未能成功获取硬件信息。\n\n可能原因：\n• CPU-Z 运行超时\n• CPU-Z 被安全软件拦截\n• 当前架构不支持此版本 CPU-Z");
+                UpdateCpuzDataSourceUI();
+            }
+        }
+        catch (Exception ex)
+        {
+            CpuzInfoService.KillCpuzProcesses();
+            await ShowMessageAsync("获取失败", $"CPU-Z 获取过程中出现错误：\n{ex.Message}");
+            UpdateCpuzDataSourceUI();
+        }
+        finally
+        {
+            _cpuzBusy = false;
+            CpuzDataSourceButton.IsEnabled = true;
+        }
+    }
+
+    private void InitBackdropSettings()
+    {
+        _backdropInitializing = true;
+
+        _backdropOptions = [BackdropMicaOption, BackdropMicaAltOption, BackdropAcrylicOption];
+        _presetColorBorders = [PresetColor0, PresetColor1, PresetColor2, PresetColor3, PresetColor4, PresetColor5, PresetColor6, PresetColor7];
+
+        var currentType = BackdropService.GetBackdropType();
+        UpdateBackdropOptionSelection(currentType);
+        UpdateAcrylicPanelVisibility(currentType);
+
+        UpdateTintColorPreview();
+
+        _backdropInitializing = false;
+    }
+
+    private void UpdateBackdropOptionSelection(BackdropType selected)
+    {
+        foreach (var border in _backdropOptions)
+        {
+            if (border is null) continue;
+            var tag = border.Tag?.ToString();
+            var isSelected = tag == selected.ToString();
+            border.BorderBrush = isSelected
+                ? new SolidColorBrush(Color.FromArgb(255, 0, 120, 215))
+                : (Brush)App.Current.Resources["SubtleFillColorSecondaryBrush"];
+        }
+    }
+
+    private void UpdateAcrylicPanelVisibility(BackdropType type)
+    {
+        var showAcrylic = type == BackdropType.Acrylic;
+        BackdropAcrylicDivider.Visibility = showAcrylic ? Visibility.Visible : Visibility.Collapsed;
+        BackdropAcrylicPanel.Visibility = showAcrylic ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void UpdateTintColorPreview()
+    {
+        var tintColor = BackdropService.GetTintColor();
+        if (tintColor.A == 0)
+        {
+            var isDark = ThemeService.CurrentTheme == AppTheme.Dark ||
+                         (ThemeService.CurrentTheme == AppTheme.Default && Application.Current.RequestedTheme == ApplicationTheme.Dark);
+            CustomColorPreview.Background = new SolidColorBrush(isDark ? Color.FromArgb(255, 32, 32, 32) : Color.FromArgb(255, 243, 243, 243));
+        }
+        else
+        {
+            CustomColorPreview.Background = new SolidColorBrush(tintColor);
+        }
+
+        UpdatePresetColorSelection(tintColor);
+    }
+
+    private void UpdatePresetColorSelection(Color tintColor)
+    {
+        var currentHex = tintColor.A == 0 ? "" : $"#{tintColor.A:X2}{tintColor.R:X2}{tintColor.G:X2}{tintColor.B:X2}";
+        foreach (var border in _presetColorBorders)
+        {
+            if (border is null) continue;
+            var tag = border.Tag?.ToString();
+            var isSelected = string.Equals(tag, currentHex, StringComparison.OrdinalIgnoreCase);
+            border.BorderBrush = isSelected
+                ? new SolidColorBrush(Color.FromArgb(255, 0, 120, 215))
+                : (Brush)App.Current.Resources["CardStrokeColorDefaultBrush"];
+        }
+    }
+
+    private void BackdropOption_Tapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (_backdropInitializing) return;
+        if (sender is not Border border) return;
+        if (!Enum.TryParse<BackdropType>(border.Tag?.ToString(), out var type)) return;
+
+        BackdropService.SetBackdropType(type);
+        UpdateBackdropOptionSelection(type);
+        UpdateAcrylicPanelVisibility(type);
+    }
+
+    private void BackdropOption_PointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is Border border)
+        {
+            border.Opacity = 0.85;
+        }
+    }
+
+    private void BackdropOption_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is Border border)
+        {
+            border.Opacity = 1.0;
+        }
+    }
+
+    private void PresetColor_Tapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (sender is not Border border) return;
+        var hex = border.Tag?.ToString();
+        if (string.IsNullOrEmpty(hex)) return;
+
+        if (TryParseHexColor(hex, out var color))
+        {
+            BackdropService.SetTintColor(color);
+            UpdateTintColorPreview();
+        }
+    }
+
+    private void PresetColorReset_Tapped(object sender, TappedRoutedEventArgs e)
+    {
+        BackdropService.SetTintColor(Color.FromArgb(0, 0, 0, 0));
+        UpdateTintColorPreview();
+    }
+
+    private void PresetColor_PointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is Border border)
+        {
+            border.Scale = new System.Numerics.Vector3(1.1f, 1.1f, 1.0f);
+        }
+    }
+
+    private void PresetColor_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is Border border)
+        {
+            border.Scale = new System.Numerics.Vector3(1.0f, 1.0f, 1.0f);
+        }
+    }
+
+    private async void CustomColorButton_Click(object sender, RoutedEventArgs e)
+    {
+        var currentColor = BackdropService.GetTintColor();
+        var isDark = ThemeService.CurrentTheme == AppTheme.Dark ||
+                     (ThemeService.CurrentTheme == AppTheme.Default && Application.Current.RequestedTheme == ApplicationTheme.Dark);
+
+        var colorPicker = new ColorPicker
+        {
+            IsAlphaEnabled = false,
+            Color = currentColor.A == 0
+                ? (isDark ? Color.FromArgb(255, 32, 32, 32) : Color.FromArgb(255, 243, 243, 243))
+                : currentColor,
+            IsColorSliderVisible = true,
+            IsColorChannelTextInputVisible = true,
+            IsHexInputVisible = true,
+            MinWidth = 280
+        };
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = "自定义着色颜色",
+            Content = new ScrollViewer
+            {
+                Content = colorPicker,
+                MaxHeight = 400
+            },
+            PrimaryButtonText = "确定",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Primary,
+            RequestedTheme = ThemeService.CurrentElementTheme
+        };
+
+        var result = await dialog.ShowAsync();
+        if (result == ContentDialogResult.Primary)
+        {
+            var selected = colorPicker.Color;
+            BackdropService.SetTintColor(selected);
+            UpdateTintColorPreview();
+        }
+    }
+
+    private void TintOpacitySlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+    }
+
+    private static bool TryParseHexColor(string hex, out Color color)
+    {
+        color = default;
+        try
+        {
+            if (hex.StartsWith('#')) hex = hex[1..];
+            if (hex.Length == 8)
+            {
+                var a = byte.Parse(hex[..2], System.Globalization.NumberStyles.HexNumber);
+                var r = byte.Parse(hex[2..4], System.Globalization.NumberStyles.HexNumber);
+                var g = byte.Parse(hex[4..6], System.Globalization.NumberStyles.HexNumber);
+                var b = byte.Parse(hex[6..8], System.Globalization.NumberStyles.HexNumber);
+                color = Color.FromArgb(a, r, g, b);
+                return true;
+            }
+            if (hex.Length == 6)
+            {
+                var r = byte.Parse(hex[..2], System.Globalization.NumberStyles.HexNumber);
+                var g = byte.Parse(hex[2..4], System.Globalization.NumberStyles.HexNumber);
+                var b = byte.Parse(hex[4..6], System.Globalization.NumberStyles.HexNumber);
+                color = Color.FromArgb(255, r, g, b);
+                return true;
+            }
+        }
+        catch { }
+        return false;
     }
 }

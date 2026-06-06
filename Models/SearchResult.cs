@@ -1,0 +1,46 @@
+namespace TubaWinUi3.Models;
+
+using Microsoft.UI.Xaml;
+
+public sealed class SearchResult
+{
+    public required string Title { get; init; }
+    public required string Subtitle { get; init; }
+    public required string Glyph { get; init; }
+    public required SearchItemKind Kind { get; init; }
+    public required string MatchKey { get; init; }
+    public string? IconPath { get; init; }
+    public string? Category { get; init; }
+    public double Score { get; init; }
+
+    public Visibility IconPathVisibility => string.IsNullOrEmpty(IconPath) ? Visibility.Collapsed : Visibility.Visible;
+    public Visibility GlyphVisibility => string.IsNullOrEmpty(IconPath) ? Visibility.Visible : Visibility.Collapsed;
+
+    public string KindText => Kind switch
+    {
+        SearchItemKind.ExternalTool => "工具",
+        SearchItemKind.BuiltinTool => "内置",
+        SearchItemKind.Setting => "设置",
+        SearchItemKind.CustomTool => "自定义",
+        SearchItemKind.QuickAction => "快捷",
+        _ => ""
+    };
+
+    public override string ToString() => Title;
+}
+
+public enum SearchItemKind
+{
+    ExternalTool,
+    BuiltinTool,
+    Setting,
+    CustomTool,
+    QuickAction
+}
+
+public sealed class SearchNavigationTarget
+{
+    public string? HighlightToolPath { get; init; }
+    public string? HighlightSettingKey { get; init; }
+    public string? HighlightBuiltinId { get; init; }
+}

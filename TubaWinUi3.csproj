@@ -17,7 +17,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <Version>1.0.2</Version>
-    <DefaultItemExcludes>$(DefaultItemExcludes);artifacts\**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);artifacts\**;TubaWinUi3.Compatible\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>

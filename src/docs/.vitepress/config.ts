@@ -3,8 +3,8 @@ import { defineConfig } from 'vitepress'
 const jsonLd = JSON.stringify({
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
-  "name": "图吧工具箱",
-  "description": "PC 硬件检测与系统维护工具集",
+  "name": "图吧工具箱WinUI3",
+  "description": "更现代化的图吧工具箱——PC 硬件检测与系统维护工具集",
   "url": "https://tubawinui3.cn",
   "applicationCategory": "UtilitiesApplication",
   "operatingSystem": "Windows 10",
@@ -20,8 +20,8 @@ const jsonLd = JSON.stringify({
 
 export default defineConfig({
   lang: 'zh-CN',
-  title: '图吧工具箱',
-  description: 'PC 硬件检测与系统维护工具集',
+  title: '图吧工具箱WinUI3',
+  description: '更现代化的图吧工具箱——PC 硬件检测与系统维护工具集',
 
   outDir: '../../docs',
 
@@ -37,16 +37,21 @@ export default defineConfig({
 
   head: [
     ['link', { rel: 'icon', href: '/logo.svg', type: 'image/svg+xml' }],
+    ['link', { rel: 'icon', href: '/logo.png', type: 'image/png' }],
+    ['link', { rel: 'apple-touch-icon', href: '/logo.png' }],
     ['meta', { name: 'theme-color', content: '#5b5fc7' }],
     ['link', { rel: 'stylesheet', href: 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css', integrity: 'sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==', crossorigin: 'anonymous', referrerpolicy: 'no-referrer' }],
-    ['meta', { name: 'keywords', content: '图吧工具箱, 硬件检测, PC工具, 系统维护, WinUI3, CPU-Z, GPU-Z, 硬件信息' }],
+    ['meta', { name: 'keywords', content: '图吧工具箱, 图吧工具箱WinUI3, 硬件检测, PC工具, 系统维护, WinUI3, CPU-Z, GPU-Z, 硬件信息' }],
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:locale', content: 'zh_CN' }],
-    ['meta', { property: 'og:site_name', content: '图吧工具箱' }],
-    ['meta', { property: 'og:image', content: 'https://tubawinui3.cn/logo.svg' }],
+    ['meta', { property: 'og:site_name', content: '图吧工具箱WinUI3' }],
+    ['meta', { property: 'og:title', content: '图吧工具箱WinUI3——更现代化的图吧工具箱' }],
+    ['meta', { property: 'og:description', content: '更现代化的图吧工具箱——PC 硬件检测与系统维护工具集' }],
+    ['meta', { property: 'og:image', content: 'https://tubawinui3.cn/logo.png' }],
     ['meta', { property: 'og:url', content: 'https://tubawinui3.cn/' }],
     ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
-    ['meta', { name: 'twitter:image', content: 'https://tubawinui3.cn/logo.svg' }],
+    ['meta', { name: 'twitter:title', content: '图吧工具箱WinUI3——更现代化的图吧工具箱' }],
+    ['meta', { name: 'twitter:image', content: 'https://tubawinui3.cn/logo.png' }],
     ['link', { rel: 'canonical', href: 'https://tubawinui3.cn/' }],
     ['script', { type: 'application/ld+json' }, jsonLd],
   ],

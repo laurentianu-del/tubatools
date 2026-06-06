@@ -63,6 +63,11 @@ public static class HardwareInfoService
     private static IReadOnlyList<HardwareInfoSection>? _cache;
     private static readonly object _lock = new();
 
+    public static bool HasCache
+    {
+        get { lock (_lock) { return _cache != null; } }
+    }
+
     public static void Preload()
     {
         Task.Run(() =>
@@ -77,27 +82,195 @@ public static class HardwareInfoService
 
     public static Task<IReadOnlyList<HardwareInfoSection>> LoadAsync(bool forceRefresh = false)
     {
-        return Task.Run<IReadOnlyList<HardwareInfoSection>>(() =>
+        return Task.Run(() => BuildSections(forceRefresh));
+    }
+
+    private static IReadOnlyList<HardwareInfoSection> BuildSections(bool forceRefresh)
+    {
+        lock (_lock)
         {
-            lock (_lock)
+            if (!forceRefresh && _cache != null)
+                return _cache;
+        }
+
+        var sections = CreateEmptySections();
+
+        FillSummary(sections[0]);
+        FillSystem(sections[1]);
+        FillDetails(sections[2]);
+
+        lock (_lock)
+        {
+            _cache = sections;
+        }
+
+        return sections;
+    }
+
+    public static IReadOnlyList<HardwareInfoSection> ApplyCpuzOverride(IReadOnlyList<HardwareInfoSection> wmiSections, CpuzInfo cpuz)
+    {
+        var sections = DeepCopy(wmiSections);
+        var details = sections[2].Items;
+
+        if (!string.IsNullOrWhiteSpace(cpuz.CpuName))
+        {
+            var cpuItem = details.FirstOrDefault(it => it.Label == "处理器");
+            if (cpuItem != null)
             {
-                if (!forceRefresh && _cache != null)
-                    return _cache;
+                var name = cpuz.CpuName;
+                if (!string.IsNullOrWhiteSpace(cpuz.CpuCodeName))
+                    name += $" ({cpuz.CpuCodeName})";
+                if (cpuz.CpuCores > 0)
+                    name += $" {CoresThreadsLabel(cpuz)}";
+                cpuItem.Value = name;
+                cpuItem.BrandKey = DetectCpuBrand(cpuz.CpuName);
+                cpuItem.IsVerified = true;
             }
+        }
 
-            var sections = CreateEmptySections();
-
-            FillSummary(sections[0]);
-            FillSystem(sections[1]);
-            FillDetails(sections[2]);
-
-            lock (_lock)
+        if (!string.IsNullOrWhiteSpace(cpuz.BoardManufacturer) || !string.IsNullOrWhiteSpace(cpuz.BoardModel))
+        {
+            var boardItem = details.FirstOrDefault(it => it.Label == "主板");
+            if (boardItem != null)
             {
-                _cache = sections;
+                var board = Join(
+                    CleanBoardManufacturer(cpuz.BoardManufacturer),
+                    cpuz.BoardModel);
+                if (!string.IsNullOrWhiteSpace(board))
+                {
+                    boardItem.Value = board;
+                    boardItem.IsVerified = true;
+                }
             }
+        }
 
-            return sections;
-        });
+        var summary = sections[0].Items;
+        if (!string.IsNullOrWhiteSpace(cpuz.BoardManufacturer) || !string.IsNullOrWhiteSpace(cpuz.BoardModel))
+        {
+            var summaryBoard = summary.FirstOrDefault(it => it.Label == "主板");
+            if (summaryBoard != null)
+            {
+                var board = Join(
+                    CleanBoardManufacturer(cpuz.BoardManufacturer),
+                    cpuz.BoardModel);
+                if (!string.IsNullOrWhiteSpace(board))
+                {
+                    summaryBoard.Value = board;
+                    summaryBoard.IsVerified = true;
+                }
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(cpuz.BiosBrand) || !string.IsNullOrWhiteSpace(cpuz.BiosVersion))
+        {
+            var biosItem = summary.FirstOrDefault(it => it.Label == "BIOS");
+            if (biosItem != null)
+            {
+                var bios = Join(cpuz.BiosBrand, cpuz.BiosVersion);
+                if (!string.IsNullOrWhiteSpace(bios))
+                {
+                    biosItem.Value = bios;
+                    biosItem.IsVerified = true;
+                }
+            }
+        }
+
+        if (cpuz.Gpus.Count > 0)
+        {
+            var gpuItem = details.FirstOrDefault(it => it.Label == "显卡");
+            if (gpuItem != null)
+            {
+                var gpuLabel = string.Join(" / ", cpuz.Gpus
+                    .Where(g => !string.IsNullOrWhiteSpace(g.Name))
+                    .Select(g =>
+                    {
+                        var s = g.Name!;
+                        if (!string.IsNullOrWhiteSpace(g.MemorySize))
+                            s += $" ({g.MemorySize})";
+                        return s;
+                    }));
+                if (!string.IsNullOrWhiteSpace(gpuLabel))
+                {
+                    gpuItem.Value = gpuLabel;
+                    gpuItem.BrandKey = DetectGpuBrand(cpuz.Gpus[0].Name);
+                    gpuItem.IsVerified = true;
+                }
+            }
+        }
+
+        if (cpuz.MemDevices.Count > 0 || !string.IsNullOrWhiteSpace(cpuz.MemoryType))
+        {
+            var memItem = details.FirstOrDefault(it => it.Label == "内存");
+            if (memItem != null)
+            {
+                var memLabel = BuildCpuzMemoryLabel(cpuz);
+                if (!string.IsNullOrWhiteSpace(memLabel))
+                {
+                    memItem.Value = memLabel;
+                    memItem.IsVerified = true;
+                }
+            }
+        }
+
+        return sections;
+    }
+
+    private static string CoresThreadsLabel(CpuzInfo cpuz)
+    {
+        if (cpuz.CpuCores <= 0) return "";
+        return cpuz.CpuThreads > cpuz.CpuCores
+            ? $"{cpuz.CpuCores}C/{cpuz.CpuThreads}T"
+            : $"{cpuz.CpuCores}C";
+    }
+
+    private static string BuildCpuzMemoryLabel(CpuzInfo cpuz)
+    {
+        var parts = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(cpuz.MemoryType))
+            parts.Add(cpuz.MemoryType);
+
+        if (!string.IsNullOrWhiteSpace(cpuz.MemorySize))
+            parts.Add(cpuz.MemorySize);
+
+        if (!string.IsNullOrWhiteSpace(cpuz.MemorySpeed))
+            parts.Add(cpuz.MemorySpeed);
+
+        if (cpuz.MemDevices.Count > 0)
+        {
+            var mfr = cpuz.MemDevices
+                .Select(e => CleanMemManufacturer(e.Manufacturer))
+                .FirstOrDefault(m => !string.IsNullOrWhiteSpace(m));
+            if (!string.IsNullOrWhiteSpace(mfr) && !parts.Any(p => p.Contains(mfr.Split('(')[0])))
+                parts.Insert(0, mfr);
+        }
+
+        return string.Join(" ", parts);
+    }
+
+    private static List<HardwareInfoSection> DeepCopy(IReadOnlyList<HardwareInfoSection> source)
+    {
+        var result = new List<HardwareInfoSection>(source.Count);
+        foreach (var section in source)
+        {
+            var newSection = new HardwareInfoSection
+            {
+                Title = section.Title,
+                Glyph = section.Glyph
+            };
+            foreach (var item in section.Items)
+            {
+                newSection.Items.Add(new HardwareInfoItem
+                {
+                    Label = item.Label,
+                    Value = item.Value,
+                    BrandKey = item.BrandKey,
+                    IsVerified = item.IsVerified
+                });
+            }
+            result.Add(newSection);
+        }
+        return result;
     }
 
     public static void InvalidateCache()

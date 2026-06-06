@@ -17,6 +17,7 @@ public sealed class UpdateAsset
     public string? OriginalDownloadUrl { get; init; }
     public long Size { get; init; }
     public string? ContentType { get; init; }
+    public string? GitCodeDownloadUrl { get; set; }
 }
 
 public sealed class ProxySpeedResult

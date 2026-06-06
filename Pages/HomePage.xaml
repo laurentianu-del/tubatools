@@ -88,40 +88,23 @@
             VerticalAlignment="Stretch"
             IsHitTestVisible="False" />
 
-        <Grid ColumnSpacing="16">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-
-            <StackPanel Spacing="4">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock
-                        x:Name="CategoryTitle"
-                        FontSize="30"
-                        FontWeight="SemiBold" />
-                    <TextBlock
-                        x:Name="ToolCountText"
-                        VerticalAlignment="Bottom"
-                        Margin="0,0,0,4"
-                        FontSize="14"
-                        Opacity="0.6" />
-                </StackPanel>
+        <StackPanel Spacing="4">
+            <StackPanel Orientation="Horizontal" Spacing="8">
                 <TextBlock
-                    x:Name="CategorySubtitle"
-                    Opacity="0.72" />
+                    x:Name="CategoryTitle"
+                    FontSize="30"
+                    FontWeight="SemiBold" />
+                <TextBlock
+                    x:Name="ToolCountText"
+                    VerticalAlignment="Bottom"
+                    Margin="0,0,0,4"
+                    FontSize="14"
+                    Opacity="0.6" />
             </StackPanel>
-
-            <AutoSuggestBox
-                x:Name="SearchBox"
-                Grid.Column="1"
-                Width="280"
-                VerticalAlignment="Center"
-                Style="{StaticResource CompactSearchBoxStyle}"
-                PlaceholderText="搜索工具"
-                QueryIcon="Find"
-                TextChanged="SearchBox_TextChanged" />
-        </Grid>
+            <TextBlock
+                x:Name="CategorySubtitle"
+                Opacity="0.72" />
+        </StackPanel>
 
         <ScrollViewer
             x:Name="TagBarScrollViewer"

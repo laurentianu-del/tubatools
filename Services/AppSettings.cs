@@ -4,6 +4,8 @@ namespace TubaWinUi3.Services;
 
 public static class AppSettings
 {
+    public static event Action<string>? SettingChanged;
+
     private static string SettingsPath => ConfigManager.GetSettingsPath();
 
     private static Dictionary<string, string>? _cache;
@@ -51,6 +53,7 @@ public static class AppSettings
         s[key] = value;
         _dirty = true;
         Save();
+        SettingChanged?.Invoke(key);
     }
 
     public static void Set(string key, bool value) => Set(key, value.ToString().ToLowerInvariant());
@@ -63,6 +66,7 @@ public static class AppSettings
         s.Remove(key);
         _dirty = true;
         Save();
+        SettingChanged?.Invoke(key);
     }
 
     public static string? Get(string key)
