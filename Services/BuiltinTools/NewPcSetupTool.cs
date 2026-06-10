@@ -64,7 +64,7 @@ public sealed class NewPcSetupTool : IBuiltinTool
     private static readonly string[] StepNames = ["欢迎", "系统优化", "软件安装", "安全设置", "烤机测试", "完成"];
     private static readonly string[] StepGlyphs = ["\uE8A3", "\uE90F", "\uE896", "\uE72E", "\uE8A3", "\uE73E"];
 
-    private StackPanel BuildMainContent(Window window)
+    private Grid BuildMainContent(Window window)
     {
         var state = new SetupWindowState { Window = window };
 
@@ -93,6 +93,8 @@ public sealed class NewPcSetupTool : IBuiltinTool
         var contentPanel = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollMode = ScrollMode.Disabled,
+            VerticalScrollMode = ScrollMode.Enabled,
             Content = new StackPanel { Padding = new Thickness(32, 48, 32, 16) }
         };
         state.ContentHost = contentPanel;
@@ -169,7 +171,7 @@ public sealed class NewPcSetupTool : IBuiltinTool
 
         NavigateTo(state, StepWelcome);
 
-        return new StackPanel { Children = { rootGrid } };
+        return rootGrid;
     }
 
     private Border CreateStepRow(int index, string name, string glyph, bool isActive)
@@ -379,12 +381,14 @@ public sealed class NewPcSetupTool : IBuiltinTool
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText)
         });
 
-        var langGrid = new Grid { ColumnSpacing = 8, RowSpacing = 8 };
+        var langGrid = new Grid { ColumnSpacing = 12, RowSpacing = 10 };
+        for (int c = 0; c < 2; c++)
+            langGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         var languages = NewPcSetupService.GetDevLanguages();
         for (int idx = 0; idx < languages.Count; idx++)
         {
-            var col = idx % 3;
-            var row = idx / 3;
+            var col = idx % 2;
+            var row = idx / 2;
             if (col == 0) langGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
             var lang = languages[idx].Language;
