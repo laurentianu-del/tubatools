@@ -33,4 +33,49 @@ public static class BackgroundService
         }
         catch { return null; }
     }
+
+    public static List<BackgroundImageEntry> GetImportedBackgrounds()
+    {
+        var dir = ConfigManager.GetBackgroundsDir();
+        if (!Directory.Exists(dir))
+            return [];
+
+        var extensions = new[] { ".jpg", ".jpeg", ".png", ".bmp" };
+        var currentPath = GetBackgroundPath();
+
+        return Directory.GetFiles(dir)
+            .Where(f => extensions.Contains(Path.GetExtension(f), StringComparer.OrdinalIgnoreCase))
+            .OrderByDescending(File.GetCreationTimeUtc)
+            .Select(f => new BackgroundImageEntry
+            {
+                Path = f,
+                FileName = Path.GetFileName(f),
+                IsSelected = string.Equals(f, currentPath, StringComparison.OrdinalIgnoreCase)
+            })
+            .ToList();
+    }
+
+    public static void SelectBackground(string path)
+    {
+        if (File.Exists(path))
+            SetBackgroundPath(path);
+    }
+
+    public static void DeleteBackground(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            return;
+
+        if (string.Equals(path, GetBackgroundPath(), StringComparison.OrdinalIgnoreCase))
+            SetBackgroundPath(null);
+
+        try { File.Delete(path); } catch { }
+    }
+}
+
+public sealed class BackgroundImageEntry
+{
+    public string Path { get; set; } = "";
+    public string FileName { get; set; } = "";
+    public bool IsSelected { get; set; }
 }

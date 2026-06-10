@@ -14,14 +14,6 @@ public sealed class LiteMonitorTool : IBuiltinTool
 
     public async Task ExecuteAsync(BuiltinToolContext context)
     {
-        var service = LiteMonitorService.Instance;
-
-        if (!LiteMonitorService.IsDriverReady())
-        {
-            var driverOk = await service.EnsureDriverAsync(context.XamlRoot);
-            if (!driverOk) return;
-        }
-
         var dialog = context.CreateDialog("硬件监控");
         dialog.Resources["ContentDialogMaxWidth"] = 960;
 

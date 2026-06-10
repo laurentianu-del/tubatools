@@ -141,7 +141,7 @@
                         </Grid.ColumnDefinitions>
 
                         <Border Style="{StaticResource IconBorderStyle}">
-                            <FontIcon FontSize="18" Glyph="&#xE895;" />
+                            <FontIcon FontSize="18" Glyph="&#xE777;" />
                         </Border>
 
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
@@ -160,7 +160,42 @@
                             Padding="14,6"
                             Click="CheckUpdateButton_Click">
                             <StackPanel Orientation="Horizontal" Spacing="6">
-                                <FontIcon FontSize="12" Glyph="&#xE895;" />
+                                <FontIcon FontSize="12" Glyph="&#xE777;" />
+                                <TextBlock Text="检查更新" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <Border x:Name="SettingsToolsBundleCard" Style="{StaticResource SettingsCardStyle}" Visibility="Collapsed">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Style="{StaticResource IconBorderStyle}">
+                            <FontIcon FontSize="18" Glyph="&#xE896;" />
+                        </Border>
+
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                            <TextBlock FontWeight="SemiBold" Text="工具包更新" />
+                            <TextBlock
+                                x:Name="ToolsBundleStatusText"
+                                Opacity="0.68"
+                                FontSize="13"
+                                Text="点击检查工具包是否有新版本" />
+                        </StackPanel>
+
+                        <Button
+                            x:Name="CheckToolsBundleButton"
+                            Grid.Column="2"
+                            VerticalAlignment="Center"
+                            Padding="14,6"
+                            Click="CheckToolsBundleButton_Click">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon FontSize="12" Glyph="&#xE896;" />
                                 <TextBlock Text="检查更新" />
                             </StackPanel>
                         </Button>
@@ -176,7 +211,7 @@
                         </Grid.ColumnDefinitions>
 
                         <Border Style="{StaticResource IconBorderStyle}">
-                            <FontIcon FontSize="18" Glyph="&#xE790;" />
+                            <FontIcon FontSize="18" Glyph="&#xE771;" />
                         </Border>
 
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
@@ -233,7 +268,7 @@
                         </Grid.ColumnDefinitions>
 
                         <Border Style="{StaticResource IconBorderStyle}">
-                            <FontIcon FontSize="18" Glyph="&#xE8F1;" />
+                            <FontIcon FontSize="18" Glyph="&#xEEA3;" />
                         </Border>
 
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
@@ -262,7 +297,7 @@
                         </Grid.ColumnDefinitions>
 
                         <Border Style="{StaticResource IconBorderStyle}">
-                            <FontIcon FontSize="18" Glyph="&#xE8A5;" />
+                            <FontIcon FontSize="18" Glyph="&#xE80F;" />
                         </Border>
 
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
@@ -291,7 +326,7 @@
                         </Grid.ColumnDefinitions>
 
                         <Border Style="{StaticResource IconBorderStyle}">
-                            <FontIcon FontSize="18" Glyph="&#xEB3F;" />
+                            <FontIcon FontSize="18" Glyph="&#xE945;" />
                         </Border>
 
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
@@ -453,7 +488,7 @@
                         </Grid.ColumnDefinitions>
 
                         <Border Style="{StaticResource IconBorderStyle}">
-                            <FontIcon FontSize="18" Glyph="&#xE8B7;" />
+                            <FontIcon FontSize="18" Glyph="&#xE912;" />
                         </Border>
 
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
@@ -483,88 +518,6 @@
                     Style="{StaticResource SectionHeaderStyle}"
                     Text="硬件监控" />
 
-                <Border x:Name="SettingsMonitorDriverCard" Style="{StaticResource SettingsCardStyle}">
-                    <Grid RowSpacing="12">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-
-                        <Grid ColumnSpacing="16">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-
-                            <Border Style="{StaticResource IconBorderStyle}">
-                                <FontIcon FontSize="18" Glyph="&#xE9D9;" />
-                            </Border>
-
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                <TextBlock FontWeight="SemiBold" Text="监控驱动" />
-                                <TextBlock
-                                    x:Name="DriverStatusText"
-                                    Opacity="0.68"
-                                    FontSize="13"
-                                    Text="正在检测..." />
-                            </StackPanel>
-
-                            <Button
-                                x:Name="DriverInstallButton"
-                                Grid.Column="2"
-                                VerticalAlignment="Center"
-                                Padding="14,6"
-                                Click="DriverInstallButton_Click">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <FontIcon FontSize="12" Glyph="&#xE896;" />
-                                    <TextBlock Text="安装驱动" />
-                                </StackPanel>
-                            </Button>
-                        </Grid>
-
-                        <Border
-                            Grid.Row="1"
-                            x:Name="DriverDivider"
-                            Padding="0,1"
-                            Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
-
-                        <Grid Grid.Row="2" ColumnSpacing="16" x:Name="DriverUninstallPanel">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-
-                            <Border Style="{StaticResource IconBorderStyle}">
-                                <FontIcon FontSize="18" Glyph="&#xE74D;" />
-                            </Border>
-
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                <TextBlock FontWeight="SemiBold" Text="卸载驱动" />
-                                <TextBlock
-                                    Opacity="0.68"
-                                    FontSize="13"
-                                    TextWrapping="Wrap"
-                                    Text="卸载 PawnIO 驱动，卸载后将无法获取传感器数据" />
-                            </StackPanel>
-
-                            <Button
-                                x:Name="DriverUninstallButton"
-                                Grid.Column="2"
-                                VerticalAlignment="Center"
-                                Padding="14,6"
-                                Click="DriverUninstallButton_Click">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <FontIcon FontSize="12" Glyph="&#xE74D;" />
-                                    <TextBlock Text="卸载" />
-                                </StackPanel>
-                            </Button>
-                        </Grid>
-                    </Grid>
-                </Border>
-
                 <Border x:Name="SettingsCpuzDataSourceCard" Style="{StaticResource SettingsCardStyle}">
                     <Grid ColumnSpacing="16">
                         <Grid.ColumnDefinitions>
@@ -574,7 +527,7 @@
                         </Grid.ColumnDefinitions>
 
                         <Border Style="{StaticResource IconBorderStyle}">
-                            <FontIcon FontSize="18" Glyph="&#xE950;" />
+                            <FontIcon FontSize="18" Glyph="&#xEEA1;" />
                         </Border>
 
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
@@ -594,7 +547,7 @@
                             Padding="14,6"
                             Click="CpuzDataSourceButton_Click">
                             <StackPanel Orientation="Horizontal" Spacing="6">
-                                <FontIcon x:Name="CpuzDataSourceIcon" FontSize="12" Glyph="&#xE950;" />
+                                <FontIcon x:Name="CpuzDataSourceIcon" FontSize="12" Glyph="&#xEEA1;" />
                                 <TextBlock x:Name="CpuzDataSourceButtonText" Text="切换" />
                             </StackPanel>
                         </Button>
@@ -950,6 +903,7 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
                         <Grid ColumnSpacing="16">
@@ -1040,6 +994,45 @@
                                 </StackPanel>
                             </StackPanel>
                         </Grid>
+
+                        <Expander
+                            x:Name="BgHistoryExpander"
+                            Grid.Row="3"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
+                            IsExpanded="False">
+                            <Expander.Header>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon FontSize="14" Glyph="&#xE8B9;" Opacity="0.68" />
+                                    <TextBlock Text="已导入的图片" />
+                                    <TextBlock
+                                        x:Name="BgHistoryCountText"
+                                        Opacity="0.52"
+                                        FontSize="12" />
+                                </StackPanel>
+                            </Expander.Header>
+                            <Expander.Content>
+                                <StackPanel Spacing="10" Padding="0,4,0,0">
+                                    <ScrollViewer
+                                        x:Name="BgListScrollViewer"
+                                        HorizontalScrollBarVisibility="Auto"
+                                        HorizontalScrollMode="Enabled"
+                                        VerticalScrollBarVisibility="Disabled"
+                                        VerticalScrollMode="Disabled">
+                                        <StackPanel
+                                            x:Name="BgListPanel"
+                                            Orientation="Horizontal"
+                                            Spacing="10" />
+                                    </ScrollViewer>
+                                    <TextBlock
+                                        x:Name="BgListEmptyText"
+                                        Opacity="0.52"
+                                        FontSize="13"
+                                        Text="还没有导入过图片"
+                                        Visibility="Collapsed" />
+                                </StackPanel>
+                            </Expander.Content>
+                        </Expander>
                     </Grid>
                 </Border>
 
@@ -1201,7 +1194,7 @@
                         </Grid.ColumnDefinitions>
 
                         <Border Style="{StaticResource IconBorderStyle}">
-                            <FontIcon FontSize="18" Glyph="&#xE71B;" />
+                            <FontIcon FontSize="18" Glyph="&#xE774;" />
                         </Border>
 
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
@@ -1233,7 +1226,7 @@
                         </Grid.ColumnDefinitions>
 
                         <Border Style="{StaticResource IconBorderStyle}">
-                            <FontIcon FontSize="18" Glyph="&#xE946;" />
+                            <FontIcon FontSize="18" Glyph="&#xE943;" />
                         </Border>
 
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">

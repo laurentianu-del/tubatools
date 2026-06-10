@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
+using TubaWinUi3.Models;
 using TubaWinUi3.Services;
 using System.Runtime.InteropServices;
 using System.Linq;
@@ -118,6 +119,8 @@ public sealed partial class LiteMonitorPage : Page
     private DispatcherTimer? _timer;
     private readonly double[] _intervals = [0.5, 1, 2, 5];
     private readonly LiteMonitorService _svc = LiteMonitorService.Instance;
+    
+    private volatile bool _reading;
 
     private TextBlock _cpuLoad = null!, _cpuTemp = null!, _cpuClock = null!, _cpuPower = null!;
     private TextBlock _gpuLoad = null!, _gpuTemp = null!, _gpuClock = null!, _gpuPower = null!;
@@ -143,8 +146,6 @@ public sealed partial class LiteMonitorPage : Page
         StartTimer(TimeSpan.FromSeconds(1));
     }
 
-
-
     private void InitCards()
     {
         CpuCard.Child = BuildCard("处理器", "\uE950", CpuAccent, out _cpuLoad, out _cpuTemp, out _cpuClock, out _cpuPower, out _cpuChart);
@@ -169,17 +170,24 @@ public sealed partial class LiteMonitorPage : Page
 
     private int _fpsComboUpdateTick;
 
-    private void OnTick(object? sender, object e)
+    private async void OnTick(object? sender, object e)
     {
-        var fpsOn = FpsToggle.IsChecked == true;
-        var s = _svc.Read(fpsOn);
+        if (_reading) return;
+        _reading = true;
 
-        UpdateUI(s, fpsOn);
+        var fpsOn = FpsToggle.IsChecked == true;
+
+        try
+        {
+            var sample = await Task.Run(() => _svc.Read(fpsOn));
+            DispatcherQueue.TryEnqueue(() => UpdateUI(sample, fpsOn));
+        }
+        catch { }
+        finally { _reading = false; }
     }
 
     private void UpdateUI(MonitorSample s, bool fpsOn)
     {
-
         Set(_cpuLoad, $"{s.CpuLoad:0}%"); Set(_cpuTemp, s.CpuTemp >= 0 ? $"{s.CpuTemp:0}°C" : "");
         Set(_cpuClock, s.CpuClock > 0 ? $"{s.CpuClock / 1000f:0.0} GHz" : "");
         Set(_cpuPower, s.CpuPower > 0 ? $"{s.CpuPower:0.0} W" : "");
@@ -214,40 +222,44 @@ public sealed partial class LiteMonitorPage : Page
 
     private void UpdateFpsProcessCombo()
     {
-        var processes = _svc.GetFpsProcessList();
-        var snapshot = string.Join("|", processes.Select(p => $"{p.pid}:{p.name}"));
-        if (snapshot == _fpsComboLastSnapshot) return;
-        _fpsComboLastSnapshot = snapshot;
-
-        _fpsComboUpdating = true;
         try
         {
-            var prevSel = FpsProcessCombo.SelectedIndex;
+            var processes = _svc.FpsService.GetProcessList();
+            var snapshot = string.Join("|", processes.Select(p => $"{p.pid}:{p.name}"));
+            if (snapshot == _fpsComboLastSnapshot) return;
+            _fpsComboLastSnapshot = snapshot;
 
-            FpsProcessCombo.Items.Clear();
-            FpsProcessCombo.Items.Add("自动选择");
-            foreach (var (pid, pname, pfps) in processes)
-                FpsProcessCombo.Items.Add($"{pname} ({pid}) - {pfps:0} FPS");
+            _fpsComboUpdating = true;
+            try
+            {
+                var prevSel = FpsProcessCombo.SelectedIndex;
 
-            if (prevSel >= 0 && prevSel < FpsProcessCombo.Items.Count)
-                FpsProcessCombo.SelectedIndex = prevSel;
-            else
-                FpsProcessCombo.SelectedIndex = 0;
+                FpsProcessCombo.Items.Clear();
+                FpsProcessCombo.Items.Add("自动选择（跟随前台窗口）");
+                foreach (var (pid, pname, pfps) in processes)
+                    FpsProcessCombo.Items.Add($"{pname} ({pid}) - {pfps:0} FPS");
+
+                if (prevSel >= 0 && prevSel < FpsProcessCombo.Items.Count)
+                    FpsProcessCombo.SelectedIndex = prevSel;
+                else
+                    FpsProcessCombo.SelectedIndex = 0;
+            }
+            finally { _fpsComboUpdating = false; }
         }
-        finally { _fpsComboUpdating = false; }
+        catch { }
     }
 
     private void FpsProcessCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_fpsComboUpdating) return;
         if (FpsProcessCombo.SelectedIndex <= 0)
-            _svc.ClearFpsFocus();
+            _svc.FpsService.ClearFocus();
         else
         {
-            var processes = _svc.GetFpsProcessList();
+            var processes = _svc.FpsService.GetProcessList();
             var idx = FpsProcessCombo.SelectedIndex - 1;
             if (idx >= 0 && idx < processes.Count)
-                _svc.SetFpsFocus(processes[idx].pid);
+                _svc.FpsService.SetFocus(processes[idx].pid);
         }
     }
 
@@ -262,11 +274,11 @@ public sealed partial class LiteMonitorPage : Page
 
     private async void FpsToggle_Click(object sender, RoutedEventArgs e)
     {
-        if (FpsToggle.IsChecked != true) { FpsProcessCombo.IsEnabled = false; _svc.ClearFpsFocus(); return; }
+        if (FpsToggle.IsChecked != true) { FpsProcessCombo.IsEnabled = false; _svc.FpsService.ClearFocus(); return; }
         FpsToggle.IsEnabled = false;
         try
         {
-            if (!IsRunningAsAdmin())
+            if (!FpsService.IsAdmin())
             {
                 FpsToggle.IsChecked = false;
                 FpsProcessCombo.IsEnabled = false;
@@ -282,16 +294,7 @@ public sealed partial class LiteMonitorPage : Page
                 return;
             }
 
-            var ok = await _svc.EnsureFpsComponentAsync(XamlRoot);
-            if (!ok)
-            {
-                FpsToggle.IsChecked = false;
-                FpsProcessCombo.IsEnabled = false;
-            }
-            else
-            {
-                FpsProcessCombo.IsEnabled = true;
-            }
+            FpsProcessCombo.IsEnabled = true;
         }
         catch
         {
@@ -302,16 +305,6 @@ public sealed partial class LiteMonitorPage : Page
         {
             FpsToggle.IsEnabled = true;
         }
-    }
-
-    private static bool IsRunningAsAdmin()
-    {
-        try
-        {
-            using var id = System.Security.Principal.WindowsIdentity.GetCurrent();
-            return new System.Security.Principal.WindowsPrincipal(id).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
-        }
-        catch { return false; }
     }
 
     private void PopupSettingsBtn_Click(object sender, RoutedEventArgs e)
@@ -340,11 +333,7 @@ public sealed partial class LiteMonitorPage : Page
         var showCpuTemp = new CheckBox { Content = "温度", IsChecked = settings.ShowCpuTemp, Margin = new Thickness(16, 0, 0, 0) };
         var showCpuClock = new CheckBox { Content = "频率", IsChecked = settings.ShowCpuClock, Margin = new Thickness(16, 0, 0, 0) };
         var showCpuPower = new CheckBox { Content = "功耗", IsChecked = settings.ShowCpuPower, Margin = new Thickness(16, 0, 0, 0) };
-        gCpu.Children.Add(showCpu);
-        gCpu.Children.Add(showCpuChart);
-        gCpu.Children.Add(showCpuTemp);
-        gCpu.Children.Add(showCpuClock);
-        gCpu.Children.Add(showCpuPower);
+        gCpu.Children.Add(showCpu); gCpu.Children.Add(showCpuChart); gCpu.Children.Add(showCpuTemp); gCpu.Children.Add(showCpuClock); gCpu.Children.Add(showCpuPower);
 
         var gGpu = AddGroup("GPU 显卡");
         var showGpu = new CheckBox { Content = "显示", IsChecked = settings.ShowGpu };
@@ -352,45 +341,32 @@ public sealed partial class LiteMonitorPage : Page
         var showGpuTemp = new CheckBox { Content = "温度", IsChecked = settings.ShowGpuTemp, Margin = new Thickness(16, 0, 0, 0) };
         var showGpuClock = new CheckBox { Content = "频率", IsChecked = settings.ShowGpuClock, Margin = new Thickness(16, 0, 0, 0) };
         var showGpuPower = new CheckBox { Content = "功耗", IsChecked = settings.ShowGpuPower, Margin = new Thickness(16, 0, 0, 0) };
-        gGpu.Children.Add(showGpu);
-        gGpu.Children.Add(showGpuChart);
-        gGpu.Children.Add(showGpuTemp);
-        gGpu.Children.Add(showGpuClock);
-        gGpu.Children.Add(showGpuPower);
+        gGpu.Children.Add(showGpu); gGpu.Children.Add(showGpuChart); gGpu.Children.Add(showGpuTemp); gGpu.Children.Add(showGpuClock); gGpu.Children.Add(showGpuPower);
 
         var gFps = AddGroup("FPS 帧率");
         var showFps = new CheckBox { Content = "显示", IsChecked = settings.ShowFps };
         var showFpsChart = new CheckBox { Content = "曲线图", IsChecked = settings.ShowFpsChart, Margin = new Thickness(16, 0, 0, 0) };
-        gFps.Children.Add(showFps);
-        gFps.Children.Add(showFpsChart);
+        gFps.Children.Add(showFps); gFps.Children.Add(showFpsChart);
 
         var gMem = AddGroup("MEM 内存");
         var showMem = new CheckBox { Content = "显示", IsChecked = settings.ShowMem };
         var showMemChart = new CheckBox { Content = "曲线图", IsChecked = settings.ShowMemChart, Margin = new Thickness(16, 0, 0, 0) };
         var showMemUsed = new CheckBox { Content = "已用/总量", IsChecked = settings.ShowMemUsed, Margin = new Thickness(16, 0, 0, 0) };
-        gMem.Children.Add(showMem);
-        gMem.Children.Add(showMemChart);
-        gMem.Children.Add(showMemUsed);
+        gMem.Children.Add(showMem); gMem.Children.Add(showMemChart); gMem.Children.Add(showMemUsed);
 
         var gDisk = AddGroup("磁盘");
         var showDisk = new CheckBox { Content = "显示", IsChecked = settings.ShowDisk };
         var showDiskChart = new CheckBox { Content = "曲线图", IsChecked = settings.ShowDiskChart, Margin = new Thickness(16, 0, 0, 0) };
         var showDiskRead = new CheckBox { Content = "读取速度", IsChecked = settings.ShowDiskRead, Margin = new Thickness(16, 0, 0, 0) };
         var showDiskWrite = new CheckBox { Content = "写入速度", IsChecked = settings.ShowDiskWrite, Margin = new Thickness(16, 0, 0, 0) };
-        gDisk.Children.Add(showDisk);
-        gDisk.Children.Add(showDiskChart);
-        gDisk.Children.Add(showDiskRead);
-        gDisk.Children.Add(showDiskWrite);
+        gDisk.Children.Add(showDisk); gDisk.Children.Add(showDiskChart); gDisk.Children.Add(showDiskRead); gDisk.Children.Add(showDiskWrite);
 
         var gNet = AddGroup("NET 网络");
         var showNet = new CheckBox { Content = "显示", IsChecked = settings.ShowNet };
         var showNetChart = new CheckBox { Content = "曲线图", IsChecked = settings.ShowNetChart, Margin = new Thickness(16, 0, 0, 0) };
         var showNetUp = new CheckBox { Content = "上传速度", IsChecked = settings.ShowNetUp, Margin = new Thickness(16, 0, 0, 0) };
         var showNetDown = new CheckBox { Content = "下载速度", IsChecked = settings.ShowNetDown, Margin = new Thickness(16, 0, 0, 0) };
-        gNet.Children.Add(showNet);
-        gNet.Children.Add(showNetChart);
-        gNet.Children.Add(showNetUp);
-        gNet.Children.Add(showNetDown);
+        gNet.Children.Add(showNet); gNet.Children.Add(showNetChart); gNet.Children.Add(showNetUp); gNet.Children.Add(showNetDown);
 
         var gBat = AddGroup("BAT 电池");
         var showBat = new CheckBox { Content = "显示", IsChecked = settings.ShowBat };
@@ -400,8 +376,7 @@ public sealed partial class LiteMonitorPage : Page
         var opacitySlider = new Slider { Minimum = 40, Maximum = 255, Value = settings.Opacity, StepFrequency = 5, HorizontalAlignment = HorizontalAlignment.Stretch };
         var opacityLabel = new TextBlock { Text = $"透明度 {settings.Opacity * 100 / 255}%", Opacity = 0.7, FontSize = 12 };
         opacitySlider.ValueChanged += (_, _) => opacityLabel.Text = $"透明度 {(int)opacitySlider.Value * 100 / 255}%";
-        gWin.Children.Add(opacitySlider);
-        gWin.Children.Add(opacityLabel);
+        gWin.Children.Add(opacitySlider); gWin.Children.Add(opacityLabel);
         var topmostCheck = new CheckBox { Content = "默认窗口置顶", IsChecked = settings.Topmost };
         gWin.Children.Add(topmostCheck);
 
@@ -463,6 +438,24 @@ public sealed partial class LiteMonitorPage : Page
         var isDark = Application.Current.RequestedTheme == ApplicationTheme.Dark;
         var fgColor = isDark ? Color.FromArgb(255, 240, 240, 240) : Color.FromArgb(255, 30, 30, 30);
         var dimColor = isDark ? Color.FromArgb(255, 150, 150, 150) : Color.FromArgb(255, 100, 100, 100);
+        var pauseBtn = new Button
+        {
+            Content = new FontIcon { FontSize = 12, Glyph = "\uE769" },
+            Padding = new Thickness(4),
+            Background = new SolidColorBrush(Color.FromArgb(0, 0, 0, 0)),
+            Foreground = new SolidColorBrush(dimColor),
+            Tag = false
+        };
+
+        var detailBtn = new Button
+        {
+            Content = new FontIcon { FontSize = 12, Glyph = "\uE9D9" },
+            Padding = new Thickness(4),
+            Background = new SolidColorBrush(Color.FromArgb(0, 0, 0, 0)),
+            Foreground = new SolidColorBrush(dimColor)
+        };
+        ToolTipService.SetToolTip(detailBtn, "帧率详细分析");
+
         var topmostBtn = new Button
         {
             Content = new FontIcon { FontSize = 12, Glyph = "\uE840" },
@@ -485,9 +478,13 @@ public sealed partial class LiteMonitorPage : Page
         topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         topGrid.Children.Add(titleText);
-        Grid.SetColumn(topmostBtn, 1); topGrid.Children.Add(topmostBtn);
-        Grid.SetColumn(closeBtn, 2); topGrid.Children.Add(closeBtn);
+        Grid.SetColumn(pauseBtn, 1); topGrid.Children.Add(pauseBtn);
+        Grid.SetColumn(detailBtn, 2); topGrid.Children.Add(detailBtn);
+        Grid.SetColumn(topmostBtn, 3); topGrid.Children.Add(topmostBtn);
+        Grid.SetColumn(closeBtn, 4); topGrid.Children.Add(closeBtn);
 
         var stack = new StackPanel { Spacing = 4, Padding = new Thickness(10, 4, 10, 10) };
         stack.Children.Add(topGrid);
@@ -502,6 +499,7 @@ public sealed partial class LiteMonitorPage : Page
 
         var cpuDetail = new TextBlock { FontSize = 10, Opacity = 0.7, Foreground = new SolidColorBrush(dimColor) };
         var gpuDetail = new TextBlock { FontSize = 10, Opacity = 0.7, Foreground = new SolidColorBrush(dimColor) };
+        var fpsDetail = new TextBlock { FontSize = 10, Opacity = 0.7, Foreground = new SolidColorBrush(dimColor) };
         var memDetail = new TextBlock { FontSize = 10, Opacity = 0.7, Foreground = new SolidColorBrush(dimColor) };
         var diskDetail = new TextBlock { FontSize = 10, Opacity = 0.7, Foreground = new SolidColorBrush(dimColor) };
         var netDetail = new TextBlock { FontSize = 10, Opacity = 0.7, Foreground = new SolidColorBrush(dimColor) };
@@ -516,7 +514,7 @@ public sealed partial class LiteMonitorPage : Page
 
         var cpuRow = MakePopupRow("\uE950", CpuAccent, "CPU", cpuValue, cpuDetail, cpuChartEl);
         var gpuRow = MakePopupRow("\uE7F4", GpuAccent, "GPU", gpuValue, gpuDetail, gpuChartEl);
-        var fpsRow = MakePopupRow("\uE7FC", FpsAccent, "FPS", fpsValue, null, fpsChartEl);
+        var fpsRow = MakePopupRow("\uE7FC", FpsAccent, "FPS", fpsValue, fpsDetail, fpsChartEl);
         var memRow = MakePopupRow("\uE965", MemAccent, "MEM", memValue, memDetail, memChartEl);
         var diskRow = MakePopupRow("\uEDA2", DiskAccent, "DISK", diskValue, diskDetail, diskChartEl);
         var netRow = MakePopupRow("\uE968", NetAccent, "NET", netValue, netDetail, netChartEl);
@@ -558,19 +556,17 @@ public sealed partial class LiteMonitorPage : Page
         window.Activated += (_, _) =>
         {
             if (popupHwnd == IntPtr.Zero)
-            {
                 popupHwnd = WinRT.Interop.WindowNative.GetWindowHandle(window);
-            }
         };
 
-        border.PointerPressed += (_, e) =>
+        border.PointerPressed += (_, e2) =>
         {
             if (popupHwnd == IntPtr.Zero)
                 popupHwnd = WinRT.Interop.WindowNative.GetWindowHandle(window);
             if (popupHwnd == IntPtr.Zero) return;
 
-            e.Handled = true;
-            var pt = e.GetCurrentPoint(border).Position;
+            e2.Handled = true;
+            var pt = e2.GetCurrentPoint(border).Position;
             var lo = (int)((ushort)pt.X);
             var hi = (int)((ushort)pt.Y);
             var lParam = (hi << 16) | lo;
@@ -606,7 +602,7 @@ public sealed partial class LiteMonitorPage : Page
             try
             {
                 var fpsOn = FpsToggle.IsChecked == true;
-                var sample = _svc.Read(fpsOn);
+                var sample = await Task.Run(() => _svc.Read(fpsOn));
                 cfgRefreshTick++;
                 if (cachedCfg == null || cfgRefreshTick % 10 == 0) cachedCfg = PopupSettings.Load();
                 var cfg = cachedCfg;
@@ -647,6 +643,7 @@ public sealed partial class LiteMonitorPage : Page
                 if (cfg.ShowFps)
                 {
                     fpsValue.Text = sample.Fps >= 0 ? $"{(int)sample.Fps}" : "--";
+                    fpsDetail.Text = !string.IsNullOrEmpty(sample.FpsProcess) ? sample.FpsProcess : "";
                     if (sample.Fps >= 0) AddHistory(fpsH, sample.Fps);
                     if (cfg.ShowFpsChart) { DrawSparkline(fpsChartEl, fpsH, FpsAccent, 0, Math.Max(144, fpsH.Count > 0 ? fpsH.Max() * 1.2f : 144)); fpsChartEl.Visibility = Visibility.Visible; }
                     else fpsChartEl.Visibility = Visibility.Collapsed;
@@ -716,6 +713,40 @@ public sealed partial class LiteMonitorPage : Page
         {
             isTopmost = !isTopmost;
             ApplyTopmost();
+        };
+
+        pauseBtn.Click += (_, _) =>
+        {
+            var isPaused = (bool)pauseBtn.Tag!;
+            isPaused = !isPaused;
+            pauseBtn.Tag = isPaused;
+            if (isPaused)
+            {
+                _svc.FpsService.Pause();
+                pauseBtn.Content = new FontIcon { FontSize = 12, Glyph = "\uE768" };
+                pauseBtn.Foreground = new SolidColorBrush(Color.FromArgb(255, 251, 188, 4));
+                titleText.Text = "硬件监控（已暂停）";
+            }
+            else
+            {
+                _svc.FpsService.Resume();
+                pauseBtn.Content = new FontIcon { FontSize = 12, Glyph = "\uE769" };
+                pauseBtn.Foreground = new SolidColorBrush(dimColor);
+                titleText.Text = "硬件监控";
+            }
+        };
+
+        detailBtn.Click += (_, _) =>
+        {
+            var snapshots = _svc.FpsService.GetAllSnapshots();
+            var lastSample = _svc.Read(FpsToggle.IsChecked == true);
+            var report = _svc.FpsService.ExportReport(lastSample);
+            var detailPage = new FpsDetailPage(snapshots, lastSample, report);
+            var detailWindow = new Window();
+            detailWindow.Content = new ScrollViewer { Content = detailPage };
+            detailWindow.AppWindow.Title = "帧率详细分析";
+            detailWindow.AppWindow.Resize(new SizeInt32(600, 500));
+            detailWindow.Activate();
         };
 
         var initSettings = PopupSettings.Load();

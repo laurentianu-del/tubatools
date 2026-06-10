@@ -149,11 +149,6 @@ public sealed partial class MainWindow : Window
                     NavFrame.Navigate(typeof(BuiltinToolsPage));
                     break;
                 case "monitor":
-                    if (!Services.LiteMonitorService.IsDriverReady())
-                    {
-                        var ok = await Services.LiteMonitorService.Instance.EnsureDriverAsync(Content.XamlRoot);
-                        if (!ok) break;
-                    }
                     NavFrame.Navigate(typeof(Pages.LiteMonitorPage), false);
                     break;
                 case string category:
@@ -264,7 +259,7 @@ public sealed partial class MainWindow : Window
 
         if (category.Contains("烤鸡", StringComparison.CurrentCultureIgnoreCase))
         {
-            return "\uE9D9";
+            return "\uEC4A";
         }
 
         if (category.Contains("声卡", StringComparison.CurrentCultureIgnoreCase))
@@ -443,7 +438,7 @@ public sealed partial class MainWindow : Window
                 SyncNavSelection("hardware");
                 break;
             case "monitor":
-                _ = NavigateToMonitorAsync();
+                NavigateToMonitor();
                 SyncNavSelection("monitor");
                 break;
             case "favorites":
@@ -460,13 +455,8 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async Task NavigateToMonitorAsync()
+    private void NavigateToMonitor()
     {
-        if (!LiteMonitorService.IsDriverReady())
-        {
-            var ok = await LiteMonitorService.Instance.EnsureDriverAsync(Content.XamlRoot);
-            if (!ok) return;
-        }
         NavFrame.Navigate(typeof(Pages.LiteMonitorPage), false);
     }
 }

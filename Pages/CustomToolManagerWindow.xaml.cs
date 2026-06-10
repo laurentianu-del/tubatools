@@ -424,7 +424,7 @@ public sealed partial class CustomToolManagerWindow : Window
             ("内存", "\uEEA0"),
             ("外设", "\uE962"),
             ("游戏", "\uE7FC"),
-            ("烤鸡", "\uE9D9"),
+            ("烤鸡", "\uEC4A"),
             ("声卡", "\uE7F5"),
             ("网卡", "\uEDA3"),
             ("综合", "\uEC4E"),

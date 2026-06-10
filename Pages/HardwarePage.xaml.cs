@@ -121,6 +121,11 @@ public sealed partial class HardwarePage : Page
         _ = LoadHardwareInfoAsync(forceRefresh: true);
     }
 
+    private void DetailButton_Click(object sender, RoutedEventArgs e)
+    {
+        Frame.Navigate(typeof(HardwareDetailPage));
+    }
+
     private void Card_PointerEntered(object sender, PointerRoutedEventArgs e)
     {
         if (FastModeService.IsFastModeEnabled()) return;

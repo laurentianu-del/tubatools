@@ -34,6 +34,9 @@ public static class BuiltinToolRegistry
         Register(new CpuRankingTool());
         Register(new GpuRankingTool());
         Register(new ContextMenuMgrTool());
+        Register(new HardwareSpooferTool());
+        Register(new StressTestTool());
+        Register(new NewPcSetupTool());
     }
 
     public static IReadOnlyList<string> GetCategories()

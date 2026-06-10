@@ -51,7 +51,7 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        if (!IsRunningAsAdmin())
+        if (!RuntimeHelper.IsMsixPackaged && !IsRunningAsAdmin())
         {
             ElevateAndRestart();
             Exit();
@@ -96,7 +96,70 @@ public partial class App : Application
                 AppSettings.Set("SetupCompleted", true);
         }
 
-        _ = CheckForUpdateSilentAsync();
+        if (RuntimeHelper.IsMsixPackaged)
+        {
+            if (!ToolsBundleService.IsToolsBundleReady())
+            {
+                await ShowToolsBundleDownloadDialogAsync();
+            }
+            _ = CheckForToolsUpdateSilentAsync();
+        }
+        else
+        {
+            _ = CheckForUpdateSilentAsync();
+        }
+    }
+
+    private static async Task ShowToolsBundleDownloadDialogAsync()
+    {
+        try
+        {
+            if (MainWindow?.Content is FrameworkElement root)
+            {
+                var dialog = new ToolsBundleDownloadDialog
+                {
+                    XamlRoot = root.XamlRoot,
+                    RequestedTheme = ThemeService.CurrentElementTheme
+                };
+                await dialog.ShowDownloadAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ToolsBundle] Download dialog failed: {ex.Message}");
+        }
+    }
+
+    private static async Task CheckForToolsUpdateSilentAsync()
+    {
+        try
+        {
+            if (!ToolsBundleService.IsToolsBundleReady()) return;
+
+            var currentVersion = ToolsBundleService.GetCurrentVersion();
+            if (currentVersion is null) return;
+
+            var info = await ToolsBundleService.CheckForToolsUpdateAsync();
+            if (info is null || !info.HasUpdate) return;
+
+            if (MainWindow?.DispatcherQueue is null) return;
+
+            MainWindow.DispatcherQueue.TryEnqueue(async () =>
+            {
+                if (MainWindow?.Content is not FrameworkElement root) return;
+                var dialog = new ToolsBundleDownloadDialog
+                {
+                    XamlRoot = root.XamlRoot,
+                    RequestedTheme = ThemeService.CurrentElementTheme
+                };
+                dialog.SetDescription("发现工具包新版本，建议更新以获取最新工具。");
+                await dialog.ShowDownloadAsync(info);
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ToolsBundle] Update check failed: {ex.Message}");
+        }
     }
 
     private static async Task CheckForUpdateSilentAsync()

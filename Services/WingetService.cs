@@ -12,7 +12,7 @@ public static class WingetService
         [
             new() { Id = "M2Team.NanaZip", Name = "NanaZip", Category = "压缩工具", Glyph = "\uE8D7", Description = "现代化的7-Zip解压缩工具" },
             new() { Id = "Microsoft.PowerToys", Name = "PowerToys", Category = "系统工具", Glyph = "\uE90F", Description = "微软官方系统增强工具集" },
-            new() { Id = "OTP.OfficeToolPlus", Name = "Office Tool Plus", Category = "办公工具", Glyph = "\uE8BD", Description = "Office部署与管理工具" },
+            new() { Id = "Yerong.OfficeToolPlus", Name = "Office Tool Plus", Category = "办公工具", Glyph = "\uE8BD", Description = "Office部署与管理工具" },
             new() { Id = "OBSProject.OBSStudio", Name = "OBS Studio", Category = "录屏直播", Glyph = "\uE960", Description = "开源录屏与直播软件" },
             new() { Id = "qBittorrent.qBittorrent", Name = "qBittorrent", Category = "下载工具", Glyph = "\uE896", Description = "开源BitTorrent客户端" },
             new() { Id = "GIMP.GIMP", Name = "GIMP", Category = "图像编辑", Glyph = "\uEB9F", Description = "开源图像编辑器" },

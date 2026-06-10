@@ -28,7 +28,7 @@ public sealed partial class SettingsPage : Page
     private bool _watermarkFontInitializing;
     private bool _defaultPageInitializing;
     private bool _brandLogoInitializing;
-    private bool _driverBusy;
+
     private bool _cpuzBusy;
     private bool _backdropInitializing;
 
@@ -97,6 +97,7 @@ public sealed partial class SettingsPage : Page
         ["Background"] = "SettingsBackgroundCard",
         ["Backdrop"] = "SettingsBackdropCard",
         ["Update"] = "SettingsUpdateCard",
+        ["ToolsBundle"] = "SettingsToolsBundleCard",
         ["ConfigManager"] = "SettingsConfigManagerCard",
         ["CustomToolManager"] = "SettingsCustomToolCard",
         ["MonitorDriver"] = "SettingsMonitorDriverCard",
@@ -133,8 +134,8 @@ public sealed partial class SettingsPage : Page
         InitWatermarkSettings();
         LoadBackgroundSettings();
         InitBackdropSettings();
-        InitDriverStatus();
         InitCpuzDataSourceStatus();
+        InitUpdateSection();
 
         Loaded += SettingsPage_Loaded;
     }
@@ -202,6 +203,165 @@ public sealed partial class SettingsPage : Page
         BgOpacitySlider.Value = (int)(opacity * 100);
         _opacityChanging = false;
         BgOpacityText.Text = $"{(int)(opacity * 100)}%";
+
+        PopulateBgList();
+    }
+
+    private void PopulateBgList()
+    {
+        var entries = BackgroundService.GetImportedBackgrounds();
+
+        BgListPanel.Children.Clear();
+
+        if (entries.Count == 0)
+        {
+            BgListEmptyText.Visibility = Visibility.Visible;
+            BgListScrollViewer.Visibility = Visibility.Collapsed;
+            BgHistoryCountText.Text = "";
+            BgHistoryExpander.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        BgListEmptyText.Visibility = Visibility.Collapsed;
+        BgListScrollViewer.Visibility = Visibility.Visible;
+        BgHistoryCountText.Text = $"({entries.Count})";
+        BgHistoryExpander.Visibility = Visibility.Visible;
+
+        foreach (var entry in entries)
+        {
+            var item = CreateBgListItem(entry);
+            BgListPanel.Children.Add(item);
+        }
+    }
+
+    private Border CreateBgListItem(BackgroundImageEntry entry)
+    {
+        var isSelected = entry.IsSelected;
+        var accentBrush = (Brush)App.Current.Resources["AccentFillColorDefaultBrush"];
+
+        var thumbnailBorder = new Border
+        {
+            Width = 140,
+            CornerRadius = new CornerRadius(6),
+            BorderThickness = new Thickness(isSelected ? 2 : 1),
+            BorderBrush = isSelected ? accentBrush : (Brush)App.Current.Resources["CardStrokeColorDefaultBrush"],
+            Tag = entry.Path,
+            Padding = new Thickness(0),
+        };
+
+        var grid = new Grid
+        {
+            RowSpacing = 0
+        };
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(80) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var image = new Image
+        {
+            Stretch = Stretch.UniformToFill,
+            Source = new BitmapImage(new Uri(entry.Path)),
+        };
+        Grid.SetRow(image, 0);
+        grid.Children.Add(image);
+
+        var infoPanel = new Grid
+        {
+            Padding = new Thickness(6, 4, 6, 4),
+            ColumnSpacing = 4,
+        };
+        Grid.SetRow(infoPanel, 1);
+        infoPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        infoPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var nameText = new TextBlock
+        {
+            Text = entry.FileName,
+            FontSize = 11,
+            Opacity = 0.72,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        Grid.SetColumn(nameText, 0);
+        infoPanel.Children.Add(nameText);
+
+        var deleteButton = new Button
+        {
+            Padding = new Thickness(2),
+            MinWidth = 0,
+            MinHeight = 0,
+            Width = 22,
+            Height = 22,
+            VerticalAlignment = VerticalAlignment.Center,
+            Tag = entry.Path,
+        };
+        var deleteIcon = new FontIcon
+        {
+            Glyph = "\uE74D",
+            FontSize = 10,
+            Foreground = (Brush)App.Current.Resources["TextFillColorSecondaryBrush"],
+        };
+        deleteButton.Content = deleteIcon;
+        deleteButton.Click += BgDeleteItem_Click;
+        Grid.SetColumn(deleteButton, 1);
+        infoPanel.Children.Add(deleteButton);
+
+        grid.Children.Add(infoPanel);
+        thumbnailBorder.Child = grid;
+
+        if (isSelected)
+        {
+            var checkBadge = new Border
+            {
+                Width = 20,
+                Height = 20,
+                CornerRadius = new CornerRadius(10),
+                Background = accentBrush,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Top,
+                Margin = new Thickness(0, 4, 4, 0),
+            };
+            var checkIcon = new FontIcon
+            {
+                Glyph = "\uE73E",
+                FontSize = 10,
+                Foreground = (Brush)App.Current.Resources["TextOnAccentFillColorPrimaryBrush"],
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            checkBadge.Child = checkIcon;
+            grid.Children.Add(checkBadge);
+        }
+
+        thumbnailBorder.PointerPressed += (s, e) =>
+        {
+            BgListItem_Tapped(entry.Path);
+        };
+
+        return thumbnailBorder;
+    }
+
+    private void BgListItem_Tapped(string path)
+    {
+        if (!System.IO.File.Exists(path)) return;
+
+        BackgroundService.SelectBackground(path);
+        ShowBgPreview(path);
+        PopulateBgList();
+    }
+
+    private void BgDeleteItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not string path) return;
+
+        BackgroundService.DeleteBackground(path);
+
+        var currentPath = BackgroundService.GetBackgroundPath();
+        if (string.IsNullOrWhiteSpace(currentPath))
+            HideBgPreview();
+        else
+            ShowBgPreview(currentPath);
+
+        PopulateBgList();
     }
 
     private void ShowBgPreview(string path)
@@ -263,12 +423,15 @@ public sealed partial class SettingsPage : Page
             BackgroundService.SetBackgroundPath(sourcePath);
             ShowBgPreview(sourcePath);
         }
+
+        PopulateBgList();
     }
 
     private void ClearBgButton_Click(object sender, RoutedEventArgs e)
     {
         BackgroundService.SetBackgroundPath(null);
         HideBgPreview();
+        PopulateBgList();
     }
 
     private void BgOpacitySlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
@@ -354,6 +517,115 @@ public sealed partial class SettingsPage : Page
         {
             _isCheckingUpdate = false;
             CheckUpdateButton.IsEnabled = true;
+        }
+    }
+
+    private bool _isCheckingToolsBundle;
+
+    private void InitUpdateSection()
+    {
+        if (RuntimeHelper.IsMsixPackaged)
+        {
+            SettingsUpdateCard.Visibility = Visibility.Collapsed;
+            SettingsToolsBundleCard.Visibility = Visibility.Visible;
+
+            var currentVersion = ToolsBundleService.GetCurrentVersion();
+            if (currentVersion is not null)
+            {
+                ToolsBundleStatusText.Text = $"当前工具包版本 v{currentVersion}";
+            }
+            else if (!ToolsBundleService.IsToolsBundleReady())
+            {
+                ToolsBundleStatusText.Text = "工具包未下载";
+            }
+            else
+            {
+                ToolsBundleStatusText.Text = "工具包已就绪（版本未知）";
+            }
+        }
+        else
+        {
+            SettingsUpdateCard.Visibility = Visibility.Visible;
+            SettingsToolsBundleCard.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private async void CheckToolsBundleButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isCheckingToolsBundle) return;
+        _isCheckingToolsBundle = true;
+        CheckToolsBundleButton.IsEnabled = false;
+        ToolsBundleStatusText.Text = "正在检查工具包更新...";
+
+        try
+        {
+            if (!ToolsBundleService.IsToolsBundleReady())
+            {
+                var dialog = new ToolsBundleDownloadDialog
+                {
+                    XamlRoot = XamlRoot,
+                    RequestedTheme = ThemeService.CurrentElementTheme
+                };
+                await dialog.ShowDownloadAsync();
+
+                if (dialog.DownloadSucceeded)
+                {
+                    var v = ToolsBundleService.GetCurrentVersion();
+                    ToolsBundleStatusText.Text = v is not null
+                        ? $"当前工具包版本 v{v}"
+                        : "工具包已就绪";
+                }
+                else
+                {
+                    ToolsBundleStatusText.Text = "工具包未下载";
+                }
+                return;
+            }
+
+            var info = await ToolsBundleService.CheckForToolsUpdateAsync();
+
+            if (info is not null && info.HasUpdate)
+            {
+                ToolsBundleStatusText.Text = $"发现新版本 v{info.Version}";
+                var dialog = new ToolsBundleDownloadDialog
+                {
+                    XamlRoot = XamlRoot,
+                    RequestedTheme = ThemeService.CurrentElementTheme
+                };
+                await dialog.ShowDownloadAsync(info);
+
+                if (dialog.DownloadSucceeded)
+                {
+                    var v = ToolsBundleService.GetCurrentVersion();
+                    ToolsBundleStatusText.Text = v is not null
+                        ? $"当前工具包版本 v{v}"
+                        : "工具包已就绪";
+                }
+                else
+                {
+                    ToolsBundleStatusText.Text = "点击检查工具包是否有新版本";
+                }
+            }
+            else if (info is not null)
+            {
+                ToolsBundleStatusText.Text = $"当前工具包已是最新版本 (v{info.Version})";
+            }
+            else
+            {
+                var currentVersion = ToolsBundleService.GetCurrentVersion();
+                ToolsBundleStatusText.Text = currentVersion is not null
+                    ? $"当前工具包版本 v{currentVersion}"
+                    : "检查失败，请稍后重试";
+            }
+        }
+        catch (Exception ex)
+        {
+            ToolsBundleStatusText.Text = $"检查失败: {ex.Message}";
+        }
+        finally
+        {
+            _isCheckingToolsBundle = false;
+            CheckToolsBundleButton.IsEnabled = true;
         }
     }
 
@@ -606,97 +878,6 @@ public sealed partial class SettingsPage : Page
     private void ThrowErrorButton_Click(object sender, RoutedEventArgs e)
     {
         throw new InvalidOperationException("这是一条手动抛出的测试异常，用于验证全局错误页面是否正常工作。");
-    }
-
-    private void InitDriverStatus()
-    {
-        UpdateDriverStatusUI();
-    }
-
-    private void UpdateDriverStatusUI()
-    {
-        var (installed, version) = LiteMonitorService.GetDriverStatus();
-        var ready = LiteMonitorService.IsDriverReady();
-
-        if (ready)
-        {
-            DriverStatusText.Text = version != null
-                ? $"PawnIO 驱动已安装 (v{version})"
-                : "PawnIO 驱动已安装";
-            DriverInstallButton.Visibility = Visibility.Collapsed;
-            DriverDivider.Visibility = Visibility.Visible;
-            DriverUninstallPanel.Visibility = Visibility.Visible;
-        }
-        else if (installed)
-        {
-            DriverStatusText.Text = version != null
-                ? $"PawnIO 驱动版本过低 (v{version})，需要重新安装"
-                : "PawnIO 驱动需要更新";
-            DriverInstallButton.Visibility = Visibility.Visible;
-            DriverDivider.Visibility = Visibility.Collapsed;
-            DriverUninstallPanel.Visibility = Visibility.Collapsed;
-        }
-        else
-        {
-            DriverStatusText.Text = "PawnIO 驱动未安装";
-            DriverInstallButton.Visibility = Visibility.Visible;
-            DriverDivider.Visibility = Visibility.Collapsed;
-            DriverUninstallPanel.Visibility = Visibility.Collapsed;
-        }
-    }
-
-    private async void DriverInstallButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_driverBusy) return;
-        _driverBusy = true;
-        DriverInstallButton.IsEnabled = false;
-        DriverUninstallButton.IsEnabled = false;
-
-        try
-        {
-            var ok = await LiteMonitorService.Instance.EnsureDriverAsync(XamlRoot);
-            UpdateDriverStatusUI();
-
-            if (!ok)
-            {
-                DriverStatusText.Text = "驱动安装未成功";
-            }
-        }
-        finally
-        {
-            _driverBusy = false;
-            DriverInstallButton.IsEnabled = true;
-            DriverUninstallButton.IsEnabled = true;
-        }
-    }
-
-    private async void DriverUninstallButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_driverBusy) return;
-        _driverBusy = true;
-        DriverInstallButton.IsEnabled = false;
-        DriverUninstallButton.IsEnabled = false;
-
-        try
-        {
-            var ok = await LiteMonitorService.UninstallDriverAsync(XamlRoot);
-            UpdateDriverStatusUI();
-
-            if (ok)
-            {
-                await ShowMessageAsync("卸载成功", "PawnIO 驱动已卸载。");
-            }
-            else
-            {
-                await ShowMessageAsync("卸载失败", "驱动卸载未成功，请重试。");
-            }
-        }
-        finally
-        {
-            _driverBusy = false;
-            DriverInstallButton.IsEnabled = true;
-            DriverUninstallButton.IsEnabled = true;
-        }
     }
 
     private void OpenSourceButton_Click(object sender, RoutedEventArgs e)

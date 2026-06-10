@@ -26,6 +26,15 @@
         </Style>
     </Page.Resources>
 
+    <Grid>
+        <Image
+            x:Name="BackgroundImg"
+            Stretch="UniformToFill"
+            Opacity="0.15"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Stretch"
+            IsHitTestVisible="False" />
+
     <ScrollViewer Padding="28,18,28,24" VerticalScrollBarVisibility="Auto">
         <StackPanel Spacing="18">
             <StackPanel Spacing="4">
@@ -353,4 +362,5 @@
                 IsOpen="False" />
         </StackPanel>
     </ScrollViewer>
+    </Grid>
 </Page>

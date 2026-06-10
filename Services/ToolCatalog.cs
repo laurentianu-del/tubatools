@@ -645,26 +645,33 @@ public static class ToolCatalog
         return Path.Combine(toolDir, dirName + ".exe");
     }
 
-    private static string FindToolsRoot()
-    {
-        var outputTools = Path.Combine(AppDirectory, "Tools");
-        if (Directory.Exists(outputTools))
-        {
-            return outputTools;
-        }
+     private static string FindToolsRoot()
+     {
+         if (RuntimeHelper.IsMsixPackaged)
+         {
+             return Path.Combine(
+                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                 "TubaWinUi3", "Tools");
+         }
 
-        var directory = new DirectoryInfo(AppDirectory);
-        while (directory is not null)
-        {
-            var candidate = Path.Combine(directory.FullName, "Tools");
-            if (Directory.Exists(candidate))
-            {
-                return candidate;
-            }
+         var outputTools = Path.Combine(AppDirectory, "Tools");
+         if (Directory.Exists(outputTools))
+         {
+             return outputTools;
+         }
 
-            directory = directory.Parent;
-        }
+         var directory = new DirectoryInfo(AppDirectory);
+         while (directory is not null)
+         {
+             var candidate = Path.Combine(directory.FullName, "Tools");
+             if (Directory.Exists(candidate))
+             {
+                 return candidate;
+             }
 
-        return outputTools;
-    }
+             directory = directory.Parent;
+         }
+
+         return outputTools;
+     }
 }

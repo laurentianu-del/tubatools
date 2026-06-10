@@ -1268,4 +1268,538 @@ public static class HardwareInfoService
     {
         return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
     }
+
+    #region Detail Data
+
+    private static HardwareDetailData? _detailCache;
+
+    public static Task<HardwareDetailData> LoadDetailAsync(bool forceRefresh = false)
+    {
+        return Task.Run(() => BuildDetailData(forceRefresh));
+    }
+
+    private static HardwareDetailData BuildDetailData(bool forceRefresh)
+    {
+        if (!forceRefresh && _detailCache != null)
+            return _detailCache;
+
+        var data = new HardwareDetailData
+        {
+            Cpu = BuildCpuDetail(),
+            Motherboard = BuildMotherboardDetail(),
+            Memory = BuildMemoryDetail(),
+            Gpus = BuildGpuDetails(),
+            Disks = BuildDiskDetails(),
+            Displays = BuildDisplayDetails(),
+            SoundDevices = BuildSoundDetails(),
+            NetworkAdapters = BuildNetworkDetails()
+        };
+
+        _detailCache = data;
+        return data;
+    }
+
+    public static HardwareDetailData ApplyCpuzDetailOverride(HardwareDetailData data, CpuzInfo cpuz)
+    {
+        if (cpuz == null) return data;
+
+        if (data.Cpu != null)
+        {
+            if (!string.IsNullOrWhiteSpace(cpuz.CpuName))
+            {
+                data.Cpu.Name = cpuz.CpuName;
+                data.Cpu.BrandKey = DetectCpuBrand(cpuz.CpuName);
+            }
+            if (!string.IsNullOrWhiteSpace(cpuz.CpuCodeName))
+                data.Cpu.CodeName = cpuz.CpuCodeName;
+            if (!string.IsNullOrWhiteSpace(cpuz.CpuPackage))
+                data.Cpu.Package = cpuz.CpuPackage;
+            if (cpuz.CpuCores > 0)
+                data.Cpu.Cores = cpuz.CpuCores;
+            if (cpuz.CpuThreads > 0)
+                data.Cpu.Threads = cpuz.CpuThreads;
+            data.Cpu.IsVerified = true;
+        }
+
+        if (data.Motherboard != null)
+        {
+            if (!string.IsNullOrWhiteSpace(cpuz.BoardManufacturer))
+                data.Motherboard.Manufacturer = CleanBoardManufacturer(cpuz.BoardManufacturer);
+            if (!string.IsNullOrWhiteSpace(cpuz.BoardModel))
+                data.Motherboard.Model = cpuz.BoardModel;
+            if (!string.IsNullOrWhiteSpace(cpuz.BoardChipset))
+                data.Motherboard.Chipset = cpuz.BoardChipset;
+            if (!string.IsNullOrWhiteSpace(cpuz.BiosBrand))
+                data.Motherboard.BiosBrand = cpuz.BiosBrand;
+            if (!string.IsNullOrWhiteSpace(cpuz.BiosVersion))
+                data.Motherboard.BiosVersion = cpuz.BiosVersion;
+            data.Motherboard.IsVerified = true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(cpuz.MemoryType))
+            data.Memory.MemoryType = cpuz.MemoryType;
+        if (!string.IsNullOrWhiteSpace(cpuz.MemorySize))
+            data.Memory.TotalCapacity = cpuz.MemorySize;
+        if (!string.IsNullOrWhiteSpace(cpuz.MemorySpeed))
+        {
+            foreach (var mod in data.Memory.Modules)
+                mod.Speed = cpuz.MemorySpeed;
+        }
+        if (!string.IsNullOrWhiteSpace(cpuz.MemoryChannel))
+            data.Memory.ChannelMode = cpuz.MemoryChannel;
+
+        if (cpuz.MemDevices.Count > 0)
+        {
+            for (int i = 0; i < Math.Min(cpuz.MemDevices.Count, data.Memory.Modules.Count); i++)
+            {
+                var src = cpuz.MemDevices[i];
+                var dst = data.Memory.Modules[i];
+                if (!string.IsNullOrWhiteSpace(src.Designation)) dst.Designation = src.Designation;
+                if (!string.IsNullOrWhiteSpace(src.Type)) dst.Type = src.Type;
+                if (!string.IsNullOrWhiteSpace(src.Size)) dst.Capacity = src.Size;
+                if (!string.IsNullOrWhiteSpace(src.Speed)) dst.Speed = src.Speed;
+                if (!string.IsNullOrWhiteSpace(src.Manufacturer)) dst.Manufacturer = CleanMemManufacturer(src.Manufacturer);
+                if (!string.IsNullOrWhiteSpace(src.PartNumber)) dst.PartNumber = src.PartNumber;
+            }
+        }
+
+        if (cpuz.Gpus.Count > 0 && data.Gpus.Count > 0)
+        {
+            for (int i = 0; i < Math.Min(cpuz.Gpus.Count, data.Gpus.Count); i++)
+            {
+                var src = cpuz.Gpus[i];
+                var dst = data.Gpus[i];
+                if (!string.IsNullOrWhiteSpace(src.Name)) dst.Name = src.Name;
+                if (!string.IsNullOrWhiteSpace(src.GpuCode)) dst.GpuCode = src.GpuCode;
+                if (!string.IsNullOrWhiteSpace(src.MemorySize)) dst.MemorySize = src.MemorySize;
+                if (!string.IsNullOrWhiteSpace(src.MemoryType)) dst.MemoryType = src.MemoryType;
+                if (!string.IsNullOrWhiteSpace(src.MemoryBus)) dst.MemoryBus = src.MemoryBus;
+                if (!string.IsNullOrWhiteSpace(src.DriverVersion)) dst.DriverVersion = src.DriverVersion;
+                if (!string.IsNullOrWhiteSpace(src.DeviceId)) dst.DeviceId = src.DeviceId;
+                dst.BrandKey = DetectGpuBrand(src.Name);
+                dst.IsVerified = true;
+            }
+        }
+
+        return data;
+    }
+
+    private static CpuDetail BuildCpuDetail()
+    {
+        var cpu = First("Win32_Processor");
+        var detail = new CpuDetail();
+
+        if (cpu != null)
+        {
+            detail.Name = Get(cpu, "Name");
+            detail.Cores = ToInt(Get(cpu, "NumberOfCores"));
+            detail.Threads = ToInt(Get(cpu, "NumberOfLogicalProcessors"));
+            detail.MaxClockSpeed = FormatMhz(Get(cpu, "MaxClockSpeed"));
+            detail.CurrentClockSpeed = FormatMhz(Get(cpu, "CurrentClockSpeed"));
+            detail.L2CacheSize = FormatCacheSize(Get(cpu, "L2CacheSize"));
+            detail.L3CacheSize = FormatCacheSize(Get(cpu, "L3CacheSize"));
+            detail.ExtClock = FormatMhz(Get(cpu, "ExtClock"));
+            detail.Architecture = MapCpuArchitecture(Get(cpu, "Architecture"));
+            detail.Manufacturer = Get(cpu, "Manufacturer");
+            detail.ProcessorId = Get(cpu, "ProcessorId");
+            detail.BrandKey = DetectCpuBrand(detail.Name);
+        }
+
+        return detail;
+    }
+
+    private static string? FormatMhz(string? value)
+    {
+        var mhz = ToInt(value);
+        if (mhz <= 0) return null;
+        if (mhz >= 1000) return $"{mhz / 1000d:0.#} GHz";
+        return $"{mhz} MHz";
+    }
+
+    private static string? FormatCacheSize(string? value)
+    {
+        var kb = ToInt(value);
+        if (kb <= 0) return null;
+        if (kb >= 1024) return $"{kb / 1024d:0.#} MB";
+        return $"{kb} KB";
+    }
+
+    private static string? MapCpuArchitecture(string? value)
+    {
+        return ToInt(value) switch
+        {
+            0 => "x86",
+            1 => "MIPS",
+            2 => "Alpha",
+            3 => "PowerPC",
+            5 => "ARM",
+            6 => "Itanium",
+            9 => "x64",
+            12 => "ARM64",
+            _ => null
+        };
+    }
+
+    private static MotherboardDetail BuildMotherboardDetail()
+    {
+        var board = First("Win32_BaseBoard");
+        var bios = First("Win32_BIOS");
+
+        return new MotherboardDetail
+        {
+            Manufacturer = CleanBoardManufacturer(Get(board, "Manufacturer")),
+            Model = Get(board, "Product"),
+            Version = Get(board, "Version"),
+            BiosBrand = Get(bios, "Manufacturer"),
+            BiosVersion = Get(bios, "SMBIOSBIOSVersion"),
+            BiosDate = FormatBiosDate(Get(bios, "ReleaseDate"))
+        };
+    }
+
+    private static string? FormatBiosDate(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 8) return value;
+        try
+        {
+            var dateStr = value[..8];
+            if (int.TryParse(dateStr, out var num) && num > 19000101)
+                return $"{dateStr[..4]}-{dateStr[4..6]}-{dateStr[6..8]}";
+        }
+        catch { }
+        return value;
+    }
+
+    private static MemoryDetail BuildMemoryDetail()
+    {
+        var allSlots = Query("Win32_PhysicalMemory").ToList();
+        var modules = allSlots.Where(item => ToLong(Get(item, "Capacity")) > 0).ToList();
+
+        var totalSlots = Query("Win32_PhysicalMemoryArray")
+            .Select(item => ToInt(Get(item, "MemoryDevices")))
+            .Where(v => v > 0)
+            .Sum();
+        if (totalSlots == 0) totalSlots = allSlots.Count;
+
+        var totalBytes = modules.Sum(item => ToLong(Get(item, "Capacity")));
+        var memType = ToInt(modules.Select(item => Get(item, "SMBIOSMemoryType")).FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)));
+        var typeLabel = GetMemoryTypeLabel(memType);
+
+        var detail = new MemoryDetail
+        {
+            TotalCapacity = totalBytes > 0 ? $"{totalBytes / 1024d / 1024d / 1024d:0.#} GB" : null,
+            MemoryType = typeLabel,
+            TotalSlots = totalSlots,
+            UsedSlots = modules.Count
+        };
+
+        foreach (var mod in modules)
+        {
+            var configuredSpeed = GetMemoryDataRateMts(mod, memType);
+            var ratedSpeed = ToInt(Get(mod, "Speed"));
+
+            detail.Modules.Add(new MemoryModuleDetail
+            {
+                Designation = FirstUseful(Get(mod, "BankLabel"), Get(mod, "DeviceLocator")),
+                Capacity = FormatCapacity(ToLong(Get(mod, "Capacity"))),
+                Speed = configuredSpeed > 0 ? $"{configuredSpeed} MT/s" : null,
+                RatedSpeed = ratedSpeed > 0 ? $"{ratedSpeed} MT/s" : null,
+                Manufacturer = CleanMemManufacturer(Get(mod, "Manufacturer")),
+                PartNumber = Get(mod, "PartNumber"),
+                Type = typeLabel,
+                FormFactor = MapFormFactor(Get(mod, "FormFactor"))
+            });
+        }
+
+        for (int i = modules.Count; i < totalSlots; i++)
+        {
+            detail.Modules.Add(new MemoryModuleDetail
+            {
+                Designation = $"插槽 {i + 1}",
+                Capacity = "空"
+            });
+        }
+
+        return detail;
+    }
+
+    private static string? FormatCapacity(long bytes)
+    {
+        if (bytes <= 0) return null;
+        return $"{bytes / 1024d / 1024d / 1024d:0.#} GB";
+    }
+
+    private static string? MapFormFactor(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        return value.Trim().ToUpperInvariant() switch
+        {
+            "8" or "DIMM" => "DIMM",
+            "12" or "SODIMM" => "SO-DIMM",
+            "13" or "FB-DIMM" => "FB-DIMM",
+            _ => value.Trim()
+        };
+    }
+
+    private static List<GpuDetail> BuildGpuDetails()
+    {
+        var gpus = new List<GpuDetail>();
+
+        foreach (var item in Query("Win32_VideoController"))
+        {
+            var name = Get(item, "Name");
+            if (ContainsAny(name, "Microsoft Basic Render", "Microsoft Remote Display", "DDA Wrapper",
+                "Idd Desk", "GameViewer Virtual Display", "Honor Virtual Display", "Virtual Display",
+                "Virtual GPU", "Virtual Adapter", "虚拟", "Remote Display Adapter"))
+                continue;
+
+            var adapterRam = ToLong(Get(item, "AdapterRAM"));
+            var width = Get(item, "CurrentHorizontalResolution");
+            var height = Get(item, "CurrentVerticalResolution");
+            var refresh = Get(item, "CurrentRefreshRate");
+
+            gpus.Add(new GpuDetail
+            {
+                Name = name,
+                AdapterRAM = adapterRam > 0 ? $"{adapterRam / 1024d / 1024d / 1024d:0.#} GB" : null,
+                DriverVersion = Get(item, "DriverVersion"),
+                DriverDate = Get(item, "DriverDate"),
+                VideoProcessor = Get(item, "VideoProcessor"),
+                CurrentResolution = !string.IsNullOrWhiteSpace(width) && !string.IsNullOrWhiteSpace(height)
+                    ? $"{width} x {height}" : null,
+                CurrentRefreshRate = !string.IsNullOrWhiteSpace(refresh) && refresh != "0" ? $"{refresh} Hz" : null,
+                BrandKey = DetectGpuBrand(name)
+            });
+        }
+
+        return gpus;
+    }
+
+    private static List<DiskDetail> BuildDiskDetails()
+    {
+        var disks = new List<DiskDetail>();
+
+        foreach (var item in Query("Win32_DiskDrive"))
+        {
+            var model = Get(item, "Model");
+            if (string.IsNullOrWhiteSpace(model)) continue;
+
+            var deviceId = Get(item, "DeviceID");
+            var size = ToLong(Get(item, "Size"));
+            var interfaceType = Get(item, "InterfaceType");
+            var mediaType = Get(item, "MediaType");
+            var diskMediaType = DetermineMediaType(mediaType, interfaceType);
+
+            var disk = new DiskDetail
+            {
+                Model = model,
+                MediaType = diskMediaType,
+                Size = size > 0 ? $"{size / 1024d / 1024d / 1024d:0.#} GB" : null,
+                InterfaceType = MapInterfaceType(interfaceType),
+                FirmwareRevision = Get(item, "FirmwareRevision"),
+                SerialNumber = Get(item, "SerialNumber")
+            };
+
+            if (!string.IsNullOrWhiteSpace(deviceId))
+            {
+                try
+                {
+                    var partitions = GetDiskPartitions(deviceId);
+                    disk.Partitions.AddRange(partitions);
+                }
+                catch { }
+            }
+
+            disks.Add(disk);
+        }
+
+        return disks;
+    }
+
+    private static string? DetermineMediaType(string? mediaType, string? interfaceType)
+    {
+        if (!string.IsNullOrWhiteSpace(mediaType))
+        {
+            var mt = mediaType.Trim().ToUpperInvariant();
+            if (mt.Contains("SSD") || mt.Contains("SOLID"))
+                return "SSD";
+            if (mt.Contains("HDD") || mt.Contains("HARD"))
+                return "HDD";
+            if (mt.Contains("FIXED") && !string.IsNullOrWhiteSpace(interfaceType)
+                && interfaceType.Contains("NVMe", StringComparison.OrdinalIgnoreCase))
+                return "SSD";
+        }
+
+        if (!string.IsNullOrWhiteSpace(interfaceType)
+            && interfaceType.Contains("NVMe", StringComparison.OrdinalIgnoreCase))
+            return "SSD";
+
+        return null;
+    }
+
+    private static string? MapInterfaceType(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        return value.Trim().ToUpperInvariant() switch
+        {
+            "IDE" => "IDE/PATA",
+            "SCSI" => "SCSI",
+            "1394" => "IEEE 1394",
+            _ => value.Trim()
+        };
+    }
+
+    private static List<PartitionDetail> GetDiskPartitions(string deviceId)
+    {
+        var partitions = new List<PartitionDetail>();
+
+        try
+        {
+            using var searcher = new ManagementObjectSearcher(
+                $"ASSOCIATORS OF {{Win32_DiskDrive.DeviceID='{deviceId.Replace("'", "''")}'}} WHERE ResultClass=Win32_DiskPartition");
+            foreach (ManagementBaseObject part in searcher.Get())
+            {
+                var partDeviceId = Get(part, "DeviceID");
+                var logicalDisk = GetPartitionLogicalDisk(partDeviceId);
+
+                partitions.Add(new PartitionDetail
+                {
+                    Name = Get(part, "Name"),
+                    DriveLetter = logicalDisk?.DriveLetter,
+                    FileSystem = logicalDisk?.FileSystem,
+                    Size = FormatCapacity(ToLong(Get(part, "Size"))),
+                    FreeSpace = logicalDisk?.FreeSpace
+                });
+            }
+        }
+        catch { }
+
+        return partitions;
+    }
+
+    private sealed record LogicalDiskInfo(string? DriveLetter, string? FileSystem, string? FreeSpace);
+
+    private static LogicalDiskInfo? GetPartitionLogicalDisk(string? partitionDeviceId)
+    {
+        if (string.IsNullOrWhiteSpace(partitionDeviceId)) return null;
+
+        try
+        {
+            using var searcher = new ManagementObjectSearcher(
+                $"ASSOCIATORS OF {{Win32_DiskPartition.DeviceId='{partitionDeviceId.Replace("'", "''")}'}} WHERE ResultClass=Win32_LogicalDisk");
+            foreach (ManagementBaseObject ld in searcher.Get())
+            {
+                var freeBytes = ToLong(Get(ld, "FreeSpace"));
+                return new LogicalDiskInfo(
+                    Get(ld, "Name"),
+                    Get(ld, "FileSystem"),
+                    freeBytes > 0 ? $"{freeBytes / 1024d / 1024d / 1024d:0.#} GB" : null
+                );
+            }
+        }
+        catch { }
+
+        return null;
+    }
+
+    private static List<DisplayDetail> BuildDisplayDetails()
+    {
+        var results = new List<DisplayDetail>();
+        var wmiLabels = GetWmiMonitorLabelsByPnpCode();
+        var wmiSizes = GetWmiMonitorSizesByPnpCode();
+
+        try
+        {
+            var adapter = NewDisplayDevice();
+            for (uint i = 0; EnumDisplayDevices(null, i, ref adapter, 0); i++)
+            {
+                if ((adapter.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0)
+                {
+                    var resolution = GetCurrentResolution(adapter.DeviceName);
+                    var refreshRate = GetCurrentRefreshRate(adapter.DeviceName);
+                    var isPrimary = (adapter.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) != 0;
+                    var monitor = GetDisplayMonitor(adapter.DeviceName);
+                    var pnpCode = ExtractMonitorPnpCode(monitor?.DeviceID);
+                    var label = ChooseDisplayLabel(monitor?.DeviceString, pnpCode, adapter.DeviceString, wmiLabels);
+                    var diagonalInches = GetDiagonalInches(pnpCode, wmiSizes);
+
+                    results.Add(new DisplayDetail
+                    {
+                        Name = label,
+                        Resolution = resolution,
+                        RefreshRate = refreshRate,
+                        IsPrimary = isPrimary,
+                        DiagonalInches = diagonalInches.HasValue ? $"{diagonalInches.Value:F1}\"" : null
+                    });
+                }
+
+                adapter = NewDisplayDevice();
+            }
+        }
+        catch { }
+
+        return results;
+    }
+
+    private static string? GetCurrentRefreshRate(string displayDeviceName)
+    {
+        var mode = new DEVMODE { dmSize = (ushort)Marshal.SizeOf<DEVMODE>() };
+        if (!EnumDisplaySettings(displayDeviceName, ENUM_CURRENT_SETTINGS, ref mode) || mode.dmDisplayFrequency == 0)
+            return null;
+        return $"{mode.dmDisplayFrequency} Hz";
+    }
+
+    private static List<SoundDetail> BuildSoundDetails()
+    {
+        var devices = new List<SoundDetail>();
+
+        foreach (var item in Query("Win32_SoundDevice"))
+        {
+            var name = Get(item, "Name");
+            if (ContainsAny(name, "Virtual", "虚拟", "Software", "Remote Audio", "Stereo Mix", "Wave", "VB-Audio", "VBAN", "Voicemeeter", "CABLE", "VAC"))
+                continue;
+
+            devices.Add(new SoundDetail
+            {
+                Name = name,
+                Manufacturer = Get(item, "Manufacturer"),
+                Status = Get(item, "Status")
+            });
+        }
+
+        return devices;
+    }
+
+    private static List<NetworkDetail> BuildNetworkDetails()
+    {
+        var adapters = new List<NetworkDetail>();
+
+        foreach (var item in Query("Win32_NetworkAdapter"))
+        {
+            if (!IsTrue(item, "PhysicalAdapter")) continue;
+            var name = Get(item, "Name");
+            if (ContainsAny(name, "Virtual", "Bluetooth", "WAN Miniport")) continue;
+
+            var speed = ToLong(Get(item, "Speed"));
+            adapters.Add(new NetworkDetail
+            {
+                Name = name,
+                Manufacturer = Get(item, "Manufacturer"),
+                MacAddress = Get(item, "MACAddress"),
+                Speed = speed > 0 ? FormatNetworkSpeed(speed) : null,
+                AdapterType = Get(item, "AdapterType")
+            });
+        }
+
+        return adapters;
+    }
+
+    private static string FormatNetworkSpeed(long bps)
+    {
+        if (bps >= 1_000_000_000) return $"{bps / 1_000_000_000d:0.#} Gbps";
+        if (bps >= 1_000_000) return $"{bps / 1_000_000d:0.#} Mbps";
+        if (bps >= 1_000) return $"{bps / 1_000d:0.#} Kbps";
+        return $"{bps} bps";
+    }
+
+    #endregion
 }
