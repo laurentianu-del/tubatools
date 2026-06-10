@@ -381,12 +381,14 @@ public sealed class NewPcSetupTool : IBuiltinTool
 
         var langGrid = new Grid { ColumnSpacing = 8, RowSpacing = 8 };
         var languages = NewPcSetupService.GetDevLanguages();
-        for (int i = 0; i < languages.Count; i++)
+        for (int idx = 0; idx < languages.Count; idx++)
         {
-            var col = i % 3;
-            var row = i / 3;
+            var col = idx % 3;
+            var row = idx / 3;
             if (col == 0) langGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
+            var lang = languages[idx].Language;
+            var glyph = languages[idx].Glyph;
             var cb = new CheckBox
             {
                 Content = new StackPanel
@@ -395,14 +397,14 @@ public sealed class NewPcSetupTool : IBuiltinTool
                     Spacing = 6,
                     Children =
                     {
-                        new FontIcon { Glyph = languages[i].Glyph, FontSize = 14 },
-                        new TextBlock { Text = languages[i].Language, FontSize = 13 }
+                        new FontIcon { Glyph = glyph, FontSize = 14 },
+                        new TextBlock { Text = lang, FontSize = 13 }
                     }
                 },
-                Tag = languages[i].Language
+                Tag = lang
             };
-            cb.Checked += (_, _) => { if (!state.SelectedLanguages.Contains(languages[i].Language)) state.SelectedLanguages.Add(languages[i].Language); };
-            cb.Unchecked += (_, _) => { state.SelectedLanguages.Remove(languages[i].Language); };
+            cb.Checked += (_, _) => { if (!state.SelectedLanguages.Contains(lang)) state.SelectedLanguages.Add(lang); };
+            cb.Unchecked += (_, _) => { state.SelectedLanguages.Remove(lang); };
 
             langGrid.Children.Add(cb); Grid.SetColumn(cb, col); Grid.SetRow(cb, row);
         }
