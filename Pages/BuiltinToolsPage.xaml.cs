@@ -18,6 +18,98 @@ public sealed partial class BuiltinToolsPage : Page
         ToolsGrid.ItemsSource = _tools;
         PopulateCategoryFilter();
         LoadTools(null);
+
+        Loaded += BuiltinToolsPage_Loaded;
+    }
+
+    protected override void OnNavigatedTo(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
+    {
+        base.OnNavigatedTo(e);
+
+        if (e.Parameter is SearchNavigationTarget target && target.HighlightBuiltinId is not null)
+        {
+            _pendingHighlightId = target.HighlightBuiltinId;
+        }
+    }
+
+    private void BuiltinToolsPage_Loaded(object sender, RoutedEventArgs e)
+    {
+        Loaded -= BuiltinToolsPage_Loaded;
+
+        if (_pendingHighlightId is not null)
+        {
+            _ = HighlightBuiltinToolAsync(_pendingHighlightId);
+            _pendingHighlightId = null;
+        }
+    }
+
+    private async Task HighlightBuiltinToolAsync(string builtinId)
+    {
+        var vm = _tools.FirstOrDefault(t => t.Id.Equals(builtinId, StringComparison.OrdinalIgnoreCase));
+        if (vm is null) return;
+
+        ToolsGrid.ScrollIntoView(vm);
+        await Task.Delay(100);
+
+        var container = ToolsGrid.ContainerFromItem(vm) as GridViewItem;
+        if (container is null) return;
+
+        var scrollViewer = FindChildScrollViewer(ToolsGrid);
+        if (scrollViewer is not null)
+        {
+            var transform = container.TransformToVisual(scrollViewer.Content as UIElement ?? scrollViewer);
+            var point = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
+            var targetOffset = scrollViewer.VerticalOffset + point.Y - scrollViewer.ViewportHeight / 2 + container.ActualHeight / 2;
+            targetOffset = Math.Max(0, Math.Min(targetOffset, scrollViewer.ExtentHeight - scrollViewer.ViewportHeight));
+            scrollViewer.ChangeView(null, targetOffset, null, disableAnimation: false);
+            await Task.Delay(600);
+        }
+
+        var border = FindChildBorder(container);
+        if (border is not null)
+            SearchHighlightService.HighlightBorder(border);
+    }
+
+    private static ScrollViewer? FindChildScrollViewer(DependencyObject parent)
+    {
+        var count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent);
+        for (var i = 0; i < count; i++)
+        {
+            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
+            if (child is ScrollViewer sv) return sv;
+            var result = FindChildScrollViewer(child);
+            if (result is not null) return result;
+        }
+        return null;
+    }
+
+    private static Border? FindChildBorder(DependencyObject parent)
+    {
+        var count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent);
+        for (var i = 0; i < count; i++)
+        {
+            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
+            if (child is Border b) return b;
+            var result = FindChildBorder(child);
+            if (result is not null) return result;
+        }
+        return null;
+    }
+
+    private void ToolsGrid_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var panel = ToolsGrid.ItemsPanelRoot as ItemsWrapGrid;
+        if (panel is null) return;
+
+        double minItemWidth = 280;
+        double spacing = 12;
+        double availableWidth = ToolsGrid.ActualWidth - ToolsGrid.Padding.Left - ToolsGrid.Padding.Right;
+
+        if (availableWidth <= 0) return;
+
+        int columns = Math.Max(1, (int)((availableWidth + spacing) / (minItemWidth + spacing)));
+        double itemWidth = (availableWidth - (columns - 1) * spacing) / columns;
+        panel.ItemWidth = Math.Max(minItemWidth, itemWidth);
     }
 
     protected override void OnNavigatedTo(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)

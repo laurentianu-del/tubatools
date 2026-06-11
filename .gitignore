@@ -71,6 +71,6 @@ SetupOutput/
 # Store output
 StoreOutputNoTools/
 
-# VitePress cache and dev server
-src/docs/.vitepress/cache/
-src/docs/.vitepress/dist/
+# VitePress docs (built output)
+docs/
+src/docs/
