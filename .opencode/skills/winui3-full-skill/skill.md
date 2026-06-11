@@ -18,10 +18,13 @@ application code following Fluent Design, MVVM, and all rules in this skill.
 - All async work is non-blocking: no `.Result`, `.Wait()`, or `Thread.Sleep` on the UI thread.
 - Always provide `AutomationProperties.Name` on interactive controls.
 - Always provide complete examples: XAML **and** C# in every snippet.
+- **Never hard-code pixel sizes for new windows.** Always size windows proportionally to the screen work area via `DisplayArea.GetFromWindowId()`. See `snippets/windowing/appwindow-multiple-windows.md` for the pattern and proportion guidelines.
+- **Use `Segoe Fluent Icons` glyphs** (default in WinUI 3 via `SymbolThemeFontFamily`). Do NOT specify `FontFamily="Segoe MDL2 Assets"` unless targeting Windows 10 only. Consult `icon-reference.md` for the curated glyph catalog — do not guess glyph codes. Use preferred icon sizes: 16, 20, 24, 32, 40, 48, 64.
 
 ## Repository layout
 ```
 skill.md                    ← this file (entry point)
+icon-reference.md           ← Segoe Fluent Icons & MDL2 glyph catalog (~200 icons)
 catalog/
   controls.md               ← full control catalog with snippet links
   best-practices.md         ← perf, threading, accessibility rules
@@ -41,7 +44,7 @@ snippets/
   styles/                   ← AcrylicBrush, SystemBackdrops, AnimatedIcon, …
   motion/                   ← ConnectedAnimation, ImplicitTransitions, …
   system/                   ← AppNotifications, Clipboard, StoragePickers, …
-  windowing/                ← AppWindow, TitleBar, MultipleWindows
+  windowing/                ← AppWindow, TitleBar, MultipleWindows, Proportional Sizing
   fundamentals/             ← Resources, Styles, Binding, Templates, UserControls
   patterns/                 ← app-shell, mvvm-di-setup, theming
 ```
@@ -58,3 +61,5 @@ snippets/
 | Form inputs | `snippets/basic-input/` |
 | Notifications / toasts | `snippets/system/app-notifications.md` |
 | All controls reference | `catalog/controls.md` |
+| Icon / glyph lookup (Segoe Fluent Icons) | `icon-reference.md` |
+| Open a secondary window / proportional sizing | `snippets/windowing/appwindow-multiple-windows.md` |

@@ -126,6 +126,7 @@ public sealed partial class HardwarePage : Page
     {
         _uptimeTimer?.Stop();
         _uptimeTimer = null;
+        AppSettings.SettingChanged -= OnSettingChanged;
     }
 
     private void UpdateUptime()

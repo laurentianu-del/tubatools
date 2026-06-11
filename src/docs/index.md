@@ -3,23 +3,35 @@ layout: home
 
 hero:
   name: 图吧工具箱WinUI3
-  text: 更现代化的图吧工具箱
-  tagline: 专为 PC 硬件爱好者和系统维护人员打造 · WinUI 3 现代界面 · 82 款专业工具一键启动
+  text: 开源 · 现代 · 免费
+  tagline: 基于 WinUI 3 的 PC 硬件检测与系统维护工具集 · 82 款专业工具一键启动 · 完全开源免费
   image:
-    src: /logo.png
-    alt: 图吧工具箱
+    src: /screenshot-tools.png
+    alt: 图吧工具箱WinUI3 截图
   actions:
     - theme: brand
       text: 快速开始
       link: /guide/getting-started
-    - theme: alt
+    - theme: brand
+      text: GitHub
+      link: https://github.com/luolangaga/tubatool
+    - theme: brand
       text: 下载应用
       link: /download
 ---
 
-<div class="notice-banner">
-  <i class="fa-solid fa-circle-info"></i>
-  <span>本项目为社区开发的 <strong>WinUI 3 重构版</strong>，采用全新现代界面、新增内置工具与硬件查询等功能，与原版图吧工具箱无隶属关系。</span>
+<div class="open-source-banner-top">
+  <div class="os-icon-wrap"><i class="fa-brands fa-github"></i></div>
+  <div class="os-body">
+    <strong>完全开源免费</strong>
+    <span>GPL-3.0 协议发布，代码托管于 GitHub。无广告、无付费、无数据收集。欢迎 Star、Fork 和贡献！</span>
+  </div>
+  <a class="os-btn-blue-solid" href="https://github.com/luolangaga/tubatool" target="_blank" rel="noopener">
+    <i class="fa-brands fa-github"></i> 查看源码
+  </a>
+  <a class="os-btn-blue-solid" href="/guide/contribute-tools">
+    <i class="fa-solid fa-hand-holding-heart"></i> 参与贡献
+  </a>
 </div>
 
 <div class="stat-grid">
@@ -27,6 +39,11 @@ hero:
   <div class="stat-item"><div class="stat-number">12</div><div class="stat-label">内置功能</div></div>
   <div class="stat-item"><div class="stat-number">8</div><div class="stat-label">工具分类</div></div>
   <div class="stat-item"><div class="stat-number">0</div><div class="stat-label">数据收集</div></div>
+</div>
+
+<div class="notice-banner">
+  <i class="fa-solid fa-circle-info"></i>
+  <span>本项目为社区开发的 <strong>WinUI 3 重构版</strong>，采用全新现代界面、新增内置工具与硬件查询等功能，与原版图吧工具箱无隶属关系。</span>
 </div>
 
 <div class="features-grid">
@@ -62,9 +79,9 @@ hero:
 </div>
 
 <div class="feature-card">
-  <div class="feature-icon pink"><i class="fa-solid fa-arrows-rotate"></i></div>
-  <h3>自动更新</h3>
-  <p>启动时静默检查更新，有新版本自动提醒，始终保持最新状态。无需手动下载安装新版本。</p>
+  <div class="feature-icon pink"><i class="fa-solid fa-code-branch"></i></div>
+  <h3>开源社区驱动</h3>
+  <p>代码完全开源，接受社区贡献与反馈。持续迭代更新，由硬件爱好者和开发者共同维护。</p>
 </div>
 
 </div>
@@ -73,87 +90,57 @@ hero:
 
 <ToolShowcase />
 
-<DiskScan />
-
 <CertBlock />
 
 <HardwareInfo />
 
-## 工具分类一览
-
-<div class="category-grid">
-
-<div class="category-card">
-  <div class="category-icon"><i class="fa-solid fa-calculator"></i></div>
-  <h4>处理器工具</h4><span class="badge">9 款</span>
+<div class="tech-section">
+  <div class="section-eyebrow">技术栈</div>
+  <h2>构建于现代 Windows 技术之上</h2>
+  <div class="tech-row">
+    <div class="tech-card">
+      <div class="tech-icon"><i class="fa-brands fa-microsoft"></i></div>
+      <strong>.NET 10</strong>
+      <div class="tech-sub">最新框架</div>
+    </div>
+    <div class="tech-card">
+      <div class="tech-icon"><i class="fa-brands fa-windows"></i></div>
+      <strong>WinUI 3</strong>
+      <div class="tech-sub">Windows App SDK</div>
+    </div>
+    <div class="tech-card">
+      <div class="tech-icon"><i class="fa-solid fa-chart-line"></i></div>
+      <strong>WMI</strong>
+      <div class="tech-sub">硬件信息查询</div>
+    </div>
+    <div class="tech-card">
+      <div class="tech-icon"><i class="fa-solid fa-layer-group"></i></div>
+      <strong>x86 / x64 / ARM64</strong>
+      <div class="tech-sub">多架构支持</div>
+    </div>
+  </div>
 </div>
 
-<div class="category-card">
-  <div class="category-icon"><i class="fa-solid fa-display"></i></div>
-  <h4>显卡工具</h4><span class="badge">11 款</span>
+<div class="cta-section">
+  <div class="cta-card">
+    <div class="cta-icon"><i class="fa-brands fa-github"></i></div>
+    <div class="cta-body">
+      <h3>开源需要你的力量</h3>
+      <p>无论是新增一款工具还是更新某个工具到最新版本，你的每一次 PR 都在帮助数万用户。不需要你是开发者，只要会下载文件和填写表单就能参与！</p>
+    </div>
+    <div class="cta-btns">
+      <a class="btn-blue" href="https://github.com/luolangaga/tubatool" target="_blank" rel="noopener"><i class="fa-brands fa-github"></i> 查看源码</a>
+      <a class="btn-blue" href="/guide/contribute-tools"><i class="fa-solid fa-hand-holding-heart"></i> 参与贡献</a>
+      <a class="btn-blue" href="https://github.com/luolangaga/tubatool/stargazers" target="_blank" rel="noopener"><i class="fa-solid fa-star"></i> 给个 Star</a>
+    </div>
+  </div>
 </div>
 
-<div class="category-card">
-  <div class="category-icon"><i class="fa-solid fa-hard-drive"></i></div>
-  <h4>硬盘工具</h4><span class="badge">20 款</span>
+<div class="sys-req-section">
+  <div class="section-eyebrow">系统要求</div>
+  <div class="sys-req-row">
+    <div class="sys-req-item"><i class="fa-brands fa-windows"></i> Windows 10 1809 (17763) 及以上</div>
+    <div class="sys-req-item"><i class="fa-solid fa-layer-group"></i> x86 / x64 / ARM64</div>
+    <div class="sys-req-item"><i class="fa-solid fa-box-open"></i> 无需额外运行时</div>
+  </div>
 </div>
-
-<div class="category-card">
-  <div class="category-icon"><i class="fa-solid fa-memory"></i></div>
-  <h4>内存工具</h4><span class="badge">7 款</span>
-</div>
-
-<div class="category-card">
-  <div class="category-icon"><i class="fa-solid fa-magnifying-glass-chart"></i></div>
-  <h4>综合检测</h4><span class="badge">5 款</span>
-</div>
-
-<div class="category-card">
-  <div class="category-icon"><i class="fa-solid fa-keyboard"></i></div>
-  <h4>外设工具</h4><span class="badge">7 款</span>
-</div>
-
-<div class="category-card">
-  <div class="category-icon"><i class="fa-solid fa-toolbox"></i></div>
-  <h4>其他工具</h4><span class="badge">19 款</span>
-</div>
-
-</div>
-
-## 技术栈
-
-<div class="tech-row">
-
-<div class="tech-card">
-  <div class="tech-icon"><i class="fa-brands fa-microsoft"></i></div>
-  <strong>.NET 10</strong>
-  <div class="tech-sub">最新框架</div>
-</div>
-
-<div class="tech-card">
-  <div class="tech-icon"><i class="fa-brands fa-windows"></i></div>
-  <strong>WinUI 3</strong>
-  <div class="tech-sub">Windows App SDK</div>
-</div>
-
-<div class="tech-card">
-  <div class="tech-icon"><i class="fa-solid fa-chart-line"></i></div>
-  <strong>WMI</strong>
-  <div class="tech-sub">硬件信息查询</div>
-</div>
-
-<div class="tech-card">
-  <div class="tech-icon"><i class="fa-solid fa-layer-group"></i></div>
-  <strong>x86 / x64 / ARM64</strong>
-  <div class="tech-sub">多架构支持</div>
-</div>
-
-</div>
-
-## 系统要求
-
-- Windows 10 1809 (17763) 及以上
-- 支持 x86 / x64 / ARM64 架构
-- 无需额外安装运行时，应用自带 .NET 运行时
-
-<PageAnimator />

@@ -54,6 +54,7 @@ export default defineConfig({
     ['meta', { name: 'twitter:image', content: 'https://tubawinui3.cn/logo.png' }],
     ['link', { rel: 'canonical', href: 'https://tubawinui3.cn/' }],
     ['script', { type: 'application/ld+json' }, jsonLd],
+    ['script', { async: '', src: 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3132833265160722', crossorigin: 'anonymous' }],
   ],
 
   cleanUrls: true,
@@ -98,6 +99,13 @@ export default defineConfig({
             { text: '快速开始', link: '/guide/getting-started' },
             { text: '添加内置工具', link: '/guide/add-builtin-tool' },
             { text: '添加外部工具', link: '/guide/add-external-tool' },
+          ],
+        },
+        {
+          text: '社区贡献',
+          collapsed: false,
+          items: [
+            { text: '贡献工具指南', link: '/guide/contribute-tools' },
           ],
         },
       ],

@@ -224,26 +224,37 @@ public sealed class BsodAnalysisTool : IBuiltinTool
             sb.AppendLine($"[{i + 1}] {entry.Time:yyyy-MM-dd HH:mm:ss}");
             sb.AppendLine($"    错误代码: {entry.BugCheckCode}");
             if (insight is not null)
+            {
                 sb.AppendLine($"    类型: {insight.Title} (严重度: {insight.Severity})");
+                sb.AppendLine($"    描述: {insight.Description}");
+                sb.AppendLine($"    建议措施:");
+                foreach (var line in insight.Suggestions.Split('\n'))
+                    sb.AppendLine($"      {line.Trim()}");
+            }
             if (!string.IsNullOrEmpty(entry.CausingDriver))
                 sb.AppendLine($"    驱动: {entry.CausingDriver}");
+            if (!string.IsNullOrEmpty(entry.CausingAddress))
+                sb.AppendLine($"    地址: {entry.CausingAddress}");
             if (!string.IsNullOrEmpty(entry.BugCheckParameter))
                 sb.AppendLine($"    参数: {entry.BugCheckParameter}");
             if (!string.IsNullOrEmpty(entry.Message))
-                sb.AppendLine($"    信息: {entry.Message.ReplaceLineEndings(" ")}");
+                sb.AppendLine($"    事件信息: {entry.Message.ReplaceLineEndings(" ")}");
+            sb.AppendLine($"    事件ID: {entry.EventId}");
             sb.AppendLine();
         }
 
         var insights = BsodAnalysisService.GetInsightsForEntries(_entries);
         if (insights.Count > 0)
         {
-            sb.AppendLine("=== 诊断分析 ===");
+            sb.AppendLine("=== 诊断汇总 ===");
             foreach (var insight in insights)
             {
-                sb.AppendLine($"[{insight.BugCheckCode}] {insight.Title} (严重度: {insight.Severity})");
+                var count = _entries.Count(e => e.BugCheckCode.Equals(insight.BugCheckCode, StringComparison.OrdinalIgnoreCase));
+                sb.AppendLine($"[{insight.BugCheckCode}] {insight.Title} (严重度: {insight.Severity}, 出现 {count} 次)");
                 sb.AppendLine($"  描述: {insight.Description}");
                 sb.AppendLine($"  建议措施:");
-                sb.AppendLine($"  {insight.Suggestions.ReplaceLineEndings("\n  ")}");
+                foreach (var line in insight.Suggestions.Split('\n'))
+                    sb.AppendLine($"    {line.Trim()}");
                 sb.AppendLine();
             }
         }

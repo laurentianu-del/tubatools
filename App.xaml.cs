@@ -2,7 +2,6 @@
 using System.Security.Principal;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
 using TubaWinUi3.Pages;
 using TubaWinUi3.Services;
 
@@ -222,24 +221,8 @@ public partial class App : Application
     {
         _window?.DispatcherQueue.TryEnqueue(() =>
         {
-            if (_window?.Content is not FrameworkElement root) return;
-            var frame = FindFrame(root);
-            if (frame is not null)
-            {
-                frame.Navigate(typeof(ErrorPage));
-            }
+            var errorWindow = new Pages.ErrorWindow();
+            errorWindow.Activate();
         });
-    }
-
-    private static Frame? FindFrame(DependencyObject root)
-    {
-        if (root is Frame f) return f;
-        var count = VisualTreeHelper.GetChildrenCount(root);
-        for (int i = 0; i < count; i++)
-        {
-            var child = VisualTreeHelper.GetChild(root, i);
-            if (FindFrame(child) is Frame found) return found;
-        }
-        return null;
     }
 }
