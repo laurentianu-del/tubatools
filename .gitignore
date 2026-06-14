@@ -74,3 +74,5 @@ StoreOutputNoTools/
 # VitePress docs (built output)
 docs/
 src/docs/
+node_modules/
+optimizerDuck-temp/
