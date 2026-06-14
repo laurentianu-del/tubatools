@@ -34,7 +34,6 @@ namespace TubaWinUi3.Compatible.Models
         public string Version { get; set; }
         public string DatabaseSource { get; set; }
         public string DownloadUrl { get; set; }
-        public string RemoteUrl { get; set; }
         public string DownloadFilter { get; set; }
         public string WingetId { get; set; }
         public IReadOnlyList<string> Tags { get; set; } = new List<string>();
@@ -51,12 +50,7 @@ namespace TubaWinUi3.Compatible.Models
 
         public bool NeedsDownload
         {
-            get { return !string.IsNullOrWhiteSpace(DownloadUrl) || !string.IsNullOrWhiteSpace(WingetId) || !string.IsNullOrWhiteSpace(RemoteUrl); }
-        }
-
-        public bool NeedsRemoteDownload
-        {
-            get { return !string.IsNullOrWhiteSpace(RemoteUrl) && !System.IO.File.Exists(EffectivePath); }
+            get { return !string.IsNullOrWhiteSpace(DownloadUrl) || !string.IsNullOrWhiteSpace(WingetId); }
         }
 
         public bool NeedsWingetInstall { get { return !string.IsNullOrWhiteSpace(WingetId); } }
@@ -95,7 +89,6 @@ namespace TubaWinUi3.Compatible.Models
             get
             {
                 if (!string.IsNullOrWhiteSpace(DownloadUrl)) return "下载";
-                if (!string.IsNullOrWhiteSpace(RemoteUrl) && !System.IO.File.Exists(EffectivePath)) return "下载";
                 return "打开";
             }
         }

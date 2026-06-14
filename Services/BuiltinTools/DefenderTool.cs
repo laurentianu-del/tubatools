@@ -13,7 +13,8 @@ public sealed class DefenderTool : IBuiltinTool
     public string Category => "安全工具";
     public BuiltinToolKind Kind => BuiltinToolKind.InstantAction;
 
-    private const string DownloadUrl = "https://hub.tubawinui3.cn/luolangaga/tubatool/raw/master/remotedefender/dControl.exe";
+    private const string GitCodeRawBase = "https://raw.gitcode.com/gcw_uDDNaqJw/tubatool/raw/master";
+    private const string GitHubRawBase = "https://raw.githubusercontent.com/luolangaga/tubatool/master";
     private const string ToolFileName = "dControl.exe";
 
     public async Task ExecuteAsync(BuiltinToolContext context)
@@ -62,20 +63,38 @@ public sealed class DefenderTool : IBuiltinTool
         var destDir = GetToolDirectory();
         Directory.CreateDirectory(destDir);
 
-        var downloadDialog = new ToolDownloadDialog(
-            "dControl",
-            "Windows Defender 控制工具",
-            DownloadUrl,
-            null,
-            destDir);
-
-        downloadDialog.XamlRoot = context.XamlRoot;
-
-        await downloadDialog.ShowAsync();
-
-        if (downloadDialog.DownloadSucceeded && downloadDialog.DownloadedFilePath is not null)
+        var downloadUrls = new[]
         {
-            var exePath = downloadDialog.DownloadedFilePath;
+            $"{GitCodeRawBase}/remotedefender/dControl.exe",
+            $"{GitHubRawBase}/remotedefender/dControl.exe"
+        };
+
+        string? downloadedPath = null;
+        foreach (var url in downloadUrls)
+        {
+            try
+            {
+                var dialog = new ToolDownloadDialog(
+                    "dControl",
+                    "Windows Defender 控制工具",
+                    url,
+                    null,
+                    destDir);
+
+                dialog.XamlRoot = context.XamlRoot;
+                await dialog.ShowAsync();
+
+                if (dialog.DownloadSucceeded && dialog.DownloadedFilePath is not null)
+                {
+                    downloadedPath = dialog.DownloadedFilePath;
+                    break;
+                }
+            }
+            catch { continue; }
+        }
+        if (downloadedPath is not null)
+        {
+            var exePath = downloadedPath;
             if (!exePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
             {
                 var files = Directory.GetFiles(destDir, "*.exe", SearchOption.TopDirectoryOnly);

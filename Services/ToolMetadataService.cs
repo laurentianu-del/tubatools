@@ -12,7 +12,6 @@ public sealed record ToolMetadata(
     string? DownloadUrl,
     string? DownloadFilter,
     string? WingetId,
-    string? RemoteUrl,
     string? LaunchTarget,
     IReadOnlyList<string>? Tags);
 
@@ -67,7 +66,7 @@ public static class ToolMetadataService
 
         return metadata.Any(item =>
             !string.IsNullOrWhiteSpace(item.Match) &&
-            (!string.IsNullOrWhiteSpace(item.DownloadUrl) || !string.IsNullOrWhiteSpace(item.WingetId) || !string.IsNullOrWhiteSpace(item.RemoteUrl)) &&
+            (!string.IsNullOrWhiteSpace(item.DownloadUrl) || !string.IsNullOrWhiteSpace(item.WingetId)) &&
             dirName.Contains(item.Match, StringComparison.CurrentCultureIgnoreCase));
     }
 
@@ -96,7 +95,6 @@ public static class ToolMetadataService
             jsonMetadata?.DownloadUrl,
             jsonMetadata?.DownloadFilter,
             jsonMetadata?.WingetId,
-            jsonMetadata?.RemoteUrl,
             jsonMetadata?.LaunchTarget,
             jsonMetadata?.Tags);
     }
@@ -270,8 +268,6 @@ public static class ToolMetadataService
         public string? DownloadFilter { get; set; }
 
         public string? WingetId { get; set; }
-
-        public string? RemoteUrl { get; set; }
 
         public string? LaunchTarget { get; set; }
 

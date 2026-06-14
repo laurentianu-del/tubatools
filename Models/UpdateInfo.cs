@@ -20,16 +20,6 @@ public sealed class UpdateAsset
     public string? GitCodeDownloadUrl { get; set; }
 }
 
-public sealed class ProxySpeedResult
-{
-    public required string Name { get; init; }
-    public required string BaseUrl { get; init; }
-    public required double LatencyMs { get; init; }
-    public required double SpeedMbps { get; init; }
-    public bool IsAvailable { get; init; }
-    public string? Error { get; init; }
-}
-
 public sealed class DownloadProgress
 {
     public required long BytesReceived { get; init; }
@@ -45,7 +35,6 @@ public enum UpdateState
     Checking,
     UpdateAvailable,
     NoUpdate,
-    TestingProxies,
     Downloading,
     ReadyToInstall,
     Error

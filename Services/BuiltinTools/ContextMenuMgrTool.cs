@@ -19,9 +19,7 @@ public sealed class ContextMenuMgrTool : IBuiltinTool
     public BuiltinToolKind Kind => BuiltinToolKind.InstantAction;
 
     private const string Repo = "PLFJY/ContextMenuMgr";
-    private const string HubBase = "https://hub.tubawinui3.cn";
     private const string GitHubReleaseApi = $"https://api.github.com/repos/{Repo}/releases/latest";
-    private const string HubReleaseApi = $"{HubBase}/api/repos/{Repo}/releases/latest";
     private const string ProjectUrl = $"https://github.com/{Repo}";
 
     private static readonly HttpClient _httpClient = new()
@@ -303,13 +301,6 @@ public sealed class ContextMenuMgrTool : IBuiltinTool
 
             tasks.Add(TestSpeedAsync("GitHub 直连", assetInfo.OriginalUrl));
 
-            foreach (var proxy in UpdateService.ProxyList)
-            {
-                var proxyUrl = UpdateService.BuildProxyUrl(proxy, assetInfo.OriginalUrl);
-                var host = new Uri(proxy).Host;
-                tasks.Add(TestSpeedAsync(host, proxyUrl));
-            }
-
             var remaining = tasks.ToList();
             while (remaining.Count > 0)
             {
@@ -441,44 +432,11 @@ public sealed class ContextMenuMgrTool : IBuiltinTool
 
         try
         {
-            using var hubClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            hubClient.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ContextMenuMgr");
-            var hubResponse = await hubClient.GetAsync(HubReleaseApi);
-            if (hubResponse.IsSuccessStatusCode)
-                json = await hubResponse.Content.ReadAsStringAsync();
+            var response = await _httpClient.GetAsync(GitHubReleaseApi);
+            if (response.IsSuccessStatusCode)
+                json = await response.Content.ReadAsStringAsync();
         }
         catch { }
-
-        if (json is null)
-        {
-            try
-            {
-                var response = await _httpClient.GetAsync(GitHubReleaseApi);
-                if (response.IsSuccessStatusCode)
-                    json = await response.Content.ReadAsStringAsync();
-            }
-            catch { }
-        }
-
-        if (json is null)
-        {
-            foreach (var proxy in UpdateService.ProxyList)
-            {
-                try
-                {
-                    using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-                    client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ContextMenuMgr");
-                    var proxyUrl = UpdateService.BuildProxyUrl(proxy, GitHubReleaseApi);
-                    var response = await client.GetAsync(proxyUrl);
-                    if (response.IsSuccessStatusCode)
-                    {
-                        json = await response.Content.ReadAsStringAsync();
-                        break;
-                    }
-                }
-                catch { }
-            }
-        }
 
         if (json is null) return null;
 

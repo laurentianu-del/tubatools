@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Net.Http;
-using System.Net.Http.Json;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -12,10 +11,7 @@ public static class UpdateService
 {
     private const string Owner = "luolangaga";
     private const string Repo = "tubatool";
-    private const string HubBase = "https://hub.tubawinui3.cn";
-    private const string HubReleaseApi = $"{HubBase}/api/repos/{Owner}/{Repo}/releases/latest";
-    private const string ReleaseApi = $"https://api.github.com/repos/{Owner}/{Repo}/releases/latest";
-    private const string ReleasePage = $"https://github.com/{Owner}/{Repo}/releases/latest";
+    private const string GitHubReleaseApi = $"https://api.github.com/repos/{Owner}/{Repo}/releases/latest";
     private const string GitCodeOwner = "gcw_uDDNaqJw";
     private const string GitCodeRepo = "tubatool";
     private const string GitCodeReleaseApiBase = $"https://api.gitcode.com/api/v5/repos/{GitCodeOwner}/{GitCodeRepo}/releases";
@@ -28,18 +24,6 @@ public static class UpdateService
     private static string? _cachedEtag;
     private static string? _cachedJson;
     private static DateTime _lastCheckTime = DateTime.MinValue;
-
-    internal static readonly string[] ProxyList =
-    [
-        "https://ghfast.top",
-        "https://gh-proxy.com",
-        "https://ghproxy.net",
-        "https://ghps.cc",
-        "https://gh.idayer.com",
-        "https://ghproxy.click",
-        "https://mirror.ghproxy.com",
-        "https://gh-proxy.com"
-    ];
 
     public static string CurrentArchitecture { get; } = RuntimeInformation.OSArchitecture switch
     {
@@ -101,17 +85,18 @@ public static class UpdateService
     {
         try
         {
-            using var hubClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            hubClient.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-UpdateChecker");
-            var hubResponse = await hubClient.GetAsync(HubReleaseApi, ct);
-            if (hubResponse.IsSuccessStatusCode)
-                return await hubResponse.Content.ReadAsStringAsync(ct);
+            using var gitCodeClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+            gitCodeClient.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-UpdateChecker");
+            var gitCodeUrl = $"{GitCodeReleaseApiBase}/latest";
+            var gitCodeResponse = await gitCodeClient.GetAsync(gitCodeUrl, ct);
+            if (gitCodeResponse.IsSuccessStatusCode)
+                return await gitCodeResponse.Content.ReadAsStringAsync(ct);
         }
         catch { }
 
         try
         {
-            var request = new HttpRequestMessage(HttpMethod.Get, ReleaseApi);
+            var request = new HttpRequestMessage(HttpMethod.Get, GitHubReleaseApi);
             if (_cachedEtag is not null)
                 request.Headers.Add("If-None-Match", _cachedEtag);
 
@@ -127,22 +112,6 @@ public static class UpdateService
             }
         }
         catch { }
-
-        foreach (var proxy in ProxyList)
-        {
-            try
-            {
-                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-                client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-UpdateChecker");
-
-                var proxyUrl = BuildProxyUrl(proxy, ReleaseApi);
-                var response = await client.GetAsync(proxyUrl, ct);
-
-                if (response.IsSuccessStatusCode)
-                    return await response.Content.ReadAsStringAsync(ct);
-            }
-            catch { }
-        }
 
         return null;
     }
@@ -204,7 +173,6 @@ public static class UpdateService
                 {
                     var name = asset.GetProperty("name").GetString() ?? "";
                     var originalUrl = asset.GetProperty("browser_download_url").GetString() ?? "";
-                    var url = originalUrl.Replace("https://github.com", HubBase, StringComparison.OrdinalIgnoreCase);
                     var size = asset.TryGetProperty("size", out var sizeEl) ? sizeEl.GetInt64() : 0;
                     var contentType = asset.TryGetProperty("content_type", out var ctEl) ? ctEl.GetString() : null;
 
@@ -216,7 +184,7 @@ public static class UpdateService
                         assets.Add(new UpdateAsset
                         {
                             Name = name,
-                            BrowserDownloadUrl = url,
+                            BrowserDownloadUrl = originalUrl,
                             OriginalDownloadUrl = originalUrl,
                             Size = size,
                             ContentType = contentType
@@ -281,105 +249,6 @@ public static class UpdateService
         catch { }
     }
 
-    public static async Task<List<ProxySpeedResult>> TestProxySpeedsAsync(
-        string originalUrl, IProgress<ProxySpeedResult>? progress = null, CancellationToken ct = default)
-    {
-        var results = new List<ProxySpeedResult>();
-
-        try
-        {
-            using var hubClient = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
-            var sw = Stopwatch.StartNew();
-            using var hubResponse = await hubClient.GetAsync($"{HubBase}/favicon.ico", ct);
-            sw.Stop();
-
-            results.Add(new ProxySpeedResult
-            {
-                Name = "Hub 镜像",
-                BaseUrl = HubBase,
-                LatencyMs = sw.Elapsed.TotalMilliseconds,
-                SpeedMbps = 0,
-                IsAvailable = hubResponse.IsSuccessStatusCode,
-                Error = hubResponse.IsSuccessStatusCode ? null : $"HTTP {(int)hubResponse.StatusCode}"
-            });
-            progress?.Report(results[^1]);
-        }
-        catch (Exception ex)
-        {
-            results.Add(new ProxySpeedResult
-            {
-                Name = "Hub 镜像",
-                BaseUrl = HubBase,
-                LatencyMs = double.MaxValue,
-                SpeedMbps = 0,
-                IsAvailable = false,
-                Error = ex.Message
-            });
-            progress?.Report(results[^1]);
-        }
-
-        var probeUrl = "https://github.com/favicon.ico";
-        var tasks = ProxyList.Select(proxy => TestSingleProxy(proxy, probeUrl, ct)).ToList();
-
-        while (tasks.Count > 0)
-        {
-            var finished = await Task.WhenAny(tasks);
-            tasks.Remove(finished);
-
-            try
-            {
-                var result = await finished;
-                results.Add(result);
-                progress?.Report(result);
-            }
-            catch { }
-        }
-
-        return results
-            .Where(r => r.IsAvailable)
-            .OrderBy(r => r.LatencyMs)
-            .ToList();
-    }
-
-    private static async Task<ProxySpeedResult> TestSingleProxy(
-        string proxyBase, string probeUrl, CancellationToken ct)
-    {
-        var proxyUrl = BuildProxyUrl(proxyBase, probeUrl);
-        var name = new Uri(proxyBase).Host;
-
-        try
-        {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
-
-            var sw = Stopwatch.StartNew();
-            using var response = await client.GetAsync(proxyUrl, ct);
-            sw.Stop();
-
-            if (!response.IsSuccessStatusCode)
-            {
-                return new ProxySpeedResult
-                {
-                    Name = name, BaseUrl = proxyBase, LatencyMs = sw.Elapsed.TotalMilliseconds,
-                    SpeedMbps = 0, IsAvailable = false, Error = $"HTTP {(int)response.StatusCode}"
-                };
-            }
-
-            return new ProxySpeedResult
-            {
-                Name = name, BaseUrl = proxyBase, LatencyMs = sw.Elapsed.TotalMilliseconds,
-                SpeedMbps = 0, IsAvailable = true
-            };
-        }
-        catch (Exception ex)
-        {
-            return new ProxySpeedResult
-            {
-                Name = name, BaseUrl = proxyBase, LatencyMs = double.MaxValue,
-                SpeedMbps = 0, IsAvailable = false, Error = ex.Message
-            };
-        }
-    }
-
     public static async Task<string> DownloadFromGitCodeAsync(
         UpdateAsset asset, IProgress<DownloadProgress>? progress, CancellationToken ct = default)
     {
@@ -390,36 +259,16 @@ public static class UpdateService
     }
 
     public static async Task<string> DownloadUpdateAsync(
-        UpdateAsset asset, string? proxyBaseUrl, IProgress<DownloadProgress>? progress,
+        UpdateAsset asset, IProgress<DownloadProgress>? progress,
         CancellationToken ct = default)
     {
         var urls = new List<string>();
 
-        urls.Add(asset.BrowserDownloadUrl);
+        if (!string.IsNullOrEmpty(asset.GitCodeDownloadUrl))
+            urls.Add(asset.GitCodeDownloadUrl);
 
-        var originalUrl = asset.OriginalDownloadUrl ?? asset.BrowserDownloadUrl;
-        var isHubSelected = proxyBaseUrl is not null &&
-                           proxyBaseUrl.Equals(HubBase, StringComparison.OrdinalIgnoreCase);
-
-        if (isHubSelected)
-        {
-            if (originalUrl != asset.BrowserDownloadUrl)
-                urls.Add(originalUrl);
-        }
-        else
-        {
-            if (originalUrl != asset.BrowserDownloadUrl)
-            {
-                if (proxyBaseUrl is not null)
-                    urls.Add(BuildProxyUrl(proxyBaseUrl, originalUrl));
-                urls.Add(originalUrl);
-            }
-            else
-            {
-                if (proxyBaseUrl is not null)
-                    urls.Add(BuildProxyUrl(proxyBaseUrl, asset.BrowserDownloadUrl));
-            }
-        }
+        if (!string.IsNullOrEmpty(asset.OriginalDownloadUrl))
+            urls.Add(asset.OriginalDownloadUrl);
 
         Exception? lastError = null;
 
@@ -511,12 +360,6 @@ public static class UpdateService
         });
 
         return filePath;
-    }
-
-    public static string BuildProxyUrl(string proxyBase, string originalUrl)
-    {
-        proxyBase = proxyBase.TrimEnd('/');
-        return $"{proxyBase}/{originalUrl}";
     }
 
     public static string FormatSize(long bytes)

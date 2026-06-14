@@ -35,6 +35,7 @@ public static class BuiltinToolRegistry
         Register(new GpuRankingTool());
         Register(new ContextMenuMgrTool());
         Register(new HardwareSpooferTool());
+        Register(new PcSetupTool());
 
 
     }

@@ -627,7 +627,7 @@ public sealed partial class SettingsPage : Page
         }
     }
 
-    private void InitDefaultPageComboBox()
+private void InitDefaultPageComboBox()
     {
         _defaultPageInitializing = true;
         DefaultPageComboBox.Items.Clear();

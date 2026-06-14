@@ -16,7 +16,7 @@
     { "id": "qBittorrent.qBittorrent", "name": "qBittorrent", "category": "下载工具", "glyph": "\uE896", "description": "开源BitTorrent客户端" },
     { "id": "agalwood.Motrix", "name": "Motrix", "category": "下载工具", "glyph": "\uE896", "description": "多线程下载管理器" },
     { "id": "IDRIX.VeraCrypt", "name": "VeraCrypt", "category": "安全工具", "glyph": "\uE72E", "description": "开源磁盘加密工具" },
-    { "id": "GeekUninstaller.GeekUninstaller", "name": "Geek Uninstaller", "category": "安全工具", "glyph": "\uE74D", "description": "轻量级卸载工具" },
+    { "id": "HiBitSoft.StartMenu", "name": "HiBit Uninstaller", "category": "安全工具", "glyph": "\uE74D", "description": "强大的卸载工具" },
     { "id": "GIMP.GIMP", "name": "GIMP", "category": "图像编辑", "glyph": "\uEB9F", "description": "开源图像编辑器" },
     { "id": "dotPDN.PaintDotNet", "name": "Paint.NET", "category": "图像编辑", "glyph": "\uEB9F", "description": "免费图像编辑器" },
     { "id": "DuongDieuPhap.ImageGlass", "name": "ImageGlass", "category": "图像编辑", "glyph": "\uEB9F", "description": "轻量级图片查看器" },

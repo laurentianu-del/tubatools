@@ -203,7 +203,7 @@
                     </Grid>
                 </Border>
 
-                <Border x:Name="SettingsThemeCard" Style="{StaticResource SettingsCardStyle}">
+<Border x:Name="SettingsThemeCard" Style="{StaticResource SettingsCardStyle}">
                     <Grid ColumnSpacing="16">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />

@@ -10,7 +10,6 @@ public sealed record ToolsBundleUpdateInfo(
     bool HasUpdate,
     string Version,
     string? GitCodeUrl = null,
-    string? HubUrl = null,
     string? GitHubUrl = null,
     long Size = 0);
 
@@ -25,8 +24,6 @@ public static class ToolsBundleService
 {
     private const string Owner = "luolangaga";
     private const string Repo = "tubatool";
-    private const string HubBase = "https://hub.tubawinui3.cn";
-    private const string HubReleaseApi = $"{HubBase}/api/repos/{Owner}/{Repo}/releases/latest";
     private const string GitHubReleaseApi = $"https://api.github.com/repos/{Owner}/{Repo}/releases/latest";
     private const string GitCodeOwner = "gcw_uDDNaqJw";
     private const string GitCodeRepo = "tubatool";
@@ -76,13 +73,11 @@ public static class ToolsBundleService
         var currentVersion = GetCurrentVersion();
 
         string? gitCodeUrl = null;
-        string? hubUrl = null;
         string? githubUrl = null;
         long size = 0;
         string? versionStr = null;
 
         var gitCodeTask = FetchGitCodeLatestAsync(ct);
-        var hubTask = FetchHubLatestAsync(ct);
         var githubTask = FetchGitHubLatestAsync(ct);
 
         try
@@ -93,18 +88,6 @@ public static class ToolsBundleService
                 gitCodeUrl = gc.Value.Url;
                 size = gc.Value.Size;
                 versionStr ??= gc.Value.Version;
-            }
-        }
-        catch { }
-
-        try
-        {
-            var hub = await hubTask;
-            if (hub is not null)
-            {
-                hubUrl = hub.Value.Url;
-                size = size > 0 ? size : hub.Value.Size;
-                versionStr ??= hub.Value.Version;
             }
         }
         catch { }
@@ -124,9 +107,9 @@ public static class ToolsBundleService
         if (versionStr is null) return null;
 
         if (currentVersion is not null && versionStr == currentVersion)
-            return new ToolsBundleUpdateInfo(false, versionStr, gitCodeUrl, hubUrl, githubUrl, size);
+            return new ToolsBundleUpdateInfo(false, versionStr, gitCodeUrl, githubUrl, size);
 
-        return new ToolsBundleUpdateInfo(true, versionStr, gitCodeUrl, hubUrl, githubUrl, size);
+        return new ToolsBundleUpdateInfo(true, versionStr, gitCodeUrl, githubUrl, size);
     }
 
     public static async Task<bool> DownloadAndExtractAsync(
@@ -177,7 +160,6 @@ public static class ToolsBundleService
     private static string? PickBestUrl(ToolsBundleUpdateInfo info)
     {
         if (!string.IsNullOrEmpty(info.GitCodeUrl)) return info.GitCodeUrl;
-        if (!string.IsNullOrEmpty(info.HubUrl)) return info.HubUrl;
         if (!string.IsNullOrEmpty(info.GitHubUrl)) return info.GitHubUrl;
         return null;
     }
@@ -323,22 +305,6 @@ public static class ToolsBundleService
         catch { return null; }
     }
 
-    private static async Task<(string Url, long Size, string Version)?> FetchHubLatestAsync(CancellationToken ct)
-    {
-        try
-        {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ToolsBundle");
-
-            var response = await client.GetAsync(HubReleaseApi, ct);
-            if (!response.IsSuccessStatusCode) return null;
-
-            var json = await response.Content.ReadAsStringAsync(ct);
-            return ParseGitHubJson(json, true);
-        }
-        catch { return null; }
-    }
-
     private static async Task<(string Url, long Size, string Version)?> FetchGitHubLatestAsync(CancellationToken ct)
     {
         try
@@ -350,12 +316,12 @@ public static class ToolsBundleService
             if (!response.IsSuccessStatusCode) return null;
 
             var json = await response.Content.ReadAsStringAsync(ct);
-            return ParseGitHubJson(json, false);
+            return ParseReleaseJson(json);
         }
         catch { return null; }
     }
 
-    private static (string Url, long Size, string Version)? ParseGitHubJson(string json, bool isHub)
+    private static (string Url, long Size, string Version)? ParseReleaseJson(string json)
     {
         try
         {
@@ -372,14 +338,11 @@ public static class ToolsBundleService
                 var name = asset.GetProperty("name").GetString() ?? "";
                 if (!name.Equals(ToolsAssetName, StringComparison.OrdinalIgnoreCase)) continue;
 
-                var originalUrl = asset.GetProperty("browser_download_url").GetString() ?? "";
-                var url = isHub
-                    ? originalUrl.Replace("https://github.com", HubBase, StringComparison.OrdinalIgnoreCase)
-                    : originalUrl;
+                var downloadUrl = asset.GetProperty("browser_download_url").GetString() ?? "";
                 var assetSize = asset.TryGetProperty("size", out var sizeEl) ? sizeEl.GetInt64() : 0;
 
-                if (string.IsNullOrEmpty(url)) continue;
-                return (url, assetSize, versionStr);
+                if (string.IsNullOrEmpty(downloadUrl)) continue;
+                return (downloadUrl, assetSize, versionStr);
             }
 
             return null;

@@ -260,7 +260,7 @@ namespace TubaWinUi3.Compatible.Services
             var name = GetDisplayName(path);
             var relativePath = PathHelper.GetRelativePath(categoryRoot, path);
             var metadata = ToolMetadataService.GetMetadata(category, path);
-            var isPlaceholder = !File.Exists(path) && (!string.IsNullOrWhiteSpace(metadata.DownloadUrl) || !string.IsNullOrWhiteSpace(metadata.WingetId) || !string.IsNullOrWhiteSpace(metadata.RemoteUrl));
+            var isPlaceholder = !File.Exists(path) && (!string.IsNullOrWhiteSpace(metadata.DownloadUrl) || !string.IsNullOrWhiteSpace(metadata.WingetId));
 
             var primaryArch = DetectArch(Path.GetFileNameWithoutExtension(path));
             var archDisplay = FormatArchDisplay(primaryArch);
@@ -349,7 +349,6 @@ namespace TubaWinUi3.Compatible.Services
                 Version = metadata.Version,
                 DatabaseSource = metadata.DatabaseSource,
                 DownloadUrl = metadata.DownloadUrl,
-                RemoteUrl = metadata.RemoteUrl,
                 DownloadFilter = metadata.DownloadFilter,
                 WingetId = metadata.WingetId,
                 Tags = metadata.Tags ?? new List<string>(),

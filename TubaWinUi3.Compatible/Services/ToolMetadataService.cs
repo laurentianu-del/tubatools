@@ -18,7 +18,6 @@ namespace TubaWinUi3.Compatible.Services
         public string DownloadUrl { get; set; }
         public string DownloadFilter { get; set; }
         public string WingetId { get; set; }
-        public string RemoteUrl { get; set; }
         public string LaunchTarget { get; set; }
         public IReadOnlyList<string> Tags { get; set; }
     }
@@ -47,7 +46,7 @@ namespace TubaWinUi3.Compatible.Services
             foreach (var item in metadata)
             {
                 if (!string.IsNullOrWhiteSpace(item.Match) &&
-                    (!string.IsNullOrWhiteSpace(item.DownloadUrl) || !string.IsNullOrWhiteSpace(item.WingetId) || !string.IsNullOrWhiteSpace(item.RemoteUrl)) &&
+                    (!string.IsNullOrWhiteSpace(item.DownloadUrl) || !string.IsNullOrWhiteSpace(item.WingetId)) &&
                     dirName.IndexOf(item.Match, StringComparison.CurrentCultureIgnoreCase) >= 0)
                 {
                     return true;
@@ -87,7 +86,6 @@ namespace TubaWinUi3.Compatible.Services
                 DownloadUrl = jsonMetadata != null ? jsonMetadata.DownloadUrl : null,
                 DownloadFilter = jsonMetadata != null ? jsonMetadata.DownloadFilter : null,
                 WingetId = jsonMetadata != null ? jsonMetadata.WingetId : null,
-                RemoteUrl = jsonMetadata != null ? jsonMetadata.RemoteUrl : null,
                 LaunchTarget = jsonMetadata != null ? jsonMetadata.LaunchTarget : null,
                 Tags = jsonMetadata != null ? jsonMetadata.Tags : null
             };
@@ -217,7 +215,6 @@ namespace TubaWinUi3.Compatible.Services
                         DownloadUrl = item.Value<string>("downloadUrl"),
                         DownloadFilter = item.Value<string>("downloadFilter"),
                         WingetId = item.Value<string>("wingetId"),
-                        RemoteUrl = item.Value<string>("remoteUrl"),
                         LaunchTarget = item.Value<string>("launchTarget")
                     };
 
@@ -330,7 +327,6 @@ namespace TubaWinUi3.Compatible.Services
             public string DownloadUrl { get; set; }
             public string DownloadFilter { get; set; }
             public string WingetId { get; set; }
-            public string RemoteUrl { get; set; }
             public string LaunchTarget { get; set; }
             public IReadOnlyList<string> Tags { get; set; }
             public List<JsonArchVariant> ArchVariants { get; set; }

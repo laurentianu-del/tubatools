@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Net.Http;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 
 namespace TubaWinUi3.Services;
@@ -27,24 +29,275 @@ public sealed record ToolUpdateInfo(
     bool IsArchive,
     bool IsInstaller);
 
+public sealed record GitCodeDirProgress(
+    int CurrentFile,
+    int TotalFiles,
+    string CurrentFileName,
+    double Percentage);
+
+public sealed record GitCodeDirResult(
+    bool Success,
+    int FilesDownloaded,
+    int FilesSkipped,
+    string? ErrorMessage);
+
 public static class ToolDownloaderService
 {
-    private const string HubBase = "https://hub.tubawinui3.cn";
+    private const string GitCodeOwner = "gcw_uDDNaqJw";
+    private const string GitCodeRepo = "tubatool";
+    private const string GitHubOwner = "luolangaga";
+    private const string GitHubRepo = "tubatool";
     private const string BlenderListingUrl = "https://download.blender.org/release/BlenderBenchmark2.0/launcher/";
 
-    private static readonly HttpClient _httpClient = new()
-    {
-        Timeout = TimeSpan.FromSeconds(30)
-    };
+    private static readonly Encoding Gb2312;
 
     static ToolDownloaderService()
     {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        Gb2312 = Encoding.GetEncoding("GB2312");
+        _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        _downloadClient = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
         _httpClient.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ToolDownloader");
+        _downloadClient.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ToolDownloader");
+    }
+
+    private static readonly HttpClient _httpClient;
+    private static readonly HttpClient _downloadClient;
+
+    public static bool IsGitCodeDir(string? downloadUrl)
+        => downloadUrl?.StartsWith("gc:", StringComparison.OrdinalIgnoreCase) == true;
+
+    public static async Task<GitCodeDirResult> SyncToolFromGitCodeDirAsync(
+        string repoPath, string localDir, DateTime? localLastModified,
+        IProgress<GitCodeDirProgress>? progress, CancellationToken ct = default)
+    {
+        try
+        {
+            var commitDate = await GetPathLastCommitDateAsync(repoPath, ct);
+            if (commitDate.HasValue && localLastModified.HasValue
+                && localLastModified.Value >= commitDate.Value.UtcDateTime)
+            {
+                progress?.Report(new GitCodeDirProgress(0, 0, "已是最新", 100));
+                return new GitCodeDirResult(true, 0, 0, null);
+            }
+
+            var commitSha = await GetLatestCommitShaAsync(ct);
+            if (commitSha is null)
+                return new GitCodeDirResult(false, 0, 0, "无法获取仓库最新提交");
+
+            var toolTreeSha = await GetTreeShaForPathAsync(commitSha, repoPath, ct);
+            if (toolTreeSha is null)
+                return new GitCodeDirResult(false, 0, 0, $"仓库中未找到路径: {repoPath}");
+
+            var blobs = new List<(string RelativePath, string BlobSha, long Size)>();
+            await EnumerateTreeBlobsAsync(toolTreeSha, "", blobs, ct);
+
+            if (blobs.Count == 0)
+                return new GitCodeDirResult(false, 0, 0, "目录为空");
+
+            var downloaded = 0;
+            var skipped = 0;
+
+            for (var i = 0; i < blobs.Count; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                var (relPath, blobSha, size) = blobs[i];
+                var localPath = Path.Combine(localDir, relPath);
+
+                progress?.Report(new GitCodeDirProgress(i + 1, blobs.Count, relPath,
+                    (double)(i + 1) / blobs.Count * 100));
+
+                if (File.Exists(localPath))
+                {
+                    try
+                    {
+                        var fi = new FileInfo(localPath);
+                        if (fi.Length == size)
+                        {
+                            var localContent = await File.ReadAllBytesAsync(localPath, ct);
+                            if (ComputeBlobSha(localContent) == blobSha)
+                            {
+                                skipped++;
+                                continue;
+                            }
+                        }
+                    }
+                    catch { }
+                }
+
+                var dir = Path.GetDirectoryName(localPath)!;
+                Directory.CreateDirectory(dir);
+
+                var success = false;
+                for (var attempt = 0; attempt < 3 && !success; attempt++)
+                {
+                    try
+                    {
+                        var content = await DownloadBlobAsync(blobSha, ct);
+                        if (content is null) continue;
+
+                        var tmpPath = localPath + ".tmp";
+                        await File.WriteAllBytesAsync(tmpPath, content, ct);
+                        try { if (File.Exists(localPath)) File.Delete(localPath); } catch { }
+                        File.Move(tmpPath, localPath);
+                        success = true;
+                        downloaded++;
+                    }
+                    catch when (attempt < 2)
+                    {
+                        await Task.Delay(1000 * (attempt + 1), ct);
+                    }
+                }
+            }
+
+            return new GitCodeDirResult(true, downloaded, skipped, null);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            return new GitCodeDirResult(false, 0, 0, ex.Message);
+        }
+    }
+
+    public static async Task<DateTimeOffset?> CheckGitCodeDirUpdateAsync(
+        string repoPath, DateTime? localLastModified, CancellationToken ct = default)
+    {
+        try
+        {
+            var commitDate = await GetPathLastCommitDateAsync(repoPath, ct);
+            if (commitDate is null) return null;
+
+            if (localLastModified.HasValue && localLastModified.Value >= commitDate.Value.UtcDateTime)
+                return null;
+
+            return commitDate;
+        }
+        catch { return null; }
+    }
+
+    private static async Task<string> GitCodeGetStringAsync(string url, CancellationToken ct)
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(15));
+        var bytes = await _httpClient.GetByteArrayAsync(url, cts.Token);
+        return Gb2312.GetString(bytes);
+    }
+
+    private static async Task<DateTimeOffset?> GetPathLastCommitDateAsync(string repoPath, CancellationToken ct)
+    {
+        try
+        {
+            var encodedPath = Uri.EscapeDataString(repoPath);
+            var json = await GitCodeGetStringAsync(
+                $"https://api.gitcode.com/api/v5/repos/{GitCodeOwner}/{GitCodeRepo}/commits?path={encodedPath}&per_page=1", ct);
+            var doc = JsonDocument.Parse(json);
+            var arr = doc.RootElement.EnumerateArray();
+            if (!arr.MoveNext()) return null;
+            return arr.Current.GetProperty("commit").GetProperty("committer").GetProperty("date").GetDateTimeOffset();
+        }
+        catch { return null; }
+    }
+
+    private static async Task<string?> GetLatestCommitShaAsync(CancellationToken ct)
+    {
+        try
+        {
+            var json = await GitCodeGetStringAsync(
+                $"https://api.gitcode.com/api/v5/repos/{GitCodeOwner}/{GitCodeRepo}/branches/master", ct);
+            var doc = JsonDocument.Parse(json);
+            return doc.RootElement.GetProperty("commit").GetProperty("id").GetString();
+        }
+        catch { return null; }
+    }
+
+    private static async Task<string?> GetTreeShaForPathAsync(string commitSha, string repoPath, CancellationToken ct)
+    {
+        try
+        {
+            var currentSha = commitSha;
+            var parts = repoPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (var part in parts)
+            {
+                var json = await GitCodeGetStringAsync(
+                    $"https://api.gitcode.com/api/v5/repos/{GitCodeOwner}/{GitCodeRepo}/git/trees/{currentSha}", ct);
+                var doc = JsonDocument.Parse(json);
+
+                var found = false;
+                foreach (var entry in doc.RootElement.GetProperty("tree").EnumerateArray())
+                {
+                    var path = entry.GetProperty("path").GetString() ?? "";
+                    var type = entry.GetProperty("type").GetString() ?? "";
+                    if (path == part && type == "tree")
+                    {
+                        currentSha = entry.GetProperty("sha").GetString()!;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) return null;
+            }
+            return currentSha;
+        }
+        catch { return null; }
+    }
+
+    private static async Task EnumerateTreeBlobsAsync(
+        string treeSha, string prefix, List<(string, string, long)> blobs, CancellationToken ct)
+    {
+        var json = await GitCodeGetStringAsync(
+            $"https://api.gitcode.com/api/v5/repos/{GitCodeOwner}/{GitCodeRepo}/git/trees/{treeSha}", ct);
+        var doc = JsonDocument.Parse(json);
+
+        foreach (var entry in doc.RootElement.GetProperty("tree").EnumerateArray())
+        {
+            var path = entry.GetProperty("path").GetString() ?? "";
+            var type = entry.GetProperty("type").GetString() ?? "";
+            var sha = entry.TryGetProperty("sha", out var shaEl) ? shaEl.GetString() ?? "" : "";
+            var size = entry.TryGetProperty("size", out var sizeEl) ? sizeEl.GetInt64() : 0L;
+            var full = string.IsNullOrEmpty(prefix) ? path : $"{prefix}/{path}";
+
+            if (type == "blob")
+                blobs.Add((full, sha, size));
+            else if (type == "tree")
+                await EnumerateTreeBlobsAsync(sha, full, blobs, ct);
+        }
+    }
+
+    private static async Task<byte[]?> DownloadBlobAsync(string blobSha, CancellationToken ct)
+    {
+        try
+        {
+            var bytes = await _downloadClient.GetByteArrayAsync(
+                $"https://api.gitcode.com/api/v5/repos/{GitCodeOwner}/{GitCodeRepo}/git/blobs/{blobSha}", ct);
+            var json = Gb2312.GetString(bytes);
+            var doc = JsonDocument.Parse(json);
+            var content = doc.RootElement.GetProperty("content").GetString() ?? "";
+            var encoding = doc.RootElement.TryGetProperty("encoding", out var encEl)
+                ? encEl.GetString() ?? "" : "";
+
+            if (encoding == "base64")
+                return Convert.FromBase64String(content);
+            return System.Text.Encoding.UTF8.GetBytes(content);
+        }
+        catch { return null; }
+    }
+
+    private static string ComputeBlobSha(byte[] content)
+    {
+        var header = System.Text.Encoding.ASCII.GetBytes($"blob {content.Length}\0");
+        using var sha1 = SHA1.Create();
+        sha1.TransformBlock(header, 0, header.Length, null, 0);
+        sha1.TransformFinalBlock(content, 0, content.Length);
+        return Convert.ToHexString(sha1.Hash!).ToLowerInvariant();
     }
 
     public static async Task<ToolDownloadInfo?> ResolveDownloadUrlAsync(
         string downloadUrl, string? filter, CancellationToken ct = default)
     {
+        if (downloadUrl.StartsWith("gc:", StringComparison.OrdinalIgnoreCase))
+            return null;
+
         if (downloadUrl.StartsWith("gh:", StringComparison.OrdinalIgnoreCase))
         {
             var repo = downloadUrl[3..];
@@ -104,11 +357,26 @@ public static class ToolDownloaderService
     private static async Task<ToolDownloadInfo?> ResolveGitHubReleaseAsync(
         string repo, string? filter, CancellationToken ct)
     {
-        var apiUrl = $"{HubBase}/api/repos/{repo}/releases/latest";
+        var result = await ResolveGitCodeReleaseAsync(repo, filter, ct);
+        if (result is not null) return result;
 
+        return await ResolveGitHubDirectReleaseAsync(repo, filter, ct);
+    }
+
+    private static async Task<ToolDownloadInfo?> ResolveGitCodeReleaseAsync(
+        string repo, string? filter, CancellationToken ct)
+    {
         try
         {
-            var json = await _httpClient.GetStringAsync(apiUrl, ct);
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+            client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ToolDownloader");
+
+            var parts = repo.Split('/', 2);
+            var owner = parts.Length > 0 ? parts[0] : "";
+            var repoName = parts.Length > 1 ? parts[1] : "";
+
+            var apiUrl = $"https://api.gitcode.com/api/v5/repos/{owner}/{repoName}/releases/latest";
+            var json = await client.GetStringAsync(apiUrl, ct);
             var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
@@ -159,9 +427,75 @@ public static class ToolDownloaderService
             var isInstaller = assetName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
                               assetName.EndsWith(".msi", StringComparison.OrdinalIgnoreCase);
 
-            var finalUrl = assetUrl.Replace("https://github.com", HubBase, StringComparison.OrdinalIgnoreCase);
+            return new ToolDownloadInfo(assetUrl, assetName, assetSize, isArchive, isInstaller);
+        }
+        catch
+        {
+            return null;
+        }
+    }
 
-            return new ToolDownloadInfo(finalUrl, assetName, assetSize, isArchive, isInstaller);
+    private static async Task<ToolDownloadInfo?> ResolveGitHubDirectReleaseAsync(
+        string repo, string? filter, CancellationToken ct)
+    {
+        try
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+            client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ToolDownloader");
+
+            var apiUrl = $"https://api.github.com/repos/{repo}/releases/latest";
+            var json = await client.GetStringAsync(apiUrl, ct);
+            var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            if (!root.TryGetProperty("assets", out var assetsEl))
+                return null;
+
+            JsonElement bestAsset = default;
+            var found = false;
+
+            if (!string.IsNullOrWhiteSpace(filter))
+            {
+                foreach (var asset in assetsEl.EnumerateArray())
+                {
+                    var name = asset.GetProperty("name").GetString() ?? "";
+                    if (LikeMatch(name, filter))
+                    {
+                        bestAsset = asset;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!found)
+            {
+                foreach (var asset in assetsEl.EnumerateArray())
+                {
+                    var name = asset.GetProperty("name").GetString() ?? "";
+                    if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
+                        name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+                    {
+                        bestAsset = asset;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!found)
+                return null;
+
+            var assetName = bestAsset.GetProperty("name").GetString() ?? "";
+            var assetUrl = bestAsset.GetProperty("browser_download_url").GetString() ?? "";
+            var assetSize = bestAsset.TryGetProperty("size", out var sizeEl) ? sizeEl.GetInt64() : 0L;
+
+            var isArchive = assetName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
+                            assetName.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase);
+            var isInstaller = assetName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
+                              assetName.EndsWith(".msi", StringComparison.OrdinalIgnoreCase);
+
+            return new ToolDownloadInfo(assetUrl, assetName, assetSize, isArchive, isInstaller);
         }
         catch
         {
@@ -296,16 +630,15 @@ public static class ToolDownloaderService
     }
 
     public static async Task<ToolUpdateInfo?> CheckForUpdateAsync(
-        string? remoteUrl, string? downloadUrl, string? downloadFilter,
-        string? localVersion, DateTime? localLastWrite, CancellationToken ct = default)
+        string? downloadUrl, string? downloadFilter,
+        string? localVersion, CancellationToken ct = default)
     {
-        if (!string.IsNullOrWhiteSpace(downloadUrl))
-            return await CheckGitHubUpdateAsync(downloadUrl, downloadFilter, localVersion, ct);
+        if (string.IsNullOrWhiteSpace(downloadUrl)) return null;
 
-        if (!string.IsNullOrWhiteSpace(remoteUrl))
-            return await CheckDirectUrlUpdateAsync(remoteUrl, localVersion, localLastWrite, ct);
+        if (downloadUrl.StartsWith("gc:", StringComparison.OrdinalIgnoreCase))
+            return null;
 
-        return null;
+        return await CheckGitHubUpdateAsync(downloadUrl, downloadFilter, localVersion, ct);
     }
 
     private static async Task<ToolUpdateInfo?> CheckGitHubUpdateAsync(
@@ -314,11 +647,27 @@ public static class ToolDownloaderService
         if (!downloadUrl.StartsWith("gh:", StringComparison.OrdinalIgnoreCase)) return null;
 
         var repo = downloadUrl[3..];
-        var apiUrl = $"{HubBase}/api/repos/{repo}/releases/latest";
 
+        var result = await CheckGitCodeUpdateAsync(repo, filter, localVersion, ct);
+        if (result is not null) return result;
+
+        return await CheckGitHubDirectUpdateAsync(repo, filter, localVersion, ct);
+    }
+
+    private static async Task<ToolUpdateInfo?> CheckGitCodeUpdateAsync(
+        string repo, string? filter, string? localVersion, CancellationToken ct)
+    {
         try
         {
-            var json = await _httpClient.GetStringAsync(apiUrl, ct);
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+            client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ToolDownloader");
+
+            var parts = repo.Split('/', 2);
+            var owner = parts.Length > 0 ? parts[0] : "";
+            var repoName = parts.Length > 1 ? parts[1] : "";
+
+            var apiUrl = $"https://api.gitcode.com/api/v5/repos/{owner}/{repoName}/releases/latest";
+            var json = await client.GetStringAsync(apiUrl, ct);
             var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
@@ -366,45 +715,81 @@ public static class ToolDownloaderService
             var assetName = bestAsset.GetProperty("name").GetString() ?? "";
             var assetUrl = bestAsset.GetProperty("browser_download_url").GetString() ?? "";
             var assetSize = bestAsset.TryGetProperty("size", out var sizeEl) ? sizeEl.GetInt64() : 0L;
-            var finalUrl = assetUrl.Replace("https://github.com", HubBase, StringComparison.OrdinalIgnoreCase);
 
             var isArchive = assetName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
                             assetName.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase);
             var isInstaller = assetName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
                               assetName.EndsWith(".msi", StringComparison.OrdinalIgnoreCase);
 
-            return new ToolUpdateInfo(tag, published, finalUrl, assetName, assetSize, isArchive, isInstaller);
+            return new ToolUpdateInfo(tag, published, assetUrl, assetName, assetSize, isArchive, isInstaller);
         }
         catch { return null; }
     }
 
-    private static async Task<ToolUpdateInfo?> CheckDirectUrlUpdateAsync(
-        string remoteUrl, string? localVersion, DateTime? localLastWrite, CancellationToken ct)
+    private static async Task<ToolUpdateInfo?> CheckGitHubDirectUpdateAsync(
+        string repo, string? filter, string? localVersion, CancellationToken ct)
     {
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Head, remoteUrl);
-            using var response = await _httpClient.SendAsync(request, ct);
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+            client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ToolDownloader");
 
-            var fileName = Path.GetFileName(new Uri(remoteUrl).AbsolutePath);
-            if (string.IsNullOrWhiteSpace(fileName)) fileName = "download";
+            var apiUrl = $"https://api.github.com/repos/{repo}/releases/latest";
+            var json = await client.GetStringAsync(apiUrl, ct);
+            var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
 
-            var remoteLastModified = response.Content.Headers.LastModified;
-            var size = response.Content.Headers.ContentLength ?? 0L;
+            var tag = root.TryGetProperty("tag_name", out var tagEl) ? tagEl.GetString() ?? "" : "";
+            DateTimeOffset? published = root.TryGetProperty("published_at", out var pubEl)
+                && pubEl.ValueKind == JsonValueKind.String
+                ? pubEl.GetDateTimeOffset() : null;
 
-            if (localLastWrite.HasValue && remoteLastModified.HasValue)
+            if (!string.IsNullOrWhiteSpace(localVersion) && !string.IsNullOrWhiteSpace(tag))
             {
-                if (remoteLastModified.Value.UtcDateTime <= localLastWrite.Value.ToUniversalTime())
+                var remoteVer = NormalizeVersion(tag);
+                var localVer = NormalizeVersion(localVersion);
+                if (!string.IsNullOrEmpty(remoteVer) && !string.IsNullOrEmpty(localVer)
+                    && string.Compare(remoteVer, localVer, StringComparison.OrdinalIgnoreCase) <= 0)
                     return null;
             }
 
-            var isArchive = fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
-                            fileName.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase);
-            var isInstaller = fileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
-                              fileName.EndsWith(".msi", StringComparison.OrdinalIgnoreCase);
+            if (!root.TryGetProperty("assets", out var assetsEl)) return null;
 
-            var versionTag = remoteLastModified?.ToString("yyyy-MM-dd") ?? "";
-            return new ToolUpdateInfo(versionTag, remoteLastModified, remoteUrl, fileName, size, isArchive, isInstaller);
+            JsonElement bestAsset = default;
+            var found = false;
+
+            if (!string.IsNullOrWhiteSpace(filter))
+            {
+                foreach (var asset in assetsEl.EnumerateArray())
+                {
+                    var name = asset.GetProperty("name").GetString() ?? "";
+                    if (LikeMatch(name, filter)) { bestAsset = asset; found = true; break; }
+                }
+            }
+
+            if (!found)
+            {
+                foreach (var asset in assetsEl.EnumerateArray())
+                {
+                    var name = asset.GetProperty("name").GetString() ?? "";
+                    if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
+                        name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+                    { bestAsset = asset; found = true; break; }
+                }
+            }
+
+            if (!found) return null;
+
+            var assetName = bestAsset.GetProperty("name").GetString() ?? "";
+            var assetUrl = bestAsset.GetProperty("browser_download_url").GetString() ?? "";
+            var assetSize = bestAsset.TryGetProperty("size", out var sizeEl) ? sizeEl.GetInt64() : 0L;
+
+            var isArchive = assetName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
+                            assetName.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase);
+            var isInstaller = assetName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
+                              assetName.EndsWith(".msi", StringComparison.OrdinalIgnoreCase);
+
+            return new ToolUpdateInfo(tag, published, assetUrl, assetName, assetSize, isArchive, isInstaller);
         }
         catch { return null; }
     }

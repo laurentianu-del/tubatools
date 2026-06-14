@@ -42,8 +42,6 @@ public sealed class ToolItem : INotifyPropertyChanged
 
     public string? DownloadUrl { get; init; }
 
-    public string? RemoteUrl { get; init; }
-
     public string? DownloadFilter { get; init; }
 
     public string? WingetId { get; init; }
@@ -61,11 +59,9 @@ public sealed class ToolItem : INotifyPropertyChanged
 
     public string Folder => System.IO.Path.GetDirectoryName(RelativePath) ?? Category;
 
-    public bool NeedsDownload => !string.IsNullOrWhiteSpace(DownloadUrl) || !string.IsNullOrWhiteSpace(WingetId) || !string.IsNullOrWhiteSpace(RemoteUrl);
+    public bool NeedsDownload => !string.IsNullOrWhiteSpace(DownloadUrl) || !string.IsNullOrWhiteSpace(WingetId);
 
-    public bool NeedsRemoteDownload => !string.IsNullOrWhiteSpace(RemoteUrl) && !File.Exists(EffectivePath);
-
-    public bool HasUpdateSource => !string.IsNullOrWhiteSpace(RemoteUrl) || !string.IsNullOrWhiteSpace(DownloadUrl);
+    public bool HasUpdateSource => !string.IsNullOrWhiteSpace(DownloadUrl);
 
     public bool NeedsWingetInstall => !string.IsNullOrWhiteSpace(WingetId);
 
@@ -153,8 +149,6 @@ public sealed class ToolItem : INotifyPropertyChanged
                 if (IsWingetInstalling) return "安装中...";
                 return IsWingetInstalled ? "打开" : "下载";
             }
-            if (!string.IsNullOrWhiteSpace(RemoteUrl) && !File.Exists(EffectivePath))
-                return "下载";
             return "打开";
         }
     }
