@@ -1100,13 +1100,21 @@ public sealed partial class HomePage : Page
 
     private void LaunchTool(ToolItem tool, bool runAsAdmin)
     {
-        if (!string.IsNullOrWhiteSpace(tool.DownloadUrl))
+        if (!string.IsNullOrWhiteSpace(tool.RemoteUrl))
+        {
+            Pages.BrowserWindow.Open(tool.RemoteUrl, tool.Name);
+            LaunchHistoryService.RecordLaunch(tool.Path);
+            ShowStatus("已打开", tool.Name, InfoBarSeverity.Success);
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(tool.DownloadUrl) && !File.Exists(tool.EffectivePath))
         {
             _ = ShowDownloadDialogAsync(tool);
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(tool.WingetId))
+        if (!string.IsNullOrWhiteSpace(tool.WingetId) && !File.Exists(tool.EffectivePath))
         {
             _ = HandleWingetToolAsync(tool);
             return;

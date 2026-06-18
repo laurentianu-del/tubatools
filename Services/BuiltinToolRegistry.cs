@@ -28,7 +28,6 @@ public static class BuiltinToolRegistry
         Register(new SpeedTestTool());
         Register(new WifiPasswordTool());
         Register(new DiskSpaceAnalyzerTool());
-        Register(new LiteMonitorTool());
         Register(new WindowsActivationTool());
         Register(new DefenderTool());
         Register(new CpuRankingTool());

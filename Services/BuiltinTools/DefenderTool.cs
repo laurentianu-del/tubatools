@@ -70,8 +70,11 @@ public sealed class DefenderTool : IBuiltinTool
         };
 
         string? downloadedPath = null;
+        Exception? lastError = null;
+
         foreach (var url in downloadUrls)
         {
+            var isProxy = url.StartsWith(GitCodeRawBase, StringComparison.OrdinalIgnoreCase);
             try
             {
                 var dialog = new ToolDownloadDialog(
@@ -89,31 +92,51 @@ public sealed class DefenderTool : IBuiltinTool
                     downloadedPath = dialog.DownloadedFilePath;
                     break;
                 }
-            }
-            catch { continue; }
-        }
-        if (downloadedPath is not null)
-        {
-            var exePath = downloadedPath;
-            if (!exePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
-            {
-                var files = Directory.GetFiles(destDir, "*.exe", SearchOption.TopDirectoryOnly);
-                if (files.Length > 0) exePath = files[0];
-            }
 
-            try
-            {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                if (isProxy)
                 {
-                    FileName = exePath,
-                    UseShellExecute = true,
-                    Verb = "runas"
-                });
+                    lastError = new Exception("镜像站下载失败，正在回退到直连...");
+                    continue;
+                }
+
+                lastError ??= new Exception("下载失败");
             }
             catch (Exception ex)
             {
-                context.OnProgress?.Invoke($"下载成功但启动失败：{ex.Message}");
+                lastError = ex;
+                if (isProxy) continue;
             }
+        }
+
+        if (downloadedPath is null)
+        {
+            if (lastError is not null && context.XamlRoot is not null)
+            {
+                var errDialog = context.CreateDialog($"下载失败：{lastError.Message}", "确定");
+                await errDialog.ShowAsync();
+            }
+            return;
+        }
+
+        var exePath = downloadedPath;
+        if (!exePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+        {
+            var files = Directory.GetFiles(destDir, "*.exe", SearchOption.TopDirectoryOnly);
+            if (files.Length > 0) exePath = files[0];
+        }
+
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = exePath,
+                UseShellExecute = true,
+                Verb = "runas"
+            });
+        }
+        catch (Exception ex)
+        {
+            context.OnProgress?.Invoke($"下载成功但启动失败：{ex.Message}");
         }
     }
 

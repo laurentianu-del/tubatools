@@ -356,6 +356,8 @@ public static class ToolCatalog
         if (string.IsNullOrWhiteSpace(cleanName))
             cleanName = CleanupName(name);
 
+        var remoteUrl = DetectRemoteUrl(path);
+
         var item = new ToolItem
         {
             Name = cleanName,
@@ -372,6 +374,7 @@ public static class ToolCatalog
             DownloadUrl = metadata.DownloadUrl,
             DownloadFilter = metadata.DownloadFilter,
             WingetId = metadata.WingetId,
+            RemoteUrl = remoteUrl,
             Tags = metadata.Tags ?? [],
             IsFavorite = isPlaceholder ? false : FavoritesService.IsFavorite(path),
             PrimaryArch = archDisplay.Length > 0 ? archDisplay : null,
@@ -692,4 +695,48 @@ public static class ToolCatalog
 
          return outputTools;
      }
+
+    internal static string? DetectRemoteUrl(string filePath)
+    {
+        var ext = Path.GetExtension(filePath);
+        if (!ext.Equals(".bat", StringComparison.OrdinalIgnoreCase) &&
+            !ext.Equals(".cmd", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        if (!File.Exists(filePath))
+            return null;
+
+        try
+        {
+            var lines = File.ReadAllLines(filePath);
+            foreach (var rawLine in lines)
+            {
+                var line = rawLine.Trim();
+                if (line.StartsWith("rem ", StringComparison.OrdinalIgnoreCase) ||
+                    line.StartsWith("::", StringComparison.Ordinal) ||
+                    line.StartsWith("@", StringComparison.Ordinal))
+                    line = line.StartsWith("@", StringComparison.Ordinal) ? line[1..].Trim() : line[3..].Trim();
+
+                if (!line.StartsWith("start ", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var argPart = line[6..].Trim();
+                if (argPart.Length == 0) continue;
+
+                if (argPart.StartsWith('"'))
+                {
+                    var closing = argPart.IndexOf('"', 1);
+                    if (closing > 0)
+                        argPart = argPart[(closing + 1)..].Trim();
+                }
+
+                if (argPart.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                    argPart.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                    return argPart.Split(' ', 2)[0];
+            }
+        }
+        catch { }
+
+        return null;
+    }
 }

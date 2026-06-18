@@ -13,19 +13,9 @@ public sealed class WindowsActivationTool : IBuiltinTool
 
     private const string KmsPageUrl = "https://monitor.yerong.org/kms/";
 
-    public async Task ExecuteAsync(BuiltinToolContext context)
+    public Task ExecuteAsync(BuiltinToolContext context)
     {
-        try
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = KmsPageUrl,
-                UseShellExecute = true
-            });
-        }
-        catch (Exception ex)
-        {
-            context.OnProgress?.Invoke($"无法打开链接：{ex.Message}");
-        }
+        TubaWinUi3.Pages.BrowserWindow.Open(KmsPageUrl, "KMS 服务器监控");
+        return Task.CompletedTask;
     }
 }

@@ -74,7 +74,7 @@ public sealed class WingetInstallAction : PcSetupAction
 
     public override string ToPowerShell()
     {
-        return $"Write-Host \"  安装 {Name}...\" -ForegroundColor Yellow\nwinget install --id {PackageId} --accept-package-agreements --accept-source-agreements";
+        return $"Write-Host \"  安装 {Name}...\" -ForegroundColor Yellow\nwinget install --id {PackageId} --silent --accept-package-agreements --accept-source-agreements";
     }
 }
 

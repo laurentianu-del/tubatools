@@ -393,6 +393,13 @@ public sealed partial class ToolDetailDialog : UserControl
     {
         if (_tool is null) return;
 
+        if (!string.IsNullOrWhiteSpace(_tool.RemoteUrl))
+        {
+            Pages.BrowserWindow.Open(_tool.RemoteUrl, _tool.Name);
+            ShowStatus("已打开", _tool.Name, InfoBarSeverity.Success);
+            return;
+        }
+
         var exePath = _tool.EffectivePath;
         if (!File.Exists(exePath))
         {

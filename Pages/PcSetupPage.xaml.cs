@@ -400,6 +400,8 @@ public sealed partial class PcSetupPage : Page
         }
     }
 
+    private bool _suppressChecked;
+
     private Border CreateOptimizeRow(PcSetupAction action)
     {
         var cb = new CheckBox
@@ -410,9 +412,12 @@ public sealed partial class PcSetupPage : Page
         };
         cb.Checked += async (_, _) =>
         {
+            if (_suppressChecked) return;
             if (action.IsDangerous)
             {
+                _suppressChecked = true;
                 cb.IsChecked = false;
+                _suppressChecked = false;
                 var dialog = new ContentDialog
                 {
                     Title = "⚠ 高危操作确认",
@@ -426,7 +431,9 @@ public sealed partial class PcSetupPage : Page
                 if (result == ContentDialogResult.Primary)
                 {
                     action.IsSelected = true;
+                    _suppressChecked = true;
                     cb.IsChecked = true;
+                    _suppressChecked = false;
                 }
             }
             else
@@ -434,7 +441,11 @@ public sealed partial class PcSetupPage : Page
                 action.IsSelected = true;
             }
         };
-        cb.Unchecked += (_, _) => { action.IsSelected = false; };
+        cb.Unchecked += (_, _) =>
+        {
+            if (_suppressChecked) return;
+            action.IsSelected = false;
+        };
 
         var iconBorder = new Border
         {
@@ -911,7 +922,63 @@ public sealed partial class PcSetupPage : Page
         var actions = GetAllSelectedActions();
         if (actions.Count == 0) return;
 
-        var script = PcSetupCatalogService.GeneratePowerShellScript(actions);
+        var customScript = "";
+
+        var customDialog = new ContentDialog
+        {
+            Title = "自定义脚本（可选）",
+            PrimaryButtonText = "导出",
+            CloseButtonText = "取消",
+            XamlRoot = XamlRoot,
+            RequestedTheme = ThemeService.CurrentElementTheme
+        };
+
+        var dialogStack = new StackPanel { Spacing = 8 };
+        dialogStack.Children.Add(new TextBlock
+        {
+            Text = "可在生成的脚本中插入自定义 PowerShell 代码，留空则不插入。",
+            FontSize = 13,
+            Foreground = new SolidColorBrush(ThemeColors.DimText),
+            TextWrapping = TextWrapping.Wrap
+        });
+
+        var positionCombo = new ComboBox
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            SelectedIndex = 0
+        };
+        positionCombo.Items.Add(new ComboBoxItem { Content = "在软件安装之前执行", Tag = "before-install" });
+        positionCombo.Items.Add(new ComboBoxItem { Content = "在软件安装与系统优化之间执行", Tag = "between" });
+        positionCombo.Items.Add(new ComboBoxItem { Content = "在全部操作完成后执行", Tag = "after-all" });
+        dialogStack.Children.Add(new TextBlock
+        {
+            Text = "插入位置：",
+            FontSize = 13,
+            Foreground = new SolidColorBrush(ThemeColors.PrimaryText)
+        });
+        dialogStack.Children.Add(positionCombo);
+
+        var scriptBox = new TextBox
+        {
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            MinHeight = 160,
+            MaxHeight = 300,
+            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+            FontSize = 13,
+            PlaceholderText = "# 输入自定义 PowerShell 脚本\n# 例如：\n# Set-ExecutionPolicy RemoteSigned -Scope CurrentUser\n# New-Item -Path 'C:\\MyFolder' -ItemType Directory"
+        };
+        dialogStack.Children.Add(scriptBox);
+
+        customDialog.Content = dialogStack;
+
+        var dlgResult = await customDialog.ShowAsync();
+        if (dlgResult != ContentDialogResult.Primary) return;
+
+        customScript = scriptBox.Text.Trim();
+        var position = (positionCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "before-install";
+
+        var script = PcSetupCatalogService.GeneratePowerShellScript(actions, customScript, position);
         var fileName = $"新机开荒_{DateTime.Now:yyyyMMdd_HHmmss}.ps1";
 
         try

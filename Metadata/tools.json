@@ -607,21 +607,6 @@
       "downloadUrl": "gc:Tools/其他工具/WinDbg"
     },
     {
-      "match": "皮肤编辑器",
-      "description": "图吧工具箱皮肤在线编辑器入口。",
-      "publisher": "",
-      "tags": [ "其他", "皮肤" ],
-      "downloadUrl": "gc:Tools/其他工具/皮肤编辑器"
-    },
-    {
-      "match": "天梯图",
-      "description": "CPU 和显卡性能天梯图，直观对比各型号性能排名。",
-      "publisher": "",
-      "tags": [ "CPU", "显卡", "性能排名" ],
-      "downloadUrl": "gc:Tools/其他工具/天梯图"
-    },
-
-    {
       "match": "nvflash",
       "description": "NVIDIA 显卡 BIOS 刷写工具，支持 Blackwell/Ada/Ampere/Turing/Pascal 等全系 NVIDIA 显卡 BIOS 刷写和备份。",
       "publisher": "NVIDIA",

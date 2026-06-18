@@ -46,6 +46,8 @@ public sealed class ToolItem : INotifyPropertyChanged
 
     public string? WingetId { get; init; }
 
+    public string? RemoteUrl { get; init; }
+
     public IReadOnlyList<string> Tags { get; init; } = [];
 
     public string TagsText => Tags.Count > 0 ? string.Join("  ", Tags) : "";
@@ -59,7 +61,7 @@ public sealed class ToolItem : INotifyPropertyChanged
 
     public string Folder => System.IO.Path.GetDirectoryName(RelativePath) ?? Category;
 
-    public bool NeedsDownload => !string.IsNullOrWhiteSpace(DownloadUrl) || !string.IsNullOrWhiteSpace(WingetId);
+    public bool NeedsDownload => !File.Exists(EffectivePath) && (!string.IsNullOrWhiteSpace(DownloadUrl) || !string.IsNullOrWhiteSpace(WingetId));
 
     public bool HasUpdateSource => !string.IsNullOrWhiteSpace(DownloadUrl);
 
@@ -142,7 +144,7 @@ public sealed class ToolItem : INotifyPropertyChanged
     {
         get
         {
-            if (!string.IsNullOrWhiteSpace(DownloadUrl))
+            if (!string.IsNullOrWhiteSpace(DownloadUrl) && !File.Exists(EffectivePath))
                 return "下载";
             if (!string.IsNullOrWhiteSpace(WingetId))
             {

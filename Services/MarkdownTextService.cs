@@ -4,7 +4,6 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Media;
-using Windows.System;
 
 namespace TubaWinUi3.Services;
 
@@ -264,7 +263,7 @@ public static partial class MarkdownTextService
         {
             try
             {
-                await Launcher.LaunchUriAsync(sender.NavigateUri);
+                TubaWinUi3.Pages.BrowserWindow.Open(sender.NavigateUri.ToString());
             }
             catch
             {

@@ -146,7 +146,7 @@ public sealed class BatteryAnalyzerPage : Page
                 Children =
                 {
                     new FontIcon { Glyph = "\uE8A5", FontSize = 13 },
-                    new TextBlock { Text = "导出报告", FontSize = 13 }
+                    new TextBlock { Text = "查看详细报告", FontSize = 13 }
                 }
             },
             Background = new SolidColorBrush(ThemeColors.SubtleBg),
@@ -1022,15 +1022,11 @@ public sealed class BatteryAnalyzerPage : Page
         var path = await BatteryReportService.ExportHtmlReportAsync();
         if (!string.IsNullOrEmpty(path))
         {
-            try
-            {
-                Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
-            }
-            catch { }
+            BrowserWindow.Open(path, "电池详细报告");
         }
         else
         {
-            _infoBar.Title = "导出失败";
+            _infoBar.Title = "查看失败";
             _infoBar.Message = "无法生成电池报告，请检查是否为笔记本电脑。";
             _infoBar.Severity = InfoBarSeverity.Error;
             _infoBar.IsOpen = true;

@@ -246,13 +246,6 @@ public static class SystemOptimizer
     {
         return
         [
-            new PowerShellAction
-            {
-                Id = "sec-no-defender", Name = "关闭 Windows Defender 实时保护", Description = "⚠ 高危：关闭后系统将失去实时病毒防护",
-                Glyph = "\uEA18", Group = "安全设置", IsSelected = false, IsDangerous = true, RequiresAdmin = true,
-                UseRunAs = true,
-                Script = "Set-MpPreference -DisableRealtimeMonitoring $true"
-            },
             new RegistryAction
             {
                 Id = "sec-no-autoupdate", Name = "禁用 Windows 自动更新", Description = "⚠ 高危：关闭后系统将不再自动安装安全补丁",

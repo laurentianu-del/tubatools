@@ -77,7 +77,7 @@ public static class WingetService
             var psi = new ProcessStartInfo
             {
                 FileName = "winget",
-                Arguments = $"install --id {packageId} --accept-package-agreements --accept-source-agreements",
+                Arguments = $"install --id {packageId} --silent --accept-package-agreements --accept-source-agreements",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,

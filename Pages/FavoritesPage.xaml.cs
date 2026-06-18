@@ -301,6 +301,14 @@ public sealed partial class FavoritesPage : Page
 
     private void LaunchTool(ToolItem tool, bool runAsAdmin)
     {
+        if (!string.IsNullOrWhiteSpace(tool.RemoteUrl))
+        {
+            Pages.BrowserWindow.Open(tool.RemoteUrl, tool.Name);
+            LaunchHistoryService.RecordLaunch(tool.Path);
+            ShowStatus("已打开", tool.Name, InfoBarSeverity.Success);
+            return;
+        }
+
         var exePath = tool.EffectivePath;
         if (!File.Exists(exePath))
         {

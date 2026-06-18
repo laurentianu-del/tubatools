@@ -98,7 +98,7 @@ public static class PcSetupCatalogService
         await Task.WhenAll(tasks);
     }
 
-    public static string GeneratePowerShellScript(List<PcSetupAction> actions)
+    public static string GeneratePowerShellScript(List<PcSetupAction> actions, string? customScript = null, string customPosition = "before-install")
     {
         var sb = new System.Text.StringBuilder();
         sb.AppendLine("#Requires -RunAsAdministrator");
@@ -113,6 +113,14 @@ public static class PcSetupCatalogService
         var wingetActions = selected.OfType<WingetInstallAction>().ToList();
         var otherActions = selected.Where(a => a is not WingetInstallAction).ToList();
 
+        if (!string.IsNullOrWhiteSpace(customScript) && customPosition == "before-install")
+        {
+            sb.AppendLine("# ---- 自定义脚本（安装前） ----");
+            sb.AppendLine($"Write-Host \"`n--- 自定义脚本（安装前） ---\" -ForegroundColor Magenta");
+            sb.AppendLine(customScript);
+            sb.AppendLine();
+        }
+
         if (wingetActions.Count > 0)
         {
             sb.AppendLine("# ---- 软件安装 ----");
@@ -122,6 +130,14 @@ public static class PcSetupCatalogService
                 sb.AppendLine($"Write-Host \"`n[{i + 1}/{wingetActions.Count}] {wingetActions[i].Name}\" -ForegroundColor Yellow");
                 sb.AppendLine(wingetActions[i].ToPowerShell());
             }
+        }
+
+        if (!string.IsNullOrWhiteSpace(customScript) && customPosition == "between")
+        {
+            sb.AppendLine();
+            sb.AppendLine("# ---- 自定义脚本（安装后、优化前） ----");
+            sb.AppendLine($"Write-Host \"`n--- 自定义脚本（安装后、优化前） ---\" -ForegroundColor Magenta");
+            sb.AppendLine(customScript);
         }
 
         if (otherActions.Count > 0)
@@ -134,6 +150,14 @@ public static class PcSetupCatalogService
                 sb.AppendLine();
                 sb.AppendLine(action.ToPowerShell());
             }
+        }
+
+        if (!string.IsNullOrWhiteSpace(customScript) && customPosition == "after-all")
+        {
+            sb.AppendLine();
+            sb.AppendLine("# ---- 自定义脚本（全部完成后） ----");
+            sb.AppendLine($"Write-Host \"`n--- 自定义脚本（全部完成后） ---\" -ForegroundColor Magenta");
+            sb.AppendLine(customScript);
         }
 
         sb.AppendLine();
