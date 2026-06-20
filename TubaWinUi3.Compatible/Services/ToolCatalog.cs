@@ -586,12 +586,21 @@ namespace TubaWinUi3.Compatible.Services
             if (Directory.Exists(outputTools))
                 return outputTools;
 
+            var srcTools = Path.Combine(AppDirectory, "src", "Tools");
+            if (Directory.Exists(srcTools))
+                return srcTools;
+
             var directory = new DirectoryInfo(AppDirectory);
             while (directory != null)
             {
                 var candidate = Path.Combine(directory.FullName, "Tools");
                 if (Directory.Exists(candidate))
                     return candidate;
+
+                var srcCandidate = Path.Combine(directory.FullName, "src", "Tools");
+                if (Directory.Exists(srcCandidate))
+                    return srcCandidate;
+
                 directory = directory.Parent;
             }
 

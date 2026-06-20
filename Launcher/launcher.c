@@ -46,7 +46,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLin
     PathCombineW(mainExe, dir, L"src\\TubaWinUi3.exe");
 
     WCHAR compatExe[MAX_PATH];
-    PathCombineW(compatExe, dir, L"src\\compatible\\TubaWinUi3.Compatible.exe");
+    PathCombineW(compatExe, dir, L"\u56FE\u5427\u5DE5\u5177\u7BB1Winui3\u517C\u5BB9\u7248.exe");
 
     if (!IsSupportedOS()) {
         if (GetFileAttributesW(compatExe) != INVALID_FILE_ATTRIBUTES) {

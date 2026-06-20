@@ -307,12 +307,21 @@ namespace TubaWinUi3.Compatible.Services
             if (Directory.Exists(outputRoot))
                 return outputRoot;
 
+            var srcRoot = Path.Combine(appDir, "src", folderName);
+            if (Directory.Exists(srcRoot))
+                return srcRoot;
+
             var directory = new DirectoryInfo(appDir);
             while (directory != null)
             {
                 var candidate = Path.Combine(directory.FullName, folderName);
                 if (Directory.Exists(candidate))
                     return candidate;
+
+                var srcCandidate = Path.Combine(directory.FullName, "src", folderName);
+                if (Directory.Exists(srcCandidate))
+                    return srcCandidate;
+
                 directory = directory.Parent;
             }
 

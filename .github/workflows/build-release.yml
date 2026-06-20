@@ -60,6 +60,10 @@ jobs:
           $csproj = $csproj -replace '<Version>[^<]*</Version>', "<Version>$ver</Version>"
           Set-Content -LiteralPath 'TubaWinUi3.csproj' -Value $csproj -NoNewline
 
+          $compatCsproj = Get-Content -LiteralPath 'TubaWinUi3.Compatible/TubaWinUi3.Compatible.csproj' -Raw
+          $compatCsproj = $compatCsproj -replace '<Version>[^<]*</Version>', "<Version>$ver</Version>"
+          Set-Content -LiteralPath 'TubaWinUi3.Compatible/TubaWinUi3.Compatible.csproj' -Value $compatCsproj -NoNewline
+
           foreach ($iss in @('installer.iss', 'installer-x64.iss', 'installer-x86.iss', 'installer-arm64.iss')) {
             if (Test-Path -LiteralPath $iss) {
               $content = Get-Content -LiteralPath $iss -Raw
@@ -147,6 +151,19 @@ jobs:
         with:
           path: installer-${{ matrix.arch }}.iss
 
+      - name: Build compatible edition (single-file .NET Framework)
+        shell: pwsh
+        run: |
+          dotnet build TubaWinUi3.Compatible/TubaWinUi3.Compatible.csproj -c Release
+          $compatExe = "TubaWinUi3.Compatible/bin/Release/net45/图吧工具箱Winui3兼容版.exe"
+          if (Test-Path -LiteralPath $compatExe) {
+            Write-Host "Compatible edition built successfully"
+            $size = [math]::Round((Get-Item -LiteralPath $compatExe).Length / 1MB, 1)
+            Write-Host "  Size: $size MB"
+          } else {
+            Write-Host "::warning::Compatible edition exe not found at $compatExe"
+          }
+
       - name: Create portable zip (src/ layout with launcher)
         shell: pwsh
         run: |
@@ -160,6 +177,12 @@ jobs:
           Get-ChildItem -LiteralPath $publishDir | Move-Item -Destination $srcDir -Force
 
           Copy-Item -LiteralPath "Launcher\bin\图吧工具箱WinUI3_${{ matrix.arch }}.exe" -Destination (Join-Path $stagingDir '图吧工具箱WinUI3.exe') -Force
+
+          $compatExe = "TubaWinUi3.Compatible/bin/Release/net45/图吧工具箱Winui3兼容版.exe"
+          if (Test-Path -LiteralPath $compatExe) {
+            Copy-Item -LiteralPath $compatExe -Destination (Join-Path $stagingDir '图吧工具箱Winui3兼容版.exe') -Force
+            Write-Host "Added compatible edition to portable zip"
+          }
 
           Compress-Archive -Path "$stagingDir\*" `
             -DestinationPath "TubaWinUi3_Portable_${{ inputs.version }}_${{ matrix.arch }}.zip"
