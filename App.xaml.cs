@@ -60,7 +60,7 @@ public partial class App : Application
         _window = new MainWindow();
         _window.Activate();
         ThemeService.ApplySavedTheme();
-        ToolIconService.CleanExpiredCache();
+        _ = Task.Run(() => ToolIconService.CleanExpiredCache());
         HardwareInfoService.Preload();
 
         _ = RunStartupSequenceAsync();

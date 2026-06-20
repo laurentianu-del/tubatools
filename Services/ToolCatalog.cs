@@ -35,7 +35,18 @@ public static class ToolCatalog
         }
     }
 
-    public static string ToolsRoot => FindToolsRoot();
+    private static string? _cachedToolsRoot;
+
+    public static string ToolsRoot
+    {
+        get
+        {
+            if (_cachedToolsRoot is not null)
+                return _cachedToolsRoot;
+            _cachedToolsRoot = FindToolsRoot();
+            return _cachedToolsRoot;
+        }
+    }
 
     public static IReadOnlyList<string> GetCategories()
     {

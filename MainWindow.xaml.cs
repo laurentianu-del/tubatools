@@ -38,7 +38,7 @@ public sealed partial class MainWindow : Window
         PopulateCategories();
         NavigateToDefaultPage();
 
-        PopulateSearchSuggestions();
+        DispatcherQueue.TryEnqueue(() => PopulateSearchSuggestions());
     }
 
     private void MainWindow_Closed(object sender, WindowEventArgs args)
