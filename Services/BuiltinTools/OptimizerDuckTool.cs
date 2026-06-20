@@ -3,17 +3,17 @@ using Microsoft.Win32;
 
 namespace TubaWinUi3.Services;
 
-public sealed class ContextMenuMgrTool : IBuiltinTool
+public sealed class OptimizerDuckTool : IBuiltinTool
 {
-    public string Id => "context-menu-mgr";
-    public string Name => "右键菜单管理";
-    public string Description => "管理 Windows 右键菜单项，支持添加/删除/编辑，来自 ContextMenuMgr 开源项目。";
-    public string Glyph => "\uE74C";
+    public string Id => "optimizer-duck";
+    public string Name => "OptimizerDuck 优化鸭";
+    public string Description => "开源的 Windows 系统优化工具，支持系统清理、性能优化、隐私保护等功能。";
+    public string Glyph => "\uE945";
     public string Category => "系统工具";
     public BuiltinToolKind Kind => BuiltinToolKind.InstantAction;
 
-    private const string Repo = "PLFJY/ContextMenuMgr";
-    private const string ProjectUrl = $"https://github.com/{Repo}";
+    private const string Repo = "itsfatduck/optimizerDuck";
+    private const string ProjectUrl = "https://github.com/itsfatduck/optimizerDuck";
 
     public async Task ExecuteAsync(BuiltinToolContext context)
     {
@@ -29,14 +29,14 @@ public sealed class ContextMenuMgrTool : IBuiltinTool
 
         await GitHubReleaseService.ShowDownloadFlowAsync(
             context,
-            toolName: "ContextMenuMgr",
-            description: "一款开源的 Windows 右键菜单管理工具，可以方便地添加、删除、编辑右键菜单项，" +
-                         "支持新建菜单、Shell 菜单、Win11 经典菜单等多种类型的管理操作。",
+            toolName: "OptimizerDuck",
+            description: "一款开源的 Windows 系统优化工具，提供系统清理、性能优化、隐私保护、启动项管理等功能，" +
+                         "界面简洁易用，适合日常系统维护。",
             projectUrl: ProjectUrl,
             repo: Repo,
             tag: null,
-            strategy: AssetMatchStrategy.ContextMenuMgr,
-            warningText: "此软件运行后会在后台占用约 30MB 内存（托盘驻留进程）",
+            strategy: AssetMatchStrategy.OptimizerDuck,
+            warningText: "当前仅提供 x64 版本，ARM64 设备可能需要通过兼容层运行",
             sizeHint: null);
     }
 
@@ -59,7 +59,7 @@ public sealed class ContextMenuMgrTool : IBuiltinTool
                 {
                     using var subKey = key.OpenSubKey(sub);
                     var name = subKey?.GetValue("DisplayName") as string;
-                    if (name is not null && IsContextMenuMgr(name))
+                    if (name is not null && IsOptimizerDuck(name))
                     {
                         var loc = subKey?.GetValue("InstallLocation") as string;
                         if (!string.IsNullOrEmpty(loc))
@@ -85,7 +85,26 @@ public sealed class ContextMenuMgrTool : IBuiltinTool
                 if (!Directory.Exists(d)) continue;
                 foreach (var sub in Directory.GetDirectories(d))
                 {
-                    if (IsContextMenuMgr(Path.GetFileName(sub)))
+                    if (IsOptimizerDuck(Path.GetFileName(sub)))
+                    {
+                        var exe = FindMainExe(sub);
+                        if (exe is not null) return exe;
+                    }
+                }
+            }
+        }
+        catch { }
+
+        try
+        {
+            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var localDirs = new[] { Path.Combine(localAppData, "Programs") };
+            foreach (var d in localDirs)
+            {
+                if (!Directory.Exists(d)) continue;
+                foreach (var sub in Directory.GetDirectories(d))
+                {
+                    if (IsOptimizerDuck(Path.GetFileName(sub)))
                     {
                         var exe = FindMainExe(sub);
                         if (exe is not null) return exe;
@@ -98,13 +117,14 @@ public sealed class ContextMenuMgrTool : IBuiltinTool
         return null;
     }
 
-    private static bool IsContextMenuMgr(string name) =>
-        name.Contains("ContextMenuMgr", StringComparison.OrdinalIgnoreCase) ||
-        name.Contains("Context Menu Manager", StringComparison.OrdinalIgnoreCase);
+    private static bool IsOptimizerDuck(string name) =>
+        name.Contains("optimizerDuck", StringComparison.OrdinalIgnoreCase) ||
+        name.Contains("OptimizerDuck", StringComparison.OrdinalIgnoreCase) ||
+        name.Contains("优化鸭", StringComparison.OrdinalIgnoreCase);
 
     private static string? FindMainExe(string dir)
     {
-        var candidates = new[] { "ContextMenuManagerPlus.exe", "ContextMenuMgrPlus.exe" };
+        var candidates = new[] { "optimizerDuck.exe", "OptimizerDuck.exe" };
         foreach (var c in candidates)
         {
             var p = Path.Combine(dir, c);
@@ -113,8 +133,8 @@ public sealed class ContextMenuMgrTool : IBuiltinTool
         foreach (var f in Directory.GetFiles(dir, "*.exe", SearchOption.TopDirectoryOnly))
         {
             var name = Path.GetFileName(f);
-            if (name.Contains("ContextMenuManager", StringComparison.OrdinalIgnoreCase) ||
-                name.Contains("ContextMenuMgr", StringComparison.OrdinalIgnoreCase))
+            if (name.Contains("optimizerDuck", StringComparison.OrdinalIgnoreCase) ||
+                name.Contains("OptimizerDuck", StringComparison.OrdinalIgnoreCase))
                 return f;
         }
         return null;

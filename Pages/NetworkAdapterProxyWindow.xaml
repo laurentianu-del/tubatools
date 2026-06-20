@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Window
+    x:Class="TubaWinUi3.Pages.NetworkAdapterProxyWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" RowSpacing="0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Title bar -->
+        <Grid Padding="24,20,24,12" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Border Width="40" Height="40" Background="{ThemeResource AccentFillColorDefaultBrush}" CornerRadius="8">
+                <FontIcon FontSize="20" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" Glyph="&#xE968;" />
+            </Border>
+            <StackPanel Grid.Column="1" Spacing="2">
+                <TextBlock FontSize="22" FontWeight="SemiBold" Text="网络调度器" />
+                <TextBlock Opacity="0.68" FontSize="12" Text="多网络智能分流，Wi-Fi 和有线自动加速" />
+            </StackPanel>
+            <Button x:Name="CloseButton" Grid.Column="2" Click="CloseButton_Click" Content="关闭" />
+        </Grid>
+
+        <!-- Main content -->
+        <ScrollViewer Grid.Row="1" HorizontalScrollMode="Disabled" VerticalScrollBarVisibility="Auto" Padding="24,0,24,24">
+            <StackPanel Spacing="14">
+                <InfoBar x:Name="ToastBar" IsClosable="True" IsOpen="False" />
+
+                <!-- Adapter cards -->
+                <TextBlock FontSize="14" FontWeight="SemiBold" Opacity="0.9" Text="网络适配器" />
+                <Grid x:Name="AdapterCardsGrid" ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                </Grid>
+
+                <!-- Smart routing -->
+                <TextBlock FontSize="14" FontWeight="SemiBold" Opacity="0.9" Text="智能调度" />
+                <Border Padding="16" CornerRadius="8" BorderThickness="1">
+                    <StackPanel Spacing="12">
+                        <TextBlock FontSize="12" Opacity="0.68" Text="自动调整路由优先级，让流量走最快的网络" />
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Button x:Name="OptimizeBtn" Click="OptimizeBtn_Click" HorizontalAlignment="Stretch">
+                                <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE9D9;" FontSize="14" />
+                                    <TextBlock Text="最优加速" />
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="BalanceBtn" Grid.Column="1" Click="BalanceBtn_Click" HorizontalAlignment="Stretch">
+                                <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE8BD;" FontSize="14" />
+                                    <TextBlock Text="均衡分流" />
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="ResetBtn" Grid.Column="2" Click="ResetBtn_Click" HorizontalAlignment="Stretch">
+                                <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE72C;" FontSize="14" />
+                                    <TextBlock Text="恢复默认" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button x:Name="PrioWifiBtn" Click="PrioWifiBtn_Click">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xEC85;" FontSize="14" />
+                                    <TextBlock Text="优先 Wi-Fi" />
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="PrioWiredBtn" Click="PrioWiredBtn_Click">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE8BD;" FontSize="14" />
+                                    <TextBlock Text="优先有线" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Realtime speed -->
+                <TextBlock FontSize="14" FontWeight="SemiBold" Opacity="0.9" Text="实时速度" />
+                <Border Padding="12" CornerRadius="8" BorderThickness="1">
+                    <Grid x:Name="SpeedGrid" ColumnSpacing="20">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                    </Grid>
+                </Border>
+
+                <!-- Active connections -->
+                <TextBlock FontSize="14" FontWeight="SemiBold" Opacity="0.9" Text="活动连接" />
+                <Border Padding="12" CornerRadius="8" BorderThickness="1" MaxHeight="280">
+                    <ListView x:Name="ConnectionList" SelectionMode="None" IsItemClickEnabled="False">
+                        <ListView.Header>
+                            <Grid Padding="4,0,4,4" ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="120" />
+                                    <ColumnDefinition Width="80" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="60" />
+                                    <ColumnDefinition Width="80" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock FontSize="11" Opacity="0.5" Text="进程" />
+                                <TextBlock FontSize="11" Opacity="0.5" Grid.Column="1" Text="类型" />
+                                <TextBlock FontSize="11" Opacity="0.5" Grid.Column="2" Text="远程地址" />
+                                <TextBlock FontSize="11" Opacity="0.5" Grid.Column="3" Text="端口" />
+                                <TextBlock FontSize="11" Opacity="0.5" Grid.Column="4" Text="适配器" />
+                            </Grid>
+                        </ListView.Header>
+                    </ListView>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Window>

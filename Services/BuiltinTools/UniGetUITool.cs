@@ -1,19 +1,20 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Microsoft.Win32;
 
 namespace TubaWinUi3.Services;
 
-public sealed class ContextMenuMgrTool : IBuiltinTool
+public sealed class UniGetUITool : IBuiltinTool
 {
-    public string Id => "context-menu-mgr";
-    public string Name => "右键菜单管理";
-    public string Description => "管理 Windows 右键菜单项，支持添加/删除/编辑，来自 ContextMenuMgr 开源项目。";
-    public string Glyph => "\uE74C";
+    public string Id => "unigetui";
+    public string Name => "UniGetUI 包管理器";
+    public string Description => "开源的 Windows 包管理器 GUI，支持 winget/scoop/chocolatey/pip/npm 等多种包管理器。";
+    public string Glyph => "\uE8F2";
     public string Category => "系统工具";
     public BuiltinToolKind Kind => BuiltinToolKind.InstantAction;
 
-    private const string Repo = "PLFJY/ContextMenuMgr";
-    private const string ProjectUrl = $"https://github.com/{Repo}";
+    private const string Repo = "Devolutions/UniGetUI";
+    private const string ProjectUrl = "https://github.com/Devolutions/UniGetUI";
 
     public async Task ExecuteAsync(BuiltinToolContext context)
     {
@@ -29,14 +30,14 @@ public sealed class ContextMenuMgrTool : IBuiltinTool
 
         await GitHubReleaseService.ShowDownloadFlowAsync(
             context,
-            toolName: "ContextMenuMgr",
-            description: "一款开源的 Windows 右键菜单管理工具，可以方便地添加、删除、编辑右键菜单项，" +
-                         "支持新建菜单、Shell 菜单、Win11 经典菜单等多种类型的管理操作。",
+            toolName: "UniGetUI",
+            description: "一款开源的 Windows 包管理器图形界面，支持 winget、scoop、Chocolatey、pip、npm 等多种包管理器，" +
+                         "可以方便地搜索、安装、更新和卸载软件，支持自动更新检查和批量操作。",
             projectUrl: ProjectUrl,
             repo: Repo,
             tag: null,
-            strategy: AssetMatchStrategy.ContextMenuMgr,
-            warningText: "此软件运行后会在后台占用约 30MB 内存（托盘驻留进程）",
+            strategy: AssetMatchStrategy.UniGetUI,
+            warningText: "安装包较大（约 135MB），下载可能需要较长时间",
             sizeHint: null);
     }
 
@@ -59,7 +60,7 @@ public sealed class ContextMenuMgrTool : IBuiltinTool
                 {
                     using var subKey = key.OpenSubKey(sub);
                     var name = subKey?.GetValue("DisplayName") as string;
-                    if (name is not null && IsContextMenuMgr(name))
+                    if (name is not null && IsUniGetUI(name))
                     {
                         var loc = subKey?.GetValue("InstallLocation") as string;
                         if (!string.IsNullOrEmpty(loc))
@@ -79,13 +80,13 @@ public sealed class ContextMenuMgrTool : IBuiltinTool
 
         try
         {
-            var programDirs = new[] { @"C:\Program Files", @"C:\Program Files (x86)" };
+            var programDirs = new[] { @"C:\Program Files", @"C:\Program Files (x86)", @"C:\Program Files (ARM)" };
             foreach (var d in programDirs)
             {
                 if (!Directory.Exists(d)) continue;
                 foreach (var sub in Directory.GetDirectories(d))
                 {
-                    if (IsContextMenuMgr(Path.GetFileName(sub)))
+                    if (IsUniGetUI(Path.GetFileName(sub)))
                     {
                         var exe = FindMainExe(sub);
                         if (exe is not null) return exe;
@@ -98,13 +99,13 @@ public sealed class ContextMenuMgrTool : IBuiltinTool
         return null;
     }
 
-    private static bool IsContextMenuMgr(string name) =>
-        name.Contains("ContextMenuMgr", StringComparison.OrdinalIgnoreCase) ||
-        name.Contains("Context Menu Manager", StringComparison.OrdinalIgnoreCase);
+    private static bool IsUniGetUI(string name) =>
+        name.Contains("UniGetUI", StringComparison.OrdinalIgnoreCase) ||
+        name.Contains("WingetUI", StringComparison.OrdinalIgnoreCase);
 
     private static string? FindMainExe(string dir)
     {
-        var candidates = new[] { "ContextMenuManagerPlus.exe", "ContextMenuMgrPlus.exe" };
+        var candidates = new[] { "UniGetUI.exe", "WingetUI.exe" };
         foreach (var c in candidates)
         {
             var p = Path.Combine(dir, c);
@@ -113,8 +114,8 @@ public sealed class ContextMenuMgrTool : IBuiltinTool
         foreach (var f in Directory.GetFiles(dir, "*.exe", SearchOption.TopDirectoryOnly))
         {
             var name = Path.GetFileName(f);
-            if (name.Contains("ContextMenuManager", StringComparison.OrdinalIgnoreCase) ||
-                name.Contains("ContextMenuMgr", StringComparison.OrdinalIgnoreCase))
+            if (name.Contains("UniGetUI", StringComparison.OrdinalIgnoreCase) ||
+                name.Contains("WingetUI", StringComparison.OrdinalIgnoreCase))
                 return f;
         }
         return null;
