@@ -536,19 +536,19 @@ public static class HardwareInfoService
         var prefix = GetMemoryTypeLabel(memType);
 
         var speeds = modules
-            .Select(item => GetMemoryDataRateMts(item, memType))
-            .Where(mts => mts > 0)
+            .Select(item => GetMemoryConfiguredClockSpeed(item))
+            .Where(mhz => mhz > 0)
             .Distinct()
-            .OrderByDescending(mts => mts)
+            .OrderByDescending(mhz => mhz)
             .ToList();
 
         var speedLabel = speeds.Count switch
         {
             0 => "",
-            1 => prefix.Length > 0 ? $"{prefix}-{speeds[0]} MT/s" : $"{speeds[0]} MT/s",
+            1 => prefix.Length > 0 ? $"{prefix}-{speeds[0]} MHz" : $"{speeds[0]} MHz",
             _ => prefix.Length > 0
-                ? string.Join("/", speeds.Select(s => $"{prefix}-{s} MT/s"))
-                : string.Join("/", speeds.Select(s => $"{s} MT/s"))
+                ? string.Join("/", speeds.Select(s => $"{prefix}-{s} MHz"))
+                : string.Join("/", speeds.Select(s => $"{s} MHz"))
         };
 
         var parts = new List<string>();
@@ -581,41 +581,9 @@ public static class HardwareInfoService
         };
     }
 
-    private static int GetMemoryDataRateMts(ManagementBaseObject item, int smbiosMemoryType)
+    private static int GetMemoryConfiguredClockSpeed(ManagementBaseObject item)
     {
-        var configuredClockSpeed = ToInt(Get(item, "ConfiguredClockSpeed"));
-        var speed = ToInt(Get(item, "Speed"));
-
-        if (configuredClockSpeed <= 0)
-        {
-            return speed;
-        }
-
-        if (speed <= 0)
-        {
-            return configuredClockSpeed;
-        }
-
-        if (configuredClockSpeed >= speed)
-        {
-            return configuredClockSpeed;
-        }
-
-        if (UsesBaseClockForConfiguredSpeed(smbiosMemoryType))
-        {
-            var doubledClock = configuredClockSpeed * 2;
-            if (doubledClock >= speed)
-            {
-                return doubledClock;
-            }
-        }
-
-        return configuredClockSpeed;
-    }
-
-    private static bool UsesBaseClockForConfiguredSpeed(int smbiosMemoryType)
-    {
-        return smbiosMemoryType is 18 or 19 or 20 or 24 or 25 or 26 or 34;
+        return ToInt(Get(item, "ConfiguredClockSpeed"));
     }
 
     private static string? CleanMemManufacturer(string? raw)
@@ -1633,15 +1601,14 @@ public static class HardwareInfoService
 
         foreach (var mod in modules)
         {
-            var configuredSpeed = GetMemoryDataRateMts(mod, memType);
-            var ratedSpeed = ToInt(Get(mod, "Speed"));
+            var configuredSpeed = GetMemoryConfiguredClockSpeed(mod);
 
             detail.Modules.Add(new MemoryModuleDetail
             {
                 Designation = FirstUseful(Get(mod, "BankLabel"), Get(mod, "DeviceLocator")),
                 Capacity = FormatCapacity(ToLong(Get(mod, "Capacity"))),
-                Speed = configuredSpeed > 0 ? $"{configuredSpeed} MT/s" : null,
-                RatedSpeed = ratedSpeed > 0 ? $"{ratedSpeed} MT/s" : null,
+                Speed = configuredSpeed > 0 ? $"{configuredSpeed} MHz" : null,
+                RatedSpeed = null,
                 Manufacturer = CleanMemManufacturer(Get(mod, "Manufacturer")),
                 PartNumber = Get(mod, "PartNumber"),
                 Type = typeLabel,
