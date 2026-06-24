@@ -15,35 +15,43 @@ public sealed class OptimizerDuckTool : IBuiltinTool
     private const string Repo = "itsfatduck/optimizerDuck";
     private const string ProjectUrl = "https://github.com/itsfatduck/optimizerDuck";
 
+    private static string PortableDir => Path.Combine(ToolCatalog.ToolsRoot, "系统工具", "优化鸭");
+
     public async Task ExecuteAsync(BuiltinToolContext context)
     {
-        if (IsInstalled())
+        var exe = FindInstalledExe();
+        if (exe is not null)
         {
-            var exe = FindInstalledExe();
-            if (exe is not null)
-            {
-                try { Process.Start(new ProcessStartInfo { FileName = exe, UseShellExecute = true }); return; }
-                catch { }
-            }
+            try { Process.Start(new ProcessStartInfo { FileName = exe, UseShellExecute = true }); return; }
+            catch { }
         }
 
         await GitHubReleaseService.ShowDownloadFlowAsync(
             context,
             toolName: "OptimizerDuck",
             description: "一款开源的 Windows 系统优化工具，提供系统清理、性能优化、隐私保护、启动项管理等功能，" +
-                         "界面简洁易用，适合日常系统维护。",
+                         "界面简洁易用，适合日常系统维护。下载后可直接从工具箱启动。",
             projectUrl: ProjectUrl,
             repo: Repo,
             tag: null,
             strategy: AssetMatchStrategy.OptimizerDuck,
             warningText: "当前仅提供 x64 版本，ARM64 设备可能需要通过兼容层运行",
-            sizeHint: null);
+            sizeHint: null,
+            portableDir: PortableDir);
     }
-
-    private static bool IsInstalled() => FindInstalledExe() is not null;
 
     private static string? FindInstalledExe()
     {
+        try
+        {
+            if (Directory.Exists(PortableDir))
+            {
+                var exe = FindMainExe(PortableDir);
+                if (exe is not null) return exe;
+            }
+        }
+        catch { }
+
         try
         {
             var keys = new[]

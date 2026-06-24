@@ -29,6 +29,7 @@ public sealed partial class GitHubDownloadWindow : Window
     private readonly GitHubAssetInfo? _asset;
     private readonly string? _versionTag;
     private string _bestUrl = "";
+    private readonly string? _portableDir;
 
     // Community tool mode
     private readonly CommunityTool? _communityTool;
@@ -37,7 +38,7 @@ public sealed partial class GitHubDownloadWindow : Window
     private bool _downloadStarted;
 
     public GitHubDownloadWindow(string toolName, string description, GitHubAssetInfo asset, string versionTag,
-        string? warningText = null, string? detailInfo = null)
+        string? warningText = null, string? detailInfo = null, string? portableDir = null)
     {
         InitializeComponent();
 
@@ -46,6 +47,7 @@ public sealed partial class GitHubDownloadWindow : Window
         _asset = asset;
         _versionTag = versionTag;
         _bestUrl = asset.OriginalUrl;
+        _portableDir = portableDir;
 
         InfoTitleText.Text = $"{toolName} v{versionTag.TrimStart('v')}";
         InfoDescText.Text = description;
@@ -340,9 +342,9 @@ public sealed partial class GitHubDownloadWindow : Window
                     });
                 });
 
-                var tempDir = Path.Combine(Path.GetTempPath(), $"TubaWinUi3_{_toolName.Replace(" ", "_")}");
+                var destDir = _portableDir ?? Path.Combine(Path.GetTempPath(), $"TubaWinUi3_{_toolName.Replace(" ", "_")}");
                 var filePath = await ToolDownloaderService.DownloadToFileAsync(
-                    _bestUrl, tempDir, _asset!.Name, progress, _cts.Token);
+                    _bestUrl, destDir, _asset!.Name, progress, _cts.Token);
 
                 try
                 {
@@ -350,11 +352,14 @@ public sealed partial class GitHubDownloadWindow : Window
                 }
                 catch
                 {
-                    DispatcherQueue.TryEnqueue(() => ShowSuccess($"安装程序已下载到：{filePath}\n请手动运行。"));
+                    DispatcherQueue.TryEnqueue(() => ShowSuccess($"{_toolName} 已下载到：{filePath}\n请手动运行。"));
                     return;
                 }
 
-                DispatcherQueue.TryEnqueue(() => ShowSuccess($"{_toolName} 下载完成，已启动安装程序。"));
+                var locationText = _portableDir is not null
+                    ? $"{_toolName} 已下载到：{filePath}\n下次可直接从工具箱启动。"
+                    : $"{_toolName} 下载完成，已启动安装程序。";
+                DispatcherQueue.TryEnqueue(() => ShowSuccess(locationText));
             }
             catch (OperationCanceledException)
             {

@@ -328,7 +328,8 @@ public static class GitHubReleaseService
         string? tag,
         AssetMatchStrategy strategy,
         string? warningText = null,
-        string? sizeHint = null)
+        string? sizeHint = null,
+        string? portableDir = null)
     {
         var arch = GetCurrentArch();
         var release = await FetchReleaseByTagAsync(repo, tag);
@@ -362,7 +363,7 @@ public static class GitHubReleaseService
 
         var window = new Pages.GitHubDownloadWindow(
             toolName, description, asset, release.TagName,
-            warningText, detailInfo);
+            warningText, detailInfo, portableDir);
         window.Activate();
 
         return "";

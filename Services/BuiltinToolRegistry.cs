@@ -23,11 +23,9 @@ public static class BuiltinToolRegistry
         Register(new KeyboardTestTool());
         Register(new JunkCleanerTool());
         Register(new BsodAnalysisTool());
-        Register(new WingetInstallerTool());
         Register(new BatteryAnalyzerTool());
         Register(new SpeedTestTool());
         Register(new WifiPasswordTool());
-        Register(new DiskSpaceAnalyzerTool());
         Register(new WindowsActivationTool());
         Register(new DefenderTool());
         Register(new CpuRankingTool());
