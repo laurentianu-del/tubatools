@@ -12,6 +12,14 @@ public sealed class JunkCategory
     public List<string> Paths { get; set; } = [];
 }
 
+public sealed class CleanProgress
+{
+    public required int Current { get; init; }
+    public required int Total { get; init; }
+    public required string CurrentPath { get; init; }
+    public required long CleanedBytes { get; init; }
+}
+
 public static class JunkCleanerService
 {
     public static async Task<List<JunkCategory>> ScanAsync(CancellationToken ct = default)
@@ -90,11 +98,14 @@ public static class JunkCleanerService
         }
     }
 
-    public static long Clean(List<JunkCategory> categories, CancellationToken ct = default)
+    public static long Clean(List<JunkCategory> categories, IProgress<CleanProgress>? progress = null, CancellationToken ct = default)
     {
         long totalCleaned = 0;
+        var selectedCats = categories.Where(c => c.Selected && c.FileCount > 0).ToList();
+        var totalItems = selectedCats.Sum(c => c.FileCount);
+        var current = 0;
 
-        foreach (var cat in categories.Where(c => c.Selected && c.FileCount > 0))
+        foreach (var cat in selectedCats)
         {
             if (ct.IsCancellationRequested) break;
 
@@ -111,6 +122,15 @@ public static class JunkCleanerService
                     }
                 }
                 catch { }
+
+                current++;
+                progress?.Report(new CleanProgress
+                {
+                    Current = current,
+                    Total = totalItems,
+                    CurrentPath = path,
+                    CleanedBytes = totalCleaned
+                });
             }
 
             foreach (var dir in GetCategoryPaths(cat.Name).Where(d => !IsProtectedDir(d)))

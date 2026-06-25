@@ -615,6 +615,145 @@
 
                 <TextBlock
                     Style="{StaticResource SectionHeaderStyle}"
+                    Text="AI 服务" />
+
+                <Border x:Name="SettingsAiEndpointCard" Style="{StaticResource SettingsCardStyle}">
+                    <Grid RowSpacing="12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Style="{StaticResource IconBorderStyle}">
+                                <FontIcon FontSize="18" Glyph="&#xE945;" />
+                            </Border>
+
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <TextBlock FontWeight="SemiBold" Text="AI 服务配置" />
+                                <TextBlock
+                                    x:Name="AiConfigStatusText"
+                                    Opacity="0.68"
+                                    FontSize="13"
+                                    TextWrapping="Wrap"
+                                    Text="配置 OpenAI 兼容 API，启用 AI 智能功能" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Border
+                            Grid.Row="1"
+                            Padding="0,1"
+                            Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+                        <Grid Grid.Row="2" ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Style="{StaticResource IconBorderStyle}">
+                                <FontIcon FontSize="18" Glyph="&#xE774;" />
+                            </Border>
+
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <TextBlock FontWeight="SemiBold" Text="API 地址" />
+                                <TextBlock
+                                    Opacity="0.68"
+                                    FontSize="13"
+                                    TextWrapping="Wrap"
+                                    Text="OpenAI 兼容 API 的 Base URL" />
+                            </StackPanel>
+
+                            <TextBox
+                                x:Name="AiEndpointTextBox"
+                                Grid.Column="1"
+                                HorizontalAlignment="Right"
+                                MinWidth="280"
+                                MaxWidth="360"
+                                PlaceholderText="https://api.openai.com/v1"
+                                TextChanged="AiEndpointTextBox_TextChanged" />
+                        </Grid>
+
+                        <Grid Grid.Row="3" ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Style="{StaticResource IconBorderStyle}">
+                                <FontIcon FontSize="18" Glyph="&#xE943;" />
+                            </Border>
+
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <TextBlock FontWeight="SemiBold" Text="模型名" />
+                                <TextBlock
+                                    Opacity="0.68"
+                                    FontSize="13"
+                                    TextWrapping="Wrap"
+                                    Text="使用的模型标识符" />
+                            </StackPanel>
+
+                            <TextBox
+                                x:Name="AiModelTextBox"
+                                Grid.Column="1"
+                                HorizontalAlignment="Right"
+                                MinWidth="280"
+                                MaxWidth="360"
+                                PlaceholderText="gpt-4o"
+                                TextChanged="AiModelTextBox_TextChanged" />
+                        </Grid>
+
+                        <Grid Grid.Row="4" ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Style="{StaticResource IconBorderStyle}">
+                                <FontIcon FontSize="18" Glyph="&#xE72E;" />
+                            </Border>
+
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <TextBlock FontWeight="SemiBold" Text="API Key" />
+                                <TextBlock
+                                    Opacity="0.68"
+                                    FontSize="13"
+                                    TextWrapping="Wrap"
+                                    Text="API 密钥，将安全保存在本地" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <PasswordBox
+                                    x:Name="AiApiKeyBox"
+                                    MinWidth="200"
+                                    MaxWidth="280"
+                                    PlaceholderText="sk-..."
+                                    PasswordChanged="AiApiKeyBox_PasswordChanged" />
+                                <Button
+                                    x:Name="AiTestButton"
+                                    Padding="14,6"
+                                    Click="AiTestButton_Click">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon x:Name="AiTestIcon" FontSize="12" Glyph="&#xE73E;" />
+                                        <TextBlock x:Name="AiTestButtonText" Text="测试连接" />
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <TextBlock
+                    Style="{StaticResource SectionHeaderStyle}"
                     Text="外观" />
 
 <Border x:Name="SettingsBackdropCard" Style="{StaticResource SettingsCardStyle}">

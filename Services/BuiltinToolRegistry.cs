@@ -36,6 +36,7 @@ public static class BuiltinToolRegistry
         Register(new PcSetupTool());
         Register(new UniGetUITool());
         Register(new OptimizerDuckTool());
+        Register(new AiAssistantTool());
 
 
     }

@@ -33,6 +33,8 @@ public sealed partial class SettingsPage : Page
 
     private bool _cpuzBusy;
     private bool _backdropInitializing;
+    private bool _aiSettingsInitializing;
+    private bool _aiTesting;
 
     private Border[] _backdropOptions = [];
 
@@ -106,6 +108,9 @@ public sealed partial class SettingsPage : Page
         ["CommunityTool"] = "SettingsCommunityCard",
         ["MonitorDriver"] = "SettingsMonitorDriverCard",
         ["ExportApp"] = "SettingsExportAppCard",
+        ["AiApiEndpoint"] = "SettingsAiEndpointCard",
+        ["AiModelName"] = "SettingsAiEndpointCard",
+        ["AiApiKey"] = "SettingsAiEndpointCard",
     };
 
     protected override void OnNavigatedTo(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
@@ -149,6 +154,7 @@ public sealed partial class SettingsPage : Page
         InitCpuzDataSourceStatus();
         InitUpdateSection();
         InitGitHubLoginStatus();
+        InitAiSettings();
     }
 
     private async Task HighlightSettingAsync(string settingKey)
@@ -1274,6 +1280,117 @@ private void InitDefaultPageComboBox()
         if (App.MainWindow is MainWindow mainWindow)
         {
             mainWindow.NavigateToCommunity();
+        }
+    }
+
+    private void InitAiSettings()
+    {
+        _aiSettingsInitializing = true;
+
+        AiEndpointTextBox.Text = AppSettings.Get("AiApiEndpoint") ?? "";
+        AiModelTextBox.Text = AppSettings.Get("AiModelName") ?? "";
+
+        var apiKey = AppSettings.Get("AiApiKey") ?? "";
+        AiApiKeyBox.Password = apiKey;
+
+        UpdateAiConfigStatus();
+
+        _aiSettingsInitializing = false;
+    }
+
+    private void UpdateAiConfigStatus()
+    {
+        if (AiService.IsConfigured)
+        {
+            AiConfigStatusText.Text = "AI 服务已配置，可在支持 AI 的功能中使用";
+            AiConfigStatusText.Foreground = new SolidColorBrush(Microsoft.UI.Colors.Green);
+        }
+        else
+        {
+            AiConfigStatusText.Text = "未配置 — 配置 OpenAI 兼容 API 后可启用 AI 智能功能";
+            AiConfigStatusText.Foreground = new SolidColorBrush(ThemeColors.DimText);
+        }
+    }
+
+    private void AiEndpointTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_aiSettingsInitializing) return;
+        AppSettings.Set("AiApiEndpoint", AiEndpointTextBox.Text.Trim());
+        UpdateAiConfigStatus();
+    }
+
+    private void AiModelTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_aiSettingsInitializing) return;
+        AppSettings.Set("AiModelName", AiModelTextBox.Text.Trim());
+        UpdateAiConfigStatus();
+    }
+
+    private void AiApiKeyBox_PasswordChanged(object sender, RoutedEventArgs e)
+    {
+        if (_aiSettingsInitializing) return;
+        AppSettings.Set("AiApiKey", AiApiKeyBox.Password);
+        UpdateAiConfigStatus();
+    }
+
+    private async void AiTestButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_aiTesting) return;
+        _aiTesting = true;
+        AiTestButton.IsEnabled = false;
+        AiTestButtonText.Text = "测试中...";
+        AiTestIcon.Glyph = "\uE950";
+
+        try
+        {
+            var result = await AiService.TestConnectionAsync();
+
+            if (result.Success)
+            {
+                AiTestIcon.Glyph = "\uE73E";
+                AiTestButtonText.Text = "连接成功";
+                AiConfigStatusText.Text = "AI 服务已配置，连接测试成功";
+                AiConfigStatusText.Foreground = new SolidColorBrush(Microsoft.UI.Colors.Green);
+            }
+            else
+            {
+                AiTestIcon.Glyph = "\uE783";
+                AiTestButtonText.Text = "连接失败";
+                AiConfigStatusText.Text = $"连接失败：{result.Error}";
+                AiConfigStatusText.Foreground = new SolidColorBrush(Microsoft.UI.Colors.Red);
+
+                var dialog = new ContentDialog
+                {
+                    XamlRoot = XamlRoot,
+                    Title = "AI 连接测试失败",
+                    Content = new ScrollViewer
+                    {
+                        MaxHeight = 200,
+                        Content = new TextBlock
+                        {
+                            Text = result.Error ?? "未知错误",
+                            TextWrapping = TextWrapping.Wrap,
+                            FontSize = 13
+                        }
+                    },
+                    CloseButtonText = "确定",
+                    RequestedTheme = ThemeService.CurrentElementTheme
+                };
+                await dialog.ShowAsync();
+            }
+        }
+        finally
+        {
+            _aiTesting = false;
+            AiTestButton.IsEnabled = true;
+
+            await Task.Delay(2000);
+
+            if (!_aiTesting)
+            {
+                AiTestIcon.Glyph = "\uE73E";
+                AiTestButtonText.Text = "测试连接";
+            }
         }
     }
 
