@@ -1,3 +1,4 @@
+using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -39,6 +40,28 @@ public sealed partial class MainWindow : Window
         NavigateToDefaultPage();
 
         DispatcherQueue.TryEnqueue(() => PopulateSearchSuggestions());
+    }
+    
+    private void RootGrid_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        PointerPointProperties props = e.GetCurrentPoint(null).Properties;
+
+        if (props.IsXButton1Pressed)
+        {
+            if (NavFrame.CanGoBack)
+            {
+                NavFrame.GoBack();
+                e.Handled = true;
+            }
+        }
+        else if (props.IsXButton2Pressed)
+        {
+            if (NavFrame.CanGoForward)
+            {
+                NavFrame.GoForward();
+                e.Handled = true;
+            }
+        }
     }
 
     private void MainWindow_Closed(object sender, WindowEventArgs args)
