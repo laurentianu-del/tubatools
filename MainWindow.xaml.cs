@@ -16,6 +16,7 @@ public sealed partial class MainWindow : Window
     private CancellationTokenSource? _searchCts;
     private SearchResult? _pendingSearchResult;
     private bool _syncingNavSelection;
+    private bool _navFromSidebar;
 
     public MainWindow()
     {
@@ -46,29 +47,21 @@ public sealed partial class MainWindow : Window
 
     private void NavFrame_Navigated(object sender, NavigationEventArgs e)
     {
-        SyncNavSelectionFromPage(e.SourcePageType);
-    }
+        if (_navFromSidebar)
+        {
+            _navFromSidebar = false;
+            return;
+        }
 
-    private void SyncNavSelectionFromPage(Type pageType)
-    {
         _syncingNavSelection = true;
 
-        if (pageType == typeof(SettingsPage))
+        if (e.SourcePageType == typeof(SettingsPage))
         {
             NavView.SelectedItem = NavView.SettingsItem;
         }
         else
         {
-            string? targetTag = pageType switch
-            {
-                var t when t == typeof(HomePage) => "all",
-                var t when t == typeof(FavoritesPage) => "favorites",
-                var t when t == typeof(HardwarePage) => "hardware",
-                var t when t == typeof(BuiltinToolsPage) => "builtin",
-                var t when t == typeof(CommunityToolsPage) => "community",
-                _ => null
-            };
-
+            var targetTag = ResolvePageTag(e.SourcePageType, e.Parameter);
             if (targetTag is not null)
             {
                 foreach (var item in NavView.MenuItems)
@@ -83,6 +76,21 @@ public sealed partial class MainWindow : Window
         }
 
         _syncingNavSelection = false;
+    }
+
+    private static string? ResolvePageTag(Type pageType, object? parameter)
+    {
+        if (pageType == typeof(SettingsPage)) return "settings";
+        if (pageType == typeof(FavoritesPage)) return "favorites";
+        if (pageType == typeof(HardwarePage)) return "hardware";
+        if (pageType == typeof(BuiltinToolsPage)) return "builtin";
+        if (pageType == typeof(CommunityToolsPage)) return "community";
+        if (pageType == typeof(HomePage))
+        {
+            if (parameter is string category) return category;
+            return "all";
+        }
+        return null;
     }
     
     private void RootGrid_PointerPressed(object sender, PointerRoutedEventArgs e)
@@ -193,6 +201,8 @@ public sealed partial class MainWindow : Window
     private async void NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
         if (_syncingNavSelection) return;
+
+        _navFromSidebar = true;
 
         if (args.IsSettingsSelected)
         {
