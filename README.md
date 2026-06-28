@@ -2,6 +2,7 @@
 
 <img src=".github/social-preview.png" alt="TubaWinUi3 Banner" width="100%"/>
 
+## 近期有许多非官方下载渠道，请注意甄别风险！
 # 图吧工具箱 TubaWinUi3
 
 **图吧工具箱的重构版** -- 基于 WinUI 3 / .NET 10 全新打造
