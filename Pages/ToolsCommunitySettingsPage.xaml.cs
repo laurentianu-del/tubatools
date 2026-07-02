@@ -50,6 +50,7 @@ public sealed partial class ToolsCommunitySettingsPage : Page
     private const int OFN_PATHMUSTEXIST = 0x00000800;
 
     private string? _pendingHighlightKey;
+    private CancellationTokenSource? _highlightCts;
 
     private static readonly Dictionary<string, string> SettingKeyToCardName = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -76,16 +77,24 @@ public sealed partial class ToolsCommunitySettingsPage : Page
 
         if (_pendingHighlightKey is not null)
         {
-            _ = HighlightSettingAsync(_pendingHighlightKey);
+            StartHighlight(_pendingHighlightKey);
             _pendingHighlightKey = null;
         }
     }
 
-    private async Task HighlightSettingAsync(string settingKey)
+    private void StartHighlight(string settingKey)
+    {
+        _highlightCts?.Cancel();
+        _highlightCts = new CancellationTokenSource();
+        _ = HighlightSettingAsync(settingKey, _highlightCts.Token);
+    }
+
+    private async Task HighlightSettingAsync(string settingKey, CancellationToken ct)
     {
         if (!SettingKeyToCardName.TryGetValue(settingKey, out var cardName)) return;
 
-        await Task.Delay(300);
+        try { await Task.Delay(300, ct); } catch (OperationCanceledException) { return; }
+        if (ct.IsCancellationRequested) return;
 
         var border = FindName(cardName) as Border;
         if (border is null) return;
@@ -96,7 +105,8 @@ public sealed partial class ToolsCommunitySettingsPage : Page
             VerticalAlignmentRatio = 0.5
         });
 
-        await Task.Delay(500);
+        try { await Task.Delay(500, ct); } catch (OperationCanceledException) { return; }
+        if (ct.IsCancellationRequested) return;
         SearchHighlightService.HighlightBorder(border);
     }
 

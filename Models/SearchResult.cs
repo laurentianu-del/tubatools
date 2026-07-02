@@ -1,7 +1,5 @@
 namespace TubaWinUi3.Models;
 
-using Microsoft.UI.Xaml;
-
 public sealed class SearchResult
 {
     public required string Title { get; init; }
@@ -13,8 +11,7 @@ public sealed class SearchResult
     public string? Category { get; init; }
     public double Score { get; init; }
 
-    public Visibility IconPathVisibility => string.IsNullOrEmpty(IconPath) ? Visibility.Collapsed : Visibility.Visible;
-    public Visibility GlyphVisibility => string.IsNullOrEmpty(IconPath) ? Visibility.Visible : Visibility.Collapsed;
+    public bool HasIconPath => !string.IsNullOrEmpty(IconPath);
 
     public string KindText => Kind switch
     {

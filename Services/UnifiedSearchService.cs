@@ -43,7 +43,8 @@ public static class UnifiedSearchService
         SearchBuiltinTools(normalized, results);
         SearchCommunityTools(normalized, results);
         SearchSettings(normalized, results);
-        SearchCustomTools(normalized, results);
+
+        DeduplicateResults(results);
 
         return results
             .OrderByDescending(r => r.Score)
@@ -68,7 +69,9 @@ public static class UnifiedSearchService
                     Title = tool.Name,
                     Subtitle = tool.Category,
                     Glyph = tool.IconGlyph ?? "\uE8B7",
-                    Kind = SearchItemKind.ExternalTool,
+                    Kind = tool.DatabaseSource?.Equals("custom", StringComparison.OrdinalIgnoreCase) == true
+                        ? SearchItemKind.CustomTool
+                        : SearchItemKind.ExternalTool,
                     MatchKey = tool.Path,
                     IconPath = iconPath,
                     Category = tool.Category,
@@ -98,20 +101,21 @@ public static class UnifiedSearchService
         try
         {
             var tools = ToolCatalog.Search(query);
-            foreach (var tool in tools.Take(8))
+            foreach (var tool in tools)
             {
+                var isCustom = tool.DatabaseSource?.Equals("custom", StringComparison.OrdinalIgnoreCase) == true;
                 var score = CalcScore(query, tool.Name, tool.Tags);
                 var iconPath = tool.IconPath ?? ToolIconService.GetCachedIconPath(tool.Path);
                 results.Add(new SearchResult
                 {
                     Title = tool.Name,
-                    Subtitle = tool.Category,
+                    Subtitle = isCustom ? $"自定义 · {tool.Category}" : tool.Category,
                     Glyph = tool.IconGlyph ?? "\uE8B7",
-                    Kind = SearchItemKind.ExternalTool,
+                    Kind = isCustom ? SearchItemKind.CustomTool : SearchItemKind.ExternalTool,
                     MatchKey = tool.Path,
                     IconPath = iconPath,
                     Category = tool.Category,
-                    Score = score
+                    Score = isCustom ? score + 1 : score
                 });
             }
         }
@@ -165,55 +169,17 @@ public static class UnifiedSearchService
 
     private static void SearchCommunityTools(string query, List<SearchResult> results)
     {
-        try
-        {
-            var tools = CommunityToolService.SearchPluginsAsync(query).GetAwaiter().GetResult();
-            foreach (var tool in tools.Take(5))
-            {
-                var score = CalcScore(query, tool.Name, tool.Tags.ToList());
-                results.Add(new SearchResult
-                {
-                    Title = tool.Name,
-                    Subtitle = $"社区 · {tool.Category}",
-                    Glyph = tool.IconGlyph ?? "\uE9D5",
-                    Kind = SearchItemKind.CommunityTool,
-                    MatchKey = tool.Id,
-                    Category = tool.Category,
-                    Score = score + 2
-                });
-            }
-        }
-        catch { }
     }
 
-    private static void SearchCustomTools(string query, List<SearchResult> results)
+    private static void DeduplicateResults(List<SearchResult> results)
     {
-        try
+        var seen = new HashSet<(SearchItemKind, string)>();
+        for (var i = results.Count - 1; i >= 0; i--)
         {
-            var tools = ToolCatalog.Search(query);
-            foreach (var tool in tools.Where(t => IsCustomTool(t)).Take(4))
-            {
-                var score = CalcScore(query, tool.Name, tool.Tags);
-                var iconPath = tool.IconPath ?? ToolIconService.GetCachedIconPath(tool.Path);
-                results.Add(new SearchResult
-                {
-                    Title = tool.Name,
-                    Subtitle = $"自定义 · {tool.Category}",
-                    Glyph = tool.IconGlyph ?? "\uE8B7",
-                    Kind = SearchItemKind.CustomTool,
-                    MatchKey = tool.Path,
-                    IconPath = iconPath,
-                    Category = tool.Category,
-                    Score = score + 1
-                });
-            }
+            var key = (results[i].Kind, results[i].MatchKey);
+            if (!seen.Add(key))
+                results.RemoveAt(i);
         }
-        catch { }
-    }
-
-    private static bool IsCustomTool(ToolItem tool)
-    {
-        return tool.DatabaseSource?.Equals("custom", StringComparison.OrdinalIgnoreCase) == true;
     }
 
     private static ToolItem? FindToolByPath(string toolPath)

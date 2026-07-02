@@ -10,6 +10,10 @@
     mc:Ignorable="d">
 
     <Grid PointerPressed="RootGrid_PointerPressed">
+        <Grid.Resources>
+            <local:IconPathToVisibilityConverter x:Key="IconPathToVisibility" />
+            <local:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility" />
+        </Grid.Resources>
         <Grid.RowDefinitions>
             <RowDefinition Height="48" />
             <RowDefinition Height="*" />
@@ -49,8 +53,8 @@
                     </Button>
                     <Popup
                         x:Name="SearchPopup"
-                        IsLightDismissEnabled="True"
-                        VerticalOffset="32">
+                        VerticalOffset="32"
+                        GettingFocus="SearchPopup_GettingFocus">
                         <Border
                             x:Name="SearchPopupBorder"
                             Width="318"
@@ -85,13 +89,13 @@
                                                         Width="24" Height="24"
                                                         Stretch="Uniform"
                                                         Source="{Binding IconPath}"
-                                                        Visibility="{Binding IconPathVisibility}" />
+                                                        Visibility="{Binding HasIconPath, Converter={StaticResource IconPathToVisibility}}" />
                                                     <FontIcon
                                                         FontSize="14"
                                                         HorizontalAlignment="Center"
                                                         VerticalAlignment="Center"
                                                         Glyph="{Binding Glyph}"
-                                                        Visibility="{Binding GlyphVisibility}" />
+                                                        Visibility="{Binding HasIconPath, Converter={StaticResource InverseBoolToVisibility}}" />
                                                 </Grid>
                                             </Border>
 

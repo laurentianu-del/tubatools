@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -8,9 +9,17 @@ namespace TubaWinUi3.Services;
 
 public static class SearchHighlightService
 {
+    private static readonly ConditionalWeakTable<Border, DispatcherQueueTimer> _activeTimers = new();
+
     public static void HighlightBorder(Border border)
     {
         if (border is null) return;
+
+        if (_activeTimers.TryGetValue(border, out var existingTimer))
+        {
+            existingTimer.Stop();
+            _activeTimers.Remove(border);
+        }
 
         var originalBorderBrush = border.BorderBrush;
         var originalBorderThickness = border.BorderThickness;
@@ -25,9 +34,12 @@ public static class SearchHighlightService
         timer.Tick += (s, e) =>
         {
             ((DispatcherQueueTimer)s!).Stop();
+            _activeTimers.Remove(border);
             border.BorderBrush = originalBorderBrush;
             border.BorderThickness = originalBorderThickness;
         };
+
+        _activeTimers.Add(border, timer);
         timer.Start();
     }
 

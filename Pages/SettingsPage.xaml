@@ -111,7 +111,7 @@
                         HorizontalContentAlignment="Stretch"
                         IsExpanded="False">
                         <Expander.Header>
-                            <StackPanel Orientation="Horizontal" Spacing="12">
+                            <StackPanel Orientation="Horizontal" Spacing="12" Padding="0,8" MinHeight="56">
                                 <Border Style="{StaticResource NavCardIconBorderStyle}">
                                     <FontIcon FontSize="20" Glyph="&#xE80F;" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
@@ -122,7 +122,7 @@
                             </StackPanel>
                         </Expander.Header>
                         <Expander.Content>
-                            <ScrollViewer MaxHeight="500" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
+                            <ScrollViewer VerticalScrollBarVisibility="Disabled" HorizontalScrollMode="Disabled">
                             <StackPanel Spacing="2" Padding="0,4,0,0">
 
                                 <Border x:Name="SettingsUpdateCard" Style="{StaticResource SettingsCardStyle}">
@@ -272,7 +272,7 @@
                         HorizontalContentAlignment="Stretch"
                         IsExpanded="False">
                         <Expander.Header>
-                            <StackPanel Orientation="Horizontal" Spacing="12">
+                            <StackPanel Orientation="Horizontal" Spacing="12" Padding="0,8" MinHeight="56">
                                 <Border Style="{StaticResource NavCardIconBorderStyle}">
                                     <FontIcon FontSize="20" Glyph="&#xE7F3;" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
@@ -283,7 +283,7 @@
                             </StackPanel>
                         </Expander.Header>
                         <Expander.Content>
-                            <ScrollViewer MaxHeight="500" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
+                            <ScrollViewer VerticalScrollBarVisibility="Disabled" HorizontalScrollMode="Disabled">
                             <StackPanel Spacing="2" Padding="0,4,0,0">
 
                                 <Border x:Name="SettingsBackdropCard" Style="{StaticResource SettingsCardStyle}">
@@ -506,7 +506,7 @@
                         HorizontalContentAlignment="Stretch"
                         IsExpanded="False">
                         <Expander.Header>
-                            <StackPanel Orientation="Horizontal" Spacing="12">
+                            <StackPanel Orientation="Horizontal" Spacing="12" Padding="0,8" MinHeight="56">
                                 <Border Style="{StaticResource NavCardIconBorderStyle}">
                                     <FontIcon FontSize="20" Glyph="&#xE772;" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
@@ -517,7 +517,7 @@
                             </StackPanel>
                         </Expander.Header>
                         <Expander.Content>
-                            <ScrollViewer MaxHeight="500" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
+                            <ScrollViewer VerticalScrollBarVisibility="Disabled" HorizontalScrollMode="Disabled">
                             <StackPanel Spacing="2" Padding="0,4,0,0">
 
                                 <Border x:Name="SettingsHardwareFitScreenCard" Style="{StaticResource SettingsCardStyle}">
@@ -682,7 +682,7 @@
                         HorizontalContentAlignment="Stretch"
                         IsExpanded="False">
                         <Expander.Header>
-                            <StackPanel Orientation="Horizontal" Spacing="12">
+                            <StackPanel Orientation="Horizontal" Spacing="12" Padding="0,8" MinHeight="56">
                                 <Border Style="{StaticResource NavCardIconBorderStyle}">
                                     <FontIcon FontSize="20" Glyph="&#xE8B7;" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
@@ -693,7 +693,7 @@
                             </StackPanel>
                         </Expander.Header>
                         <Expander.Content>
-                            <ScrollViewer MaxHeight="500" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
+                            <ScrollViewer VerticalScrollBarVisibility="Disabled" HorizontalScrollMode="Disabled">
                             <StackPanel Spacing="2" Padding="0,4,0,0">
 
                                 <Border x:Name="SettingsConfigManagerCard" Style="{StaticResource SettingsCardStyle}">
@@ -831,7 +831,7 @@
                         HorizontalContentAlignment="Stretch"
                         IsExpanded="False">
                         <Expander.Header>
-                            <StackPanel Orientation="Horizontal" Spacing="12">
+                            <StackPanel Orientation="Horizontal" Spacing="12" Padding="0,8" MinHeight="56">
                                 <Border Style="{StaticResource NavCardIconBorderStyle}">
                                     <FontIcon FontSize="20" Glyph="&#xE774;" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
@@ -842,7 +842,7 @@
                             </StackPanel>
                         </Expander.Header>
                         <Expander.Content>
-                            <ScrollViewer MaxHeight="400" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
+                            <ScrollViewer VerticalScrollBarVisibility="Disabled" HorizontalScrollMode="Disabled">
                             <StackPanel Spacing="2" Padding="0,4,0,0">
 
                                 <Border Style="{StaticResource SettingsCardStyle}">

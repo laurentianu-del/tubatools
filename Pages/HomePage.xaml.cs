@@ -18,6 +18,7 @@ public sealed partial class HomePage : Page
     private string? _category;
     private string? _selectedTag;
     private CancellationTokenSource? _loadCts;
+    private CancellationTokenSource? _highlightCts;
     private bool _compactMode;
     private string? _highlightToolPath;
     private string _searchQuery = string.Empty;
@@ -142,7 +143,7 @@ public sealed partial class HomePage : Page
         }
         else if (_highlightToolPath is not null)
         {
-            _ = HighlightToolAsync(_highlightToolPath);
+            StartHighlight(_highlightToolPath);
             _highlightToolPath = null;
         }
 
@@ -279,14 +280,21 @@ public sealed partial class HomePage : Page
 
             if (_highlightToolPath is not null)
             {
-                _ = HighlightToolAsync(_highlightToolPath);
+                StartHighlight(_highlightToolPath);
                 _highlightToolPath = null;
             }
         }
         catch (OperationCanceledException) { }
     }
 
-    private async Task HighlightToolAsync(string toolPath)
+    private void StartHighlight(string toolPath)
+    {
+        _highlightCts?.Cancel();
+        _highlightCts = new CancellationTokenSource();
+        _ = HighlightToolAsync(toolPath, _highlightCts.Token);
+    }
+
+    private async Task HighlightToolAsync(string toolPath, CancellationToken ct)
     {
         var grid = _compactMode ? CompactGrid : ToolsGrid;
         var index = -1;
@@ -299,13 +307,13 @@ public sealed partial class HomePage : Page
             }
         }
 
-        if (index < 0) return;
+        if (index < 0 || ct.IsCancellationRequested) return;
 
         grid.ScrollIntoView(_tools[index]);
-        await Task.Delay(100);
+        try { await Task.Delay(100, ct); } catch (OperationCanceledException) { return; }
 
         var container = grid.ContainerFromItem(_tools[index]) as GridViewItem;
-        if (container is null) return;
+        if (container is null || ct.IsCancellationRequested) return;
 
         container.StartBringIntoView(new BringIntoViewOptions
         {
@@ -313,7 +321,9 @@ public sealed partial class HomePage : Page
             VerticalAlignmentRatio = 0.5
         });
 
-        await Task.Delay(500);
+        try { await Task.Delay(500, ct); } catch (OperationCanceledException) { return; }
+
+        if (ct.IsCancellationRequested) return;
 
         var border = FindChildBorder(container);
         if (border is not null)

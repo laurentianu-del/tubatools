@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -15,17 +16,21 @@ namespace TubaWinUi3;
 
 public sealed partial class MainWindow : Window
 {
-    private CancellationTokenSource? _searchCts;
     private bool _syncingNavSelection;
     private bool _navFromSidebar;
-    private bool _searchPopupClosing;
+    private bool _suppressSearch;
     private readonly ObservableCollection<SearchResult> _searchResults = [];
+    private readonly DispatcherQueueTimer _searchDebounceTimer;
 
     public MainWindow()
     {
         InitializeComponent();
 
         SearchListView.ItemsSource = _searchResults;
+
+        _searchDebounceTimer = DispatcherQueue.CreateTimer();
+        _searchDebounceTimer.Interval = TimeSpan.FromMilliseconds(100);
+        _searchDebounceTimer.Tick += OnSearchDebounceTick;
 
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
@@ -46,8 +51,6 @@ public sealed partial class MainWindow : Window
 
         PopulateCategories();
         NavigateToDefaultPage();
-
-        DispatcherQueue.TryEnqueue(() => PopulateSearchSuggestions());
     }
 
     private void NavFrame_Navigated(object sender, NavigationEventArgs e)
@@ -306,59 +309,27 @@ public sealed partial class MainWindow : Window
             return customGlyph;
 
         if (category.Contains("处理器", StringComparison.CurrentCultureIgnoreCase))
-        {
             return "\uEEA1";
-        }
-
         if (category.Contains("显卡", StringComparison.CurrentCultureIgnoreCase))
-        {
             return "\uF211";
-        }
-
         if (category.Contains("显示器", StringComparison.CurrentCultureIgnoreCase))
-        {
             return "\uE7F4";
-        }
-
         if (category.Contains("硬盘", StringComparison.CurrentCultureIgnoreCase))
-        {
             return "\uEDA2";
-        }
-
         if (category.Contains("内存", StringComparison.CurrentCultureIgnoreCase))
-        {
             return "\uEEA0";
-        }
-
         if (category.Contains("外设", StringComparison.CurrentCultureIgnoreCase))
-        {
             return "\uE962";
-        }
-
         if (category.Contains("游戏", StringComparison.CurrentCultureIgnoreCase))
-        {
             return "\uE7FC";
-        }
-
         if (category.Contains("声卡", StringComparison.CurrentCultureIgnoreCase))
-        {
             return "\uE7F5";
-        }
-
         if (category.Contains("网卡", StringComparison.CurrentCultureIgnoreCase))
-        {
             return "\uEDA3";
-        }
-
         if (category.Contains("综合", StringComparison.CurrentCultureIgnoreCase))
-        {
             return "\uEC4E";
-        }
-
         if (category.Contains("其他", StringComparison.CurrentCultureIgnoreCase))
-        {
             return "\uE712";
-        }
 
         return "\uE8B7";
     }
@@ -396,10 +367,7 @@ public sealed partial class MainWindow : Window
 
     private void ShowSearchPopup()
     {
-        if (_searchResults.Count > 0)
-        {
-            SearchPopup.IsOpen = true;
-        }
+        SearchPopup.IsOpen = _searchResults.Count > 0;
     }
 
     private void HideSearchPopup()
@@ -407,8 +375,14 @@ public sealed partial class MainWindow : Window
         SearchPopup.IsOpen = false;
     }
 
+    private void SearchPopup_GettingFocus(object sender, GettingFocusEventArgs e)
+    {
+        e.TryCancel();
+    }
+
     private void SearchTextBox_GotFocus(object sender, RoutedEventArgs e)
     {
+        if (_suppressSearch) return;
         var query = SearchTextBox.Text.Trim();
         if (query.Length == 0)
             PopulateSearchSuggestions();
@@ -417,59 +391,59 @@ public sealed partial class MainWindow : Window
 
     private void SearchTextBox_LostFocus(object sender, RoutedEventArgs e)
     {
-        _searchPopupClosing = true;
-        DispatcherQueue.TryEnqueue(() =>
-        {
-            if (_searchPopupClosing)
-            {
-                HideSearchPopup();
-                _searchPopupClosing = false;
-            }
-        });
+        DispatcherQueue.TryEnqueue(HideSearchPopup);
     }
 
     private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
     {
+        if (_suppressSearch) return;
+
         var query = SearchTextBox.Text.Trim();
 
         if (query.Length == 0)
         {
+            _searchDebounceTimer.Stop();
             PopulateSearchSuggestions();
             ShowSearchPopup();
             return;
         }
 
-        _searchCts?.Cancel();
-        var cts = new CancellationTokenSource();
-        _searchCts = cts;
-
-        _ = SearchAsync(query, cts.Token);
+        _searchDebounceTimer.Stop();
+        _searchDebounceTimer.Start();
     }
 
-    private async Task SearchAsync(string query, CancellationToken ct)
+    private void OnSearchDebounceTick(DispatcherQueueTimer sender, object args)
+    {
+        sender.Stop();
+        var query = SearchTextBox.Text.Trim();
+        if (query.Length == 0) return;
+
+        _ = SearchInBackgroundAsync(query);
+    }
+
+    private async Task SearchInBackgroundAsync(string query)
     {
         try
         {
-            var results = await Task.Run(() => UnifiedSearchService.Search(query), ct);
-            if (ct.IsCancellationRequested) return;
-
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                if (ct.IsCancellationRequested) return;
-                _searchResults.Clear();
-                foreach (var r in results)
-                    _searchResults.Add(r);
-                ShowSearchPopup();
-            });
+            var results = await Task.Run(() => UnifiedSearchService.Search(query));
+            _searchResults.Clear();
+            foreach (var r in results)
+                _searchResults.Add(r);
+            SearchPopup.IsOpen = true;
         }
-        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Search] {ex}");
+        }
     }
 
     private void SearchListView_ItemClick(object sender, ItemClickEventArgs e)
     {
         if (e.ClickedItem is SearchResult result)
         {
+            _suppressSearch = true;
             SearchTextBox.Text = string.Empty;
+            _suppressSearch = false;
             HideSearchPopup();
             HandleSearchResult(result);
         }
@@ -480,7 +454,9 @@ public sealed partial class MainWindow : Window
         var first = _searchResults.FirstOrDefault();
         if (first is not null)
         {
+            _suppressSearch = true;
             SearchTextBox.Text = string.Empty;
+            _suppressSearch = false;
             HideSearchPopup();
             HandleSearchResult(first);
         }
@@ -490,18 +466,31 @@ public sealed partial class MainWindow : Window
     {
         if (e.Key == Windows.System.VirtualKey.Escape)
         {
+            _suppressSearch = true;
             SearchTextBox.Text = string.Empty;
+            _suppressSearch = false;
             HideSearchPopup();
             e.Handled = true;
         }
         else if (e.Key == Windows.System.VirtualKey.Enter)
         {
-            var first = _searchResults.FirstOrDefault();
-            if (first is not null)
+            var idx = SearchListView.SelectedIndex;
+            if (idx >= 0 && idx < _searchResults.Count)
             {
+                var result = _searchResults[idx];
+                _suppressSearch = true;
                 SearchTextBox.Text = string.Empty;
+                _suppressSearch = false;
                 HideSearchPopup();
-                HandleSearchResult(first);
+                HandleSearchResult(result);
+            }
+            else if (_searchResults.Count > 0)
+            {
+                _suppressSearch = true;
+                SearchTextBox.Text = string.Empty;
+                _suppressSearch = false;
+                HideSearchPopup();
+                HandleSearchResult(_searchResults[0]);
             }
             e.Handled = true;
         }
@@ -509,8 +498,23 @@ public sealed partial class MainWindow : Window
         {
             if (SearchListView.Items.Count > 0)
             {
-                SearchListView.Focus(FocusState.Keyboard);
-                SearchListView.SelectedIndex = 0;
+                var next = SearchListView.SelectedIndex < 0
+                    ? 0
+                    : Math.Min(SearchListView.SelectedIndex + 1, SearchListView.Items.Count - 1);
+                SearchListView.SelectedIndex = next;
+                SearchListView.ScrollIntoView(SearchListView.SelectedItem);
+            }
+            e.Handled = true;
+        }
+        else if (e.Key == Windows.System.VirtualKey.Up)
+        {
+            if (SearchListView.Items.Count > 0)
+            {
+                var prev = SearchListView.SelectedIndex <= 0
+                    ? 0
+                    : SearchListView.SelectedIndex - 1;
+                SearchListView.SelectedIndex = prev;
+                SearchListView.ScrollIntoView(SearchListView.SelectedItem);
             }
             e.Handled = true;
         }
@@ -522,7 +526,9 @@ public sealed partial class MainWindow : Window
         {
             if (SearchListView.SelectedItem is SearchResult result)
             {
+                _suppressSearch = true;
                 SearchTextBox.Text = string.Empty;
+                _suppressSearch = false;
                 HideSearchPopup();
                 HandleSearchResult(result);
             }
@@ -530,7 +536,9 @@ public sealed partial class MainWindow : Window
         }
         else if (e.Key == Windows.System.VirtualKey.Escape)
         {
+            _suppressSearch = true;
             SearchTextBox.Text = string.Empty;
+            _suppressSearch = false;
             HideSearchPopup();
             e.Handled = true;
         }
@@ -628,5 +636,4 @@ public sealed partial class MainWindow : Window
                 break;
         }
     }
-
 }

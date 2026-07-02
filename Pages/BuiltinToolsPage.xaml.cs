@@ -11,6 +11,7 @@ public sealed partial class BuiltinToolsPage : Page
 {
     private readonly ObservableCollection<BuiltinToolViewModel> _tools = [];
     private CancellationTokenSource? _activeCts;
+    private CancellationTokenSource? _highlightCts;
     private string? _pendingHighlightId;
 
     public BuiltinToolsPage()
@@ -35,7 +36,7 @@ public sealed partial class BuiltinToolsPage : Page
 
         if (_pendingHighlightId is not null)
         {
-            _ = HighlightBuiltinToolAsync(_pendingHighlightId);
+            StartHighlight(_pendingHighlightId);
             _pendingHighlightId = null;
         }
     }
@@ -56,16 +57,23 @@ public sealed partial class BuiltinToolsPage : Page
         }
     }
 
-    private async Task HighlightBuiltinToolAsync(string builtinId)
+    private void StartHighlight(string builtinId)
+    {
+        _highlightCts?.Cancel();
+        _highlightCts = new CancellationTokenSource();
+        _ = HighlightBuiltinToolAsync(builtinId, _highlightCts.Token);
+    }
+
+    private async Task HighlightBuiltinToolAsync(string builtinId, CancellationToken ct)
     {
         var vm = _tools.FirstOrDefault(t => t.Id.Equals(builtinId, StringComparison.OrdinalIgnoreCase));
-        if (vm is null) return;
+        if (vm is null || ct.IsCancellationRequested) return;
 
         ToolsGrid.ScrollIntoView(vm);
-        await Task.Delay(100);
+        try { await Task.Delay(100, ct); } catch (OperationCanceledException) { return; }
 
         var container = ToolsGrid.ContainerFromItem(vm) as GridViewItem;
-        if (container is null) return;
+        if (container is null || ct.IsCancellationRequested) return;
 
         var scrollViewer = FindChildScrollViewer(ToolsGrid);
         if (scrollViewer is not null)
@@ -75,8 +83,10 @@ public sealed partial class BuiltinToolsPage : Page
             var targetOffset = scrollViewer.VerticalOffset + point.Y - scrollViewer.ViewportHeight / 2 + container.ActualHeight / 2;
             targetOffset = Math.Max(0, Math.Min(targetOffset, scrollViewer.ExtentHeight - scrollViewer.ViewportHeight));
             scrollViewer.ChangeView(null, targetOffset, null, disableAnimation: false);
-            await Task.Delay(600);
+            try { await Task.Delay(600, ct); } catch (OperationCanceledException) { return; }
         }
+
+        if (ct.IsCancellationRequested) return;
 
         var border = FindChildBorder(container);
         if (border is not null)

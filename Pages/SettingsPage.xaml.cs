@@ -46,6 +46,7 @@ public sealed partial class SettingsPage : Page
     ];
 
     private string? _pendingHighlightKey;
+    private CancellationTokenSource? _highlightCts;
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct OPENFILENAME
@@ -177,12 +178,19 @@ public sealed partial class SettingsPage : Page
 
         if (_pendingHighlightKey is not null)
         {
-            _ = HighlightSettingAsync(_pendingHighlightKey);
+            StartHighlight(_pendingHighlightKey);
             _pendingHighlightKey = null;
         }
     }
 
-    private async Task HighlightSettingAsync(string settingKey)
+    private void StartHighlight(string settingKey)
+    {
+        _highlightCts?.Cancel();
+        _highlightCts = new CancellationTokenSource();
+        _ = HighlightSettingAsync(settingKey, _highlightCts.Token);
+    }
+
+    private async Task HighlightSettingAsync(string settingKey, CancellationToken ct)
     {
         if (SettingKeyToExpander.TryGetValue(settingKey, out var expanderName) &&
             SettingKeyToCardName.TryGetValue(settingKey, out var cardName))
@@ -192,7 +200,9 @@ public sealed partial class SettingsPage : Page
                 expander.IsExpanded = true;
             }
 
-            await Task.Delay(300);
+            try { await Task.Delay(300, ct); } catch (OperationCanceledException) { return; }
+
+            if (ct.IsCancellationRequested) return;
 
             if (FindName(cardName) is Border border)
             {
@@ -202,7 +212,9 @@ public sealed partial class SettingsPage : Page
                     VerticalAlignmentRatio = 0.5
                 });
 
-                await Task.Delay(500);
+                try { await Task.Delay(500, ct); } catch (OperationCanceledException) { return; }
+
+                if (ct.IsCancellationRequested) return;
                 SearchHighlightService.HighlightBorder(border);
             }
         }
