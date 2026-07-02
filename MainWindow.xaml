@@ -26,76 +26,107 @@
                 <ImageIconSource ImageSource="ms-appx:///Assets/AppIcon.ico" />
             </TitleBar.IconSource>
             <TitleBar.Content>
-                <AutoSuggestBox
-                    x:Name="GlobalSearchBox"
-                    PlaceholderText="搜索工具、设置..."
-                    QueryIcon="Find"
-                    Width="320"
-                    MinHeight="30"
-                    VerticalAlignment="Center"
-                    TextChanged="GlobalSearchBox_TextChanged"
-                    SuggestionChosen="GlobalSearchBox_SuggestionChosen"
-                    QuerySubmitted="GlobalSearchBox_QuerySubmitted"
-                    KeyDown="GlobalSearchBox_KeyDown"
-                    UpdateTextOnSelect="False">
-                    <AutoSuggestBox.ItemTemplate>
-                        <DataTemplate>
-                            <Grid ColumnSpacing="12" Padding="4,6">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="32" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
+                <Grid Width="320" VerticalAlignment="Center">
+                    <TextBox
+                        x:Name="SearchTextBox"
+                        PlaceholderText="搜索工具、设置..."
+                        MinHeight="30"
+                        VerticalAlignment="Center"
+                        GotFocus="SearchTextBox_GotFocus"
+                        LostFocus="SearchTextBox_LostFocus"
+                        TextChanged="SearchTextBox_TextChanged"
+                        KeyDown="SearchTextBox_KeyDown" />
+                    <Button
+                        x:Name="SearchSubmitButton"
+                        VerticalAlignment="Center"
+                        HorizontalAlignment="Right"
+                        Width="30" Height="30"
+                        Padding="0"
+                        BorderThickness="0"
+                        Background="Transparent"
+                        Click="SearchSubmitButton_Click">
+                        <FontIcon FontSize="14" Glyph="&#xE721;" />
+                    </Button>
+                    <Popup
+                        x:Name="SearchPopup"
+                        IsLightDismissEnabled="True"
+                        VerticalOffset="32">
+                        <Border
+                            x:Name="SearchPopupBorder"
+                            Width="318"
+                            MaxHeight="400"
+                            Background="{ThemeResource AcrylicBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="4">
+                            <ListView
+                                x:Name="SearchListView"
+                                SelectionMode="Single"
+                                IsItemClickEnabled="True"
+                                KeyDown="SearchListView_KeyDown"
+                                ItemClick="SearchListView_ItemClick">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid ColumnSpacing="12" Padding="4,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="32" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
 
-                                <Border
-                                    Width="32"
-                                    Height="32"
-                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                                    CornerRadius="6">
-                                    <Grid>
-                                        <Image
-                                            Width="24" Height="24"
-                                            Stretch="Uniform"
-                                            Source="{Binding IconPath}"
-                                            Visibility="{Binding IconPathVisibility}" />
-                                        <FontIcon
-                                            FontSize="14"
-                                            HorizontalAlignment="Center"
-                                            VerticalAlignment="Center"
-                                            Glyph="{Binding Glyph}"
-                                            Visibility="{Binding GlyphVisibility}" />
-                                    </Grid>
-                                </Border>
+                                            <Border
+                                                Width="32"
+                                                Height="32"
+                                                Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                                CornerRadius="6">
+                                                <Grid>
+                                                    <Image
+                                                        Width="24" Height="24"
+                                                        Stretch="Uniform"
+                                                        Source="{Binding IconPath}"
+                                                        Visibility="{Binding IconPathVisibility}" />
+                                                    <FontIcon
+                                                        FontSize="14"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center"
+                                                        Glyph="{Binding Glyph}"
+                                                        Visibility="{Binding GlyphVisibility}" />
+                                                </Grid>
+                                            </Border>
 
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
-                                    <TextBlock
-                                        FontSize="13"
-                                        FontWeight="SemiBold"
-                                        MaxLines="1"
-                                        Text="{Binding Title}"
-                                        TextTrimming="CharacterEllipsis" />
-                                    <TextBlock
-                                        FontSize="11"
-                                        Opacity="0.6"
-                                        MaxLines="1"
-                                        Text="{Binding Subtitle}"
-                                        TextTrimming="CharacterEllipsis" />
-                                </StackPanel>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                                                <TextBlock
+                                                    FontSize="13"
+                                                    FontWeight="SemiBold"
+                                                    MaxLines="1"
+                                                    Text="{Binding Title}"
+                                                    TextTrimming="CharacterEllipsis" />
+                                                <TextBlock
+                                                    FontSize="11"
+                                                    Opacity="0.6"
+                                                    MaxLines="1"
+                                                    Text="{Binding Subtitle}"
+                                                    TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
 
-                                <Border
-                                    Grid.Column="2"
-                                    Padding="6,2"
-                                    CornerRadius="4"
-                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                                    VerticalAlignment="Center">
-                                    <TextBlock
-                                        FontSize="10"
-                                        Text="{Binding KindText}" />
-                                </Border>
-                            </Grid>
-                        </DataTemplate>
-                    </AutoSuggestBox.ItemTemplate>
-                </AutoSuggestBox>
+                                            <Border
+                                                Grid.Column="2"
+                                                Padding="6,2"
+                                                CornerRadius="4"
+                                                Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                                VerticalAlignment="Center">
+                                                <TextBlock
+                                                    FontSize="10"
+                                                    Text="{Binding KindText}" />
+                                            </Border>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                        </Border>
+                    </Popup>
+                </Grid>
             </TitleBar.Content>
         </TitleBar>
 
@@ -134,6 +165,11 @@
                 <NavigationViewItem Content="社区" Tag="community">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE774;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="性能测试" Tag="benchmark">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE9D9;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
             </NavigationView.MenuItems>

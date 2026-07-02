@@ -76,3 +76,4 @@ docs/
 src/docs/
 node_modules/
 optimizerDuck-temp/
+*.zip

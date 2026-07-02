@@ -7,9 +7,25 @@ namespace TubaWinUi3.Models;
 
 public sealed class ToolItem : INotifyPropertyChanged
 {
+    private IReadOnlyList<string> _categories = [];
+
     public required string Name { get; init; }
 
     public required string Category { get; init; }
+
+    public string? PrimaryCategory { get; init; }
+
+    public IReadOnlyList<string> Categories
+    {
+        get => _categories;
+        init => _categories = value;
+    }
+
+    public bool IsLinked { get; init; }
+
+    public string CategoriesDisplay => _categories.Count <= 1 ? "" : string.Join(" · ", _categories.Where(c => c != Category));
+
+    public IReadOnlyList<string> OtherCategories => _categories.Where(c => !c.Equals(Category, StringComparison.OrdinalIgnoreCase)).ToList();
 
     public required string Path { get; init; }
 
@@ -152,6 +168,14 @@ public sealed class ToolItem : INotifyPropertyChanged
             }
             return "打开";
         }
+    }
+
+    public void SetCategories(IReadOnlyList<string> categories)
+    {
+        _categories = categories;
+        OnPropertyChanged(nameof(Categories));
+        OnPropertyChanged(nameof(CategoriesDisplay));
+        OnPropertyChanged(nameof(OtherCategories));
     }
 
     public void InitArchOptions()

@@ -211,11 +211,19 @@
                                                 MaxLines="1"
                                                 Text="{Binding Name}"
                                                 TextTrimming="CharacterEllipsis" />
-                                            <TextBlock
-                                                FontSize="12"
-                                                Opacity="0.64"
-                                                Text="{Binding Category}"
-                                                TextTrimming="CharacterEllipsis" />
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <TextBlock
+                                                    FontSize="12"
+                                                    Opacity="0.64"
+                                                    Text="{Binding Category}"
+                                                    TextTrimming="CharacterEllipsis" />
+                                                <TextBlock
+                                                    FontSize="12"
+                                                    Opacity="0.5"
+                                                    Text="{Binding CategoriesDisplay}"
+                                                    TextTrimming="CharacterEllipsis"
+                                                    Visibility="{Binding CategoriesDisplay, Converter={StaticResource NullToCollapse}}" />
+                                            </StackPanel>
                                         </StackPanel>
                                         <Button
                                             Grid.Column="2"

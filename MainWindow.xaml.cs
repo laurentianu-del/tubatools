@@ -1,8 +1,10 @@
+using System.Collections.ObjectModel;
 using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Navigation;
 using TubaWinUi3.Models;
 using TubaWinUi3.Pages;
@@ -14,13 +16,16 @@ namespace TubaWinUi3;
 public sealed partial class MainWindow : Window
 {
     private CancellationTokenSource? _searchCts;
-    private SearchResult? _pendingSearchResult;
     private bool _syncingNavSelection;
     private bool _navFromSidebar;
+    private bool _searchPopupClosing;
+    private readonly ObservableCollection<SearchResult> _searchResults = [];
 
     public MainWindow()
     {
         InitializeComponent();
+
+        SearchListView.ItemsSource = _searchResults;
 
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
@@ -92,7 +97,7 @@ public sealed partial class MainWindow : Window
         }
         return null;
     }
-    
+
     private void RootGrid_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
         PointerPointProperties props = e.GetCurrentPoint(null).Properties;
@@ -227,6 +232,10 @@ public sealed partial class MainWindow : Window
                 case "community":
                     NavFrame.Navigate(typeof(CommunityToolsPage));
                     break;
+                case "benchmark":
+                    _navFromSidebar = false;
+                    ExecuteBenchmarkToolAsync();
+                    break;
                 case string category:
                     NavFrame.Navigate(typeof(HomePage), category);
                     break;
@@ -260,7 +269,7 @@ public sealed partial class MainWindow : Window
 
     private void PopulateCategories()
     {
-        while (NavView.MenuItems.Count > 5)
+        while (NavView.MenuItems.Count > 6)
         {
             NavView.MenuItems.RemoveAt(5);
         }
@@ -365,21 +374,68 @@ public sealed partial class MainWindow : Window
         SyncNavSelection("community");
     }
 
+    private async Task ExecuteBenchmarkToolAsync()
+    {
+        var tool = BuiltinToolRegistry.GetById("performance-benchmark");
+        if (tool is null) return;
+        var context = new BuiltinToolContext
+        {
+            XamlRoot = Content.XamlRoot,
+            CancellationToken = CancellationToken.None
+        };
+        try { await tool.ExecuteAsync(context); } catch { }
+    }
+
     private void PopulateSearchSuggestions()
     {
         var items = UnifiedSearchService.GetQuickPanelItems();
-        GlobalSearchBox.ItemsSource = items;
+        _searchResults.Clear();
+        foreach (var item in items)
+            _searchResults.Add(item);
     }
 
-    private void GlobalSearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    private void ShowSearchPopup()
     {
-        if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput) return;
+        if (_searchResults.Count > 0)
+        {
+            SearchPopup.IsOpen = true;
+        }
+    }
 
-        var query = sender.Text.Trim();
+    private void HideSearchPopup()
+    {
+        SearchPopup.IsOpen = false;
+    }
+
+    private void SearchTextBox_GotFocus(object sender, RoutedEventArgs e)
+    {
+        var query = SearchTextBox.Text.Trim();
+        if (query.Length == 0)
+            PopulateSearchSuggestions();
+        ShowSearchPopup();
+    }
+
+    private void SearchTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        _searchPopupClosing = true;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_searchPopupClosing)
+            {
+                HideSearchPopup();
+                _searchPopupClosing = false;
+            }
+        });
+    }
+
+    private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        var query = SearchTextBox.Text.Trim();
 
         if (query.Length == 0)
         {
             PopulateSearchSuggestions();
+            ShowSearchPopup();
             return;
         }
 
@@ -395,51 +451,87 @@ public sealed partial class MainWindow : Window
         try
         {
             var results = await Task.Run(() => UnifiedSearchService.Search(query), ct);
-            ct.ThrowIfCancellationRequested();
+            if (ct.IsCancellationRequested) return;
 
             DispatcherQueue.TryEnqueue(() =>
             {
-                GlobalSearchBox.ItemsSource = results;
+                if (ct.IsCancellationRequested) return;
+                _searchResults.Clear();
+                foreach (var r in results)
+                    _searchResults.Add(r);
+                ShowSearchPopup();
             });
         }
         catch (OperationCanceledException) { }
     }
 
-    private void GlobalSearchBox_SuggestionChosen(AutoSuggestBox sender, AutoSuggestBoxSuggestionChosenEventArgs args)
+    private void SearchListView_ItemClick(object sender, ItemClickEventArgs e)
     {
-        if (args.SelectedItem is SearchResult result)
+        if (e.ClickedItem is SearchResult result)
         {
-            _pendingSearchResult = result;
-        }
-    }
-
-    private void GlobalSearchBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
-    {
-        if (_pendingSearchResult is not null)
-        {
-            var result = _pendingSearchResult;
-            _pendingSearchResult = null;
-            sender.Text = string.Empty;
+            SearchTextBox.Text = string.Empty;
+            HideSearchPopup();
             HandleSearchResult(result);
         }
-        else if (!string.IsNullOrWhiteSpace(args.QueryText))
+    }
+
+    private void SearchSubmitButton_Click(object sender, RoutedEventArgs e)
+    {
+        var first = _searchResults.FirstOrDefault();
+        if (first is not null)
         {
-            var first = (sender.ItemsSource as System.Collections.IList)?
-                .Cast<SearchResult>().FirstOrDefault();
-            if (first is not null)
-            {
-                sender.Text = string.Empty;
-                HandleSearchResult(first);
-            }
+            SearchTextBox.Text = string.Empty;
+            HideSearchPopup();
+            HandleSearchResult(first);
         }
     }
 
-    private void GlobalSearchBox_KeyDown(object sender, KeyRoutedEventArgs e)
+    private void SearchTextBox_KeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (e.Key == Windows.System.VirtualKey.Escape)
         {
-            GlobalSearchBox.Text = string.Empty;
-            GlobalSearchBox.IsSuggestionListOpen = false;
+            SearchTextBox.Text = string.Empty;
+            HideSearchPopup();
+            e.Handled = true;
+        }
+        else if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            var first = _searchResults.FirstOrDefault();
+            if (first is not null)
+            {
+                SearchTextBox.Text = string.Empty;
+                HideSearchPopup();
+                HandleSearchResult(first);
+            }
+            e.Handled = true;
+        }
+        else if (e.Key == Windows.System.VirtualKey.Down)
+        {
+            if (SearchListView.Items.Count > 0)
+            {
+                SearchListView.Focus(FocusState.Keyboard);
+                SearchListView.SelectedIndex = 0;
+            }
+            e.Handled = true;
+        }
+    }
+
+    private void SearchListView_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            if (SearchListView.SelectedItem is SearchResult result)
+            {
+                SearchTextBox.Text = string.Empty;
+                HideSearchPopup();
+                HandleSearchResult(result);
+            }
+            e.Handled = true;
+        }
+        else if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            SearchTextBox.Text = string.Empty;
+            HideSearchPopup();
             e.Handled = true;
         }
     }
@@ -462,16 +554,8 @@ public sealed partial class MainWindow : Window
                 SyncNavSelection("community");
                 break;
             case SearchItemKind.Setting:
-                var subPage = SettingsPage.ResolveSubPage(result.MatchKey);
-                if (subPage is not null)
-                {
-                    NavFrame.Navigate(subPage,
-                        new SearchNavigationTarget { HighlightSettingKey = result.MatchKey });
-                }
-                else
-                {
-                    NavFrame.Navigate(typeof(SettingsPage));
-                }
+                NavFrame.Navigate(typeof(SettingsPage),
+                    new SearchNavigationTarget { HighlightSettingKey = result.MatchKey });
                 SyncNavSelection("settings");
                 break;
             case SearchItemKind.QuickAction:
@@ -530,6 +614,10 @@ public sealed partial class MainWindow : Window
             case "builtin":
                 NavFrame.Navigate(typeof(BuiltinToolsPage));
                 SyncNavSelection("builtin");
+                break;
+            case "benchmark":
+                _navFromSidebar = false;
+                ExecuteBenchmarkToolAsync();
                 break;
             case "community":
                 NavFrame.Navigate(typeof(CommunityToolsPage));

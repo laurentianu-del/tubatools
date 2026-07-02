@@ -110,11 +110,23 @@ public static class ToolCatalog
         var toolDirs = Directory.GetDirectories(categoryRoot).ToList();
         var merged = MergeArchDirectories(toolDirs);
 
-        var items = merged
-            .Select(toolDir => (toolDir, launchable: FindPrimaryLaunchable(toolDir)))
-            .Where(x => x.launchable is not null || ToolMetadataService.HasDownloadUrl(category, x.toolDir))
-            .Select(x => CreateToolItemWithVariants(category, categoryRoot, x.launchable ?? CreatePlaceholderPath(x.toolDir), x.toolDir))
-            .ToList();
+        var items = new List<ToolItem>();
+        foreach (var toolDir in merged)
+        {
+            var linkInfo = TryResolveLink(toolDir);
+            if (linkInfo is not null)
+            {
+                var linkedItem = CreateLinkedToolItem(category, categoryRoot, toolDir, linkInfo);
+                if (linkedItem is not null)
+                    items.Add(linkedItem);
+            }
+            else
+            {
+                var launchable = FindPrimaryLaunchable(toolDir);
+                if (launchable is not null || ToolMetadataService.HasDownloadUrl(category, toolDir))
+                    items.Add(CreateToolItemWithVariants(category, categoryRoot, launchable ?? CreatePlaceholderPath(toolDir), toolDir));
+            }
+        }
 
         var toolOrderJson = AppSettings.Get($"ToolOrder_{category}");
         List<string>? toolOrder = null;
@@ -186,23 +198,12 @@ public static class ToolCatalog
 
     public static IReadOnlyList<ToolItem> GetAllToolsLazy(int skip, int take)
     {
-        if (!Directory.Exists(ToolsRoot))
-            return [];
-
-        return GetCategories()
-            .SelectMany(GetTools)
-            .Skip(skip)
-            .Take(take)
-            .ToList();
+        return GetAllToolsCached().Skip(skip).Take(take).ToList();
     }
 
     public static int GetAllToolsCount()
     {
-        if (!Directory.Exists(ToolsRoot))
-            return 0;
-
-        return GetCategories()
-            .Sum(c => GetTools(c).Count);
+        return GetAllToolsCached().Count;
     }
 
     private static IReadOnlyList<string>? _cachedTags;
@@ -221,9 +222,37 @@ public static class ToolCatalog
         if (!Directory.Exists(ToolsRoot))
             return _cachedAllTools = [];
 
-        _cachedAllTools = GetCategories()
-            .SelectMany(GetTools)
-            .ToList();
+        var allItems = GetCategories().SelectMany(GetTools).ToList();
+
+        var nameToCategories = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in allItems)
+        {
+            if (!nameToCategories.TryGetValue(item.Name, out var set))
+            {
+                set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                nameToCategories[item.Name] = set;
+            }
+            set.Add(item.Category);
+            if (item.PrimaryCategory is not null)
+                set.Add(item.PrimaryCategory);
+            foreach (var c in item.Categories)
+                set.Add(c);
+        }
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var deduped = new List<ToolItem>();
+        foreach (var item in allItems)
+        {
+            var key = (item.PrimaryCategory ?? item.Category) + "|" + item.Name;
+            if (seen.Add(key))
+            {
+                if (nameToCategories.TryGetValue(item.Name, out var cats) && cats.Count > 1)
+                    item.SetCategories(cats.ToList());
+                deduped.Add(item);
+            }
+        }
+
+        _cachedAllTools = deduped;
         return _cachedAllTools;
     }
 
@@ -762,5 +791,80 @@ public static class ToolCatalog
         catch { }
 
         return null;
+    }
+
+    private sealed class LinkInfo
+    {
+        public required string TargetRelativePath { get; init; }
+        public required string TargetFullPath { get; init; }
+    }
+
+    private static LinkInfo? TryResolveLink(string toolDir)
+    {
+        var linkPath = Path.Combine(toolDir, "link.json");
+        if (!File.Exists(linkPath)) return null;
+
+        var files = Directory.GetFiles(toolDir);
+        var dirs = Directory.GetDirectories(toolDir);
+        if (files.Length != 1 || dirs.Length != 0) return null;
+
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(linkPath));
+            if (doc.RootElement.TryGetProperty("target", out var targetVal))
+            {
+                var target = targetVal.GetString();
+                if (string.IsNullOrWhiteSpace(target)) return null;
+                var targetFull = Path.Combine(ToolsRoot, target);
+                if (!Directory.Exists(targetFull)) return null;
+                return new LinkInfo { TargetRelativePath = target, TargetFullPath = targetFull };
+            }
+        }
+        catch { }
+
+        return null;
+    }
+
+    private static ToolItem? CreateLinkedToolItem(string category, string categoryRoot, string linkDir, LinkInfo linkInfo)
+    {
+        var targetLaunchable = FindPrimaryLaunchable(linkInfo.TargetFullPath);
+        if (targetLaunchable is null && !ToolMetadataService.HasDownloadUrl(category, linkInfo.TargetFullPath))
+            return null;
+
+        var primaryCategory = Path.GetFileName(Path.GetDirectoryName(linkInfo.TargetRelativePath)) ?? category;
+        var baseItem = CreateToolItemWithVariants(
+            primaryCategory,
+            Path.GetDirectoryName(linkInfo.TargetFullPath) ?? linkInfo.TargetFullPath,
+            targetLaunchable ?? CreatePlaceholderPath(linkInfo.TargetFullPath),
+            linkInfo.TargetFullPath);
+
+        var categories = new List<string> { primaryCategory, category }
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+        return new ToolItem
+        {
+            Name = baseItem.Name,
+            Category = category,
+            PrimaryCategory = primaryCategory,
+            Categories = categories,
+            IsLinked = true,
+            Path = baseItem.Path,
+            RelativePath = baseItem.RelativePath,
+            Extension = baseItem.Extension,
+            IconPath = baseItem.IconPath,
+            IconGlyph = baseItem.IconGlyph,
+            Description = baseItem.Description,
+            Publisher = baseItem.Publisher,
+            Version = baseItem.Version,
+            DatabaseSource = baseItem.DatabaseSource,
+            DownloadUrl = baseItem.DownloadUrl,
+            DownloadFilter = baseItem.DownloadFilter,
+            WingetId = baseItem.WingetId,
+            RemoteUrl = baseItem.RemoteUrl,
+            Tags = baseItem.Tags,
+            IsFavorite = baseItem.IsFavorite,
+            PrimaryArch = baseItem.PrimaryArch,
+            AlternateVersions = baseItem.AlternateVersions
+        };
     }
 }
