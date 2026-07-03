@@ -28,22 +28,31 @@ public sealed partial class SetupWizardDialog : ContentDialog
 
     private void UpdateStepUI()
     {
-        Step1Content.Visibility = _currentStep == 0 ? Visibility.Visible : Visibility.Collapsed;
-        Step2Content.Visibility = _currentStep == 1 ? Visibility.Visible : Visibility.Collapsed;
+        Step0Content.Visibility = _currentStep == 0 ? Visibility.Visible : Visibility.Collapsed;
+        Step1Content.Visibility = _currentStep == 1 ? Visibility.Visible : Visibility.Collapsed;
+        Step2Content.Visibility = _currentStep == 2 ? Visibility.Visible : Visibility.Collapsed;
 
         StepPager.SelectedPageIndex = _currentStep;
 
         switch (_currentStep)
         {
             case 0:
-                StepTitleText.Text = "选择显示方式";
-                StepSubtitleText.Text = "您可以随时在设置中更改此选项。";
+                StepTitleText.Text = "欢迎使用图吧工具箱";
+                StepSubtitleText.Text = "请仔细阅读以下重要信息。";
                 PrimaryButtonText = "下一步";
                 SecondaryButtonText = "上一步";
                 IsSecondaryButtonEnabled = false;
                 CloseButtonText = "跳过";
                 break;
             case 1:
+                StepTitleText.Text = "选择显示方式";
+                StepSubtitleText.Text = "您可以随时在设置中更改此选项。";
+                PrimaryButtonText = "下一步";
+                SecondaryButtonText = "上一步";
+                IsSecondaryButtonEnabled = true;
+                CloseButtonText = "跳过";
+                break;
+            case 2:
                 StepTitleText.Text = "选择背景材质";
                 StepSubtitleText.Text = "不同的材质会为窗口带来不同的视觉效果。";
                 PrimaryButtonText = "完成";
@@ -56,7 +65,7 @@ public sealed partial class SetupWizardDialog : ContentDialog
 
     private void OnPrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)
     {
-        if (_currentStep < 1)
+        if (_currentStep < 2)
         {
             args.Cancel = true;
             _currentStep++;

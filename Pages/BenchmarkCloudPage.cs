@@ -8,16 +8,15 @@ using Microsoft.UI;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
-using Microsoft.UI.Xaml.Markup;
 using Microsoft.UI.Xaml.Media;
 using TubaWinUi3.Models;
 using TubaWinUi3.Services;
 using Windows.System;
+using Windows.UI;
 
 namespace TubaWinUi3.Pages;
 
-public sealed class BenchmarkCloudPage : Page, IComponentConnector
+public sealed class BenchmarkCloudPage : Page
 {
 	private List<BenchmarkReportEntry> _allReports = new List<BenchmarkReportEntry>();
 
@@ -87,12 +86,526 @@ public sealed class BenchmarkCloudPage : Page, IComponentConnector
 
 	private TextBlock ReportCountText;
 
-	private bool _contentLoaded;
+	private static readonly Color AccentBlue = Color.FromArgb(255, 0, 99, 177);
 
 	public BenchmarkCloudPage()
 	{
-		InitializeComponent();
-		base.Loaded += OnLoaded;
+		Content = BuildUI();
+		Loaded += OnLoaded;
+	}
+
+	private Grid BuildUI()
+	{
+		bool isDark;
+		if (ThemeService.CurrentTheme == AppTheme.Dark)
+			isDark = true;
+		else if (ThemeService.CurrentTheme == AppTheme.Default)
+			isDark = Application.Current.RequestedTheme == ApplicationTheme.Dark;
+		else
+			isDark = false;
+
+		Color borderColor = isDark ? Color.FromArgb(255, 60, 60, 60) : Color.FromArgb(255, 229, 229, 229);
+		SolidColorBrush cardBg = isDark
+			? new SolidColorBrush(Color.FromArgb(255, 45, 45, 45))
+			: new SolidColorBrush(Color.FromArgb(255, 249, 249, 249));
+		SolidColorBrush dimText = isDark
+			? new SolidColorBrush(Color.FromArgb(255, 153, 153, 153))
+			: new SolidColorBrush(Color.FromArgb(255, 117, 117, 117));
+
+		Grid root = new()
+		{
+			RowSpacing = 0.0,
+			Padding = new Thickness(24.0, 16.0, 24.0, 0.0)
+		};
+		root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+		root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1.0, GridUnitType.Star) });
+
+		StackPanel toolbar = new()
+		{
+			Orientation = Orientation.Horizontal,
+			Spacing = 12.0,
+			Margin = new Thickness(0.0, 0.0, 0.0, 12.0)
+		};
+		toolbar.Children.Add(new TextBlock
+		{
+			Text = "跑分排行",
+			FontSize = 20.0,
+			FontWeight = FontWeights.SemiBold,
+			VerticalAlignment = VerticalAlignment.Center
+		});
+		RefreshButton = new Button
+		{
+			Content = new StackPanel
+			{
+				Orientation = Orientation.Horizontal,
+				Spacing = 6.0,
+				Children =
+				{
+					(UIElement)new FontIcon { Glyph = "\ue72c", FontSize = 14.0 },
+					(UIElement)new TextBlock { Text = "刷新", FontSize = 13.0 }
+				}
+			},
+			CornerRadius = new CornerRadius(6.0),
+			Padding = new Thickness(12.0, 6.0, 12.0, 6.0)
+		};
+		RefreshButton.Click += RefreshButton_Click;
+		toolbar.Children.Add(RefreshButton);
+
+		UploadButton = new Button
+		{
+			Content = new StackPanel
+			{
+				Orientation = Orientation.Horizontal,
+				Spacing = 6.0,
+				Children =
+				{
+					(UIElement)new FontIcon { Glyph = "\ue898", FontSize = 14.0 },
+					(UIElement)new TextBlock { Text = "上传报告", FontSize = 13.0 }
+				}
+			},
+			CornerRadius = new CornerRadius(6.0),
+			Padding = new Thickness(12.0, 6.0, 12.0, 6.0)
+		};
+		UploadButton.Click += UploadButton_Click;
+		toolbar.Children.Add(UploadButton);
+
+		ReportCountText = new TextBlock
+		{
+			Text = "",
+			FontSize = 13.0,
+			VerticalAlignment = VerticalAlignment.Center,
+			Foreground = dimText
+		};
+		toolbar.Children.Add(ReportCountText);
+
+		root.Children.Add(toolbar);
+		Grid.SetRow(toolbar, 0);
+
+		MainPivot = new Pivot();
+		MainPivot.Items.Add(BuildLeaderboardPivotItem(cardBg, borderColor, dimText));
+		MainPivot.Items.Add(BuildSameHwPivotItem(cardBg, borderColor, dimText));
+		MainPivot.Items.Add(BuildComparePivotItem(cardBg, borderColor, dimText));
+		MainPivot.Items.Add(BuildMyHistoryPivotItem(cardBg, borderColor, dimText));
+		root.Children.Add(MainPivot);
+		Grid.SetRow(MainPivot, 1);
+
+		return root;
+	}
+
+	private PivotItem BuildLeaderboardPivotItem(SolidColorBrush cardBg, Color borderColor, SolidColorBrush dimText)
+	{
+		Grid grid = new();
+		grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+		grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+		grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1.0, GridUnitType.Star) });
+
+		StackPanel filterRow = new()
+		{
+			Orientation = Orientation.Horizontal,
+			Spacing = 12.0,
+			Margin = new Thickness(0.0, 0.0, 0.0, 8.0)
+		};
+		SortByCombo = new ComboBox
+		{
+			ItemsSource = new List<string> { "游戏性能", "办公性能", "CPU", "GPU", "硬盘", "浏览器" },
+			SelectedIndex = 0,
+			MinWidth = 120.0
+		};
+		SortByCombo.SelectionChanged += SortByCombo_SelectionChanged;
+		filterRow.Children.Add(SortByCombo);
+
+		CpuFilterBox = new AutoSuggestBox
+		{
+			PlaceholderText = "筛选 CPU...",
+			Width = 200.0
+		};
+		CpuFilterBox.QuerySubmitted += Filter_QuerySubmitted;
+		filterRow.Children.Add(CpuFilterBox);
+
+		grid.Children.Add(filterRow);
+		Grid.SetRow(filterRow, 0);
+
+		LeaderboardProgress = new ProgressBar
+		{
+			Visibility = Visibility.Collapsed,
+			IsIndeterminate = true,
+			Margin = new Thickness(0.0, 4.0, 0.0, 4.0)
+		};
+		grid.Children.Add(LeaderboardProgress);
+		Grid.SetRow(LeaderboardProgress, 1);
+
+		LeaderboardList = new ListView
+		{
+			Visibility = Visibility.Collapsed,
+			ItemTemplate = BuildLeaderboardItemTemplate()
+		};
+		LeaderboardList.SelectionChanged += LeaderboardList_SelectionChanged;
+		grid.Children.Add(LeaderboardList);
+		Grid.SetRow(LeaderboardList, 2);
+
+		LeaderboardEmpty = new StackPanel
+		{
+			Visibility = Visibility.Collapsed,
+			HorizontalAlignment = HorizontalAlignment.Center,
+			VerticalAlignment = VerticalAlignment.Center,
+			Spacing = 8.0
+		};
+		LeaderboardEmpty.Children.Add(new FontIcon
+		{
+			Glyph = "\ue946",
+			FontSize = 36.0,
+			Foreground = dimText
+		});
+		LeaderboardEmptyText = new TextBlock
+		{
+			Text = "暂无排行数据",
+			FontSize = 14.0,
+			Foreground = dimText,
+			HorizontalAlignment = HorizontalAlignment.Center
+		};
+		LeaderboardEmpty.Children.Add(LeaderboardEmptyText);
+		grid.Children.Add(LeaderboardEmpty);
+		Grid.SetRow(LeaderboardEmpty, 2);
+
+		return new PivotItem
+		{
+			Header = "排行榜",
+			Content = grid
+		};
+	}
+
+	private DataTemplate BuildLeaderboardItemTemplate()
+	{
+		return (DataTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load(
+			@"<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'
+							xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'
+							xmlns:m='using:TubaWinUi3.Models'>
+				<Grid Padding='4,8' ColumnSpacing='12'>
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width='48'/>
+						<ColumnDefinition Width='*'/>
+						<ColumnDefinition Width='Auto'/>
+						<ColumnDefinition Width='Auto'/>
+					</Grid.ColumnDefinitions>
+					<TextBlock Text='{Binding Rank}' FontSize='18' FontWeight='SemiBold' VerticalAlignment='Center'
+							   Foreground='{ThemeResource AccentTextFillColorPrimaryBrush}'/>
+					<StackPanel Grid.Column='1' Spacing='2'>
+						<TextBlock Text='{Binding Report.Author}' FontSize='13' FontWeight='SemiBold'/>
+						<TextBlock FontSize='12' Foreground='{ThemeResource TextFillColorSecondaryBrush}'>
+							<Run Text='{Binding Report.CpuName}'/><Run Text=' | '/><Run Text='{Binding Report.GpuName}'/>
+						</TextBlock>
+					</StackPanel>
+					<StackPanel Grid.Column='2' Spacing='2' HorizontalAlignment='Right'>
+						<TextBlock Text='{Binding Report.GamingScore}' FontSize='14' FontWeight='SemiBold' HorizontalAlignment='Right'/>
+						<TextBlock Text='游戏' FontSize='10' Foreground='{ThemeResource TextFillColorTertiaryBrush}' HorizontalAlignment='Right'/>
+					</StackPanel>
+					<StackPanel Grid.Column='3' Spacing='2' HorizontalAlignment='Right' Margin='12,0,0,0'>
+						<TextBlock Text='{Binding Report.OfficeScore}' FontSize='14' FontWeight='SemiBold' HorizontalAlignment='Right'/>
+						<TextBlock Text='办公' FontSize='10' Foreground='{ThemeResource TextFillColorTertiaryBrush}' HorizontalAlignment='Right'/>
+					</StackPanel>
+				</Grid>
+			</DataTemplate>");
+	}
+
+	private PivotItem BuildSameHwPivotItem(SolidColorBrush cardBg, Color borderColor, SolidColorBrush dimText)
+	{
+		Grid grid = new();
+		grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+		grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+		grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1.0, GridUnitType.Star) });
+
+		SameHwInfo = new StackPanel
+		{
+			Orientation = Orientation.Horizontal,
+			Spacing = 16.0,
+			Margin = new Thickness(0.0, 0.0, 0.0, 8.0)
+		};
+		SameHwCpuText = new TextBlock
+		{
+			Text = "CPU: ",
+			FontSize = 13.0,
+			Foreground = dimText
+		};
+		SameHwInfo.Children.Add(SameHwCpuText);
+		SameHwGpuText = new TextBlock
+		{
+			Text = "GPU: ",
+			FontSize = 13.0,
+			Foreground = dimText
+		};
+		SameHwInfo.Children.Add(SameHwGpuText);
+		grid.Children.Add(SameHwInfo);
+		Grid.SetRow(SameHwInfo, 0);
+
+		SameHwProgress = new ProgressBar
+		{
+			Visibility = Visibility.Collapsed,
+			IsIndeterminate = true,
+			Margin = new Thickness(0.0, 4.0, 0.0, 4.0)
+		};
+		grid.Children.Add(SameHwProgress);
+		Grid.SetRow(SameHwProgress, 1);
+
+		SameHwList = new ListView
+		{
+			Visibility = Visibility.Collapsed,
+			ItemTemplate = BuildLeaderboardItemTemplate()
+		};
+		grid.Children.Add(SameHwList);
+		Grid.SetRow(SameHwList, 2);
+
+		SameHwEmpty = new StackPanel
+		{
+			Visibility = Visibility.Collapsed,
+			HorizontalAlignment = HorizontalAlignment.Center,
+			VerticalAlignment = VerticalAlignment.Center,
+			Spacing = 8.0
+		};
+		SameHwEmpty.Children.Add(new FontIcon
+		{
+			Glyph = "\ue946",
+			FontSize = 36.0,
+			Foreground = dimText
+		});
+		SameHwEmpty.Children.Add(new TextBlock
+		{
+			Text = "未找到同配置用户",
+			FontSize = 14.0,
+			Foreground = dimText,
+			HorizontalAlignment = HorizontalAlignment.Center
+		});
+		grid.Children.Add(SameHwEmpty);
+		Grid.SetRow(SameHwEmpty, 2);
+
+		return new PivotItem
+		{
+			Header = "同配置",
+			Content = grid
+		};
+	}
+
+	private PivotItem BuildComparePivotItem(SolidColorBrush cardBg, Color borderColor, SolidColorBrush dimText)
+	{
+		StackPanel stack = new() { Spacing = 8.0 };
+
+		StackPanel comboRow = new()
+		{
+			Orientation = Orientation.Horizontal,
+			Spacing = 8.0,
+			VerticalAlignment = VerticalAlignment.Center
+		};
+		CompareMyCombo = new ComboBox
+		{
+			MinWidth = 200.0,
+			PlaceholderText = "选择报告1"
+		};
+		comboRow.Children.Add(CompareMyCombo);
+
+		comboRow.Children.Add(new TextBlock
+		{
+			Text = "vs",
+			FontSize = 14.0,
+			FontWeight = FontWeights.SemiBold,
+			VerticalAlignment = VerticalAlignment.Center,
+			Margin = new Thickness(4.0, 0.0, 4.0, 0.0)
+		});
+
+		CompareOtherCombo = new ComboBox
+		{
+			MinWidth = 200.0,
+			PlaceholderText = "选择报告2"
+		};
+		comboRow.Children.Add(CompareOtherCombo);
+
+		CompareButton = new Button
+		{
+			Content = "对比",
+			CornerRadius = new CornerRadius(6.0),
+			Padding = new Thickness(16.0, 6.0, 16.0, 6.0)
+		};
+		CompareButton.Click += CompareButton_Click;
+		comboRow.Children.Add(CompareButton);
+		stack.Children.Add(comboRow);
+
+		CompareProgress = new ProgressBar
+		{
+			Visibility = Visibility.Collapsed,
+			IsIndeterminate = true
+		};
+		stack.Children.Add(CompareProgress);
+
+		CompareRadarChart = new WebView2
+		{
+			Height = 400.0
+		};
+		CompareResultArea = new ScrollViewer
+		{
+			Content = CompareRadarChart,
+			Visibility = Visibility.Collapsed,
+			VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+			HorizontalScrollMode = ScrollMode.Disabled
+		};
+		stack.Children.Add(CompareResultArea);
+
+		CompareEmpty = new StackPanel
+		{
+			Visibility = Visibility.Visible,
+			HorizontalAlignment = HorizontalAlignment.Center,
+			VerticalAlignment = VerticalAlignment.Center,
+			Spacing = 8.0,
+			Margin = new Thickness(0.0, 40.0, 0.0, 0.0)
+		};
+		CompareEmpty.Children.Add(new FontIcon
+		{
+			Glyph = "\ue946",
+			FontSize = 36.0,
+			Foreground = dimText
+		});
+		CompareEmpty.Children.Add(new TextBlock
+		{
+			Text = "选择两个报告进行对比",
+			FontSize = 14.0,
+			Foreground = dimText,
+			HorizontalAlignment = HorizontalAlignment.Center
+		});
+		stack.Children.Add(CompareEmpty);
+
+		return new PivotItem
+		{
+			Header = "跑分对比",
+			Content = stack
+		};
+	}
+
+	private PivotItem BuildMyHistoryPivotItem(SolidColorBrush cardBg, Color borderColor, SolidColorBrush dimText)
+	{
+		Grid grid = new();
+		grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+		grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+		grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1.0, GridUnitType.Star) });
+
+		MyHistoryLoginHint = new TextBlock
+		{
+			Text = "",
+			FontSize = 13.0,
+			Foreground = dimText,
+			Margin = new Thickness(0.0, 0.0, 0.0, 8.0)
+		};
+		grid.Children.Add(MyHistoryLoginHint);
+		Grid.SetRow(MyHistoryLoginHint, 0);
+
+		MyHistoryProgress = new ProgressBar
+		{
+			Visibility = Visibility.Collapsed,
+			IsIndeterminate = true,
+			Margin = new Thickness(0.0, 4.0, 0.0, 4.0)
+		};
+		grid.Children.Add(MyHistoryProgress);
+		Grid.SetRow(MyHistoryProgress, 1);
+
+		MyHistoryChart = new WebView2
+		{
+			Height = 280.0
+		};
+		MyHistoryList = new ListView
+		{
+			ItemTemplate = BuildReportItemTemplate()
+		};
+		MyHistoryList.SelectionChanged += MyHistoryList_SelectionChanged;
+		DeleteMyReportBtn = new Button
+		{
+			Content = new StackPanel
+			{
+				Orientation = Orientation.Horizontal,
+				Spacing = 6.0,
+				Children =
+				{
+					(UIElement)new FontIcon { Glyph = "\ue74d", FontSize = 14.0 },
+					(UIElement)new TextBlock { Text = "删除选中报告", FontSize = 13.0 }
+				}
+			},
+			CornerRadius = new CornerRadius(6.0),
+			Padding = new Thickness(12.0, 6.0, 12.0, 6.0),
+			Visibility = Visibility.Collapsed,
+			Margin = new Thickness(0.0, 8.0, 0.0, 0.0)
+		};
+		DeleteMyReportBtn.Click += DeleteMyReportBtn_Click;
+
+		StackPanel historyContent = new() { Spacing = 8.0 };
+		historyContent.Children.Add(MyHistoryChart);
+		historyContent.Children.Add(MyHistoryList);
+		historyContent.Children.Add(DeleteMyReportBtn);
+
+		MyHistoryArea = new ScrollViewer
+		{
+			Content = historyContent,
+			Visibility = Visibility.Collapsed,
+			VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+			HorizontalScrollMode = ScrollMode.Disabled
+		};
+		grid.Children.Add(MyHistoryArea);
+		Grid.SetRow(MyHistoryArea, 2);
+
+		MyHistoryEmpty = new StackPanel
+		{
+			Visibility = Visibility.Collapsed,
+			HorizontalAlignment = HorizontalAlignment.Center,
+			VerticalAlignment = VerticalAlignment.Center,
+			Spacing = 8.0
+		};
+		MyHistoryEmpty.Children.Add(new FontIcon
+		{
+			Glyph = "\ue946",
+			FontSize = 36.0,
+			Foreground = dimText
+		});
+		MyHistoryEmpty.Children.Add(new TextBlock
+		{
+			Text = "暂无上传记录",
+			FontSize = 14.0,
+			Foreground = dimText,
+			HorizontalAlignment = HorizontalAlignment.Center
+		});
+		grid.Children.Add(MyHistoryEmpty);
+		Grid.SetRow(MyHistoryEmpty, 2);
+
+		return new PivotItem
+		{
+			Header = "我的记录",
+			Content = grid
+		};
+	}
+
+	private DataTemplate BuildReportItemTemplate()
+	{
+		return (DataTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load(
+			@"<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'
+							xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'
+							xmlns:m='using:TubaWinUi3.Models'>
+				<Grid Padding='4,8' ColumnSpacing='12'>
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width='*'/>
+						<ColumnDefinition Width='Auto'/>
+						<ColumnDefinition Width='Auto'/>
+					</Grid.ColumnDefinitions>
+					<StackPanel Spacing='2'>
+						<TextBlock FontSize='13' FontWeight='SemiBold'>
+							<Run Text='@'/><Run Text='{Binding Author}'/>
+						</TextBlock>
+						<TextBlock FontSize='12' Foreground='{ThemeResource TextFillColorSecondaryBrush}'>
+							<Run Text='{Binding CpuName}'/><Run Text=' | '/><Run Text='{Binding GpuName}'/>
+						</TextBlock>
+					</StackPanel>
+					<StackPanel Grid.Column='1' Spacing='2' HorizontalAlignment='Right'>
+						<TextBlock Text='{Binding GamingScore}' FontSize='14' FontWeight='SemiBold' HorizontalAlignment='Right'/>
+						<TextBlock Text='游戏' FontSize='10' Foreground='{ThemeResource TextFillColorTertiaryBrush}' HorizontalAlignment='Right'/>
+					</StackPanel>
+					<StackPanel Grid.Column='2' Spacing='2' HorizontalAlignment='Right' Margin='12,0,0,0'>
+						<TextBlock Text='{Binding OfficeScore}' FontSize='14' FontWeight='SemiBold' HorizontalAlignment='Right'/>
+						<TextBlock Text='办公' FontSize='10' Foreground='{ThemeResource TextFillColorTertiaryBrush}' HorizontalAlignment='Right'/>
+					</StackPanel>
+				</Grid>
+			</DataTemplate>");
 	}
 
 	private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -199,7 +712,7 @@ public sealed class BenchmarkCloudPage : Page, IComponentConnector
 				Title = "提示",
 				Content = "请选择两个报告进行对比",
 				CloseButtonText = "确定",
-				XamlRoot = base.XamlRoot,
+				XamlRoot = XamlRoot,
 				RequestedTheme = ThemeService.CurrentElementTheme
 			}.ShowAsync();
 		}
@@ -501,7 +1014,7 @@ public sealed class BenchmarkCloudPage : Page, IComponentConnector
 				Title = "无测试报告",
 				Content = "请先运行一次性能测试，再上传报告。",
 				CloseButtonText = "确定",
-				XamlRoot = base.XamlRoot,
+				XamlRoot = XamlRoot,
 				RequestedTheme = ThemeService.CurrentElementTheme
 			}.ShowAsync();
 			return;
@@ -510,7 +1023,7 @@ public sealed class BenchmarkCloudPage : Page, IComponentConnector
 		{
 			try
 			{
-				await GitHubAuthService.EnsureAuthenticatedAsync(base.XamlRoot, CancellationToken.None);
+				await GitHubAuthService.EnsureAuthenticatedAsync(XamlRoot, CancellationToken.None);
 			}
 			catch
 			{
@@ -519,7 +1032,7 @@ public sealed class BenchmarkCloudPage : Page, IComponentConnector
 					Title = "需要登录",
 					Content = "上传报告需要 GitHub 账号，请先在设置中登录。",
 					CloseButtonText = "确定",
-					XamlRoot = base.XamlRoot,
+					XamlRoot = XamlRoot,
 					RequestedTheme = ThemeService.CurrentElementTheme
 				}.ShowAsync();
 				return;
@@ -532,7 +1045,7 @@ public sealed class BenchmarkCloudPage : Page, IComponentConnector
 			Content = $"将上传最新的测试报告：\n\nCPU: {latest.CpuName}\nGPU: {latest.GpuName}\n游戏: {latest.GamingScore} ({latest.GamingGrade})\n办公: {latest.OfficeScore} ({latest.OfficeGrade})\n\n报告将通过 PR 提交到社区仓库。",
 			PrimaryButtonText = "上传",
 			CloseButtonText = "取消",
-			XamlRoot = base.XamlRoot,
+			XamlRoot = XamlRoot,
 			RequestedTheme = ThemeService.CurrentElementTheme
 		}.ShowAsync() != ContentDialogResult.Primary)
 		{
@@ -545,7 +1058,7 @@ public sealed class BenchmarkCloudPage : Page, IComponentConnector
 			{
 				IsIndeterminate = true
 			},
-			XamlRoot = base.XamlRoot,
+			XamlRoot = XamlRoot,
 			RequestedTheme = ThemeService.CurrentElementTheme
 		};
 		progressDlg.ShowAsync();
@@ -553,7 +1066,7 @@ public sealed class BenchmarkCloudPage : Page, IComponentConnector
 		{
 			Progress<string> progress = new Progress<string>(delegate(string msg)
 			{
-				base.DispatcherQueue.TryEnqueue(delegate
+				DispatcherQueue.TryEnqueue(delegate
 				{
 					progressDlg.Content = new StackPanel
 					{
@@ -580,7 +1093,7 @@ public sealed class BenchmarkCloudPage : Page, IComponentConnector
 				Content = "报告已通过 PR 提交，合并后将出现在排行榜。\n\nPR 链接：" + prUrl,
 				PrimaryButtonText = "打开 PR",
 				CloseButtonText = "关闭",
-				XamlRoot = base.XamlRoot,
+				XamlRoot = XamlRoot,
 				RequestedTheme = ThemeService.CurrentElementTheme
 			}.ShowAsync() == ContentDialogResult.Primary)
 			{
@@ -597,7 +1110,7 @@ public sealed class BenchmarkCloudPage : Page, IComponentConnector
 				Title = "上传失败",
 				Content = ex.Message,
 				CloseButtonText = "确定",
-				XamlRoot = base.XamlRoot,
+				XamlRoot = XamlRoot,
 				RequestedTheme = ThemeService.CurrentElementTheme
 			}.ShowAsync();
 		}
@@ -721,7 +1234,7 @@ public sealed class BenchmarkCloudPage : Page, IComponentConnector
 				MaxHeight = 500.0
 			},
 			CloseButtonText = "关闭",
-			XamlRoot = base.XamlRoot,
+			XamlRoot = XamlRoot,
 			RequestedTheme = ThemeService.CurrentElementTheme
 		};
 		if (num)
@@ -746,7 +1259,7 @@ public sealed class BenchmarkCloudPage : Page, IComponentConnector
 			Content = $"确定要删除这份报告吗？\n\nCPU: {report.CpuName}\nGPU: {report.GpuName}\n游戏: {report.GamingScore} 办公: {report.OfficeScore}\n\n将通过 PR 删除，合并后生效。",
 			PrimaryButtonText = "删除",
 			CloseButtonText = "取消",
-			XamlRoot = base.XamlRoot,
+			XamlRoot = XamlRoot,
 			RequestedTheme = ThemeService.CurrentElementTheme
 		}.ShowAsync() != ContentDialogResult.Primary)
 		{
@@ -759,7 +1272,7 @@ public sealed class BenchmarkCloudPage : Page, IComponentConnector
 			{
 				IsIndeterminate = true
 			},
-			XamlRoot = base.XamlRoot,
+			XamlRoot = XamlRoot,
 			RequestedTheme = ThemeService.CurrentElementTheme
 		};
 		progressDlg.ShowAsync();
@@ -767,7 +1280,7 @@ public sealed class BenchmarkCloudPage : Page, IComponentConnector
 		{
 			Progress<string> progress = new Progress<string>(delegate(string msg)
 			{
-				base.DispatcherQueue.TryEnqueue(delegate
+				DispatcherQueue.TryEnqueue(delegate
 				{
 					progressDlg.Content = new StackPanel
 					{
@@ -794,7 +1307,7 @@ public sealed class BenchmarkCloudPage : Page, IComponentConnector
 				Content = "报告删除 PR 已创建，合并后将从排行榜移除。\n\nPR 链接：" + prUrl,
 				PrimaryButtonText = "打开 PR",
 				CloseButtonText = "关闭",
-				XamlRoot = base.XamlRoot,
+				XamlRoot = XamlRoot,
 				RequestedTheme = ThemeService.CurrentElementTheme
 			}.ShowAsync() == ContentDialogResult.Primary)
 			{
@@ -811,130 +1324,9 @@ public sealed class BenchmarkCloudPage : Page, IComponentConnector
 				Title = "删除失败",
 				Content = ex.Message,
 				CloseButtonText = "确定",
-				XamlRoot = base.XamlRoot,
+				XamlRoot = XamlRoot,
 				RequestedTheme = ThemeService.CurrentElementTheme
 			}.ShowAsync();
 		}
-	}
-
-	public void InitializeComponent()
-	{
-		if (!_contentLoaded)
-		{
-			_contentLoaded = true;
-			Uri resourceLocator = new Uri("ms-appx:///Pages/BenchmarkCloudPage.xaml");
-			Application.LoadComponent(this, resourceLocator, ComponentResourceLocation.Application);
-		}
-	}
-
-	public void Connect(int connectionId, object target)
-	{
-		switch (connectionId)
-		{
-		case 2:
-			MainPivot = (Pivot)target;
-			break;
-		case 3:
-			MyHistoryProgress = (ProgressBar)target;
-			break;
-		case 4:
-			MyHistoryArea = (ScrollViewer)target;
-			break;
-		case 5:
-			MyHistoryEmpty = (StackPanel)target;
-			break;
-		case 6:
-			MyHistoryList = (ListView)target;
-			MyHistoryList.SelectionChanged += MyHistoryList_SelectionChanged;
-			break;
-		case 8:
-			MyHistoryChart = (WebView2)target;
-			break;
-		case 9:
-			DeleteMyReportBtn = (Button)target;
-			DeleteMyReportBtn.Click += DeleteMyReportBtn_Click;
-			break;
-		case 10:
-			MyHistoryLoginHint = (TextBlock)target;
-			break;
-		case 11:
-			SameHwProgress = (ProgressBar)target;
-			break;
-		case 12:
-			SameHwList = (ListView)target;
-			break;
-		case 13:
-			SameHwEmpty = (StackPanel)target;
-			break;
-		case 15:
-			SameHwInfo = (StackPanel)target;
-			break;
-		case 16:
-			SameHwCpuText = (TextBlock)target;
-			break;
-		case 17:
-			SameHwGpuText = (TextBlock)target;
-			break;
-		case 18:
-			CompareProgress = (ProgressBar)target;
-			break;
-		case 19:
-			CompareResultArea = (ScrollViewer)target;
-			break;
-		case 20:
-			CompareEmpty = (StackPanel)target;
-			break;
-		case 21:
-			CompareRadarChart = (WebView2)target;
-			break;
-		case 22:
-			CompareMyCombo = (ComboBox)target;
-			break;
-		case 23:
-			CompareOtherCombo = (ComboBox)target;
-			break;
-		case 24:
-			CompareButton = (Button)target;
-			CompareButton.Click += CompareButton_Click;
-			break;
-		case 25:
-			LeaderboardProgress = (ProgressBar)target;
-			break;
-		case 26:
-			LeaderboardList = (ListView)target;
-			LeaderboardList.SelectionChanged += LeaderboardList_SelectionChanged;
-			break;
-		case 27:
-			LeaderboardEmpty = (StackPanel)target;
-			break;
-		case 28:
-			LeaderboardEmptyText = (TextBlock)target;
-			break;
-		case 31:
-			SortByCombo = (ComboBox)target;
-			SortByCombo.SelectionChanged += SortByCombo_SelectionChanged;
-			break;
-		case 32:
-			CpuFilterBox = (AutoSuggestBox)target;
-			CpuFilterBox.QuerySubmitted += Filter_QuerySubmitted;
-			break;
-		case 33:
-			RefreshButton = (Button)target;
-			RefreshButton.Click += RefreshButton_Click;
-			break;
-		case 34:
-			UploadButton = (Button)target;
-			UploadButton.Click += UploadButton_Click;
-			break;
-		case 35:
-			ReportCountText = (TextBlock)target;
-			break;
-		}
-		_contentLoaded = true;
-	}
-
-	public IComponentConnector GetBindingConnector(int connectionId, object target)
-	{
-		return null;
 	}
 }

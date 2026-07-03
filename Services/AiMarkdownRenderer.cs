@@ -39,6 +39,10 @@ public static partial class AiMarkdownRenderer
                 MarkdownTextService.RenderToRichTextBlock(rtb, block.Content);
                 container.Children.Add(rtb);
             }
+            else if (block.Type == BlockType.Table)
+            {
+                container.Children.Add(CreateTable(block.Content));
+            }
             else
             {
                 var rtb = new RichTextBlock { TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true };
@@ -187,6 +191,19 @@ public static partial class AiMarkdownRenderer
                 }
                 blocks.Add(new MarkdownBlock(BlockType.Action, actionSb.ToString().TrimEnd()));
             }
+            else if (trimmed.StartsWith("|") && trimmed.IndexOf('|', 1) >= 0)
+            {
+                FlushText();
+                var tableSb = new System.Text.StringBuilder();
+                while (i < lines.Length)
+                {
+                    var tl = lines[i].TrimStart();
+                    if (!tl.StartsWith("|") || tl.IndexOf('|', 1) < 0) break;
+                    tableSb.AppendLine(lines[i]);
+                    i++;
+                }
+                blocks.Add(new MarkdownBlock(BlockType.Table, tableSb.ToString().TrimEnd()));
+            }
             else if (trimmed.StartsWith("```"))
             {
                 FlushText();
@@ -210,6 +227,116 @@ public static partial class AiMarkdownRenderer
 
         FlushText();
         return blocks;
+    }
+
+    private static Border CreateTable(string markdown)
+    {
+        var lines = markdown.Replace("\r\n", "\n").Split('\n');
+        var tableRows = new List<string[]>();
+
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+            if (IsSeparatorRow(trimmed)) continue;
+
+            var cells = ParseTableRow(trimmed);
+            if (cells.Length > 0)
+                tableRows.Add(cells);
+        }
+
+        if (tableRows.Count == 0)
+            return new Border();
+
+        var colCount = tableRows.Max(r => r.Length);
+
+        var tableGrid = new Grid
+        {
+            CornerRadius = new CornerRadius(6),
+            BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+            BorderThickness = new Thickness(1)
+        };
+
+        for (var c = 0; c < colCount; c++)
+            tableGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        for (var r = 0; r < tableRows.Count; r++)
+        {
+            var isHeader = r == 0;
+            tableGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            for (var c = 0; c < tableRows[r].Length && c < colCount; c++)
+            {
+                var cellText = tableRows[r][c];
+                var cellRtb = new RichTextBlock
+                {
+                    TextWrapping = TextWrapping.Wrap,
+                    IsTextSelectionEnabled = true
+                };
+                var para = new Paragraph();
+                MarkdownTextService.AddInlineContent(para, cellText);
+                cellRtb.Blocks.Add(para);
+
+                if (isHeader)
+                {
+                    foreach (var blk in cellRtb.Blocks)
+                    {
+                        if (blk is Paragraph p)
+                        {
+                            foreach (var inline in p.Inlines)
+                            {
+                                if (inline is Run run)
+                                    run.FontWeight = FontWeights.SemiBold;
+                                else if (inline is Span span)
+                                    span.FontWeight = FontWeights.SemiBold;
+                            }
+                        }
+                    }
+                }
+
+                var cellBorder = new Border
+                {
+                    BorderBrush = (Brush)Application.Current.Resources["ControlStrokeColorDefaultBrush"],
+                    BorderThickness = new Thickness(c > 0 ? 1 : 0, r > 0 ? 1 : 0, 0, 0),
+                    Padding = new Thickness(10, 6, 10, 6),
+                    Child = cellRtb
+                };
+
+                if (isHeader)
+                    cellBorder.Background = (Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"];
+                else if (r % 2 == 1)
+                    cellBorder.Background = (Brush)Application.Current.Resources["ControlFillColorTransparentBrush"];
+
+                Grid.SetRow(cellBorder, r);
+                Grid.SetColumn(cellBorder, c);
+                tableGrid.Children.Add(cellBorder);
+            }
+        }
+
+        return new Border
+        {
+            CornerRadius = new CornerRadius(8),
+            Child = tableGrid
+        };
+    }
+
+    private static bool IsSeparatorRow(string line)
+    {
+        var stripped = line.Replace("|", "").Replace("-", "").Replace(" ", "").Replace(":", "");
+        return stripped.Length == 0 && line.Contains('-');
+    }
+
+    private static string[] ParseTableRow(string line)
+    {
+        var cells = new List<string>();
+        var parts = line.Split('|');
+        for (int i = 1; i < parts.Length - 1; i++)
+        {
+            cells.Add(parts[i].Trim());
+        }
+        if (parts.Length > 1 && !string.IsNullOrWhiteSpace(parts[^1].TrimEnd()))
+            cells.Add(parts[^1].Trim());
+        return cells.ToArray();
     }
 
     private static Border CreateToolCard(string line)
@@ -516,7 +643,7 @@ public static partial class AiMarkdownRenderer
         };
     }
 
-    internal static Border CreateActionCard(string content, Action<AiActionStep, string>? onConfirmed = null)
+    internal static Border CreateActionCard(string content, Action<List<(AiActionStep action, bool confirmed, string result)>>? onAllResolved = null)
     {
         var idx = content.IndexOf("[ACTION]", StringComparison.OrdinalIgnoreCase);
         if (idx >= 0)
@@ -543,6 +670,12 @@ public static partial class AiMarkdownRenderer
         stack.Children.Add(header);
 
         var actions = ParseActionJson(content);
+        var actionStates = new List<(AiActionStep Action, Button ConfirmBtn, Button RejectBtn, TextBlock StatusTb, bool? Confirmed)>();
+
+        Button allConfirmBtn = null!;
+        Button allRejectBtn = null!;
+        TextBlock globalStatus = null!;
+
         foreach (var action in actions)
         {
             var kindLabel = action.Kind switch
@@ -585,34 +718,63 @@ public static partial class AiMarkdownRenderer
                 });
             }
 
+            var btnRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 4, 0, 0) };
+
             var confirmBtn = new Button
             {
-                Content = "确认执行",
+                Content = "确认",
                 FontSize = 12,
                 Padding = new Thickness(12, 4, 12, 4),
                 CornerRadius = new CornerRadius(6),
-                Margin = new Thickness(0, 4, 0, 0),
                 Tag = action
             };
 
-            confirmBtn.Click += async (_, _) =>
+            var rejectBtn = new Button
             {
-                confirmBtn.IsEnabled = false;
-                confirmBtn.Content = "执行中...";
-                try
-                {
-                    var result = await AiAssistantService.ExecuteActionAsync(action, CancellationToken.None);
-                    action.Executed = true;
-                    confirmBtn.Content = "已执行 ✓";
-                    onConfirmed?.Invoke(action, result);
-                }
-                catch
-                {
-                    confirmBtn.Content = "执行失败";
-                }
+                Content = "拒绝",
+                FontSize = 12,
+                Padding = new Thickness(12, 4, 12, 4),
+                CornerRadius = new CornerRadius(6),
+                Tag = action
             };
 
-            actionStack.Children.Add(confirmBtn);
+            var statusTb = new TextBlock
+            {
+                FontSize = 12,
+                VerticalAlignment = VerticalAlignment.Center,
+                Visibility = Visibility.Collapsed
+            };
+
+            btnRow.Children.Add(confirmBtn);
+            btnRow.Children.Add(rejectBtn);
+            btnRow.Children.Add(statusTb);
+            actionStack.Children.Add(btnRow);
+
+            var state = (Confirmed: (bool?)null, confirmBtn, rejectBtn, statusTb);
+
+            confirmBtn.Click += (_, _) =>
+            {
+                state.Confirmed = true;
+                confirmBtn.IsEnabled = false;
+                rejectBtn.IsEnabled = false;
+                statusTb.Text = "已确认 ✓";
+                statusTb.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 120, 60));
+                statusTb.Visibility = Visibility.Visible;
+                CheckAllResolved();
+            };
+
+            rejectBtn.Click += (_, _) =>
+            {
+                state.Confirmed = false;
+                confirmBtn.IsEnabled = false;
+                rejectBtn.IsEnabled = false;
+                statusTb.Text = "已拒绝 ✗";
+                statusTb.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 196, 43, 28));
+                statusTb.Visibility = Visibility.Visible;
+                CheckAllResolved();
+            };
+
+            actionStates.Add((action, confirmBtn, rejectBtn, statusTb, null));
             stack.Children.Add(actionStack);
         }
 
@@ -626,6 +788,178 @@ public static partial class AiMarkdownRenderer
                 Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
             };
             stack.Children.Add(tb);
+            return new Border
+            {
+                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(30, 218, 112, 0)),
+                CornerRadius = new CornerRadius(8),
+                Child = stack
+            };
+        }
+
+        allConfirmBtn = new Button
+        {
+            Content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 6,
+                Children =
+                {
+                    new FontIcon { Glyph = "\uE73E", FontSize = 12 },
+                    new TextBlock { Text = $"全部确认并执行（{actions.Count} 项）", FontSize = 12 }
+                }
+            },
+            FontSize = 12,
+            Padding = new Thickness(12, 6, 12, 6),
+            CornerRadius = new CornerRadius(6),
+            Margin = new Thickness(24, 8, 0, 0),
+            Background = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255))
+        };
+
+        allRejectBtn = new Button
+        {
+            Content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 6,
+                Children =
+                {
+                    new FontIcon { Glyph = "\uE711", FontSize = 12 },
+                    new TextBlock { Text = "全部拒绝", FontSize = 12 }
+                }
+            },
+            FontSize = 12,
+            Padding = new Thickness(12, 6, 12, 6),
+            CornerRadius = new CornerRadius(6),
+            Margin = new Thickness(8, 8, 0, 0)
+        };
+
+        var bottomRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        bottomRow.Children.Add(allConfirmBtn);
+        bottomRow.Children.Add(allRejectBtn);
+        stack.Children.Add(bottomRow);
+
+        globalStatus = new TextBlock
+        {
+            FontSize = 12,
+            Margin = new Thickness(24, 4, 0, 0),
+            Visibility = Visibility.Collapsed
+        };
+        stack.Children.Add(globalStatus);
+
+        allConfirmBtn.Click += (_, _) =>
+        {
+            for (int i = 0; i < actionStates.Count; i++)
+            {
+                var (a, cb, rb, st, _) = actionStates[i];
+                if (cb.IsEnabled)
+                {
+                    cb.IsEnabled = false;
+                    rb.IsEnabled = false;
+                    st.Text = "已确认 ✓";
+                    st.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 120, 60));
+                    st.Visibility = Visibility.Visible;
+                    actionStates[i] = (a, cb, rb, st, true);
+                }
+            }
+            allConfirmBtn.IsEnabled = false;
+            allRejectBtn.IsEnabled = false;
+            ExecuteAllResolved();
+        };
+
+        allRejectBtn.Click += (_, _) =>
+        {
+            for (int i = 0; i < actionStates.Count; i++)
+            {
+                var (a, cb, rb, st, _) = actionStates[i];
+                if (cb.IsEnabled)
+                {
+                    cb.IsEnabled = false;
+                    rb.IsEnabled = false;
+                    st.Text = "已拒绝 ✗";
+                    st.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 196, 43, 28));
+                    st.Visibility = Visibility.Visible;
+                    actionStates[i] = (a, cb, rb, st, false);
+                }
+            }
+            allConfirmBtn.IsEnabled = false;
+            allRejectBtn.IsEnabled = false;
+            ExecuteAllResolved();
+        };
+
+        void CheckAllResolved()
+        {
+            for (int i = 0; i < actionStates.Count; i++)
+            {
+                var (a, cb, rb, st, confirmed) = actionStates[i];
+                if (confirmed == null && !cb.IsEnabled)
+                {
+                    // was already handled by individual click
+                }
+                // sync state from individual clicks
+                if (!cb.IsEnabled && confirmed == null)
+                {
+                    var wasConfirmed = st.Text.Contains("确认");
+                    actionStates[i] = (a, cb, rb, st, wasConfirmed);
+                }
+            }
+
+            var allDone = actionStates.All(s => !s.ConfirmBtn.IsEnabled);
+            if (allDone)
+            {
+                allConfirmBtn.IsEnabled = false;
+                allRejectBtn.IsEnabled = false;
+                ExecuteAllResolved();
+            }
+        }
+
+        async void ExecuteAllResolved()
+        {
+            allConfirmBtn.IsEnabled = false;
+            allRejectBtn.IsEnabled = false;
+            globalStatus.Text = "正在执行已确认的操作...";
+            globalStatus.Visibility = Visibility.Visible;
+
+            var results = new List<(AiActionStep action, bool confirmed, string result)>();
+
+            for (int i = 0; i < actionStates.Count; i++)
+            {
+                var (a, cb, rb, st, confirmed) = actionStates[i];
+                var wasConfirmed = confirmed == true || (!cb.IsEnabled && st.Text.Contains("确认"));
+
+                if (wasConfirmed)
+                {
+                    st.Text = "执行中...";
+                    st.Foreground = (Brush)Application.Current.Resources["AccentTextFillColorPrimaryBrush"];
+                    st.Visibility = Visibility.Visible;
+
+                    try
+                    {
+                        var result = await AiAssistantService.ExecuteActionAsync(a, CancellationToken.None);
+                        a.Executed = true;
+                        st.Text = "已执行 ✓";
+                        st.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 120, 60));
+                        results.Add((a, true, result));
+                    }
+                    catch
+                    {
+                        st.Text = "执行失败";
+                        st.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 196, 43, 28));
+                        results.Add((a, true, "执行失败"));
+                    }
+                }
+                else
+                {
+                    results.Add((a, false, "用户拒绝执行"));
+                }
+            }
+
+            var confirmedCount = results.Count(r => r.confirmed);
+            var rejectedCount = results.Count(r => !r.confirmed);
+            globalStatus.Text = $"已完成：{confirmedCount} 项已执行" +
+                (rejectedCount > 0 ? $"，{rejectedCount} 项已拒绝" : "");
+
+            onAllResolved?.Invoke(results);
         }
 
         return new Border
@@ -690,6 +1024,7 @@ public static partial class AiMarkdownRenderer
     {
         Text,
         CodeBlock,
+        Table,
         ToolRecommend,
         Website,
         Setting,

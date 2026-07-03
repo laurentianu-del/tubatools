@@ -47,7 +47,7 @@ public sealed class ConversationMeta
 public sealed partial class AiAssistantService
 {
     private static readonly string SystemPrompt = """
-你是"图吧助手"，一个 Windows 系统专家，拥有联网搜索能力。你必须严格按照以下三个阶段工作，每次只做一个阶段的事。
+你是"图吧助手"，一个 Windows 系统专家，拥有联网搜索能力。
 
 ---
 
@@ -71,19 +71,7 @@ public sealed partial class AiAssistantService
 
 ---
 
-## 阶段一：收集信息
-
-当用户提问时，你首先需要收集必要的系统信息。
-
-规则：
-- 只使用 [TOOL] 调用工具收集信息，不要输出分析或建议
-- 工具调用完毕后自动进入阶段二
-- 不要在收集信息时输出方案、推荐或建议
-- 涉及硬件/软件/驱动等最新信息时，**必须先搜索再回答**
-
----
-
-## 阶段二：输出方案
+## 输出规范
 
 信息收集完成后，输出结构化的分析和方案。
 
@@ -115,54 +103,126 @@ public sealed partial class AiAssistantService
 **建议修改设置**（每个独占一行）：
 [SETTING] path=注册表路径 | name=设置名 | current=当前值 | recommend=建议值 | reason=理由
 
-**需要确认的操作**：
-[ACTION]
-```json
-[
-  {
-    "kind": "run_command",
-    "description": "操作描述",
-    "detail": "具体命令",
-    "reason": "必须写清楚为什么要执行这个命令，执行后会有什么效果"
-  }
-]
-```
-
----
-
-## 可用工具
-
-[TOOL] web_search | query=搜索关键词 — 🔴 联网搜索！获取最新硬件评测、驱动、新闻、价格等（最常用的工具，涉及任何最新信息时必须使用！）
-[TOOL] fetch_page | url=网页URL — 📄 访问网页内容！当搜索结果中的摘要信息不够详细时，用此工具获取完整网页文本（搜索后需要深入了解时使用）
-[TOOL] get_hardware_info    — 获取硬件信息
-[TOOL] get_system_info      — 获取系统基本信息
-[TOOL] list_programs        — 已安装软件列表
-[TOOL] disk_usage           — 磁盘使用概况
-[TOOL] network_info         — 网络信息
-[TOOL] list_processes       — 进程列表（按内存排序）
-[TOOL] list_startup         — 启动项列表
-[TOOL] list_services | filter=关键词 — 服务列表
-[TOOL] list_dir | path=路径 — 列出目录
-[TOOL] get_info | path=路径 — 文件/文件夹信息
-[TOOL] list_tools | category=分类 — 工具箱软件列表
-[TOOL] read_reg | key=路径 | value=值名 — 读取注册表
-[TOOL] run_command | cmd=命令 | reason=理由 — 执行命令
-[TOOL] write_reg | key=路径 | value=名 | data=值 | type=类型 | reason=理由 — 修改注册表
-
 ---
 
 ## 关键规则
 
-1. 先收集，再分析，最后才执行 — 不要跳过阶段
-2. 推荐工具优先从工具箱已有软件中选
-3. [RECOMMEND_TOOL] 必须独占一行，不要和其他文字混在同一行
-4. 每个操作必须写清楚理由
-5. 用中文回复
-6. 方案要具体可执行，不要模糊的建议
-7. 不要在 [RECOMMEND_TOOL] 同一行写标题或列表符号
-8. 涉及硬件参数、性能对比、新品发布、驱动更新等，必须用 web_search 搜索，不要凭记忆回答
-9. 宁可多搜一次，也不要给出过时或错误的信息
+1. 推荐工具优先从工具箱已有软件中选
+2. [RECOMMEND_TOOL] 必须独占一行，不要和其他文字混在同一行
+3. 每个操作必须写清楚理由
+4. 用中文回复
+5. 方案要具体可执行，不要模糊的建议
+6. 不要在 [RECOMMEND_TOOL] 同一行写标题或列表符号
+7. 涉及硬件参数、性能对比、新品发布、驱动更新等，必须用 web_search 搜索，不要凭记忆回答
+8. 宁可多搜一次，也不要给出过时或错误的信息
 """;
+
+    private static readonly List<AiToolDefinition> ToolDefinitions = BuildToolDefinitions();
+
+    private static List<AiToolDefinition> BuildToolDefinitions()
+    {
+        return
+        [
+            new AiToolDefinition
+            {
+                Name = "web_search",
+                Description = "联网搜索！获取最新硬件评测、驱动、新闻、价格等（最常用的工具，涉及任何最新信息时必须使用！）",
+                ParametersJson = """{"type":"object","properties":{"query":{"type":"string","description":"搜索关键词"}},"required":["query"]}"""
+            },
+            new AiToolDefinition
+            {
+                Name = "fetch_page",
+                Description = "访问网页内容！当搜索结果中的摘要信息不够详细时，用此工具获取完整网页文本",
+                ParametersJson = """{"type":"object","properties":{"url":{"type":"string","description":"网页URL"}},"required":["url"]}"""
+            },
+            new AiToolDefinition
+            {
+                Name = "get_hardware_info",
+                Description = "获取本机硬件信息（CPU、GPU、内存、主板等）",
+                ParametersJson = """{"type":"object","properties":{},"required":[]}"""
+            },
+            new AiToolDefinition
+            {
+                Name = "get_system_info",
+                Description = "获取系统基本信息（OS、用户名、磁盘使用等）",
+                ParametersJson = """{"type":"object","properties":{},"required":[]}"""
+            },
+            new AiToolDefinition
+            {
+                Name = "list_programs",
+                Description = "获取已安装软件列表",
+                ParametersJson = """{"type":"object","properties":{},"required":[]}"""
+            },
+            new AiToolDefinition
+            {
+                Name = "disk_usage",
+                Description = "获取磁盘使用概况",
+                ParametersJson = """{"type":"object","properties":{},"required":[]}"""
+            },
+            new AiToolDefinition
+            {
+                Name = "network_info",
+                Description = "获取网络信息（网卡、IP等）",
+                ParametersJson = """{"type":"object","properties":{},"required":[]}"""
+            },
+            new AiToolDefinition
+            {
+                Name = "list_processes",
+                Description = "获取进程列表（按内存排序前50）",
+                ParametersJson = """{"type":"object","properties":{},"required":[]}"""
+            },
+            new AiToolDefinition
+            {
+                Name = "list_startup",
+                Description = "获取启动项列表",
+                ParametersJson = """{"type":"object","properties":{},"required":[]}"""
+            },
+            new AiToolDefinition
+            {
+                Name = "list_services",
+                Description = "获取服务列表",
+                ParametersJson = """{"type":"object","properties":{"filter":{"type":"string","description":"筛选关键词"}},"required":[]}"""
+            },
+            new AiToolDefinition
+            {
+                Name = "list_dir",
+                Description = "列出目录内容",
+                ParametersJson = """{"type":"object","properties":{"path":{"type":"string","description":"目录路径"}},"required":["path"]}"""
+            },
+            new AiToolDefinition
+            {
+                Name = "get_info",
+                Description = "获取文件或文件夹信息",
+                ParametersJson = """{"type":"object","properties":{"path":{"type":"string","description":"文件或文件夹路径"}},"required":["path"]}"""
+            },
+            new AiToolDefinition
+            {
+                Name = "list_tools",
+                Description = "获取工具箱软件列表",
+                ParametersJson = """{"type":"object","properties":{"category":{"type":"string","description":"分类名称"}},"required":[]}"""
+            },
+            new AiToolDefinition
+            {
+                Name = "read_reg",
+                Description = "读取注册表值",
+                ParametersJson = """{"type":"object","properties":{"key":{"type":"string","description":"注册表键路径"},"value":{"type":"string","description":"值名称（可选，不填则列出所有值）"}},"required":["key"]}"""
+            },
+            new AiToolDefinition
+            {
+                Name = "run_command",
+                Description = "执行命令（需要用户确认后才会执行）",
+                ParametersJson = """{"type":"object","properties":{"cmd":{"type":"string","description":"要执行的命令"},"reason":{"type":"string","description":"执行此命令的理由和预期效果"}},"required":["cmd","reason"]}"""
+            },
+            new AiToolDefinition
+            {
+                Name = "write_reg",
+                Description = "修改注册表（需要用户确认后才会执行）",
+                ParametersJson = """{"type":"object","properties":{"key":{"type":"string","description":"注册表键路径"},"value":{"type":"string","description":"值名称"},"data":{"type":"string","description":"要写入的数据"},"type":{"type":"string","description":"值类型：REG_SZ(默认)、REG_DWORD、REG_QWORD、REG_EXPAND_SZ、REG_BINARY"},"reason":{"type":"string","description":"修改理由"}},"required":["key","value","data","reason"]}"""
+            },
+        ];
+    }
+
+    private static readonly HashSet<string> DangerousTools = ["run_command", "write_reg"];
 
     public static string BuildSystemContext()
     {
@@ -240,119 +300,16 @@ public sealed partial class AiAssistantService
         Action<string> onError,
         CancellationToken ct)
     {
-        if (conversationHistory.Count == 0)
+        if (conversationHistory.Count == 0 ||
+            conversationHistory[0].Role != "system")
         {
             var systemContent = SystemPrompt + "\n\n" + BuildSystemContext() + "\n\n" + BuildSystemInfoContext();
-            conversationHistory.Add(new AiChatMessage { Role = "system", Content = systemContent });
+            conversationHistory.Insert(0, AiChatMessage.System(systemContent));
         }
 
-        conversationHistory.Add(new AiChatMessage { Role = "user", Content = userMessage });
+        conversationHistory.Add(AiChatMessage.User(userMessage));
 
-        const int maxRounds = 30;
-        for (int round = 0; round < maxRounds; round++)
-        {
-            ct.ThrowIfCancellationRequested();
-
-            var fullContent = new StringBuilder();
-            var streamError = (string?)null;
-
-            await AiService.ChatStreamAsync(
-                conversationHistory,
-                onChunk: chunk =>
-                {
-                    fullContent.Append(chunk);
-                    onTextChunk(chunk);
-                },
-                onError: err =>
-                {
-                    streamError = err;
-                },
-                ct: ct,
-                temperature: 0.4);
-
-            if (streamError is not null)
-            {
-                onError(streamError);
-                return;
-            }
-
-            var content = fullContent.ToString();
-            conversationHistory.Add(new AiChatMessage { Role = "assistant", Content = content });
-
-            var recommendations = ParseRecommendations(content);
-            if (recommendations.Count > 0)
-            {
-                onToolRecommendations(recommendations);
-            }
-
-            var toolLines = content.Split('\n')
-                .Where(l => l.TrimStart().StartsWith("[TOOL]", StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-            if (toolLines.Count > 0)
-            {
-                var allResults = new StringBuilder();
-                var pendingActions = new List<AiActionStep>();
-
-                for (int i = 0; i < toolLines.Count; i++)
-                {
-                    var (toolName, toolArgs) = ParseToolLine(toolLines[i]);
-
-                    if (toolName is "run_command" or "write_reg")
-                    {
-                        var kind = toolName == "run_command" ? AiActionKind.RunCommand : AiActionKind.ModifyConfig;
-                        var detail = toolName == "run_command" ? ParseArg(toolArgs, "cmd") : toolArgs;
-                        var reason = ParseArg(toolArgs, "reason");
-                        var desc = toolName == "run_command" ? $"执行命令: {detail}" : $"修改注册表: {ParseArg(toolArgs, "key")}";
-
-                        pendingActions.Add(new AiActionStep
-                        {
-                            Kind = kind,
-                            Description = desc,
-                            Detail = detail,
-                            Reason = string.IsNullOrWhiteSpace(reason) ? "AI 请求执行此操作" : reason,
-                        });
-
-                        onToolCall($"{toolName} ⚠️ 需确认 | {toolArgs}");
-                    }
-                    else
-                    {
-                        onToolCall($"{toolName} {(string.IsNullOrWhiteSpace(toolArgs) ? "" : $"| {toolArgs}")}");
-
-                        var toolResult = ExecuteTool(toolName, toolArgs, ct);
-                        allResults.AppendLine($"=== 工具 {i + 1}: {toolName} | {toolArgs} ===");
-                        allResults.AppendLine(toolResult);
-                        allResults.AppendLine();
-
-                        onToolResult(toolResult);
-                    }
-                }
-
-                if (pendingActions.Count > 0)
-                {
-                    onActions(pendingActions);
-                }
-
-                if (allResults.Length > 0)
-                {
-                    conversationHistory.Add(new AiChatMessage { Role = "user", Content = $"[TOOL_RESULT]\n{allResults}" });
-                    if (pendingActions.Count == 0) continue;
-                }
-
-                return;
-            }
-
-            var parsedActions = ParseActions(content);
-            if (parsedActions.Count > 0)
-            {
-                onActions(parsedActions);
-                return;
-            }
-
-            return;
-        }
-
-        onError("对话轮次已达上限，请简化你的问题。");
+        await RunAgentLoop(conversationHistory, onTextChunk, onToolCall, onToolResult, onActions, onToolRecommendations, onError, ct, maxRounds: 30);
     }
 
     public static async Task ContinueConversationStreamAsync(
@@ -365,19 +322,34 @@ public sealed partial class AiAssistantService
         Action<string> onError,
         CancellationToken ct)
     {
-        if (conversationHistory.Count == 0 || conversationHistory[0].Role != "system")
+        if (conversationHistory.Count == 0 ||
+            conversationHistory[0].Role != "system")
         {
             var systemContent = SystemPrompt + "\n\n" + BuildSystemContext() + "\n\n" + BuildSystemInfoContext();
-            conversationHistory.Insert(0, new AiChatMessage { Role = "system", Content = systemContent });
+            conversationHistory.Insert(0, AiChatMessage.System(systemContent));
         }
 
-        const int maxRounds = 10;
+        await RunAgentLoop(conversationHistory, onTextChunk, onToolCall, onToolResult, onActions, onToolRecommendations, onError, ct, maxRounds: 10);
+    }
+
+    private static async Task RunAgentLoop(
+        List<AiChatMessage> conversationHistory,
+        Action<string> onTextChunk,
+        Action<string> onToolCall,
+        Action<string> onToolResult,
+        Action<List<AiActionStep>> onActions,
+        Action<List<AiRecommendedTool>> onToolRecommendations,
+        Action<string> onError,
+        CancellationToken ct,
+        int maxRounds)
+    {
         for (int round = 0; round < maxRounds; round++)
         {
             ct.ThrowIfCancellationRequested();
 
             var fullContent = new StringBuilder();
-            var streamError = (string?)null;
+            var toolCallsAccum = new Dictionary<int, (string Id, StringBuilder Name, StringBuilder Args)>();
+            string? streamError = null;
 
             await AiService.ChatStreamAsync(
                 conversationHistory,
@@ -386,12 +358,20 @@ public sealed partial class AiAssistantService
                     fullContent.Append(chunk);
                     onTextChunk(chunk);
                 },
-                onError: err =>
-                {
-                    streamError = err;
-                },
+                onError: err => streamError = err,
                 ct: ct,
-                temperature: 0.4);
+                temperature: 0.4,
+                tools: ToolDefinitions,
+                onToolCallDelta: (index, id, nameDelta, argsDelta) =>
+                {
+                    if (!toolCallsAccum.ContainsKey(index))
+                        toolCallsAccum[index] = ("", new StringBuilder(), new StringBuilder());
+                    var entry = toolCallsAccum[index];
+                    if (!string.IsNullOrEmpty(id)) entry.Id = id;
+                    if (!string.IsNullOrEmpty(nameDelta)) entry.Name.Append(nameDelta);
+                    if (!string.IsNullOrEmpty(argsDelta)) entry.Args.Append(argsDelta);
+                    toolCallsAccum[index] = entry;
+                });
 
             if (streamError is not null)
             {
@@ -400,70 +380,21 @@ public sealed partial class AiAssistantService
             }
 
             var content = fullContent.ToString();
-            conversationHistory.Add(new AiChatMessage { Role = "assistant", Content = content });
+            var toolCalls = toolCallsAccum.OrderBy(kv => kv.Key)
+                .Select(kv => new AiToolCallItem
+                {
+                    Id = kv.Value.Id,
+                    Name = kv.Value.Name.ToString(),
+                    Arguments = kv.Value.Args.ToString()
+                })
+                .Where(tc => !string.IsNullOrEmpty(tc.Name))
+                .ToList();
+
+            conversationHistory.Add(AiChatMessage.Assistant(content, toolCalls.Count > 0 ? toolCalls : null));
 
             var recommendations = ParseRecommendations(content);
             if (recommendations.Count > 0)
-            {
                 onToolRecommendations(recommendations);
-            }
-
-            var toolLines = content.Split('\n')
-                .Where(l => l.TrimStart().StartsWith("[TOOL]", StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-            if (toolLines.Count > 0)
-            {
-                var allResults = new StringBuilder();
-                var pendingActions = new List<AiActionStep>();
-
-                for (int i = 0; i < toolLines.Count; i++)
-                {
-                    var (toolName, toolArgs) = ParseToolLine(toolLines[i]);
-
-                    if (toolName is "run_command" or "write_reg")
-                    {
-                        var kind = toolName == "run_command" ? AiActionKind.RunCommand : AiActionKind.ModifyConfig;
-                        var detail = toolName == "run_command" ? ParseArg(toolArgs, "cmd") : toolArgs;
-                        var reason = ParseArg(toolArgs, "reason");
-                        var desc = toolName == "run_command" ? $"执行命令: {detail}" : $"修改注册表: {ParseArg(toolArgs, "key")}";
-
-                        pendingActions.Add(new AiActionStep
-                        {
-                            Kind = kind,
-                            Description = desc,
-                            Detail = detail,
-                            Reason = string.IsNullOrWhiteSpace(reason) ? "AI 请求执行此操作" : reason,
-                        });
-
-                        onToolCall($"{toolName} ⚠️ 需确认 | {toolArgs}");
-                    }
-                    else
-                    {
-                        onToolCall($"{toolName} {(string.IsNullOrWhiteSpace(toolArgs) ? "" : $"| {toolArgs}")}");
-
-                        var toolResult = ExecuteTool(toolName, toolArgs, ct);
-                        allResults.AppendLine($"=== 工具 {i + 1}: {toolName} | {toolArgs} ===");
-                        allResults.AppendLine(toolResult);
-                        allResults.AppendLine();
-
-                        onToolResult(toolResult);
-                    }
-                }
-
-                if (pendingActions.Count > 0)
-                {
-                    onActions(pendingActions);
-                }
-
-                if (allResults.Length > 0)
-                {
-                    conversationHistory.Add(new AiChatMessage { Role = "user", Content = $"[TOOL_RESULT]\n{allResults}" });
-                    if (pendingActions.Count == 0) continue;
-                }
-
-                return;
-            }
 
             var parsedActions = ParseActions(content);
             if (parsedActions.Count > 0)
@@ -472,10 +403,163 @@ public sealed partial class AiAssistantService
                 return;
             }
 
-            return;
+            if (toolCalls.Count == 0)
+                return;
+
+            var pendingActions = new List<AiActionStep>();
+            var toolResultsToSend = new List<AiChatMessage>();
+
+            foreach (var toolCall in toolCalls)
+            {
+                var toolName = toolCall.Name;
+                var toolArgs = toolCall.Arguments;
+
+                if (DangerousTools.Contains(toolName))
+                {
+                    var kind = toolName == "run_command" ? AiActionKind.RunCommand : AiActionKind.ModifyConfig;
+                    var argsDict = ParseJsonArgs(toolArgs);
+                    var detail = toolName == "run_command"
+                        ? (argsDict.TryGetValue("cmd", out var c) ? c : toolArgs)
+                        : toolArgs;
+                    var reason = argsDict.TryGetValue("reason", out var r) ? r : "AI 请求执行此操作";
+                    var desc = toolName == "run_command"
+                        ? $"执行命令: {detail}"
+                        : $"修改注册表: {(argsDict.TryGetValue("key", out var k) ? k : "")}";
+
+                    pendingActions.Add(new AiActionStep
+                    {
+                        Kind = kind,
+                        Description = desc,
+                        Detail = detail,
+                        Reason = reason,
+                    });
+
+                    onToolCall($"{toolName} ⚠️ 需确认 | {toolArgs}");
+
+                    toolResultsToSend.Add(AiChatMessage.Tool(
+                        toolCall.Id,
+                        "等待用户确认后执行",
+                        toolName));
+                }
+                else
+                {
+                    onToolCall($"{toolName} {(string.IsNullOrWhiteSpace(toolArgs) ? "" : $"| {toolArgs}")}");
+
+                    var toolArgsStr = ConvertJsonArgsToPipeFormat(toolName, toolArgs);
+                    var toolResult = await ExecuteToolByNameAsync(toolName, toolArgsStr, ct);
+
+                    onToolResult(toolResult);
+
+                    toolResultsToSend.Add(AiChatMessage.Tool(
+                        toolCall.Id,
+                        toolResult,
+                        toolName));
+                }
+            }
+
+            conversationHistory.AddRange(toolResultsToSend);
+
+            if (pendingActions.Count > 0)
+            {
+                onActions(pendingActions);
+                return;
+            }
         }
 
         onError("对话轮次已达上限，请简化你的问题。");
+    }
+
+    private static Dictionary<string, string> ParseJsonArgs(string jsonArgs)
+    {
+        var result = new Dictionary<string, string>();
+        if (string.IsNullOrWhiteSpace(jsonArgs)) return result;
+        try
+        {
+            using var doc = JsonDocument.Parse(jsonArgs);
+            foreach (var prop in doc.RootElement.EnumerateObject())
+                result[prop.Name] = prop.Value.GetString() ?? "";
+        }
+        catch { }
+        return result;
+    }
+
+    private static string ConvertJsonArgsToPipeFormat(string toolName, string jsonArgs)
+    {
+        var dict = ParseJsonArgs(jsonArgs);
+        if (dict.Count == 0) return jsonArgs;
+        return string.Join(" | ", dict.Select(kv => $"{kv.Key}={kv.Value}"));
+    }
+
+    private static async Task<string> ExecuteToolByNameAsync(string toolName, string args, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        return toolName switch
+        {
+            "get_hardware_info" => await Task.Run(ExecuteGetHardwareInfo, ct),
+            "get_system_info" => BuildSystemInfoContext(),
+            "list_programs" => await Task.Run(ExecuteListPrograms, ct),
+            "disk_usage" => ExecuteDiskUsage(),
+            "network_info" => await Task.Run(ExecuteNetworkInfo, ct),
+            "list_processes" => await Task.Run(ExecuteListProcesses, ct),
+            "list_startup" => ExecuteListStartup(),
+            "list_dir" => await Task.Run(() => ExecuteListDir(args), ct),
+            "get_info" => ExecuteGetInfo(args),
+            "list_tools" => ExecuteListTools(args),
+            "read_reg" => ExecuteReadReg(args),
+            "list_services" => await Task.Run(() => ExecuteListServices(args), ct),
+            "web_search" => await ExecuteWebSearchAsync(args, ct),
+            "fetch_page" => await ExecuteFetchPageAsync(args, ct),
+            _ => $"错误：未知工具 '{toolName}'"
+        };
+    }
+
+    private static async Task<string> ExecuteWebSearchAsync(string args, CancellationToken ct)
+    {
+        var query = ParseArg(args, "query");
+        if (string.IsNullOrWhiteSpace(query))
+            return "错误：缺少 query 参数，请提供搜索关键词";
+
+        try
+        {
+            var result = await WebSearchService.SearchAsync(query, ct);
+            return WebSearchService.FormatResult(result);
+        }
+        catch (OperationCanceledException)
+        {
+            return "搜索已取消";
+        }
+        catch (Exception ex)
+        {
+            return $"搜索失败：{ex.Message}";
+        }
+    }
+
+    private static async Task<string> ExecuteFetchPageAsync(string args, CancellationToken ct)
+    {
+        var url = ParseArg(args, "url");
+        if (string.IsNullOrWhiteSpace(url))
+            return "错误：缺少 url 参数，请提供要访问的网页 URL";
+
+        try
+        {
+            var page = await WebSearchService.FetchWebPageAsync(url, ct);
+            var sb = new StringBuilder();
+            sb.AppendLine($"页面标题：{page.Title}");
+            sb.AppendLine($"URL：{page.Url}");
+            sb.AppendLine($"内容格式：{page.ContentType}");
+            sb.AppendLine();
+            sb.AppendLine(page.Content);
+            return sb.ToString();
+        }
+        catch (OperationCanceledException)
+        {
+            return "页面获取已取消";
+        }
+        catch (Exception ex)
+        {
+            return $"获取页面失败：{ex.Message}";
+        }
     }
 
     public static async Task<string> ExecuteActionAsync(AiActionStep action, CancellationToken ct)
@@ -483,7 +567,7 @@ public sealed partial class AiAssistantService
         return action.Kind switch
         {
             AiActionKind.RunCommand => ExecuteRunCommand(action.Detail, ct),
-            AiActionKind.ModifyConfig => ExecuteWriteReg(action.Detail, ct),
+            AiActionKind.ModifyConfig => ExecuteWriteReg(ConvertJsonArgsToPipeFormat("write_reg", action.Detail), ct),
             AiActionKind.LaunchTool => ExecuteLaunchTool(action.Detail),
             AiActionKind.ReadConfig => ExecuteReadReg(action.Detail),
             _ => "不支持的操作类型"
@@ -706,44 +790,6 @@ public sealed partial class AiAssistantService
         catch { }
 
         return result;
-    }
-
-    private static (string name, string args) ParseToolLine(string line)
-    {
-        var trimmed = line.Trim();
-        var toolPart = trimmed.Substring("[TOOL]".Length).Trim();
-        var pipeIdx = toolPart.IndexOf('|');
-        if (pipeIdx < 0) return (toolPart.Trim(), "");
-
-        var name = toolPart.Substring(0, pipeIdx).Trim();
-        var args = toolPart.Substring(pipeIdx + 1).Trim();
-        return (name, args);
-    }
-
-    private static string ExecuteTool(string toolName, string args, CancellationToken ct)
-    {
-        ct.ThrowIfCancellationRequested();
-
-        return toolName switch
-        {
-            "get_hardware_info" => ExecuteGetHardwareInfo(),
-            "get_system_info" => BuildSystemInfoContext(),
-            "list_programs" => ExecuteListPrograms(),
-            "disk_usage" => ExecuteDiskUsage(),
-            "network_info" => ExecuteNetworkInfo(),
-            "list_processes" => ExecuteListProcesses(),
-            "list_startup" => ExecuteListStartup(),
-            "list_dir" => ExecuteListDir(args),
-            "get_info" => ExecuteGetInfo(args),
-            "list_tools" => ExecuteListTools(args),
-            "read_reg" => ExecuteReadReg(args),
-            "write_reg" => ExecuteWriteReg(args, ct),
-            "run_command" => ExecuteRunCommand(ParseArg(args, "cmd"), ct),
-            "list_services" => ExecuteListServices(args),
-            "web_search" => ExecuteWebSearch(args, ct),
-            "fetch_page" => ExecuteFetchPage(args, ct),
-            _ => $"错误：未知工具 '{toolName}'"
-        };
     }
 
     private static string ExecuteGetHardwareInfo()

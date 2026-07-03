@@ -228,14 +228,11 @@ public sealed class AiAssistantTool : IBuiltinTool
         }
 
         var toolSteps = new List<ToolStep>();
-        var bubble = CreateAssistantBubble();
-        state.LogList.Children.Add(bubble);
-        SmartScroll(state);
-
-        var contentStack = (StackPanel)bubble.Child;
-        var streamingTb = (TextBlock)((StackPanel)contentStack.Children[0]).Children[0];
-        var fullContent = new System.Text.StringBuilder();
         var dq = state.Window.DispatcherQueue;
+
+        var (streamingBubble, streamingTb) = CreateStreamingBubble();
+        state.LogList.Children.Add(streamingBubble);
+        var fullContent = new System.Text.StringBuilder();
 
         try
         {
@@ -258,8 +255,7 @@ public sealed class AiAssistantTool : IBuiltinTool
                         dq.TryEnqueue(() =>
                         {
                             toolSteps.Add(new ToolStep(toolInfo, null));
-                            contentStack.Children.Add(CreateStreamingToolCallTag(toolInfo));
-                            SmartScroll(state);
+                            AddToolCallIndicator(state, toolInfo);
                         });
                     },
                     onToolResult: result =>
@@ -271,15 +267,14 @@ public sealed class AiAssistantTool : IBuiltinTool
                                 var last = toolSteps[^1];
                                 toolSteps[^1] = new ToolStep(last.CallInfo, result);
                             }
-                            contentStack.Children.Add(CreateStreamingToolResultTag(result));
-                            SmartScroll(state);
+                            AddToolResultIndicator(state, result);
                         });
                     },
                     onActions: actions =>
                     {
                         dq.TryEnqueue(() =>
                         {
-                            FinalizeBubble(state, bubble, fullContent.ToString(), toolSteps);
+                            FinalizeStreamingBubble(state, streamingBubble, fullContent.ToString());
 
                             var actionContent = "[ACTION]\n" + System.Text.Json.JsonSerializer.Serialize(actions.Select(a => new
                             {
@@ -295,9 +290,9 @@ public sealed class AiAssistantTool : IBuiltinTool
                                 detail = a.Detail,
                                 reason = a.Reason
                             }));
-                            var card = AiMarkdownRenderer.CreateActionCard(actionContent, onConfirmed: (action, result) =>
+                            var card = AiMarkdownRenderer.CreateActionCard(actionContent, onAllResolved: results =>
                             {
-                                ContinueAfterAction(state, action, result);
+                                ContinueAfterActions(state, results);
                             });
                             card.MaxWidth = 720;
                             state.LogList.Children.Add(card);
@@ -309,23 +304,21 @@ public sealed class AiAssistantTool : IBuiltinTool
                     {
                         dq.TryEnqueue(() =>
                         {
-                            FinalizeBubble(state, bubble, fullContent.ToString(), toolSteps);
+                            FinalizeStreamingBubble(state, streamingBubble, fullContent.ToString());
                             AddErrorMessage(state, error);
                         });
                     },
                     ct: state.Cts.Token);
             }, state.Cts.Token);
 
-            FinalizeBubble(state, bubble, fullContent.ToString(), toolSteps);
+            FinalizeStreamingBubble(state, streamingBubble, fullContent.ToString());
         }
         catch (OperationCanceledException)
         {
-            FinalizeBubble(state, bubble, fullContent.ToString(), toolSteps);
             AddSystemMessage(state, "已取消");
         }
         catch (Exception ex)
         {
-            FinalizeBubble(state, bubble, fullContent.ToString(), toolSteps);
             AddErrorMessage(state, $"发生错误：{ex.Message}");
         }
         finally
@@ -337,28 +330,37 @@ public sealed class AiAssistantTool : IBuiltinTool
         }
     }
 
-    private static async void ContinueAfterAction(AssistantState state, AiActionStep action, string result)
+    private static async void ContinueAfterActions(AssistantState state, List<(AiActionStep action, bool confirmed, string result)> results)
     {
         if (state.IsProcessing) return;
         state.IsProcessing = true;
         state.InputBox.IsEnabled = false;
         state.SendBtn.IsEnabled = false;
 
-        state.ConversationHistory.Add(new AiChatMessage
+        var sb = new System.Text.StringBuilder();
+        foreach (var (action, confirmed, result) in results)
         {
-            Role = "user",
-            Content = $"[ACTION_CONFIRMED] 用户确认执行：{action.Description}\n执行结果：\n{result}"
-        });
+            if (confirmed)
+            {
+                sb.AppendLine($"✓ 已确认执行：{action.Description}");
+                sb.AppendLine($"执行结果：\n{result}");
+            }
+            else
+            {
+                sb.AppendLine($"✗ 用户拒绝执行：{action.Description}");
+            }
+            sb.AppendLine();
+        }
+
+        state.ConversationHistory.Add(AiChatMessage.User(
+            $"[ACTION_CONFIRMED]\n{sb}"));
 
         var toolSteps = new List<ToolStep>();
-        var bubble = CreateAssistantBubble();
-        state.LogList.Children.Add(bubble);
-        SmartScroll(state);
-
-        var contentStack = (StackPanel)bubble.Child;
-        var streamingTb = (TextBlock)((StackPanel)contentStack.Children[0]).Children[0];
-        var fullContent = new System.Text.StringBuilder();
         var dq = state.Window.DispatcherQueue;
+
+        var (streamingBubble, streamingTb) = CreateStreamingBubble();
+        state.LogList.Children.Add(streamingBubble);
+        var fullContent = new System.Text.StringBuilder();
 
         try
         {
@@ -380,8 +382,7 @@ public sealed class AiAssistantTool : IBuiltinTool
                         dq.TryEnqueue(() =>
                         {
                             toolSteps.Add(new ToolStep(toolInfo, null));
-                            contentStack.Children.Add(CreateStreamingToolCallTag(toolInfo));
-                            SmartScroll(state);
+                            AddToolCallIndicator(state, toolInfo);
                         });
                     },
                     onToolResult: r =>
@@ -393,15 +394,14 @@ public sealed class AiAssistantTool : IBuiltinTool
                                 var last = toolSteps[^1];
                                 toolSteps[^1] = new ToolStep(last.CallInfo, r);
                             }
-                            contentStack.Children.Add(CreateStreamingToolResultTag(r));
-                            SmartScroll(state);
+                            AddToolResultIndicator(state, r);
                         });
                     },
                     onActions: actions =>
                     {
                         dq.TryEnqueue(() =>
                         {
-                            FinalizeBubble(state, bubble, fullContent.ToString(), toolSteps);
+                            FinalizeStreamingBubble(state, streamingBubble, fullContent.ToString());
 
                             var actionContent = "[ACTION]\n" + System.Text.Json.JsonSerializer.Serialize(actions.Select(a => new
                             {
@@ -417,9 +417,9 @@ public sealed class AiAssistantTool : IBuiltinTool
                                 detail = a.Detail,
                                 reason = a.Reason
                             }));
-                            var card = AiMarkdownRenderer.CreateActionCard(actionContent, onConfirmed: (act, res) =>
+                            var card = AiMarkdownRenderer.CreateActionCard(actionContent, onAllResolved: results =>
                             {
-                                ContinueAfterAction(state, act, res);
+                                ContinueAfterActions(state, results);
                             });
                             card.MaxWidth = 720;
                             state.LogList.Children.Add(card);
@@ -431,23 +431,21 @@ public sealed class AiAssistantTool : IBuiltinTool
                     {
                         dq.TryEnqueue(() =>
                         {
-                            FinalizeBubble(state, bubble, fullContent.ToString(), toolSteps);
+                            FinalizeStreamingBubble(state, streamingBubble, fullContent.ToString());
                             AddErrorMessage(state, error);
                         });
                     },
                     ct: state.Cts.Token);
             }, state.Cts.Token);
 
-            FinalizeBubble(state, bubble, fullContent.ToString(), toolSteps);
+            FinalizeStreamingBubble(state, streamingBubble, fullContent.ToString());
         }
         catch (OperationCanceledException)
         {
-            FinalizeBubble(state, bubble, fullContent.ToString(), toolSteps);
             AddSystemMessage(state, "已取消");
         }
         catch (Exception ex)
         {
-            FinalizeBubble(state, bubble, fullContent.ToString(), toolSteps);
             AddErrorMessage(state, $"发生错误：{ex.Message}");
         }
         finally
@@ -459,7 +457,7 @@ public sealed class AiAssistantTool : IBuiltinTool
         }
     }
 
-    private static Border CreateAssistantBubble()
+    private static (Border bubble, TextBlock streamingTb) CreateStreamingBubble()
     {
         var streamingTb = new TextBlock
         {
@@ -485,130 +483,44 @@ public sealed class AiAssistantTool : IBuiltinTool
         var stack = new StackPanel { Spacing = 6 };
         stack.Children.Add(headerRow);
 
-        return new Border
+        var bubble = new Border
         {
             HorizontalAlignment = HorizontalAlignment.Left,
-            Background = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
+            Background = (Brush)Application.Current.Resources["CardBackgroundFillColorSecondaryBrush"],
             CornerRadius = new CornerRadius(12, 12, 12, 4),
             Padding = new Thickness(16, 10, 16, 10),
             MaxWidth = 720,
             Child = stack
         };
+
+        return (bubble, streamingTb);
     }
 
-    private static void FinalizeBubble(AssistantState state, Border bubble, string fullContent, List<ToolStep> toolSteps)
+    private static void FinalizeStreamingBubble(AssistantState state, Border bubble, string fullContent)
     {
         var idx = state.LogList.Children.IndexOf(bubble);
         if (idx < 0) return;
 
         state.LogList.Children.RemoveAt(idx);
 
-        var cleanContent = CleanDisplayContent(fullContent);
-        if (string.IsNullOrWhiteSpace(cleanContent) && toolSteps.Count == 0) return;
+        if (string.IsNullOrWhiteSpace(fullContent)) return;
 
-        var container = new StackPanel { Spacing = 8 };
-
-        if (!string.IsNullOrWhiteSpace(cleanContent))
-        {
-            var rendered = AiMarkdownRenderer.Render(cleanContent);
-            rendered.MaxWidth = 720;
-            container.Children.Add(rendered);
-        }
-
-        if (toolSteps.Count > 0)
-        {
-            container.Children.Add(CreateCollapsibleToolSteps(toolSteps));
-        }
+        var rendered = AiMarkdownRenderer.Render(fullContent);
+        rendered.MaxWidth = 720;
 
         var border = new Border
         {
             HorizontalAlignment = HorizontalAlignment.Left,
-            Background = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
+            Background = (Brush)Application.Current.Resources["CardBackgroundFillColorSecondaryBrush"],
             CornerRadius = new CornerRadius(12, 12, 12, 4),
             Padding = new Thickness(16, 10, 16, 10),
-            Child = container
+            Child = rendered
         };
 
         state.LogList.Children.Insert(idx, border);
     }
 
-    private static StackPanel CreateCollapsibleToolSteps(List<ToolStep> steps)
-    {
-        var headerBtn = new Button
-        {
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Padding = new Thickness(8, 4, 8, 4),
-            CornerRadius = new CornerRadius(6),
-            Background = (Brush)Application.Current.Resources["ControlFillColorSecondaryBrush"],
-            Content = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Spacing = 6,
-                Children =
-                {
-                    new FontIcon
-                    {
-                        Glyph = "\uE73E",
-                        FontSize = 11,
-                        Foreground = (Brush)Application.Current.Resources["TextFillColorTertiaryBrush"]
-                    },
-                    new TextBlock
-                    {
-                        Text = $"思考过程（{steps.Count} 步）",
-                        FontSize = 12,
-                        Foreground = (Brush)Application.Current.Resources["TextFillColorTertiaryBrush"]
-                    },
-                    new FontIcon
-                    {
-                        Glyph = "\uE70D",
-                        FontSize = 10,
-                        Foreground = (Brush)Application.Current.Resources["TextFillColorTertiaryBrush"],
-                        Margin = new Thickness(2, 2, 0, 0)
-                    }
-                }
-            }
-        };
-
-        var stepsPanel = new StackPanel
-        {
-            Spacing = 6,
-            Margin = new Thickness(0, 4, 0, 0),
-            Visibility = Visibility.Collapsed
-        };
-
-        foreach (var step in steps)
-        {
-            stepsPanel.Children.Add(CreateFinalToolCallTag(step.CallInfo));
-            if (step.Result is not null)
-                stepsPanel.Children.Add(CreateFinalToolResultTag(step.Result));
-        }
-
-        headerBtn.Click += (_, _) =>
-        {
-            if (stepsPanel.Visibility == Visibility.Collapsed)
-            {
-                stepsPanel.Visibility = Visibility.Visible;
-                var sp = (StackPanel)((Button)headerBtn).Content;
-                var chevron = (FontIcon)sp.Children[2];
-                chevron.Glyph = "\uE70E";
-            }
-            else
-            {
-                stepsPanel.Visibility = Visibility.Collapsed;
-                var sp = (StackPanel)((Button)headerBtn).Content;
-                var chevron = (FontIcon)sp.Children[2];
-                chevron.Glyph = "\uE70D";
-            }
-        };
-
-        var wrapper = new StackPanel { Spacing = 0 };
-        wrapper.Children.Add(headerBtn);
-        wrapper.Children.Add(stepsPanel);
-
-        return wrapper;
-    }
-
-    private static StackPanel CreateStreamingToolCallTag(string toolInfo)
+    private static void AddToolCallIndicator(AssistantState state, string toolInfo)
     {
         var stack = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         stack.Children.Add(new FontIcon
@@ -617,17 +529,31 @@ public sealed class AiAssistantTool : IBuiltinTool
             FontSize = 12,
             Foreground = (Brush)Application.Current.Resources["AccentTextFillColorPrimaryBrush"]
         });
+
+        var isSearch = toolInfo.Contains("web_search", StringComparison.OrdinalIgnoreCase);
+        var displayText = isSearch ? $"搜索：{ExtractQueryFromToolInfo(toolInfo)}" : $"调用工具：{toolInfo}";
+
         stack.Children.Add(new TextBlock
         {
-            Text = $"调用工具：{toolInfo}",
+            Text = displayText,
             FontSize = 12,
             Foreground = (Brush)Application.Current.Resources["AccentTextFillColorPrimaryBrush"],
-            FontStyle = Windows.UI.Text.FontStyle.Italic
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
         });
-        return stack;
+
+        var border = new Border
+        {
+            Background = (Brush)Application.Current.Resources["ControlFillColorSecondaryBrush"],
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(8, 4, 8, 4),
+            Child = stack
+        };
+
+        state.LogList.Children.Add(border);
+        SmartScroll(state);
     }
 
-    private static Border CreateStreamingToolResultTag(string result)
+    private static void AddToolResultIndicator(AssistantState state, string result)
     {
         var truncated = result.Length > 300 ? result.Substring(0, 300) + "..." : result;
 
@@ -641,72 +567,23 @@ public sealed class AiAssistantTool : IBuiltinTool
             FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Code, Consolas")
         };
 
-        return new Border
-        {
-            Background = (Brush)Application.Current.Resources["ControlFillColorSecondaryBrush"],
-            CornerRadius = new CornerRadius(4),
-            Padding = new Thickness(8, 4, 8, 4),
-            Child = tb
-        };
-    }
-
-    private static Border CreateFinalToolCallTag(string toolInfo)
-    {
-        var stack = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-
-        var isSearch = toolInfo.Contains("web_search", StringComparison.OrdinalIgnoreCase);
-        var iconGlyph = isSearch ? "\uE721" : "\uE74C";
-
-        stack.Children.Add(new FontIcon
-        {
-            Glyph = iconGlyph,
-            FontSize = 11,
-            Foreground = (Brush)Application.Current.Resources["AccentTextFillColorPrimaryBrush"]
-        });
-        stack.Children.Add(new TextBlock
-        {
-            Text = isSearch ? $"搜索：{ExtractQueryFromToolInfo(toolInfo)}" : $"调用：{toolInfo}",
-            FontSize = 12,
-            Foreground = (Brush)Application.Current.Resources["AccentTextFillColorPrimaryBrush"],
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
-        });
-
-        return new Border
-        {
-            Background = (Brush)Application.Current.Resources["ControlFillColorSecondaryBrush"],
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(8, 4, 8, 4),
-            Child = stack
-        };
-    }
-
-    private static Border CreateFinalToolResultTag(string result)
-    {
-        var truncated = result.Length > 500 ? result.Substring(0, 500) + "..." : result;
-
-        var tb = new TextBlock
-        {
-            Text = truncated,
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 11,
-            Foreground = (Brush)Application.Current.Resources["TextFillColorTertiaryBrush"],
-            MaxHeight = 200,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Code, Consolas")
-        };
-
-        return new Border
+        var border = new Border
         {
             Background = (Brush)Application.Current.Resources["CardBackgroundFillColorSecondaryBrush"],
             CornerRadius = new CornerRadius(4),
-            Padding = new Thickness(8, 6, 8, 6),
+            Padding = new Thickness(8, 4, 8, 4),
             Margin = new Thickness(16, 0, 0, 0),
+            MaxWidth = 700,
             Child = new ScrollViewer
             {
                 Content = tb,
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                MaxHeight = 200
+                MaxHeight = 80
             }
         };
+
+        state.LogList.Children.Add(border);
+        SmartScroll(state);
     }
 
     private static string ExtractQueryFromToolInfo(string toolInfo)
@@ -719,59 +596,11 @@ public sealed class AiAssistantTool : IBuiltinTool
         return toolInfo.Substring(start, end - start).Trim();
     }
 
-    private static List<ToolStep> ParseToolStepsFromContent(string content)
-    {
-        var steps = new List<ToolStep>();
-        var lines = content.Split('\n');
-        string? pendingCall = null;
-
-        foreach (var line in lines)
-        {
-            var trimmed = line.TrimStart();
-            if (!trimmed.StartsWith("[TOOL]", StringComparison.OrdinalIgnoreCase)) continue;
-
-            var toolPart = trimmed.Substring("[TOOL]".Length).Trim();
-            var pipeIdx = toolPart.IndexOf('|');
-            var toolName = pipeIdx >= 0 ? toolPart.Substring(0, pipeIdx).Trim() : toolPart.Trim();
-            var toolArgs = pipeIdx >= 0 ? toolPart.Substring(pipeIdx + 1).Trim() : "";
-
-            if (pendingCall is not null)
-            {
-                steps.Add(new ToolStep(pendingCall, null));
-            }
-
-            pendingCall = $"{toolName} {(string.IsNullOrWhiteSpace(toolArgs) ? "" : $"| {toolArgs}")}";
-        }
-
-        if (pendingCall is not null)
-        {
-            steps.Add(new ToolStep(pendingCall, null));
-        }
-
-        return steps;
-    }
-
-    private static string CleanDisplayContent(string content)
-    {
-        var lines = content.Split('\n');
-        var result = new System.Text.StringBuilder();
-
-        foreach (var line in lines)
-        {
-            var trimmed = line.TrimStart();
-            if (trimmed.StartsWith("[TOOL]", StringComparison.OrdinalIgnoreCase))
-                continue;
-            result.AppendLine(line);
-        }
-
-        return result.ToString().TrimEnd();
-    }
-
     private static void AddSystemMessage(AssistantState state, string text)
     {
         var border = new Border
         {
-            Background = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
+            Background = (Brush)Application.Current.Resources["CardBackgroundFillColorSecondaryBrush"],
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(16, 10, 16, 10),
             Child = new TextBlock
@@ -791,7 +620,7 @@ public sealed class AiAssistantTool : IBuiltinTool
         var border = new Border
         {
             HorizontalAlignment = HorizontalAlignment.Right,
-            Background = new SolidColorBrush(Color.FromArgb(255, 0, 99, 177)),
+            Background = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
             CornerRadius = new CornerRadius(12, 12, 4, 12),
             Padding = new Thickness(16, 10, 16, 10),
             MaxWidth = 500,
@@ -800,7 +629,7 @@ public sealed class AiAssistantTool : IBuiltinTool
                 Text = text,
                 TextWrapping = TextWrapping.Wrap,
                 FontSize = 14,
-                Foreground = new SolidColorBrush(Colors.White)
+                Foreground = (Brush)Application.Current.Resources["TextOnAccentFillColorPrimaryBrush"]
             }
         };
 
@@ -891,31 +720,19 @@ public sealed class AiAssistantTool : IBuiltinTool
             }
             else if (msg.Role == "assistant")
             {
-                var toolSteps = ParseToolStepsFromContent(msg.Content);
-                var cleanContent = CleanDisplayContent(msg.Content);
-                if (string.IsNullOrWhiteSpace(cleanContent) && toolSteps.Count == 0) continue;
+                var cleanContent = msg.Content;
+                if (string.IsNullOrWhiteSpace(cleanContent)) continue;
 
-                var container = new StackPanel { Spacing = 8 };
-
-                if (!string.IsNullOrWhiteSpace(cleanContent))
-                {
-                    var rendered = AiMarkdownRenderer.Render(cleanContent);
-                    rendered.MaxWidth = 720;
-                    container.Children.Add(rendered);
-                }
-
-                if (toolSteps.Count > 0)
-                {
-                    container.Children.Add(CreateCollapsibleToolSteps(toolSteps));
-                }
+                var rendered = AiMarkdownRenderer.Render(cleanContent);
+                rendered.MaxWidth = 720;
 
                 var border = new Border
                 {
                     HorizontalAlignment = HorizontalAlignment.Left,
-                    Background = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
+                    Background = (Brush)Application.Current.Resources["CardBackgroundFillColorSecondaryBrush"],
                     CornerRadius = new CornerRadius(12, 12, 12, 4),
                     Padding = new Thickness(16, 10, 16, 10),
-                    Child = container
+                    Child = rendered
                 };
                 state.LogList.Children.Add(border);
             }

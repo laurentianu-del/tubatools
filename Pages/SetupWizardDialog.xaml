@@ -42,15 +42,69 @@
             x:Name="StepPager"
             Grid.Row="1"
             HorizontalAlignment="Left"
-            NumberOfPages="2"
+            NumberOfPages="3"
             SelectedPageIndex="0"
             Visibility="Visible" />
 
         <Grid Grid.Row="2" MinHeight="220">
             <StackPanel
+                x:Name="Step0Content"
+                Spacing="20"
+                Visibility="Visible"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center">
+
+                <FontIcon
+                    FontSize="48"
+                    Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                    Glyph="&#xE946;"
+                    HorizontalAlignment="Center" />
+
+                <TextBlock
+                    FontSize="14"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    TextWrapping="Wrap"
+                    TextAlignment="Center"
+                    HorizontalAlignment="Center">
+                    <Run Text="官网：" /><Underline><Run x:Name="WebsiteRun" Text="tubawinui3.cn" /></Underline>
+                </TextBlock>
+
+                <HyperlinkButton
+                    x:Name="VisitWebsiteButton"
+                    Content="访问官网"
+                    NavigateUri="https://tubawinui3.cn"
+                    HorizontalAlignment="Center"
+                    FontSize="14" />
+
+                <Border
+                    Padding="16,12"
+                    Background="{ThemeResource SystemFillColorCriticalBackgroundBrush}"
+                    BorderBrush="{ThemeResource SystemFillColorCriticalBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    HorizontalAlignment="Center">
+                    <StackPanel Spacing="6" HorizontalAlignment="Center">
+                        <TextBlock
+                            FontSize="15"
+                            FontWeight="SemiBold"
+                            Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                            HorizontalAlignment="Center"
+                            Text="⚠ 该软件开源免费！" />
+                        <TextBlock
+                            FontSize="13"
+                            Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                            TextWrapping="Wrap"
+                            TextAlignment="Center"
+                            HorizontalAlignment="Center"
+                            Text="如果你是付费获得的，说明你被骗了！！！" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <StackPanel
                 x:Name="Step1Content"
                 Spacing="16"
-                Visibility="Visible">
+                Visibility="Collapsed">
 
                 <TextBlock
                     FontSize="14"

@@ -2,22 +2,49 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace TubaWinUi3.Services;
+
+public sealed class AiToolCallItem
+{
+    public string Id { get; init; } = "";
+    public string Name { get; init; } = "";
+    public string Arguments { get; init; } = "";
+}
 
 public sealed class AiChatMessage
 {
     public string Role { get; init; } = "";
     public string Content { get; init; } = "";
+    public List<AiToolCallItem>? ToolCalls { get; init; }
+    public string? ToolCallId { get; init; }
+    public string? Name { get; init; }
+
+    public static AiChatMessage System(string content) => new() { Role = "system", Content = content };
+    public static AiChatMessage User(string content) => new() { Role = "user", Content = content };
+    public static AiChatMessage Assistant(string content, List<AiToolCallItem>? toolCalls = null)
+        => new() { Role = "assistant", Content = content, ToolCalls = toolCalls };
+    public static AiChatMessage Tool(string toolCallId, string content, string? name = null)
+        => new() { Role = "tool", Content = content, ToolCallId = toolCallId, Name = name };
 }
 
 public sealed class AiChatResponse
 {
     public string Content { get; init; } = "";
+    public List<AiToolCallItem>? ToolCalls { get; init; }
     public bool Success { get; init; }
     public string? Error { get; init; }
     public int? PromptTokens { get; init; }
     public int? CompletionTokens { get; init; }
+    public string? FinishReason { get; init; }
+}
+
+public sealed class AiToolDefinition
+{
+    public string Name { get; init; } = "";
+    public string Description { get; init; } = "";
+    public string ParametersJson { get; init; } = "{}";
 }
 
 public static class AiService
@@ -60,7 +87,9 @@ public static class AiService
         Action<string>? onError = null,
         CancellationToken ct = default,
         double temperature = 0.3,
-        int? maxTokens = null)
+        int? maxTokens = null,
+        List<AiToolDefinition>? tools = null,
+        Action<int, string?, string?, string?>? onToolCallDelta = null)
     {
         var (endpoint, model, apiKey) = GetConfig();
 
@@ -72,20 +101,7 @@ public static class AiService
 
         var url = endpoint.TrimEnd('/') + "/chat/completions";
 
-        var body = new Dictionary<string, object>
-        {
-            ["model"] = model,
-            ["messages"] = messages.Select(m => new Dictionary<string, string>
-            {
-                ["role"] = m.Role,
-                ["content"] = m.Content
-            }).ToList(),
-            ["temperature"] = temperature,
-            ["stream"] = true
-        };
-
-        if (maxTokens.HasValue)
-            body["max_tokens"] = maxTokens.Value;
+        var body = BuildRequestBody(messages, temperature, true, maxTokens, tools);
 
         var json = JsonSerializer.Serialize(body, new JsonSerializerOptions
         {
@@ -129,13 +145,38 @@ public static class AiService
                         choices.GetArrayLength() > 0)
                     {
                         var choice = choices[0];
-                        if (choice.TryGetProperty("delta", out var delta) &&
-                            delta.TryGetProperty("content", out var contentProp))
+                        if (choice.TryGetProperty("delta", out var delta))
                         {
-                            var chunk = contentProp.GetString();
-                            if (chunk is not null)
+                            if (delta.TryGetProperty("content", out var contentProp))
                             {
-                                onChunk(chunk);
+                                var chunk = contentProp.GetString();
+                                if (chunk is not null) onChunk(chunk);
+                            }
+
+                            if (onToolCallDelta is not null &&
+                                delta.TryGetProperty("tool_calls", out var tcDelta) &&
+                                tcDelta.GetArrayLength() > 0)
+                            {
+                                foreach (var tc in tcDelta.EnumerateArray())
+                                {
+                                    var index = tc.TryGetProperty("index", out var idxProp) ? idxProp.GetInt32() : 0;
+                                    string? tcId = null;
+                                    string? nameDelta = null;
+                                    string? argsDelta = null;
+
+                                    if (tc.TryGetProperty("id", out var idProp))
+                                        tcId = idProp.GetString();
+
+                                    if (tc.TryGetProperty("function", out var fnProp))
+                                    {
+                                        if (fnProp.TryGetProperty("name", out var nProp))
+                                            nameDelta = nProp.GetString();
+                                        if (fnProp.TryGetProperty("arguments", out var aProp))
+                                            argsDelta = aProp.GetString();
+                                    }
+
+                                    onToolCallDelta(index, tcId, nameDelta, argsDelta);
+                                }
                             }
                         }
                     }
@@ -162,8 +203,9 @@ public static class AiService
         }
     }
 
-    public static async Task<AiChatResponse> ChatAsync(
+    public static async Task<AiChatResponse> ChatWithToolsAsync(
         List<AiChatMessage> messages,
+        List<AiToolDefinition>? tools = null,
         CancellationToken ct = default,
         double temperature = 0.3,
         int? maxTokens = null)
@@ -171,23 +213,10 @@ public static class AiService
         var (endpoint, model, apiKey) = GetConfig();
 
         if (string.IsNullOrWhiteSpace(endpoint) || string.IsNullOrWhiteSpace(model) || string.IsNullOrWhiteSpace(apiKey))
-            return new AiChatResponse { Success = false, Error = "AI 服务未配置，请在设置中配置 API 地址、模型名和 API Key" };
+            return new AiChatResponse { Success = false, Error = "AI 服务未配置" };
 
         var url = endpoint.TrimEnd('/') + "/chat/completions";
-
-        var body = new Dictionary<string, object>
-        {
-            ["model"] = model,
-            ["messages"] = messages.Select(m => new Dictionary<string, string>
-            {
-                ["role"] = m.Role,
-                ["content"] = m.Content
-            }).ToList(),
-            ["temperature"] = temperature
-        };
-
-        if (maxTokens.HasValue)
-            body["max_tokens"] = maxTokens.Value;
+        var body = BuildRequestBody(messages, temperature, false, maxTokens, tools);
 
         var json = JsonSerializer.Serialize(body, new JsonSerializerOptions
         {
@@ -214,11 +243,26 @@ public static class AiService
             using var doc = JsonDocument.Parse(responseBody);
             var root = doc.RootElement;
 
-            var content = root
-                .GetProperty("choices")[0]
-                .GetProperty("message")
-                .GetProperty("content")
-                .GetString() ?? "";
+            var messageObj = root.GetProperty("choices")[0].GetProperty("message");
+            var content = messageObj.TryGetProperty("content", out var cp) ? (cp.GetString() ?? "") : "";
+
+            List<AiToolCallItem>? toolCalls = null;
+            if (messageObj.TryGetProperty("tool_calls", out var tcProp) && tcProp.GetArrayLength() > 0)
+            {
+                toolCalls = new List<AiToolCallItem>();
+                foreach (var tc in tcProp.EnumerateArray())
+                {
+                    var id = tc.TryGetProperty("id", out var idProp) ? idProp.GetString() ?? "" : "";
+                    var fn = tc.TryGetProperty("function", out var fnProp) ? fnProp : default;
+                    var name = fn.TryGetProperty("name", out var nameProp) ? nameProp.GetString() ?? "" : "";
+                    var args = fn.TryGetProperty("arguments", out var argsProp) ? argsProp.GetString() ?? "" : "";
+                    toolCalls.Add(new AiToolCallItem { Id = id, Name = name, Arguments = args });
+                }
+            }
+
+            string? finishReason = null;
+            if (root.GetProperty("choices")[0].TryGetProperty("finish_reason", out var frProp))
+                finishReason = frProp.GetString();
 
             int? promptTokens = null, completionTokens = null;
             if (root.TryGetProperty("usage", out var usage))
@@ -230,9 +274,11 @@ public static class AiService
             return new AiChatResponse
             {
                 Content = content,
+                ToolCalls = toolCalls,
                 Success = true,
                 PromptTokens = promptTokens,
-                CompletionTokens = completionTokens
+                CompletionTokens = completionTokens,
+                FinishReason = finishReason
             };
         }
         catch (OperationCanceledException)
@@ -245,6 +291,76 @@ public static class AiService
         }
     }
 
+    private static Dictionary<string, object> BuildRequestBody(
+        List<AiChatMessage> messages,
+        double temperature,
+        bool stream,
+        int? maxTokens,
+        List<AiToolDefinition>? tools)
+    {
+        var msgList = new List<object>();
+        foreach (var m in messages)
+        {
+            var msg = new Dictionary<string, object> { ["role"] = m.Role };
+
+            if (!string.IsNullOrEmpty(m.Content))
+                msg["content"] = m.Content;
+            else if (m.Role == "assistant" && m.ToolCalls is not null)
+                msg["content"] = "";
+            else if (m.Role == "tool")
+                msg["content"] = m.Content ?? "";
+
+            if (m.ToolCalls is not null)
+            {
+                msg["tool_calls"] = m.ToolCalls.Select(tc => new Dictionary<string, object>
+                {
+                    ["id"] = tc.Id,
+                    ["type"] = "function",
+                    ["function"] = new Dictionary<string, string>
+                    {
+                        ["name"] = tc.Name,
+                        ["arguments"] = tc.Arguments
+                    }
+                }).ToList();
+            }
+
+            if (!string.IsNullOrEmpty(m.ToolCallId))
+                msg["tool_call_id"] = m.ToolCallId;
+
+            if (!string.IsNullOrEmpty(m.Name))
+                msg["name"] = m.Name;
+
+            msgList.Add(msg);
+        }
+
+        var body = new Dictionary<string, object>
+        {
+            ["model"] = AppSettings.Get("AiModelName") ?? "",
+            ["messages"] = msgList,
+            ["temperature"] = temperature,
+            ["stream"] = stream
+        };
+
+        if (maxTokens.HasValue)
+            body["max_tokens"] = maxTokens.Value;
+
+        if (tools is not null && tools.Count > 0)
+        {
+            body["tools"] = tools.Select(t => new Dictionary<string, object>
+            {
+                ["type"] = "function",
+                ["function"] = new Dictionary<string, object>
+                {
+                    ["name"] = t.Name,
+                    ["description"] = t.Description,
+                    ["parameters"] = JsonSerializer.Deserialize<JsonElement>(t.ParametersJson)
+                }
+            }).ToList();
+        }
+
+        return body;
+    }
+
     public static async Task<AiChatResponse> ChatSingleAsync(
         string systemPrompt,
         string userMessage,
@@ -252,11 +368,11 @@ public static class AiService
         double temperature = 0.3,
         int? maxTokens = null)
     {
-        return await ChatAsync(
+        return await ChatWithToolsAsync(
         [
-            new AiChatMessage { Role = "system", Content = systemPrompt },
-            new AiChatMessage { Role = "user", Content = userMessage }
-        ], ct, temperature, maxTokens);
+            AiChatMessage.System(systemPrompt),
+            AiChatMessage.User(userMessage)
+        ], tools: null, ct: ct, temperature: temperature, maxTokens: maxTokens);
     }
 
     public static async Task<AiChatResponse> TestConnectionAsync(CancellationToken ct = default)

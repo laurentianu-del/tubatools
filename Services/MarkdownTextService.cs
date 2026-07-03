@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text.RegularExpressions;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
@@ -54,6 +55,10 @@ public static partial class MarkdownTextService
             else if (line.TrimStart().StartsWith("```"))
             {
                 i = AddCodeBlock(richTextBlock, lines, i);
+            }
+            else if (line.TrimStart().StartsWith("|") && line.TrimStart().IndexOf('|', 1) >= 0)
+            {
+                i = AddTable(richTextBlock, lines, i);
             }
             else
             {
@@ -128,7 +133,7 @@ public static partial class MarkdownTextService
         var run = new Run
         {
             Text = "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500",
-            Foreground = GetBrush("DividerStrokeColorDefaultBrush"),
+            Foreground = GetBrush("ControlStrokeColorDefaultBrush"),
             FontSize = 12
         };
         para.Inlines.Add(run);
@@ -179,6 +184,83 @@ public static partial class MarkdownTextService
         return i;
     }
 
+    private static int AddTable(RichTextBlock rtb, string[] lines, int start)
+    {
+        var i = start;
+        var tableRows = new List<string[]>();
+
+        while (i < lines.Length)
+        {
+            var trimmed = lines[i].TrimStart();
+            if (!trimmed.StartsWith("|") || trimmed.IndexOf('|', 1) < 0) break;
+            if (IsTableSeparatorRow(trimmed)) { i++; continue; }
+
+            var cells = ParseTableRow(trimmed);
+            if (cells.Length > 0)
+                tableRows.Add(cells);
+            i++;
+        }
+
+        if (tableRows.Count == 0) return i;
+
+        var colCount = tableRows.Max(r => r.Length);
+
+        foreach (var row in tableRows)
+        {
+            var isHeader = tableRows.IndexOf(row) == 0;
+            var para = new Paragraph();
+
+            for (int c = 0; c < row.Length && c < colCount; c++)
+            {
+                if (c > 0)
+                    para.Inlines.Add(new Run { Text = "  \u2502  ", Foreground = GetBrush("ControlStrokeColorDefaultBrush"), FontSize = 12 });
+
+                if (isHeader)
+                {
+                    var bold = new Span { FontWeight = FontWeights.SemiBold };
+                    AddInlineContent(bold, row[c]);
+                    para.Inlines.Add(bold);
+                }
+                else
+                {
+                    AddInlineContent(para, row[c]);
+                }
+            }
+
+            rtb.Blocks.Add(para);
+        }
+
+        return i;
+    }
+
+    private static bool IsTableSeparatorRow(string line)
+    {
+        var stripped = line.Replace("|", "").Replace("-", "").Replace(" ", "").Replace(":", "");
+        return stripped.Length == 0 && line.Contains('-');
+    }
+
+    private static string[] ParseTableRow(string line)
+    {
+        var cells = new List<string>();
+        var parts = line.Split('|');
+        for (int i = 1; i < parts.Length - 1; i++)
+            cells.Add(parts[i].Trim());
+        if (parts.Length > 1 && !string.IsNullOrWhiteSpace(parts[^1].TrimEnd()))
+            cells.Add(parts[^1].Trim());
+        return cells.ToArray();
+    }
+
+    private static void AddInlineContent(Span span, string text)
+    {
+        var para = new Paragraph();
+        AddInlineContent(para, text);
+        foreach (var inline in para.Inlines.ToList())
+        {
+            para.Inlines.Remove(inline);
+            span.Inlines.Add(inline);
+        }
+    }
+
     private static void AddParagraph(RichTextBlock rtb, string text)
     {
         var para = new Paragraph();
@@ -186,7 +268,7 @@ public static partial class MarkdownTextService
         rtb.Blocks.Add(para);
     }
 
-    private static void AddInlineContent(Paragraph para, string text)
+    internal static void AddInlineContent(Paragraph para, string text)
     {
         var pos = 0;
         var inlineRegex = InlineRegex();

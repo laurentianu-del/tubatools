@@ -230,7 +230,7 @@ public static class AiJunkAnalyzerService
                 Log = $"[第 {round + 1} 轮] 等待 AI 响应..."
             });
 
-            var response = await AiService.ChatAsync(messages, ct, temperature: 0.2);
+            var response = await AiService.ChatWithToolsAsync(messages, tools: null, ct: ct, temperature: 0.2);
 
             if (!response.Success)
                 throw new InvalidOperationException($"AI 调用失败：{response.Error}");

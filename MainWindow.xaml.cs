@@ -19,6 +19,7 @@ public sealed partial class MainWindow : Window
     private bool _syncingNavSelection;
     private bool _navFromSidebar;
     private bool _suppressSearch;
+    private bool _searchDismissed;
     private readonly ObservableCollection<SearchResult> _searchResults = [];
     private readonly DispatcherQueueTimer _searchDebounceTimer;
 
@@ -367,6 +368,7 @@ public sealed partial class MainWindow : Window
 
     private void ShowSearchPopup()
     {
+        if (_searchDismissed) return;
         SearchPopup.IsOpen = _searchResults.Count > 0;
     }
 
@@ -382,7 +384,7 @@ public sealed partial class MainWindow : Window
 
     private void SearchTextBox_GotFocus(object sender, RoutedEventArgs e)
     {
-        if (_suppressSearch) return;
+        if (_suppressSearch || _searchDismissed) return;
         var query = SearchTextBox.Text.Trim();
         if (query.Length == 0)
             PopulateSearchSuggestions();
@@ -391,13 +393,18 @@ public sealed partial class MainWindow : Window
 
     private void SearchTextBox_LostFocus(object sender, RoutedEventArgs e)
     {
-        DispatcherQueue.TryEnqueue(HideSearchPopup);
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (!SearchTextBox.FocusState.HasFlag(FocusState.Programmatic))
+                HideSearchPopup();
+        });
     }
 
     private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
     {
         if (_suppressSearch) return;
 
+        _searchDismissed = false;
         var query = SearchTextBox.Text.Trim();
 
         if (query.Length == 0)
@@ -441,9 +448,6 @@ public sealed partial class MainWindow : Window
     {
         if (e.ClickedItem is SearchResult result)
         {
-            _suppressSearch = true;
-            SearchTextBox.Text = string.Empty;
-            _suppressSearch = false;
             HideSearchPopup();
             HandleSearchResult(result);
         }
@@ -454,9 +458,6 @@ public sealed partial class MainWindow : Window
         var first = _searchResults.FirstOrDefault();
         if (first is not null)
         {
-            _suppressSearch = true;
-            SearchTextBox.Text = string.Empty;
-            _suppressSearch = false;
             HideSearchPopup();
             HandleSearchResult(first);
         }
@@ -466,31 +467,21 @@ public sealed partial class MainWindow : Window
     {
         if (e.Key == Windows.System.VirtualKey.Escape)
         {
-            _suppressSearch = true;
-            SearchTextBox.Text = string.Empty;
-            _suppressSearch = false;
+            SearchListView.SelectedIndex = -1;
             HideSearchPopup();
             e.Handled = true;
         }
         else if (e.Key == Windows.System.VirtualKey.Enter)
         {
             var idx = SearchListView.SelectedIndex;
-            if (idx >= 0 && idx < _searchResults.Count)
+            SearchResult? result = idx >= 0 && idx < _searchResults.Count
+                ? _searchResults[idx]
+                : _searchResults.Count > 0 ? _searchResults[0] : null;
+
+            if (result is not null)
             {
-                var result = _searchResults[idx];
-                _suppressSearch = true;
-                SearchTextBox.Text = string.Empty;
-                _suppressSearch = false;
                 HideSearchPopup();
                 HandleSearchResult(result);
-            }
-            else if (_searchResults.Count > 0)
-            {
-                _suppressSearch = true;
-                SearchTextBox.Text = string.Empty;
-                _suppressSearch = false;
-                HideSearchPopup();
-                HandleSearchResult(_searchResults[0]);
             }
             e.Handled = true;
         }
@@ -536,9 +527,6 @@ public sealed partial class MainWindow : Window
         }
         else if (e.Key == Windows.System.VirtualKey.Escape)
         {
-            _suppressSearch = true;
-            SearchTextBox.Text = string.Empty;
-            _suppressSearch = false;
             HideSearchPopup();
             e.Handled = true;
         }
