@@ -74,6 +74,7 @@ public static class ConfigManager
     public static string GetIconCacheDir() => Path.Combine(GetDataDir(), "IconCache");
     public static string GetBackgroundsDir() => Path.Combine(GetDataDir(), "Backgrounds");
     public static string GetMetadataDir() => Path.Combine(GetDataDir(), "Metadata");
+    public static string GetDownloadQueuePath() => Path.Combine(GetDataDir(), "download_queue.json");
 
     public static string GetDataSize()
     {

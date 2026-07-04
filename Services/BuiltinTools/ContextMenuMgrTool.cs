@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.Win32;
+using TubaWinUi3.Models;
 
 namespace TubaWinUi3.Services;
 
@@ -27,17 +28,30 @@ public sealed class ContextMenuMgrTool : IBuiltinTool
             }
         }
 
-        await GitHubReleaseService.ShowDownloadFlowAsync(
-            context,
-            toolName: "ContextMenuMgr",
-            description: "一款开源的 Windows 右键菜单管理工具，可以方便地添加、删除、编辑右键菜单项，" +
-                         "支持新建菜单、Shell 菜单、Win11 经典菜单等多种类型的管理操作。",
-            projectUrl: ProjectUrl,
-            repo: Repo,
-            tag: null,
-            strategy: AssetMatchStrategy.ContextMenuMgr,
-            warningText: "此软件运行后会在后台占用约 30MB 内存（托盘驻留进程）",
-            sizeHint: null);
+        var arch = GitHubReleaseService.GetCurrentArch();
+        var destDir = Path.Combine(Path.GetTempPath(), "TubaWinUi3_ContextMenuMgr");
+
+        DownloadQueueService.EnqueueWithResolver(
+            displayName: "右键菜单管理",
+            urlResolver: async ct =>
+            {
+                var release = await GitHubReleaseService.FetchLatestReleaseAsync(Repo, ct);
+                if (release is null)
+                    throw new InvalidOperationException("无法从 GitHub 获取版本信息，请检查网络连接后重试。");
+
+                var asset = GitHubReleaseService.FindBestAsset(release.Assets, arch, AssetMatchStrategy.ContextMenuMgr);
+                if (asset is null)
+                    throw new InvalidOperationException($"当前架构 {arch} 没有匹配的下载文件。版本：{release.TagName}");
+
+                var proxyResults = await GitHubReleaseService.TestProxiesAsync(asset.OriginalUrl, 8, ct);
+                var bestUrl = GitHubReleaseService.GetBestUrl(proxyResults, asset.OriginalUrl);
+
+                return new ResolvedDownloadUrl(bestUrl, asset.Name, asset.Size);
+            },
+            destinationPath: destDir,
+            postProcessor: new InstallerLaunchProcessor(),
+            description: "此软件运行后会在后台占用约 30MB 内存（托盘驻留进程）",
+            glyph: Glyph);
     }
 
     private static bool IsInstalled() => FindInstalledExe() is not null;

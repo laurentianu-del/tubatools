@@ -15,10 +15,9 @@ public sealed partial class UpdateWindow : Window
     private UpdateInfo? _updateInfo;
     private UpdateAsset? _portableAsset;
     private UpdateAsset? _installerAsset;
-    private CancellationTokenSource? _cts;
     private bool _isDownloading;
     private bool _isPortableMode;
-    private string? _downloadedFilePath;
+    private DownloadItem? _downloadItem;
 
     public bool SkipThisVersion { get; private set; }
 
@@ -114,24 +113,24 @@ public sealed partial class UpdateWindow : Window
         }
     }
 
-    private async void OnGitCodeDownloadClick(object sender, TappedRoutedEventArgs e)
+    private void OnGitCodeDownloadClick(object sender, TappedRoutedEventArgs e)
     {
         if (_isDownloading) return;
 
         var asset = _isPortableMode ? _portableAsset ?? _installerAsset : _installerAsset;
         if (asset is null) return;
 
-        await StartDownloadAsync(asset, useGitCode: true);
+        StartDownload(asset, useGitCode: true);
     }
 
-    private async void OnGitHubDownloadClick(object sender, TappedRoutedEventArgs e)
+    private void OnGitHubDownloadClick(object sender, TappedRoutedEventArgs e)
     {
         if (_isDownloading) return;
 
         var asset = _isPortableMode ? _portableAsset ?? _installerAsset : _installerAsset;
         if (asset is null) return;
 
-        await StartDownloadAsync(asset, useGitCode: false);
+        StartDownload(asset, useGitCode: false);
     }
 
     private void OnSkipVersionClick(object sender, TappedRoutedEventArgs e)
@@ -147,40 +146,20 @@ public sealed partial class UpdateWindow : Window
         Close();
     }
 
-    private async Task StartDownloadAsync(UpdateAsset asset, bool useGitCode)
+    private void StartDownload(UpdateAsset asset, bool useGitCode)
     {
-        _cts = new CancellationTokenSource();
         _isDownloading = true;
         ActionButtonsPanel.Visibility = Visibility.Collapsed;
 
+        DownloadSection.Visibility = Visibility.Visible;
+        DownloadTitleText.Text = useGitCode ? "正在从 GitCode 下载更新" : "正在从 GitHub 下载更新";
+        StatusText.Text = "已加入下载队列...";
+        StatusIcon.Glyph = "\uE896";
+
         try
         {
-            DownloadSection.Visibility = Visibility.Visible;
-            DownloadTitleText.Text = useGitCode ? "正在从 GitCode 下载更新" : "正在从 GitHub 下载更新";
-            StatusText.Text = "正在下载更新...";
-            StatusIcon.Glyph = "\uE896";
-
-            var downloadProgress = new Progress<DownloadProgress>(p =>
-            {
-                DispatcherQueue.TryEnqueue(() => UpdateDownloadProgress(p));
-            });
-
-            string filePath;
-            if (useGitCode && !string.IsNullOrEmpty(asset.GitCodeDownloadUrl))
-            {
-                filePath = await UpdateService.DownloadFromGitCodeAsync(asset, downloadProgress, _cts.Token);
-            }
-            else
-            {
-                filePath = await UpdateService.DownloadUpdateAsync(asset, downloadProgress, _cts.Token);
-            }
-
-            _downloadedFilePath = filePath;
-            ShowDownloadComplete(filePath);
-        }
-        catch (OperationCanceledException)
-        {
-            ResetToIdle();
+            _downloadItem = UpdateService.EnqueueUpdateDownload(asset, useGitCode, _isPortableMode);
+            _downloadItem.PropertyChanged += OnDownloadItemPropertyChanged;
         }
         catch (Exception ex)
         {
@@ -188,51 +167,123 @@ public sealed partial class UpdateWindow : Window
             ErrorInfoBar.IsOpen = true;
             ResetToIdle();
         }
-        finally
+    }
+
+    private void OnDownloadItemPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (_downloadItem is null) return;
+
+        DispatcherQueue.TryEnqueue(() =>
         {
-            _isDownloading = false;
+            switch (e.PropertyName)
+            {
+                case nameof(DownloadItem.State):
+                    UpdateStateUI(_downloadItem);
+                    break;
+                case nameof(DownloadItem.Progress):
+                    UpdateProgressUI(_downloadItem);
+                    break;
+                case nameof(DownloadItem.ErrorMessage):
+                    if (_downloadItem.ErrorMessage is not null)
+                    {
+                        ErrorInfoBar.Message = $"下载失败: {_downloadItem.ErrorMessage}";
+                        ErrorInfoBar.IsOpen = true;
+                    }
+                    break;
+            }
+        });
+    }
+
+    private void UpdateStateUI(DownloadItem item)
+    {
+        switch (item.State)
+        {
+            case DownloadItemState.Queued:
+                DownloadTitleText.Text = "等待下载...";
+                StatusText.Text = "已加入下载队列，等待中...";
+                break;
+            case DownloadItemState.Resolving:
+                DownloadTitleText.Text = "正在解析下载链接...";
+                StatusText.Text = "正在解析下载链接...";
+                break;
+            case DownloadItemState.Downloading:
+                DownloadTitleText.Text = "正在下载更新";
+                StatusText.Text = "正在下载更新...";
+                DownloadRing.IsActive = true;
+                break;
+            case DownloadItemState.Processing:
+                DownloadTitleText.Text = "正在处理更新文件...";
+                StatusText.Text = item.ProcessingStatus ?? "正在处理...";
+                DownloadProgressBar.IsIndeterminate = true;
+                break;
+            case DownloadItemState.Completed:
+                _isDownloading = false;
+                ShowDownloadComplete(item);
+                break;
+            case DownloadItemState.Failed:
+                _isDownloading = false;
+                ErrorInfoBar.Message = $"下载失败: {item.ErrorMessage ?? "未知错误"}";
+                ErrorInfoBar.IsOpen = true;
+                ResetToIdle();
+                break;
+            case DownloadItemState.Cancelled:
+                _isDownloading = false;
+                ResetToIdle();
+                break;
         }
+    }
+
+    private void UpdateProgressUI(DownloadItem item)
+    {
+        if (item.Progress is null) return;
+
+        var p = item.Progress;
+        DownloadProgressBar.IsIndeterminate = false;
+        DownloadProgressBar.Value = p.Percentage;
+        DownloadPercentText.Text = $"{p.Percentage:F1}%";
+        DownloadSpeedText.Text = DownloadQueueService.FormatSpeed(p.SpeedMbps);
+        DownloadSizeText.Text = $"{DownloadQueueService.FormatSize(p.BytesReceived)} / {DownloadQueueService.FormatSize(p.TotalBytes)}";
+        DownloadTimeText.Text = DownloadQueueService.FormatTime(p.EstimatedRemaining);
     }
 
     private void ResetToIdle()
     {
+        if (_downloadItem is not null)
+        {
+            _downloadItem.PropertyChanged -= OnDownloadItemPropertyChanged;
+            _downloadItem = null;
+        }
+
         DownloadSection.Visibility = Visibility.Collapsed;
+        DownloadProgressBar.IsIndeterminate = false;
         ActionButtonsPanel.Visibility = Visibility.Visible;
         StatusText.Text = "请选择下载源或跳过此版本";
         StatusIcon.Glyph = "\uE946";
     }
 
-    private void UpdateDownloadProgress(DownloadProgress p)
-    {
-        DownloadProgressBar.Value = p.Percentage;
-        DownloadPercentText.Text = $"{p.Percentage:F1}%";
-        DownloadSpeedText.Text = UpdateService.FormatSpeed(p.SpeedMbps);
-        DownloadSizeText.Text = $"{UpdateService.FormatSize(p.BytesReceived)} / {UpdateService.FormatSize(p.TotalBytes)}";
-        DownloadTimeText.Text = UpdateService.FormatTime(p.EstimatedRemaining);
-    }
-
-    private void ShowDownloadComplete(string filePath)
+    private void ShowDownloadComplete(DownloadItem item)
     {
         DownloadSection.Visibility = Visibility.Collapsed;
         DownloadCompleteSection.Visibility = Visibility.Visible;
 
-        var isZip = filePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase);
-        var isExe = filePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
+        var fileName = item.ResolvedFileName ?? "更新文件";
+        var isZip = fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase);
+        var isExe = fileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
 
-        CompleteFileText.Text = $"文件: {Path.GetFileName(filePath)}";
+        CompleteFileText.Text = $"文件: {fileName}";
         CompleteArchText.Text = $"架构: {UpdateService.CurrentArchitecture}";
 
         if (isZip && _isPortableMode)
         {
-            CompleteTipText.Text = "便携版更新：请关闭本程序，将压缩包解压覆盖到当前程序目录即可完成更新";
+            CompleteTipText.Text = "便携版更新：下载完成后将自动打开文件夹，请关闭本程序，将压缩包解压覆盖到当前程序目录即可完成更新";
         }
         else if (isExe)
         {
-            CompleteTipText.Text = "点击「立即安装」将关闭本程序并启动安装程序";
+            CompleteTipText.Text = "更新已下载完成，安装程序将由下载队列自动启动";
         }
         else
         {
-            CompleteTipText.Text = "请关闭本程序后解压/安装更新";
+            CompleteTipText.Text = "更新已下载完成，下载队列将自动打开文件夹";
         }
 
         if (isExe)
@@ -253,25 +304,28 @@ public sealed partial class UpdateWindow : Window
 
     private void OnActionButtonClick(object sender, RoutedEventArgs e)
     {
-        if (string.IsNullOrEmpty(_downloadedFilePath)) return;
+        if (_downloadItem is null) return;
 
-        var isExe = _downloadedFilePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
+        var fileName = _downloadItem.ResolvedFileName ?? "";
+        var isExe = fileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
+
+        var tempDir = Path.Combine(Path.GetTempPath(), "TubaWinUi3_Update");
+        var filePath = Path.Combine(tempDir, fileName);
 
         try
         {
-            if (isExe)
+            if (isExe && File.Exists(filePath))
             {
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
-                    FileName = _downloadedFilePath,
+                    FileName = filePath,
                     UseShellExecute = true
                 });
                 Application.Current.Exit();
             }
             else
             {
-                var folder = Path.GetDirectoryName(_downloadedFilePath)!;
-                System.Diagnostics.Process.Start("explorer.exe", folder);
+                System.Diagnostics.Process.Start("explorer.exe", tempDir);
             }
         }
         catch { }

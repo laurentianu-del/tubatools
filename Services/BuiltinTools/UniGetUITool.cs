@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
+using TubaWinUi3.Models;
 
 namespace TubaWinUi3.Services;
 
@@ -28,17 +29,30 @@ public sealed class UniGetUITool : IBuiltinTool
             }
         }
 
-        await GitHubReleaseService.ShowDownloadFlowAsync(
-            context,
-            toolName: "UniGetUI",
-            description: "一款开源的 Windows 包管理器图形界面，支持 winget、scoop、Chocolatey、pip、npm 等多种包管理器，" +
-                         "可以方便地搜索、安装、更新和卸载软件，支持自动更新检查和批量操作。",
-            projectUrl: ProjectUrl,
-            repo: Repo,
-            tag: null,
-            strategy: AssetMatchStrategy.UniGetUI,
-            warningText: "安装包较大（约 135MB），下载可能需要较长时间",
-            sizeHint: null);
+        var arch = GitHubReleaseService.GetCurrentArch();
+        var destDir = Path.Combine(Path.GetTempPath(), "TubaWinUi3_UniGetUI");
+
+        DownloadQueueService.EnqueueWithResolver(
+            displayName: "UniGetUI 包管理器",
+            urlResolver: async ct =>
+            {
+                var release = await GitHubReleaseService.FetchLatestReleaseAsync(Repo, ct);
+                if (release is null)
+                    throw new InvalidOperationException("无法从 GitHub 获取版本信息，请检查网络连接后重试。");
+
+                var asset = GitHubReleaseService.FindBestAsset(release.Assets, arch, AssetMatchStrategy.UniGetUI);
+                if (asset is null)
+                    throw new InvalidOperationException($"当前架构 {arch} 没有匹配的下载文件。版本：{release.TagName}");
+
+                var proxyResults = await GitHubReleaseService.TestProxiesAsync(asset.OriginalUrl, 8, ct);
+                var bestUrl = GitHubReleaseService.GetBestUrl(proxyResults, asset.OriginalUrl);
+
+                return new ResolvedDownloadUrl(bestUrl, asset.Name, asset.Size);
+            },
+            destinationPath: destDir,
+            postProcessor: new InstallerLaunchProcessor(),
+            description: "安装包较大（约 135MB），下载可能需要较长时间",
+            glyph: Glyph);
     }
 
     private static bool IsInstalled() => FindInstalledExe() is not null;

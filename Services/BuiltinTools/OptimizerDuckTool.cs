@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.Win32;
+using TubaWinUi3.Models;
 
 namespace TubaWinUi3.Services;
 
@@ -26,18 +27,30 @@ public sealed class OptimizerDuckTool : IBuiltinTool
             catch { }
         }
 
-        await GitHubReleaseService.ShowDownloadFlowAsync(
-            context,
-            toolName: "OptimizerDuck",
-            description: "一款开源的 Windows 系统优化工具，提供系统清理、性能优化、隐私保护、启动项管理等功能，" +
-                         "界面简洁易用，适合日常系统维护。下载后可直接从工具箱启动。",
-            projectUrl: ProjectUrl,
-            repo: Repo,
-            tag: null,
-            strategy: AssetMatchStrategy.OptimizerDuck,
-            warningText: "当前仅提供 x64 版本，ARM64 设备可能需要通过兼容层运行",
-            sizeHint: null,
-            portableDir: PortableDir);
+        var arch = GitHubReleaseService.GetCurrentArch();
+        var destDir = PortableDir;
+
+        DownloadQueueService.EnqueueWithResolver(
+            displayName: "OptimizerDuck 优化鸭",
+            urlResolver: async ct =>
+            {
+                var release = await GitHubReleaseService.FetchLatestReleaseAsync(Repo, ct);
+                if (release is null)
+                    throw new InvalidOperationException("无法从 GitHub 获取版本信息，请检查网络连接后重试。");
+
+                var asset = GitHubReleaseService.FindBestAsset(release.Assets, arch, AssetMatchStrategy.OptimizerDuck);
+                if (asset is null)
+                    throw new InvalidOperationException($"当前架构 {arch} 没有匹配的下载文件。版本：{release.TagName}");
+
+                var proxyResults = await GitHubReleaseService.TestProxiesAsync(asset.OriginalUrl, 8, ct);
+                var bestUrl = GitHubReleaseService.GetBestUrl(proxyResults, asset.OriginalUrl);
+
+                return new ResolvedDownloadUrl(bestUrl, asset.Name, asset.Size);
+            },
+            destinationPath: destDir,
+            postProcessor: new InstallerLaunchProcessor(),
+            description: "当前仅提供 x64 版本，ARM64 设备可能需要通过兼容层运行",
+            glyph: Glyph);
     }
 
     private static string? FindInstalledExe()

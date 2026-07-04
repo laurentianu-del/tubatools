@@ -40,7 +40,8 @@ public static class BuiltinToolRegistry
         Register(new ViVeFeatureTool());
         Register(new PerformanceBenchmarkTool());
         Register(new BenchmarkCloudTool());
-        Register(new CommunityToolBuiltinTool());}
+        Register(new CommunityToolBuiltinTool());
+        Register(new WindowsImageTool());}
 
     public static IReadOnlyList<string> GetCategories()
     {

@@ -8,7 +8,6 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
-using Microsoft.UI.Xaml.Markup;
 using Microsoft.UI.Xaml.Media;
 using TubaWinUi3.Services;
 using TubaWinUi3.Services.ViVe;
@@ -20,7 +19,7 @@ using Windows.UI;
 
 namespace TubaWinUi3.Pages;
 
-public sealed class ViVeFeatureWindow : Window, IComponentConnector
+public sealed partial class ViVeFeatureWindow : Window
 {
 	private static readonly Color AccentGreen = Color.FromArgb(byte.MaxValue, 74, 222, 128);
 
@@ -33,60 +32,6 @@ public sealed class ViVeFeatureWindow : Window, IComponentConnector
 	private string _searchFilter = "";
 
 	private string _stateFilter = "全部状态";
-
-	private InfoBar UnsupportedBar;
-
-	private InfoBar TipBar;
-
-	private Border HeaderBorder;
-
-	private Border ListBorder;
-
-	private StackPanel EmptyPanel;
-
-	private StackPanel LoadingPanel;
-
-	private InfoBar ResultBar;
-
-	private ProgressRing LoadingRing;
-
-	private StackPanel ListContainer;
-
-	private TextBox FeatureIdBox;
-
-	private Button QuickEnableBtn;
-
-	private Button QuickDisableBtn;
-
-	private AutoSuggestBox SearchBox;
-
-	private ComboBox StateFilterCombo;
-
-	private Button RefreshBtn;
-
-	private Button MoreActionsBtn;
-
-	private TextBlock CountText;
-
-	private Border StatTotal;
-
-	private Border StatEnabled;
-
-	private Border StatDisabled;
-
-	private Border StatDefault;
-
-	private TextBlock DefaultCountText;
-
-	private TextBlock DisabledCountText;
-
-	private TextBlock EnabledCountText;
-
-	private TextBlock TotalCountText;
-
-	private Button CloseButton;
-
-	private bool _contentLoaded;
 
 	private SolidColorBrush AccentGreenBrush { get; } = new SolidColorBrush(AccentGreen);
 
@@ -711,113 +656,5 @@ public sealed class ViVeFeatureWindow : Window, IComponentConnector
 	private void CloseButton_Click(object sender, RoutedEventArgs e)
 	{
 		Close();
-	}
-
-	public void InitializeComponent()
-	{
-		if (!_contentLoaded)
-		{
-			_contentLoaded = true;
-			Uri resourceLocator = new Uri("ms-appx:///Pages/ViVeFeatureWindow.xaml");
-			Application.LoadComponent(this, resourceLocator, ComponentResourceLocation.Application);
-		}
-	}
-
-	public void Connect(int connectionId, object target)
-	{
-		switch (connectionId)
-		{
-		case 2:
-			UnsupportedBar = (InfoBar)target;
-			break;
-		case 3:
-			TipBar = (InfoBar)target;
-			break;
-		case 4:
-			HeaderBorder = (Border)target;
-			break;
-		case 5:
-			ListBorder = (Border)target;
-			break;
-		case 6:
-			EmptyPanel = (StackPanel)target;
-			break;
-		case 7:
-			LoadingPanel = (StackPanel)target;
-			break;
-		case 8:
-			ResultBar = (InfoBar)target;
-			break;
-		case 9:
-			LoadingRing = (ProgressRing)target;
-			break;
-		case 10:
-			ListContainer = (StackPanel)target;
-			break;
-		case 11:
-			FeatureIdBox = (TextBox)target;
-			break;
-		case 12:
-			QuickEnableBtn = (Button)target;
-			QuickEnableBtn.Click += QuickEnableBtn_Click;
-			break;
-		case 13:
-			QuickDisableBtn = (Button)target;
-			QuickDisableBtn.Click += QuickDisableBtn_Click;
-			break;
-		case 14:
-			SearchBox = (AutoSuggestBox)target;
-			SearchBox.TextChanged += SearchBox_TextChanged;
-			break;
-		case 15:
-			StateFilterCombo = (ComboBox)target;
-			StateFilterCombo.SelectionChanged += StateFilterCombo_SelectionChanged;
-			break;
-		case 16:
-			RefreshBtn = (Button)target;
-			RefreshBtn.Click += RefreshBtn_Click;
-			break;
-		case 17:
-			MoreActionsBtn = (Button)target;
-			MoreActionsBtn.Click += MoreActionsBtn_Click;
-			break;
-		case 18:
-			CountText = (TextBlock)target;
-			break;
-		case 19:
-			StatTotal = (Border)target;
-			break;
-		case 20:
-			StatEnabled = (Border)target;
-			break;
-		case 21:
-			StatDisabled = (Border)target;
-			break;
-		case 22:
-			StatDefault = (Border)target;
-			break;
-		case 23:
-			DefaultCountText = (TextBlock)target;
-			break;
-		case 24:
-			DisabledCountText = (TextBlock)target;
-			break;
-		case 25:
-			EnabledCountText = (TextBlock)target;
-			break;
-		case 26:
-			TotalCountText = (TextBlock)target;
-			break;
-		case 27:
-			CloseButton = (Button)target;
-			CloseButton.Click += CloseButton_Click;
-			break;
-		}
-		_contentLoaded = true;
-	}
-
-	public IComponentConnector GetBindingConnector(int connectionId, object target)
-	{
-		return null;
 	}
 }

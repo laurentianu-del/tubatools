@@ -30,106 +30,136 @@
                 <ImageIconSource ImageSource="ms-appx:///Assets/AppIcon.ico" />
             </TitleBar.IconSource>
             <TitleBar.Content>
-                <Grid Width="320" VerticalAlignment="Center">
-                    <TextBox
-                        x:Name="SearchTextBox"
-                        PlaceholderText="搜索工具、设置..."
-                        MinHeight="30"
-                        VerticalAlignment="Center"
-                        GotFocus="SearchTextBox_GotFocus"
-                        LostFocus="SearchTextBox_LostFocus"
-                        TextChanged="SearchTextBox_TextChanged"
-                        KeyDown="SearchTextBox_KeyDown" />
+                <Grid VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="320" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Grid Grid.Column="0" Width="320">
+                        <TextBox
+                            x:Name="SearchTextBox"
+                            PlaceholderText="搜索工具、设置..."
+                            MinHeight="30"
+                            VerticalAlignment="Center"
+                            GotFocus="SearchTextBox_GotFocus"
+                            LostFocus="SearchTextBox_LostFocus"
+                            TextChanged="SearchTextBox_TextChanged"
+                            KeyDown="SearchTextBox_KeyDown" />
+                        <Button
+                            x:Name="SearchSubmitButton"
+                            VerticalAlignment="Center"
+                            HorizontalAlignment="Right"
+                            Width="30" Height="30"
+                            Padding="0"
+                            BorderThickness="0"
+                            Background="Transparent"
+                            Click="SearchSubmitButton_Click">
+                            <FontIcon FontSize="14" Glyph="&#xE721;" />
+                        </Button>
+                        <Popup
+                            x:Name="SearchPopup"
+                            VerticalOffset="32"
+                            GettingFocus="SearchPopup_GettingFocus">
+                            <Border
+                                x:Name="SearchPopupBorder"
+                                Width="318"
+                                MaxHeight="400"
+                                Background="{ThemeResource AcrylicBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="4">
+                                <ListView
+                                    x:Name="SearchListView"
+                                    SelectionMode="Single"
+                                    IsItemClickEnabled="True"
+                                    KeyDown="SearchListView_KeyDown"
+                                    ItemClick="SearchListView_ItemClick">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid ColumnSpacing="12" Padding="4,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="32" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <Border
+                                                    Width="32"
+                                                    Height="32"
+                                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                                    CornerRadius="6">
+                                                    <Grid>
+                                                        <Image
+                                                            Width="24" Height="24"
+                                                            Stretch="Uniform"
+                                                            Source="{Binding IconPath}"
+                                                            Visibility="{Binding HasIconPath, Converter={StaticResource IconPathToVisibility}}" />
+                                                        <FontIcon
+                                                            FontSize="14"
+                                                            HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center"
+                                                            Glyph="{Binding Glyph}"
+                                                            Visibility="{Binding HasIconPath, Converter={StaticResource InverseBoolToVisibility}}" />
+                                                    </Grid>
+                                                </Border>
+
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                                                    <TextBlock
+                                                        FontSize="13"
+                                                        FontWeight="SemiBold"
+                                                        MaxLines="1"
+                                                        Text="{Binding Title}"
+                                                        TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock
+                                                        FontSize="11"
+                                                        Opacity="0.6"
+                                                        MaxLines="1"
+                                                        Text="{Binding Subtitle}"
+                                                        TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+
+                                                <Border
+                                                    Grid.Column="2"
+                                                    Padding="6,2"
+                                                    CornerRadius="4"
+                                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                                    VerticalAlignment="Center">
+                                                    <TextBlock
+                                                        FontSize="10"
+                                                        Text="{Binding KindText}" />
+                                                </Border>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                            </Border>
+                        </Popup>
+                    </Grid>
+
                     <Button
-                        x:Name="SearchSubmitButton"
+                        x:Name="DownloadQueueButton"
+                        Grid.Column="2"
+                        Click="DownloadQueueButton_Click"
                         VerticalAlignment="Center"
-                        HorizontalAlignment="Right"
-                        Width="30" Height="30"
+                        Width="34" Height="30"
                         Padding="0"
                         BorderThickness="0"
                         Background="Transparent"
-                        Click="SearchSubmitButton_Click">
-                        <FontIcon FontSize="14" Glyph="&#xE721;" />
+                        AutomationProperties.Name="下载队列">
+                        <Grid>
+                            <FontIcon FontSize="14" Glyph="&#xE896;" />
+                            <InfoBadge
+                                x:Name="DownloadQueueBadge"
+                                Value="0"
+                                Visibility="Collapsed"
+                                VerticalAlignment="Top"
+                                HorizontalAlignment="Right"
+                                Margin="0,-4,-4,0" />
+                        </Grid>
                     </Button>
-                    <Popup
-                        x:Name="SearchPopup"
-                        VerticalOffset="32"
-                        GettingFocus="SearchPopup_GettingFocus">
-                        <Border
-                            x:Name="SearchPopupBorder"
-                            Width="318"
-                            MaxHeight="400"
-                            Background="{ThemeResource AcrylicBackgroundFillColorDefaultBrush}"
-                            BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8"
-                            Padding="4">
-                            <ListView
-                                x:Name="SearchListView"
-                                SelectionMode="Single"
-                                IsItemClickEnabled="True"
-                                KeyDown="SearchListView_KeyDown"
-                                ItemClick="SearchListView_ItemClick">
-                                <ListView.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid ColumnSpacing="12" Padding="4,6">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="32" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-
-                                            <Border
-                                                Width="32"
-                                                Height="32"
-                                                Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                                                CornerRadius="6">
-                                                <Grid>
-                                                    <Image
-                                                        Width="24" Height="24"
-                                                        Stretch="Uniform"
-                                                        Source="{Binding IconPath}"
-                                                        Visibility="{Binding HasIconPath, Converter={StaticResource IconPathToVisibility}}" />
-                                                    <FontIcon
-                                                        FontSize="14"
-                                                        HorizontalAlignment="Center"
-                                                        VerticalAlignment="Center"
-                                                        Glyph="{Binding Glyph}"
-                                                        Visibility="{Binding HasIconPath, Converter={StaticResource InverseBoolToVisibility}}" />
-                                                </Grid>
-                                            </Border>
-
-                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
-                                                <TextBlock
-                                                    FontSize="13"
-                                                    FontWeight="SemiBold"
-                                                    MaxLines="1"
-                                                    Text="{Binding Title}"
-                                                    TextTrimming="CharacterEllipsis" />
-                                                <TextBlock
-                                                    FontSize="11"
-                                                    Opacity="0.6"
-                                                    MaxLines="1"
-                                                    Text="{Binding Subtitle}"
-                                                    TextTrimming="CharacterEllipsis" />
-                                            </StackPanel>
-
-                                            <Border
-                                                Grid.Column="2"
-                                                Padding="6,2"
-                                                CornerRadius="4"
-                                                Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                                                VerticalAlignment="Center">
-                                                <TextBlock
-                                                    FontSize="10"
-                                                    Text="{Binding KindText}" />
-                                            </Border>
-                                        </Grid>
-                                    </DataTemplate>
-                                </ListView.ItemTemplate>
-                            </ListView>
-                        </Border>
-                    </Popup>
                 </Grid>
             </TitleBar.Content>
         </TitleBar>

@@ -11,6 +11,7 @@ using TubaWinUi3.Models;
 using TubaWinUi3.Pages;
 using TubaWinUi3.Services;
 using Windows.UI;
+using Microsoft.UI.Xaml.Controls.Primitives;
 
 namespace TubaWinUi3;
 
@@ -22,6 +23,7 @@ public sealed partial class MainWindow : Window
     private bool _searchDismissed;
     private readonly ObservableCollection<SearchResult> _searchResults = [];
     private readonly DispatcherQueueTimer _searchDebounceTimer;
+    private Flyout? _downloadFlyout;
 
     public MainWindow()
     {
@@ -52,6 +54,10 @@ public sealed partial class MainWindow : Window
 
         PopulateCategories();
         NavigateToDefaultPage();
+
+        DownloadQueueService.Initialize(DispatcherQueue);
+        DownloadQueueService.QueueChanged += OnDownloadQueueChanged;
+        UpdateDownloadBadge();
     }
 
     private void NavFrame_Navigated(object sender, NavigationEventArgs e)
@@ -129,6 +135,39 @@ public sealed partial class MainWindow : Window
         BackdropService.BackdropChanged -= OnBackdropChanged;
         AppWindow.Changed -= AppWindow_Changed;
         WindowSizeService.SaveWindowSize(this);
+        DownloadQueueService.QueueChanged -= OnDownloadQueueChanged;
+    }
+
+    private void OnDownloadQueueChanged()
+    {
+        DispatcherQueue.TryEnqueue(UpdateDownloadBadge);
+    }
+
+    private void UpdateDownloadBadge()
+    {
+        var count = DownloadQueueService.PendingCount;
+        if (count > 0)
+        {
+            DownloadQueueBadge.Value = count > 99 ? 99 : count;
+            DownloadQueueBadge.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            DownloadQueueBadge.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void DownloadQueueButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_downloadFlyout is null)
+        {
+            _downloadFlyout = new Flyout
+            {
+                Content = new DownloadQueueFlyout(),
+                Placement = FlyoutPlacementMode.BottomEdgeAlignedRight
+            };
+        }
+        _downloadFlyout.ShowAt(DownloadQueueButton);
     }
 
     private void OnBackdropChanged()

@@ -264,6 +264,71 @@ public static class UpdateService
         catch { }
     }
 
+    public static DownloadItem EnqueueUpdateDownload(
+        UpdateAsset asset, bool useGitCode, bool isPortableMode)
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TubaWinUi3_Update");
+
+        if (useGitCode && !string.IsNullOrEmpty(asset.GitCodeDownloadUrl))
+        {
+            return DownloadQueueService.Enqueue(
+                displayName: $"软件更新 v{CurrentVersion} → v{asset.Name}",
+                downloadUrl: asset.GitCodeDownloadUrl,
+                destinationPath: tempDir,
+                postProcessor: new UpdateInstallProcessor(isPortableMode),
+                description: $"GitCode 下载 · {asset.Name} · {FormatSize(asset.Size)}",
+                glyph: "\uE895");
+        }
+
+        if (!string.IsNullOrEmpty(asset.OriginalDownloadUrl))
+        {
+            if (!string.IsNullOrEmpty(asset.GitCodeDownloadUrl))
+            {
+                return DownloadQueueService.EnqueueWithResolver(
+                    displayName: $"软件更新 v{CurrentVersion}",
+                    urlResolver: async ct =>
+                    {
+                        Exception? lastError = null;
+                        var urls = new List<(string Url, string Label)>
+                        {
+                            (asset.GitCodeDownloadUrl!, "GitCode"),
+                            (asset.OriginalDownloadUrl!, "GitHub")
+                        };
+
+                        foreach (var (url, _) in urls)
+                        {
+                            try
+                            {
+                                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+                                client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-UpdateChecker");
+                                using var resp = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
+                                resp.EnsureSuccessStatusCode();
+                                var size = resp.Content.Headers.ContentLength ?? asset.Size;
+                                return new ResolvedDownloadUrl(url, asset.Name, size);
+                            }
+                            catch (Exception ex) { lastError = ex; }
+                        }
+                        throw lastError!;
+                    },
+                    destinationPath: tempDir,
+                    postProcessor: new UpdateInstallProcessor(isPortableMode),
+                    description: $"GitHub 下载 · {asset.Name} · {FormatSize(asset.Size)}",
+                    glyph: "\uE895");
+            }
+
+            return DownloadQueueService.Enqueue(
+                displayName: $"软件更新 v{CurrentVersion}",
+                downloadUrl: asset.OriginalDownloadUrl,
+                destinationPath: tempDir,
+                postProcessor: new UpdateInstallProcessor(isPortableMode),
+                description: $"GitHub 下载 · {asset.Name} · {FormatSize(asset.Size)}",
+                glyph: "\uE895");
+        }
+
+        throw new InvalidOperationException("无可用的下载链接");
+    }
+
+    [Obsolete("Use EnqueueUpdateDownload instead for download queue integration")]
     public static async Task<string> DownloadFromGitCodeAsync(
         UpdateAsset asset, IProgress<DownloadProgress>? progress, CancellationToken ct = default)
     {
@@ -273,6 +338,7 @@ public static class UpdateService
         return await DownloadFileAsync(asset.GitCodeDownloadUrl, asset, progress, ct);
     }
 
+    [Obsolete("Use EnqueueUpdateDownload instead for download queue integration")]
     public static async Task<string> DownloadUpdateAsync(
         UpdateAsset asset, IProgress<DownloadProgress>? progress,
         CancellationToken ct = default)
