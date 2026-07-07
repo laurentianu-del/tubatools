@@ -91,6 +91,7 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
@@ -98,14 +99,22 @@
                     <CheckBox x:Name="AdminCheck" Content="管理员权限" FontSize="12" VerticalAlignment="Center" />
                     <CheckBox x:Name="AutoScrollCheck" Content="自动滚动" FontSize="12" IsChecked="True" VerticalAlignment="Center" />
 
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <TextBlock Text="缓冲区" FontSize="11" Opacity="0.68" VerticalAlignment="Center" />
+                        <NumberBox x:Name="BufferLimitBox" Value="2000" Minimum="100" Maximum="50000"
+                                   SpinButtonPlacementMode="Compact" FontSize="11" Width="80"
+                                   FontFamily="Cascadia Code, Consolas" CornerRadius="4" />
+                        <TextBlock Text="行" FontSize="11" Opacity="0.68" VerticalAlignment="Center" />
+                    </StackPanel>
+
                     <TextBox x:Name="WorkDirBox"
-                             Grid.Column="2"
+                             Grid.Column="3"
                              PlaceholderText="工作目录（可选）"
                              FontSize="12"
                              FontFamily="Cascadia Code, Consolas"
                              CornerRadius="6" />
 
-                    <DropDownButton x:Name="EncodingButton" Grid.Column="3" CornerRadius="6" FontSize="12">
+                    <DropDownButton x:Name="EncodingButton" Grid.Column="4" CornerRadius="6" FontSize="12">
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <FontIcon Glyph="&#xE8BD;" FontSize="11" />
                             <TextBlock x:Name="EncodingLabel" Text="UTF-8" />
@@ -139,6 +148,7 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
@@ -157,7 +167,12 @@
                                    FontSize="11" Opacity="0.5" FontFamily="Cascadia Code, Consolas"
                                    VerticalAlignment="Center" />
 
-                        <Button x:Name="CopyOutputButton" Grid.Column="5" Click="CopyOutputButton_Click"
+                        <Button x:Name="ScrollToBottomButton" Grid.Column="5" Click="ScrollToBottomButton_Click"
+                                Padding="4,2" CornerRadius="4" ToolTipService.ToolTip="滚动到底部">
+                            <FontIcon Glyph="&#xE74B;" FontSize="11" Opacity="0.5" />
+                        </Button>
+
+                        <Button x:Name="CopyOutputButton" Grid.Column="6" Click="CopyOutputButton_Click"
                                 Padding="4,2" CornerRadius="4" ToolTipService.ToolTip="复制输出">
                             <FontIcon Glyph="&#xE8C8;" FontSize="11" Opacity="0.5" />
                         </Button>

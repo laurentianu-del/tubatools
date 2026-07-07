@@ -23,21 +23,26 @@ public sealed class ScriptRunRequest
     public string? InputText { get; init; }
 }
 
+public enum ScriptOutputKind
+{
+    Normal,
+    Error,
+    ProgressUpdate
+}
+
 public static class ScriptRunnerService
 {
     public static Task<ScriptRunResult> RunAsync(
         ScriptRunRequest request,
-        Action<string>? onOutput = null,
-        Action<string>? onError = null,
+        Action<string, ScriptOutputKind>? onOutput = null,
         CancellationToken ct = default)
     {
-        return Task.Run(() => RunCoreAsync(request, onOutput, onError, ct), ct);
+        return Task.Run(() => RunCoreAsync(request, onOutput, ct), ct);
     }
 
     private static async Task<ScriptRunResult> RunCoreAsync(
         ScriptRunRequest request,
-        Action<string>? onOutput,
-        Action<string>? onError,
+        Action<string, ScriptOutputKind>? onOutput,
         CancellationToken ct)
     {
         var sw = Stopwatch.StartNew();
@@ -96,8 +101,8 @@ public static class ScriptRunnerService
             process.StandardInput.Close();
         }
 
-        var outputTask = ReadStreamAsync(process.StandardOutput, outputBuilder, onOutput, ct);
-        var errorTask = ReadStreamAsync(process.StandardError, errorBuilder, onError, ct);
+        var outputTask = ReadStreamAsync(process.StandardOutput, outputBuilder, onOutput, ScriptOutputKind.Normal, ct);
+        var errorTask = ReadStreamAsync(process.StandardError, errorBuilder, onOutput, ScriptOutputKind.Error, ct);
 
         await Task.WhenAll(outputTask, errorTask);
         await process.WaitForExitAsync(ct);
@@ -115,22 +120,62 @@ public static class ScriptRunnerService
     private static async Task ReadStreamAsync(
         StreamReader reader,
         StringBuilder builder,
-        Action<string>? callback,
+        Action<string, ScriptOutputKind>? callback,
+        ScriptOutputKind defaultKind,
         CancellationToken ct)
     {
+        var partialLine = new StringBuilder();
+
         while (!ct.IsCancellationRequested)
         {
             try
             {
-                var line = await reader.ReadLineAsync(ct);
-                if (line is null) break;
-                builder.AppendLine(line);
-                callback?.Invoke(line);
+                var buf = new char[1];
+                var read = await reader.ReadAsync(buf.AsMemory(), ct);
+                if (read == 0) break;
+
+                var ch = buf[0];
+
+                if (ch == '\r')
+                {
+                    var lineSoFar = partialLine.ToString();
+                    if (!string.IsNullOrEmpty(lineSoFar))
+                    {
+                        callback?.Invoke(lineSoFar, ScriptOutputKind.ProgressUpdate);
+                    }
+                    partialLine.Clear();
+                }
+                else if (ch == '\n')
+                {
+                    var lineSoFar = partialLine.ToString();
+                    partialLine.Clear();
+                    if (!string.IsNullOrEmpty(lineSoFar))
+                    {
+                        builder.AppendLine(lineSoFar);
+                        callback?.Invoke(lineSoFar, defaultKind);
+                    }
+                    else
+                    {
+                        builder.AppendLine();
+                        callback?.Invoke("", defaultKind);
+                    }
+                }
+                else
+                {
+                    partialLine.Append(ch);
+                }
             }
             catch
             {
                 break;
             }
+        }
+
+        if (partialLine.Length > 0)
+        {
+            var remaining = partialLine.ToString();
+            builder.AppendLine(remaining);
+            callback?.Invoke(remaining, defaultKind);
         }
     }
 }

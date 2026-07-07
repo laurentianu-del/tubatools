@@ -18,6 +18,7 @@ public sealed partial class ScriptRunnerWindow : Window
     private static readonly Color AccentGreen = Color.FromArgb(255, 74, 222, 128);
     private static readonly Color AccentRed = Color.FromArgb(255, 248, 113, 113);
     private static readonly Color AccentOrange = Color.FromArgb(255, 251, 191, 36);
+    private static readonly Color DimGreen = Color.FromArgb(255, 80, 200, 120);
 
     private Process? _runningProcess;
     private CancellationTokenSource? _cts;
@@ -29,6 +30,8 @@ public sealed partial class ScriptRunnerWindow : Window
     private Stopwatch? _durationStopwatch;
     private bool _closed;
     private DispatcherQueueTimer? _durationTimer;
+    private bool _hasProgressLine;
+    private int _progressLineInlineCount;
 
     public ScriptRunnerWindow()
     {
@@ -112,20 +115,22 @@ public sealed partial class ScriptRunnerWindow : Window
         {
             var result = await ScriptRunnerService.RunAsync(
                 request,
-                onOutput: line => AppendOutputLine(line, false),
-                onError: line => AppendOutputLine(line, true),
+                onOutput: (line, kind) => AppendOutput(line, kind),
                 _cts.Token);
 
+            FinishProgressLine();
             ShowResult(result);
             return result;
         }
         catch (OperationCanceledException)
         {
+            FinishProgressLine();
             AppendOutputLine("\n[已取消]", true);
             return new ScriptRunResult { ExitCode = -1, Error = "已取消", Duration = _durationStopwatch?.Elapsed ?? TimeSpan.Zero };
         }
         catch (Exception ex)
         {
+            FinishProgressLine();
             AppendOutputLine($"\n[异常] {ex.Message}", true);
             return new ScriptRunResult { ExitCode = -1, Error = ex.Message, Duration = _durationStopwatch?.Elapsed ?? TimeSpan.Zero };
         }
@@ -164,6 +169,8 @@ public sealed partial class ScriptRunnerWindow : Window
 
         _allOutput.Clear();
         _lineCount = 0;
+        _hasProgressLine = false;
+        _progressLineInlineCount = 0;
         OutputText.Inlines.Clear();
         ExitCodeBadge.Visibility = Visibility.Collapsed;
 
@@ -241,6 +248,8 @@ public sealed partial class ScriptRunnerWindow : Window
     {
         _allOutput.Clear();
         _lineCount = 0;
+        _hasProgressLine = false;
+        _progressLineInlineCount = 0;
         OutputText.Inlines.Clear();
         ExitCodeBadge.Visibility = Visibility.Collapsed;
         DurationText.Text = "";
@@ -288,6 +297,11 @@ public sealed partial class ScriptRunnerWindow : Window
         package.SetText(text);
         Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
         ShowToast("已复制", "输出内容已复制到剪贴板", InfoBarSeverity.Success);
+    }
+
+    private void ScrollToBottomButton_Click(object sender, RoutedEventArgs e)
+    {
+        OutputScroll.ChangeView(null, OutputScroll.ExtentHeight, null);
     }
 
     private void EncMenu_Click(object sender, RoutedEventArgs e)
@@ -359,34 +373,162 @@ public sealed partial class ScriptRunnerWindow : Window
         }
     }
 
+    private void AppendOutput(string line, ScriptOutputKind kind)
+    {
+        if (kind == ScriptOutputKind.ProgressUpdate)
+        {
+            _dq.TryEnqueue(() =>
+            {
+                if (_closed) return;
+                UpdateProgressLine(line);
+            });
+        }
+        else
+        {
+            _dq.TryEnqueue(() =>
+            {
+                if (_closed) return;
+                FinishProgressLine();
+                AppendOutputLine(line, kind == ScriptOutputKind.Error);
+            });
+        }
+    }
+
+    private void UpdateProgressLine(string text)
+    {
+        _allOutput.AppendLine($"\r{text}");
+
+        if (_hasProgressLine)
+        {
+            var lastIdx = OutputText.Inlines.Count - 1;
+            if (lastIdx >= 0 && OutputText.Inlines[lastIdx] is Microsoft.UI.Xaml.Documents.Run run)
+            {
+                run.Text = FormatProgressText(text);
+                return;
+            }
+        }
+
+        var newRun = new Microsoft.UI.Xaml.Documents.Run
+        {
+            Text = FormatProgressText(text),
+            Foreground = new SolidColorBrush(DimGreen)
+        };
+        OutputText.Inlines.Add(newRun);
+        _hasProgressLine = true;
+        _progressLineInlineCount = 1;
+
+        AutoScroll();
+        LineCountText.Text = _lineCount > 0 ? $"{_lineCount} 行" : "";
+    }
+
+    private void FinishProgressLine()
+    {
+        if (!_hasProgressLine) return;
+
+        if (OutputText.Inlines.Count > 0)
+        {
+            var lastIdx = OutputText.Inlines.Count - 1;
+            if (OutputText.Inlines[lastIdx] is Microsoft.UI.Xaml.Documents.Run run)
+            {
+                var current = run.Text;
+                if (current.EndsWith('\n'))
+                {
+                    _hasProgressLine = false;
+                    return;
+                }
+
+                run.Text = current.TrimEnd() + "\n";
+                run.Foreground = new SolidColorBrush(ThemeColors.SecondaryText);
+            }
+        }
+
+        _hasProgressLine = false;
+        _lineCount++;
+        LineCountText.Text = _lineCount > 0 ? $"{_lineCount} 行" : "";
+    }
+
+    private static string FormatProgressText(string raw)
+    {
+        if (raw.Contains('%'))
+        {
+            var bar = RenderProgressBar(raw);
+            return $"  {bar} {raw}\n";
+        }
+
+        var spinner = SpinnerGlyph();
+        return $"  {spinner} {raw}\n";
+    }
+
+    private static string RenderProgressBar(string raw)
+    {
+        var pct = 0.0;
+        var match = System.Text.RegularExpressions.Regex.Match(raw, @"(\d+(?:\.\d+)?)\s*%");
+        if (match.Success && double.TryParse(match.Groups[1].Value, out var v))
+            pct = v;
+
+        var filled = (int)Math.Round(pct / 100 * 20);
+        if (filled > 20) filled = 20;
+        if (filled < 0) filled = 0;
+
+        var bar = new string('█', filled) + new string('░', 20 - filled);
+        return $"[{bar}]";
+    }
+
+    private static int _spinnerIdx;
+    private static string SpinnerGlyph()
+    {
+        var glyphs = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
+        _spinnerIdx = (_spinnerIdx + 1) % glyphs.Length;
+        return glyphs[_spinnerIdx].ToString();
+    }
+
     private void AppendOutputLine(string line, bool isError, Color? color = null)
     {
-        _dq.TryEnqueue(() =>
+        _allOutput.AppendLine(line);
+        _lineCount++;
+
+        var lineText = $"{line}\n";
+
+        var run = new Microsoft.UI.Xaml.Documents.Run
         {
-            if (_closed) return;
+            Text = lineText
+        };
 
-            _allOutput.AppendLine(line);
-            _lineCount++;
+        if (color.HasValue)
+            run.Foreground = new SolidColorBrush(color.Value);
+        else if (isError)
+            run.Foreground = new SolidColorBrush(AccentRed);
 
-            var lineText = $"{line}\n";
+        OutputText.Inlines.Add(run);
 
-            var run = new Microsoft.UI.Xaml.Documents.Run
-            {
-                Text = lineText
-            };
+        TrimBufferIfNeeded();
+        AutoScroll();
 
-            if (color.HasValue)
-                run.Foreground = new SolidColorBrush(color.Value);
-            else if (isError)
-                run.Foreground = new SolidColorBrush(AccentRed);
+        LineCountText.Text = _lineCount > 0 ? $"{_lineCount} 行" : "";
+    }
 
-            OutputText.Inlines.Add(run);
+    private void TrimBufferIfNeeded()
+    {
+        var limit = (int)BufferLimitBox.Value;
+        if (limit < 100) limit = 100;
+        if (_lineCount <= limit + 50) return;
 
-            if (AutoScrollCheck.IsChecked ?? true)
-                OutputScroll.ChangeView(null, OutputScroll.ExtentHeight + 1000, null);
+        var toRemove = _lineCount - limit;
+        if (toRemove <= 0) return;
 
-            LineCountText.Text = _lineCount > 0 ? $"{_lineCount} 行" : "";
-        });
+        var actualRemove = Math.Min(toRemove, OutputText.Inlines.Count);
+        for (var i = 0; i < actualRemove; i++)
+            OutputText.Inlines.RemoveAt(0);
+
+        _lineCount -= toRemove;
+
+        if (_lineCount < 0) _lineCount = 0;
+    }
+
+    private void AutoScroll()
+    {
+        if (AutoScrollCheck.IsChecked ?? true)
+            OutputScroll.ChangeView(null, OutputScroll.ExtentHeight + 1000, null);
     }
 
     private void ShowResult(ScriptRunResult result)
