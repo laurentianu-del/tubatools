@@ -1,794 +1,319 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>浏览器性能测试</title>
+<html><head><meta charset="utf-8"><title>Browser Benchmark</title>
 <style>
-  :root {
-    --bg: #0d1117;
-    --card: #161b22;
-    --border: #30363d;
-    --text: #e6edf3;
-    --text2: #8b949e;
-    --accent: #58a6ff;
-    --green: #3fb950;
-    --yellow: #d29922;
-    --red: #f85149;
-    --purple: #bc8cff;
-    --cyan: #39d2c0;
-  }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-    padding: 24px;
-    overflow-x: hidden;
-  }
-  .header {
-    text-align: center;
-    margin-bottom: 24px;
-  }
-  .header h1 {
-    font-size: 22px;
-    font-weight: 700;
-    background: linear-gradient(135deg, var(--accent), var(--purple), var(--cyan));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    margin-bottom: 4px;
-  }
-  .header p { color: var(--text2); font-size: 13px; }
-
-  .progress-section {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 20px;
-    margin-bottom: 20px;
-  }
-  .progress-bar-track {
-    width: 100%;
-    height: 8px;
-    background: #21262d;
-    border-radius: 4px;
-    overflow: hidden;
-    margin-top: 12px;
-  }
-  .progress-bar-fill {
-    height: 100%;
-    border-radius: 4px;
-    background: linear-gradient(90deg, var(--accent), var(--purple));
-    transition: width 0.4s ease;
-    width: 0%;
-  }
-  .progress-label {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .progress-label span { font-size: 14px; font-weight: 600; }
-  .progress-label small { color: var(--text2); font-size: 12px; }
-
-  .grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
-    margin-bottom: 20px;
-  }
-  .card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 18px;
-    position: relative;
-    overflow: hidden;
-    transition: border-color 0.3s;
-  }
-  .card.running { border-color: var(--accent); }
-  .card.done { border-color: var(--green); }
-  .card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, transparent, var(--border), transparent);
-    transition: background 0.3s;
-  }
-  .card.running::before {
-    background: linear-gradient(90deg, transparent, var(--accent), transparent);
-    animation: shimmer 1.5s infinite;
-  }
-  .card.done::before {
-    background: linear-gradient(90deg, transparent, var(--green), transparent);
-  }
-  @keyframes shimmer {
-    0%, 100% { opacity: 0.6; }
-    50% { opacity: 1; }
-  }
-  .card-icon { font-size: 20px; margin-bottom: 8px; }
-  .card-title {
-    font-size: 14px;
-    font-weight: 600;
-    margin-bottom: 4px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .card-detail {
-    font-size: 11px;
-    color: var(--text2);
-    min-height: 16px;
-    margin-bottom: 8px;
-  }
-  .card-score {
-    font-size: 28px;
-    font-weight: 800;
-    color: var(--text2);
-    transition: color 0.3s;
-  }
-  .card-score.s { color: var(--green); }
-  .card-score.a { color: var(--accent); }
-  .card-score.b { color: var(--yellow); }
-  .card-score.c { color: var(--red); }
-  .card-mini-bar {
-    height: 3px;
-    background: #21262d;
-    border-radius: 2px;
-    margin-top: 10px;
-    overflow: hidden;
-  }
-  .card-mini-fill {
-    height: 100%;
-    border-radius: 2px;
-    width: 0%;
-    transition: width 0.6s ease, background 0.3s;
-    background: var(--accent);
-  }
-
-  .summary {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 24px;
-    text-align: center;
-    display: none;
-  }
-  .summary.show { display: block; animation: fadeIn 0.5s; }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-  .summary-total {
-    font-size: 52px;
-    font-weight: 900;
-    background: linear-gradient(135deg, var(--green), var(--cyan));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-  .summary-grade {
-    font-size: 20px;
-    font-weight: 700;
-    margin-top: 4px;
-  }
-  .summary-breakdown {
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 8px;
-    margin-top: 16px;
-  }
-  .summary-item {
-    background: #21262d;
-    border-radius: 8px;
-    padding: 10px 6px;
-    text-align: center;
-  }
-  .summary-item label { font-size: 10px; color: var(--text2); display: block; }
-  .summary-item span { font-size: 18px; font-weight: 700; }
-
-  .canvas-overlay {
-    position: fixed;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    pointer-events: none;
-    z-index: -1;
-  }
-</style>
-</head>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1a1a2e;color:#e0e0e0;font:13px 'Segoe UI',system-ui,sans-serif;overflow-y:auto;height:100vh;display:flex;flex-direction:column}
+#header{padding:12px 16px;background:#16213e;border-bottom:1px solid #0f3460}
+#header h2{font-size:16px;color:#00d2ff;margin-bottom:4px}
+#progress-bar{width:100%;height:4px;background:#0f3460;border-radius:2px;overflow:hidden}
+#progress-fill{height:100%;width:0%;background:linear-gradient(90deg,#00d2ff,#7b2ff7);transition:width 0.3s}
+#content{flex:1;position:relative;overflow-y:auto;min-height:300px}
+#test-area{position:absolute;top:0;left:0;width:100%;min-height:100%;overflow-y:auto;background:#fff;color:#333;font-size:12px}
+#status{position:absolute;bottom:0;left:0;right:0;padding:8px 16px;background:rgba(22,33,62,0.95);border-top:1px solid #0f3460;font-size:12px;color:#aaa;display:flex;justify-content:space-between}
+#sub-results{position:absolute;top:8px;right:12px;font-size:11px;color:#00d2ff;text-align:right;line-height:1.8;z-index:10}
+.test-label{color:#7b2ff7;font-weight:600}
+#test-area table{border-collapse:collapse;width:100%}
+#test-area td,#test-area th{border:1px solid #ddd;padding:4px 8px;font-size:11px}
+#test-area th{background:#f0f0f0;font-weight:600}
+#test-area .card{background:#fff;border:1px solid #ddd;border-radius:6px;padding:8px;margin:4px;display:inline-block;width:120px;vertical-align:top}
+#test-area .card h3{font-size:11px;margin-bottom:4px;color:#333}
+#test-area .card p{font-size:10px;color:#666}
+</style></head>
 <body>
-
-<canvas class="canvas-overlay" id="bgCanvas"></canvas>
-
-<div class="header">
-  <h1>Browser Performance Benchmark</h1>
-  <p id="statusText">正在初始化...</p>
+<div id="header">
+  <h2>浏览器性能测试</h2>
+  <div id="progress-bar"><div id="progress-fill"></div></div>
 </div>
-
-<div class="progress-section">
-  <div class="progress-label">
-    <span id="phaseText">准备中</span>
-    <small id="percentText">0%</small>
-  </div>
-  <div class="progress-bar-track">
-    <div class="progress-bar-fill" id="mainProgress"></div>
-  </div>
+<div id="content">
+  <div id="test-area"></div>
+  <div id="sub-results"></div>
 </div>
-
-<div class="grid">
-  <div class="card" id="card-js">
-    <div class="card-title">⚡ JS 引擎</div>
-    <div class="card-detail" id="detail-js">等待测试</div>
-    <div class="card-score" id="score-js">—</div>
-    <div class="card-mini-bar"><div class="card-mini-fill" id="bar-js"></div></div>
-  </div>
-  <div class="card" id="card-dom">
-    <div class="card-title">📊 DOM 表格</div>
-    <div class="card-detail" id="detail-dom">等待测试</div>
-    <div class="card-score" id="score-dom">—</div>
-    <div class="card-mini-bar"><div class="card-mini-fill" id="bar-dom"></div></div>
-  </div>
-  <div class="card" id="card-card">
-    <div class="card-title">🃏 DOM 卡片</div>
-    <div class="card-detail" id="detail-card">等待测试</div>
-    <div class="card-score" id="score-card">—</div>
-    <div class="card-mini-bar"><div class="card-mini-fill" id="bar-card"></div></div>
-  </div>
-  <div class="card" id="card-css">
-    <div class="card-title">🎨 CSS 动画</div>
-    <div class="card-detail" id="detail-css">等待测试</div>
-    <div class="card-score" id="score-css">—</div>
-    <div class="card-mini-bar"><div class="card-mini-fill" id="bar-css"></div></div>
-  </div>
-  <div class="card" id="card-layout">
-    <div class="card-title">📐 布局重排</div>
-    <div class="card-detail" id="detail-layout">等待测试</div>
-    <div class="card-score" id="score-layout">—</div>
-    <div class="card-mini-bar"><div class="card-mini-fill" id="bar-layout"></div></div>
-  </div>
-  <div class="card" id="card-event">
-    <div class="card-title">🖱️ 事件处理</div>
-    <div class="card-detail" id="detail-event">等待测试</div>
-    <div class="card-score" id="score-event">—</div>
-    <div class="card-mini-bar"><div class="card-mini-fill" id="bar-event"></div></div>
-  </div>
+<div id="status">
+  <span id="phase-text">准备中...</span>
+  <span id="detail-text"></span>
 </div>
-
-<div class="summary" id="summary">
-  <div style="font-size:13px;color:var(--text2);margin-bottom:8px;">综合得分</div>
-  <div class="summary-total" id="totalScore">0</div>
-  <div class="summary-grade" id="totalGrade"></div>
-  <div class="summary-breakdown" id="breakdown"></div>
-</div>
-
 <script>
-(function() {
-  const $ = id => document.getElementById(id);
-  let overallProgress = 0;
+(function(){
+var area=document.getElementById('test-area');
+var progressFill=document.getElementById('progress-fill');
+var phaseText=document.getElementById('phase-text');
+var detailText=document.getElementById('detail-text');
+var subResults=document.getElementById('sub-results');
+function setProgress(p){progressFill.style.width=p+'%';}
+function setPhase(t){phaseText.textContent=t;}
+function setDetail(t){detailText.textContent=t;}
+function addSub(label,val){subResults.innerHTML+='<div><span class="test-label">'+label+'</span> '+val+'</div>';}
+function score(ms,base){return Math.max(1,Math.round(100*base/ms));}
+var R={};
 
-  function setPhase(name, pct) {
-    $('phaseText').textContent = name;
-    $('percentText').textContent = Math.round(pct * 100) + '%';
-    $('mainProgress').style.width = (pct * 100) + '%';
-    $('statusText').textContent = name;
+function benchJS(){
+  setPhase('JS 引擎测试');setDetail('数学运算...');setProgress(0);
+  var t0=performance.now();
+  var x=1.1;
+  for(var i=0;i<30000000;i++){x=Math.sin(x)*Math.cos(x)+Math.sqrt(Math.abs(x)+1);x=Math.tanh(x)*Math.log(Math.abs(x)+1);x=Math.atan2(x,i%100+1)*Math.exp(-Math.abs(x)*0.001);}
+  var mathMs=performance.now()-t0;
+  setDetail('字符串...');
+  t0=performance.now();var s="";
+  for(var i=0;i<80000;i++){s+="abcdefghij".repeat(10);s=s.substring(100)+s.slice(0,100);s=s.toUpperCase()+s.toLowerCase();s=JSON.stringify({v:i,t:s.length});}
+  var strMs=performance.now()-t0;
+  setDetail('数组排序...');
+  t0=performance.now();
+  for(var r=0;r<40;r++){var arr=new Array(100000);for(var i=0;i<100000;i++)arr[i]=Math.random();arr.sort(function(a,b){return a-b;});}
+  var arrMs=performance.now()-t0;
+  setDetail('Map/Set...');
+  t0=performance.now();var map=new Map(),set=new Set();
+  for(var i=0;i<500000;i++){map.set("k"+i,{v:i,d:i*2,s:"val"+i});set.add(i);if(i%3===0){map.delete("k"+(i-3));set.delete(i-3);}}
+  var objMs=performance.now()-t0;
+  setDetail('Promise/async...');
+  t0=performance.now();
+  var proms=[];for(var i=0;i<200000;i++)proms.push(Promise.resolve(i).then(function(v){return v*2;}));
+  Promise.all(proms);
+  var promMs=performance.now()-t0;
+  var total=mathMs+strMs+arrMs+objMs+promMs;
+  R.jsScore=score(total,3533);
+  R.jsDetail='Math:'+mathMs.toFixed(0)+' Str:'+strMs.toFixed(0)+' Arr:'+arrMs.toFixed(0)+' Obj:'+objMs.toFixed(0)+' Prom:'+promMs.toFixed(0)+'ms';
+  addSub('JS引擎',R.jsScore+'分 ('+total.toFixed(0)+'ms)');
+  setProgress(17);
+}
+
+function benchDOMTable(){
+  setPhase('DOM 表格测试');setDetail('插入5万行表格...');setProgress(17);
+  area.innerHTML='';
+  var t0=performance.now();
+  var html='<table><thead><tr><th>ID</th><th>姓名</th><th>年龄</th><th>城市</th><th>职业</th><th>薪资</th><th>邮箱</th><th>状态</th></tr></thead><tbody>';
+  var names=['张伟','李娜','王芳','刘洋','陈军','杨秀英','赵敏','黄磊','周杰','吴霞','徐明','孙丽','马超','朱红','胡波','郭静','林涛','何雪','高峰','罗勇'];
+  var cities=['北京','上海','广州','深圳','杭州','成都','武汉','南京','重庆','西安','苏州','天津','长沙','郑州','青岛'];
+  var jobs=['工程师','设计师','产品经理','运营','市场','财务','人事','法务','销售','测试','架构师','总监'];
+  for(var i=0;i<50000;i++){
+    html+='<tr><td>'+i+'</td><td>'+names[i%20]+'</td><td>'+(20+i%40)+'</td><td>'+cities[i%15]+'</td><td>'+jobs[i%12]+'</td><td>'+(5000+i*100%45000).toLocaleString()+'</td><td>user'+i+'@test.com</td><td>'+(i%3===0?'在职':'离职')+'</td></tr>';
   }
+  html+='</tbody></table>';
+  area.innerHTML=html;
+  var insertMs=performance.now()-t0;
+  setDetail('排序...');
+  t0=performance.now();
+  var rows=Array.from(area.querySelectorAll('tbody tr'));
+  rows.sort(function(a,b){return parseInt(a.cells[5].textContent.replace(/,/g,''))-parseInt(b.cells[5].textContent.replace(/,/g,''));});
+  var tbody=area.querySelector('tbody');
+  for(var i=0;i<rows.length;i++)tbody.appendChild(rows[i]);
+  var sortMs=performance.now()-t0;
+  setDetail('筛选...');
+  t0=performance.now();
+  rows=area.querySelectorAll('tbody tr');
+  rows.forEach(function(r){r.style.display=r.cells[7].textContent==='在职'?'':'none';});
+  var filterMs=performance.now()-t0;
+  setDetail('删除...');
+  t0=performance.now();
+  area.innerHTML='';
+  var clearMs=performance.now()-t0;
+  var total=insertMs+sortMs+filterMs+clearMs;
+  R.domScore=score(total,1057);
+  R.domDetail='Insert:'+insertMs.toFixed(0)+' Sort:'+sortMs.toFixed(0)+' Filter:'+filterMs.toFixed(0)+' Clear:'+clearMs.toFixed(0)+'ms';
+  addSub('DOM表格',R.domScore+'分 ('+total.toFixed(0)+'ms)');
+  setProgress(33);
+}
 
-  function setCardState(key, state) {
-    const card = $('card-' + key);
-    card.classList.remove('running', 'done');
-    if (state) card.classList.add(state);
+function runCardRound(){
+  area.innerHTML='';
+  var t0=performance.now();
+  var html='<div style="padding:8px;display:flex;flex-wrap:wrap;gap:4px">';
+  var products=['手机','笔记本','平板','耳机','键盘','鼠标','显示器','硬盘','路由器','摄像头','音箱','充电器','U盘','机箱','主板','显卡','内存','散热器','电源','线缆'];
+  for(var i=0;i<10000;i++){
+    html+='<div class="card"><h3>'+products[i%20]+i+'</h3><p>品牌'+(i%10)+' 型号'+i+'</p><p style="color:#e74c3c;font-weight:700">&yen;'+(99+i*7%9999)+'</p></div>';
   }
+  html+='</div>';
+  area.innerHTML=html;
+  var createMs=performance.now()-t0;
+  t0=performance.now();
+  var cards=area.querySelectorAll('.card');
+  cards.forEach(function(c){
+    var h3=c.querySelector('h3');
+    if(h3&&h3.textContent.indexOf('手机')>=0){c.style.border='2px solid #e74c3c';}
+  });
+  var findMs=performance.now()-t0;
+  t0=performance.now();
+  var container=area.firstElementChild;
+  var removed=[];
+  for(var i=0;i<cards.length;i+=3){removed.push(cards[i]);container.removeChild(cards[i]);}
+  for(var i=0;i<removed.length;i++)container.appendChild(removed[i]);
+  var reorderMs=performance.now()-t0;
+  t0=performance.now();area.innerHTML='';
+  var clearMs=performance.now()-t0;
+  return createMs+findMs+reorderMs+clearMs;
+}
 
-  function setCardResult(key, score, detail, maxScore) {
-    const scoreEl = $('score-' + key);
-    const detailEl = $('detail-' + key);
-    const barEl = $('bar-' + key);
-    scoreEl.textContent = score;
-    detailEl.textContent = detail;
-    const pct = Math.min(100, (score / Math.max(1, maxScore)) * 100);
-    barEl.style.width = pct + '%';
-    const cls = score >= 80 ? 's' : score >= 55 ? 'a' : score >= 30 ? 'b' : 'c';
-    scoreEl.classList.add(cls);
-    barEl.style.background = cls === 's' ? 'var(--green)' : cls === 'a' ? 'var(--accent)' : cls === 'b' ? 'var(--yellow)' : 'var(--red)';
+function benchDOMCards(){
+  setPhase('DOM 卡片列表测试');setDetail('运行30轮...');setProgress(33);
+  var ROUNDS=30, total=0;
+  for(var r=0;r<ROUNDS;r++){
+    total+=runCardRound();
+    if(r%5===0)setDetail('卡片测试 轮 '+(r+1)+'/'+ROUNDS);
   }
+  R.cardScore=score(total,1511);
+  R.cardDetail=ROUNDS+'轮:'+total.toFixed(0)+'ms (avg:'+(total/ROUNDS).toFixed(0)+'ms)';
+  addSub('DOM卡片',R.cardScore+'分 ('+total.toFixed(0)+'ms)');
+  setProgress(50);
+}
 
-  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-  function preciseNow() { return performance.now(); }
-
-  // ─── Benchmark 1: JS Engine ───
-  async function benchJS() {
-    setCardState('js', 'running');
-    setPhase('JS 引擎测试', overallProgress);
-    await sleep(50);
-
-    const iterations = 200000;
-    let ops = 0;
-    const t0 = preciseNow();
-    for (let i = 0; i < iterations; i++) {
-      Math.sqrt(i * 3.14159);
-      Math.sin(i * 0.001) * Math.cos(i * 0.002);
-      JSON.parse('{"a":' + i + '}');
-      ops += 3;
-    }
-    const t1 = preciseNow();
-    const dt = t1 - t0;
-    const opsPerSec = ops / (dt / 1000);
-
-    const fibIter = 50000;
-    let fibOps = 0;
-    const t2 = preciseNow();
-    for (let i = 0; i < fibIter; i++) {
-      let a = 0, b = 1;
-      for (let j = 0; j < 30; j++) { let c = a + b; a = b; b = c; fibOps++; }
-    }
-    const t3 = preciseNow();
-    const fibPerSec = fibOps / ((t3 - t2) / 1000);
-
-    const sortN = 5000;
-    const t4 = preciseNow();
-    for (let i = 0; i < sortN; i++) {
-      let arr = Array.from({length: 100}, (_, j) => Math.random());
-      arr.sort((a, b) => a - b);
-    }
-    const t5 = preciseNow();
-    const sortPerSec = sortN / ((t5 - t4) / 1000);
-
-    const score = Math.round(
-      clamp(opsPerSec / 800000, 0, 1) * 30 +
-      clamp(fibPerSec / 2000000, 0, 1) * 35 +
-      clamp(sortPerSec / 30000, 0, 1) * 35
-    );
-    const detail = `${formatNum(opsPerSec)} ops/s · ${formatNum(fibPerSec)} fib/s · ${formatNum(sortPerSec)} sort/s`;
-
-    setCardState('js', 'done');
-    setCardResult('js', score, detail, 100);
-    overallProgress += 1 / 6;
-    return { score, detail };
+function benchCSS(){
+  setPhase('CSS 动画测试');setDetail('创建动画元素...');setProgress(50);
+  area.innerHTML='';
+  var t0=performance.now();
+  var html='<style>#css-test .box{position:absolute;width:20px;height:20px;border-radius:3px;animation:cssBench 2s infinite linear}</style>';
+  html+='<style>@keyframes cssBench{0%{transform:translate(0,0) rotate(0deg)}25%{transform:translate(200px,50px) rotate(90deg)}50%{transform:translate(400px,0) rotate(180deg)}75%{transform:translate(200px,-50px) rotate(270deg)}100%{transform:translate(0,0) rotate(360deg)}}</style>';
+  html+='<div id="css-test" style="position:relative;height:100%">';
+  var colors=['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22','#34495e','#2980b9','#27ae60'];
+  for(var i=0;i<2000;i++){
+    html+='<div class="box" style="left:'+(i%50*15)+'px;top:'+(Math.floor(i/50)*25)+'px;animation-delay:'+(i*0.003)+'s;background:'+colors[i%10]+';opacity:'+(0.5+Math.random()*0.5).toFixed(2)+'"></div>';
   }
-
-  // ─── Benchmark 2: DOM Table ───
-  async function benchDOM() {
-    setCardState('dom', 'running');
-    setPhase('DOM 表格测试', overallProgress);
-    await sleep(50);
-
-    const t0 = preciseNow();
-    const table = document.createElement('table');
-    const tbody = document.createElement('tbody');
-    const rows = 500;
-    const cols = 10;
-    for (let i = 0; i < rows; i++) {
-      const tr = document.createElement('tr');
-      for (let j = 0; j < cols; j++) {
-        const td = document.createElement('td');
-        td.textContent = `R${i}C${j}`;
-        td.style.padding = '2px';
-        tr.appendChild(td);
+  html+='</div>';
+  area.innerHTML=html;
+  var createMs=performance.now()-t0;
+  setDetail('CSS动画运行中 (2000元素, 3秒)...');
+  var CSS_DURATION=3;
+  var startT=performance.now(),lastReportT=startT,rafCount=0;
+  return new Promise(function(resolve){
+    function tick(){
+      rafCount++;
+      var now=performance.now();
+      var elapsed=(now-startT)/1000;
+      if(elapsed>=CSS_DURATION){
+        area.innerHTML='';
+        var fps=rafCount/elapsed;
+        R.cssScore=Math.max(1,Math.round(fps/94*100));
+        R.cssDetail='Create:'+createMs.toFixed(0)+'ms FPS:'+fps.toFixed(0)+' Boxes:2000';
+        addSub('CSS动画',R.cssScore+'分 ('+fps.toFixed(0)+'fps)');
+        setProgress(67);
+        resolve();
+        return;
       }
-      tbody.appendChild(tr);
+      if(now-lastReportT>=500){setDetail('CSS FPS: ~'+(rafCount/elapsed).toFixed(0));lastReportT=now;}
+      requestAnimationFrame(tick);
     }
-    table.appendChild(tbody);
-    const t1 = preciseNow();
-    const createMs = t1 - t0;
+    requestAnimationFrame(tick);
+  });
+}
 
-    const container = document.createElement('div');
-    container.style.cssText = 'position:fixed;left:-9999px;top:0;';
-    document.body.appendChild(container);
-    const t2 = preciseNow();
-    container.appendChild(table);
-    const t3 = preciseNow();
-    const appendMs = t3 - t2;
-
-    const t4 = preciseNow();
-    for (let i = 0; i < 200; i++) {
-      const row = tbody.children[Math.floor(Math.random() * rows)];
-      row.style.backgroundColor = '#1a1a2e';
-      void row.offsetHeight;
-      row.style.backgroundColor = '';
-      void row.offsetHeight;
-    }
-    const t5 = preciseNow();
-    const reflowMs = t5 - t4;
-
-    document.body.removeChild(container);
-
-    const score = Math.round(
-      clamp(1 - createMs / 200, 0, 1) * 30 +
-      clamp(1 - appendMs / 150, 0, 1) * 35 +
-      clamp(1 - reflowMs / 100, 0, 1) * 35
-    );
-    const detail = `创建 ${createMs.toFixed(1)}ms · 插入 ${appendMs.toFixed(1)}ms · 重排 ${reflowMs.toFixed(1)}ms`;
-
-    setCardState('dom', 'done');
-    setCardResult('dom', score, detail, 100);
-    overallProgress += 1 / 6;
-    return { score, detail };
+function runLayoutRound(){
+  area.innerHTML='';
+  var t0=performance.now();
+  var html='<div id="flex-test" style="display:flex;flex-wrap:wrap;padding:8px;gap:4px">';
+  for(var i=0;i<5000;i++){
+    html+='<div style="flex:0 0 auto;padding:4px 8px;background:hsl('+(i%360)+',60%,90%);border-radius:4px;font-size:11px;border:1px solid hsl('+(i%360)+',40%,80%)">Item '+i+'</div>';
   }
-
-  // ─── Benchmark 3: DOM Cards ───
-  async function benchCard() {
-    setCardState('card', 'running');
-    setPhase('DOM 卡片测试', overallProgress);
-    await sleep(50);
-
-    const container = document.createElement('div');
-    container.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;display:flex;flex-wrap:wrap;gap:8px;';
-    document.body.appendChild(container);
-
-    const t0 = preciseNow();
-    const count = 800;
-    for (let i = 0; i < count; i++) {
-      const card = document.createElement('div');
-      card.style.cssText = 'width:80px;height:60px;background:#21262d;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#8b949e;';
-      card.textContent = '#' + i;
-      container.appendChild(card);
-    }
-    const t1 = preciseNow();
-    const createMs = t1 - t0;
-
-    const t2 = preciseNow();
-    for (let i = 0; i < 300; i++) {
-      const idx = Math.floor(Math.random() * container.children.length);
-      const el = container.children[idx];
-      el.style.transform = 'scale(1.05)';
-      el.style.boxShadow = '0 0 8px rgba(88,166,255,0.3)';
-      void el.offsetHeight;
-    }
-    const t3 = preciseNow();
-    const styleMs = t3 - t2;
-
-    const t4 = preciseNow();
-    for (let i = container.children.length - 1; i >= 0; i -= 3) {
-      container.removeChild(container.children[i]);
-    }
-    const t5 = preciseNow();
-    const removeMs = t5 - t4;
-
-    document.body.removeChild(container);
-
-    const score = Math.round(
-      clamp(1 - createMs / 400, 0, 1) * 35 +
-      clamp(1 - styleMs / 150, 0, 1) * 35 +
-      clamp(1 - removeMs / 80, 0, 1) * 30
-    );
-    const detail = `创建 ${count}卡片 ${createMs.toFixed(1)}ms · 样式 ${styleMs.toFixed(1)}ms · 删除 ${removeMs.toFixed(1)}ms`;
-
-    setCardState('card', 'done');
-    setCardResult('card', score, detail, 100);
-    overallProgress += 1 / 6;
-    return { score, detail };
+  html+='</div>';
+  area.innerHTML=html;
+  var flexMs=performance.now()-t0;
+  t0=performance.now();
+  var ghtml='<div id="grid-test" style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;padding:8px">';
+  for(var i=0;i<5000;i++){
+    ghtml+='<div style="padding:8px;background:hsl('+(i%360)+',50%,92%);border:1px solid #ddd;font-size:11px">Cell '+i+'</div>';
   }
+  ghtml+='</div>';
+  area.innerHTML=ghtml;
+  var gridMs=performance.now()-t0;
+  t0=performance.now();
+  var cells=area.querySelectorAll('#grid-test div');
+  cells.forEach(function(c,i){
+    c.style.display=i%5===0?'none':'';
+    c.style.width=i%7===0?'200px':'';
+    c.style.fontSize=i%3===0?'14px':'11px';
+  });
+  var reflowMs=performance.now()-t0;
+  t0=performance.now();area.innerHTML='';
+  var clearMs=performance.now()-t0;
+  return flexMs+gridMs+reflowMs+clearMs;
+}
 
-  // ─── Benchmark 4: CSS Animation ───
-  async function benchCSS() {
-    setCardState('css', 'running');
-    setPhase('CSS 动画测试', overallProgress);
-    await sleep(50);
-
-    const container = document.createElement('div');
-    container.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:hidden;z-index:-1;';
-    document.body.appendChild(container);
-
-    const style = document.createElement('style');
-    style.textContent = `
-      @keyframes benchMove { 0%{transform:translate(0,0) rotate(0deg);opacity:1} 50%{transform:translate(300px,200px) rotate(180deg);opacity:0.5} 100%{transform:translate(0,0) rotate(360deg);opacity:1} }
-      @keyframes benchScale { 0%{transform:scale(1)} 50%{transform:scale(1.5)} 100%{transform:scale(1)} }
-      @keyframes benchColor { 0%{background:#58a6ff} 33%{background:#bc8cff} 66%{background:#3fb950} 100%{background:#58a6ff} }
-      .bench-anim { position:absolute; width:20px; height:20px; border-radius:50%; }
-    `;
-    document.head.appendChild(style);
-
-    const animCount = 300;
-    const t0 = preciseNow();
-    for (let i = 0; i < animCount; i++) {
-      const el = document.createElement('div');
-      el.className = 'bench-anim';
-      el.style.left = Math.random() * 90 + '%';
-      el.style.top = Math.random() * 90 + '%';
-      const anims = ['benchMove 1s infinite', 'benchScale 0.8s infinite', 'benchColor 1.2s infinite'];
-      el.style.animation = anims[i % 3];
-      container.appendChild(el);
-    }
-    const t1 = preciseNow();
-    const startMs = t1 - t0;
-
-    await sleep(2000);
-
-    const t2 = preciseNow();
-    let frameCount = 0;
-    await new Promise(resolve => {
-      function countFrame() {
-        frameCount++;
-        if (frameCount >= 60) resolve();
-        else requestAnimationFrame(countFrame);
-      }
-      requestAnimationFrame(countFrame);
-    });
-    const t3 = preciseNow();
-    const fps = frameCount / ((t3 - t2) / 1000);
-
-    document.body.removeChild(container);
-    document.head.removeChild(style);
-
-    const score = Math.round(
-      clamp(1 - startMs / 300, 0, 1) * 30 +
-      clamp(fps / 60, 0, 1) * 70
-    );
-    const detail = `${animCount}动画 · 启动 ${startMs.toFixed(1)}ms · FPS ${fps.toFixed(0)}`;
-
-    setCardState('css', 'done');
-    setCardResult('css', score, detail, 100);
-    overallProgress += 1 / 6;
-    return { score, detail };
+function benchLayout(){
+  setPhase('布局重排测试');setDetail('运行30轮...');setProgress(67);
+  var ROUNDS=30, total=0;
+  for(var r=0;r<ROUNDS;r++){
+    total+=runLayoutRound();
+    if(r%5===0)setDetail('布局测试 轮 '+(r+1)+'/'+ROUNDS);
   }
+  R.layoutScore=score(total,205);
+  R.layoutDetail=ROUNDS+'轮:'+total.toFixed(0)+'ms (avg:'+(total/ROUNDS).toFixed(0)+'ms)';
+  addSub('布局重排',R.layoutScore+'分 ('+total.toFixed(0)+'ms)');
+  setProgress(83);
+}
 
-  // ─── Benchmark 5: Layout Reflow ───
-  async function benchLayout() {
-    setCardState('layout', 'running');
-    setPhase('布局重排测试', overallProgress);
-    await sleep(50);
-
-    const container = document.createElement('div');
-    container.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;';
-    document.body.appendChild(container);
-
-    const items = 500;
-    for (let i = 0; i < items; i++) {
-      const el = document.createElement('div');
-      el.style.cssText = 'padding:8px;margin:4px;border:1px solid #30363d;border-radius:4px;font-size:12px;';
-      el.textContent = 'Item ' + i;
-      container.appendChild(el);
-    }
-
-    const t0 = preciseNow();
-    for (let i = 0; i < 100; i++) {
-      container.style.width = (600 + (i % 5) * 50) + 'px';
-      void container.offsetHeight;
-    }
-    const t1 = preciseNow();
-    const widthMs = t1 - t0;
-
-    const t2 = preciseNow();
-    for (let i = 0; i < 100; i++) {
-      container.style.display = 'none';
-      void container.offsetHeight;
-      container.style.display = '';
-      void container.offsetHeight;
-    }
-    const t3 = preciseNow();
-    const displayMs = t3 - t2;
-
-    const t4 = preciseNow();
-    for (let i = 0; i < 100; i++) {
-      const el = container.children[i % items];
-      el.style.fontSize = (10 + (i % 8) * 2) + 'px';
-      el.style.padding = (4 + (i % 6) * 2) + 'px';
-      void container.offsetHeight;
-    }
-    const t5 = preciseNow();
-    const styleMs = t5 - t4;
-
-    document.body.removeChild(container);
-
-    const score = Math.round(
-      clamp(1 - widthMs / 200, 0, 1) * 35 +
-      clamp(1 - displayMs / 400, 0, 1) * 30 +
-      clamp(1 - styleMs / 300, 0, 1) * 35
-    );
-    const detail = `宽变 ${widthMs.toFixed(1)}ms · 显隐 ${displayMs.toFixed(1)}ms · 样式 ${styleMs.toFixed(1)}ms`;
-
-    setCardState('layout', 'done');
-    setCardResult('layout', score, detail, 100);
-    overallProgress += 1 / 6;
-    return { score, detail };
+function runEventRound(){
+  area.innerHTML='';
+  var t0=performance.now();
+  var html='<div id="event-test" style="padding:8px">';
+  for(var i=0;i<5000;i++){
+    html+='<button class="evt-btn" data-idx="'+i+'" style="margin:1px;padding:2px 6px;font-size:10px">Btn '+i+'</button>';
   }
-
-  // ─── Benchmark 6: Event Handling ───
-  async function benchEvent() {
-    setCardState('event', 'running');
-    setPhase('事件处理测试', overallProgress);
-    await sleep(50);
-
-    const container = document.createElement('div');
-    container.style.cssText = 'position:fixed;left:-9999px;top:0;width:400px;height:400px;';
-    document.body.appendChild(container);
-
-    let clickCount = 0;
-    let hoverCount = 0;
-    let inputCount = 0;
-
-    const btns = 200;
-    for (let i = 0; i < btns; i++) {
-      const btn = document.createElement('button');
-      btn.textContent = 'B' + i;
-      btn.addEventListener('click', () => { clickCount++; });
-      btn.addEventListener('mouseenter', () => { hoverCount++; });
-      btn.addEventListener('mouseleave', () => { hoverCount++; });
-      container.appendChild(btn);
-    }
-
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.addEventListener('input', () => { inputCount++; });
-    container.appendChild(input);
-
-    const t0 = preciseNow();
-    const clicks = 1000;
-    for (let i = 0; i < clicks; i++) {
-      const btn = container.children[i % btns];
-      btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    }
-    const t1 = preciseNow();
-    const clickMs = t1 - t0;
-
-    const t2 = preciseNow();
-    for (let i = 0; i < 500; i++) {
-      const btn = container.children[i % btns];
-      btn.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
-      btn.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
-    }
-    const t3 = preciseNow();
-    const hoverMs = t3 - t2;
-
-    const t4 = preciseNow();
-    for (let i = 0; i < 500; i++) {
-      input.value = 'test' + i;
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    const t5 = preciseNow();
-    const inputMs = t5 - t4;
-
-    document.body.removeChild(container);
-
-    const score = Math.round(
-      clamp(1 - clickMs / 150, 0, 1) * 40 +
-      clamp(1 - hoverMs / 100, 0, 1) * 30 +
-      clamp(1 - inputMs / 80, 0, 1) * 30
-    );
-    const detail = `点击 ${clickMs.toFixed(1)}ms · 悬停 ${hoverMs.toFixed(1)}ms · 输入 ${inputMs.toFixed(1)}ms`;
-
-    setCardState('event', 'done');
-    setCardResult('event', score, detail, 100);
-    overallProgress += 1 / 6;
-    return { score, detail };
+  html+='</div>';
+  area.innerHTML=html;
+  var createMs=performance.now()-t0;
+  t0=performance.now();
+  var clickCount=0;
+  area.querySelectorAll('.evt-btn').forEach(function(btn){
+    btn.addEventListener('click',function(){clickCount++;});
+  });
+  var bindMs=performance.now()-t0;
+  t0=performance.now();
+  var container=area.querySelector('#event-test');
+  container.addEventListener('click',function(e){if(e.target.classList.contains('evt-btn'))clickCount++;});
+  var btns=area.querySelectorAll('.evt-btn');
+  for(var i=0;i<Math.min(btns.length,2000);i++){
+    btns[i].click();
   }
-
-  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
-  function formatNum(n) {
-    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
-    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
-    return n.toFixed(0);
+  var fireMs=performance.now()-t0;
+  t0=performance.now();
+  var mutations=0;
+  var observer=new MutationObserver(function(){mutations++;});
+  observer.observe(container,{childList:true,subtree:true,attributes:true});
+  for(var i=0;i<2000;i++){
+    btns[i].textContent='Changed '+i;
+    btns[i].style.color='red';
   }
+  var newDiv=document.createElement('div');newDiv.textContent='added';container.appendChild(newDiv);
+  observer.disconnect();
+  var mutMs=performance.now()-t0;
+  t0=performance.now();area.innerHTML='';
+  var clearMs=performance.now()-t0;
+  return createMs+bindMs+fireMs+mutMs+clearMs;
+}
 
-  function getGrade(total) {
-    if (total >= 130) return 'S';
-    if (total >= 100) return 'A+';
-    if (total >= 75) return 'A';
-    if (total >= 55) return 'B+';
-    if (total >= 40) return 'B';
-    if (total >= 20) return 'C';
-    if (total >= 10) return 'D';
-    return 'E';
+function benchEvent(){
+  setPhase('事件处理测试');setDetail('运行30轮...');setProgress(83);
+  var ROUNDS=30, total=0;
+  for(var r=0;r<ROUNDS;r++){
+    total+=runEventRound();
+    if(r%5===0)setDetail('事件测试 轮 '+(r+1)+'/'+ROUNDS);
   }
+  R.eventScore=score(total,312);
+  R.eventDetail=ROUNDS+'轮:'+total.toFixed(0)+'ms (avg:'+(total/ROUNDS).toFixed(0)+'ms)';
+  addSub('事件处理',R.eventScore+'分 ('+total.toFixed(0)+'ms)');
+  setProgress(100);
+  finish();
+}
 
-  function gradeColor(grade) {
-    const map = { 'S': 'var(--green)', 'A+': 'var(--green)', 'A': 'var(--accent)', 'B+': 'var(--accent)', 'B': 'var(--yellow)', 'C': 'var(--yellow)', 'D': 'var(--red)', 'E': 'var(--red)' };
-    return map[grade] || 'var(--text2)';
-  }
+function finish(){
+  setPhase('测试完成!');
+  var total=Math.round(
+    (R.jsScore||0)*0.25+
+    (R.domScore||0)*0.15+
+    (R.cardScore||0)*0.10+
+    (R.cssScore||0)*0.15+
+    (R.layoutScore||0)*0.20+
+    (R.eventScore||0)*0.15
+  );
+  R.totalScore=total;
+  try{window.chrome.webview.postMessage(JSON.stringify(R));}catch(e){}
+}
 
-  // ─── Background particle effect ───
-  (function initBg() {
-    const canvas = $('bgCanvas');
-    const ctx = canvas.getContext('2d');
-    let particles = [];
-    function resize() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    }
-    resize();
-    window.addEventListener('resize', resize);
-    for (let i = 0; i < 50; i++) {
-      particles.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        vx: (Math.random() - 0.5) * 0.3,
-        vy: (Math.random() - 0.5) * 0.3,
-        r: Math.random() * 2 + 0.5,
-        a: Math.random() * 0.3 + 0.05
-      });
-    }
-    function drawBg() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      particles.forEach(p => {
-        p.x += p.vx; p.y += p.vy;
-        if (p.x < 0) p.x = canvas.width;
-        if (p.x > canvas.width) p.x = 0;
-        if (p.y < 0) p.y = canvas.height;
-        if (p.y > canvas.height) p.y = 0;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(88,166,255,${p.a})`;
-        ctx.fill();
-      });
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x;
-          const dy = particles[i].y - particles[j].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 120) {
-            ctx.beginPath();
-            ctx.moveTo(particles[i].x, particles[i].y);
-            ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.strokeStyle = `rgba(88,166,255,${0.08 * (1 - dist / 120)})`;
-            ctx.stroke();
-          }
-        }
-      }
-      requestAnimationFrame(drawBg);
-    }
-    drawBg();
-  })();
-
-  // ─── Main runner ───
-  async function run() {
-    await sleep(300);
-    const jsResult = await benchJS();
-    const domResult = await benchDOM();
-    const cardResult = await benchCard();
-    const cssResult = await benchCSS();
-    const layoutResult = await benchLayout();
-    const eventResult = await benchEvent();
-
-    setPhase('测试完成', 1);
-
-    const totalScore = jsResult.score + domResult.score + cardResult.score +
-                       cssResult.score + layoutResult.score + eventResult.score;
-    const grade = getGrade(totalScore);
-
-    $('totalScore').textContent = totalScore;
-    $('totalGrade').textContent = grade;
-    $('totalGrade').style.color = gradeColor(grade);
-
-    const breakdown = $('breakdown');
-    const items = [
-      { label: 'JS引擎', val: jsResult.score },
-      { label: 'DOM表格', val: domResult.score },
-      { label: 'DOM卡片', val: cardResult.score },
-      { label: 'CSS动画', val: cssResult.score },
-      { label: '布局重排', val: layoutResult.score },
-      { label: '事件处理', val: eventResult.score },
-    ];
-    items.forEach(it => {
-      const div = document.createElement('div');
-      div.className = 'summary-item';
-      const cls = it.val >= 80 ? 's' : it.val >= 55 ? 'a' : it.val >= 30 ? 'b' : 'c';
-      const color = cls === 's' ? 'var(--green)' : cls === 'a' ? 'var(--accent)' : cls === 'b' ? 'var(--yellow)' : 'var(--red)';
-      div.innerHTML = `<label>${it.label}</label><span style="color:${color}">${it.val}</span>`;
-      breakdown.appendChild(div);
-    });
-
-    $('summary').classList.add('show');
-
-    const payload = {
-      jsScore: jsResult.score,
-      jsDetail: jsResult.detail,
-      domScore: domResult.score,
-      domDetail: domResult.detail,
-      cardScore: cardResult.score,
-      cardDetail: cardResult.detail,
-      cssScore: cssResult.score,
-      cssDetail: cssResult.detail,
-      layoutScore: layoutResult.score,
-      layoutDetail: layoutResult.detail,
-      eventScore: eventResult.score,
-      eventDetail: eventResult.detail,
-      totalScore: totalScore,
-    };
-
-    if (window.chrome && window.chrome.webview) {
-      window.chrome.webview.postMessage(JSON.stringify(payload));
-    }
-  }
-
-  run();
+async function run(){
+  benchJS();
+  benchDOMTable();
+  benchDOMCards();
+  await benchCSS();
+  benchLayout();
+  benchEvent();
+}
+run();
 })();
-</script>
-</body>
-</html>
+</script></body></html>
