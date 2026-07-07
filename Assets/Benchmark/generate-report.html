@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>性能测试报告</title>
+<style>
+  @page { size: A4; margin: 20mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
+    color: #1a1a2e;
+    background: #fff;
+    padding: 40px;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  .header {
+    text-align: center;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid #e8e8e8;
+  }
+  .header h1 {
+    font-size: 24px;
+    font-weight: 800;
+    color: #0063b1;
+    margin-bottom: 4px;
+  }
+  .header .meta {
+    font-size: 12px;
+    color: #666;
+    margin-top: 8px;
+  }
+  .score-cards {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+  .score-card {
+    flex: 1;
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+  }
+  .score-card h3 { font-size: 13px; color: #666; margin-bottom: 8px; }
+  .score-card .val { font-size: 40px; font-weight: 900; }
+  .score-card .grade { font-size: 18px; font-weight: 700; margin-top: 4px; }
+  .score-card.gaming .val, .score-card.gaming .grade { color: #0063b1; }
+  .score-card.office .val, .score-card.office .grade { color: #7b2ff7; }
+  .section {
+    margin-bottom: 24px;
+    page-break-inside: avoid;
+  }
+  .section h2 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #0063b1;
+    margin-bottom: 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #e8e8e8;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .info-grid {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 6px 12px;
+    font-size: 13px;
+  }
+  .info-grid .label { color: #666; }
+  .info-grid .value { font-weight: 600; }
+  .bench-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .bench-table th {
+    text-align: left;
+    padding: 8px 10px;
+    background: #f0f0f0;
+    font-weight: 600;
+    border-bottom: 2px solid #ddd;
+  }
+  .bench-table td {
+    padding: 7px 10px;
+    border-bottom: 1px solid #eee;
+  }
+  .bench-table .score { font-weight: 700; }
+  .score-s { color: #22c55e; }
+  .score-a { color: #0063b1; }
+  .score-b { color: #d29922; }
+  .score-c { color: #f85149; }
+  .heatmap-img {
+    max-width: 100%;
+    margin-top: 12px;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+  }
+  .footer {
+    margin-top: 32px;
+    padding-top: 16px;
+    border-top: 1px solid #e8e8e8;
+    text-align: center;
+    font-size: 11px;
+    color: #999;
+  }
+</style>
+</head>
+<body>
+
+<div id="report"></div>
+
+<script>
+function gradeColor(grade) {
+  if (grade === 'S' || grade === 'A+') return 'score-s';
+  if (grade === 'A' || grade === 'B+') return 'score-a';
+  if (grade === 'B' || grade === 'C') return 'score-b';
+  return 'score-c';
+}
+
+function scoreClass(score) {
+  if (score >= 80) return 'score-s';
+  if (score >= 55) return 'score-a';
+  if (score >= 30) return 'score-b';
+  return 'score-c';
+}
+
+function renderReport() {
+  const d = window.REPORT_DATA;
+  if (!d) return;
+
+  let html = '';
+
+  html += `<div class="header">
+    <h1>性能测试报告</h1>
+    <div class="meta">${d.testTime} · ${d.durationMode}模式 · 耗时 ${d.totalDuration} · 图吧工具箱 v${d.appVersion}</div>
+  </div>`;
+
+  html += `<div class="score-cards">
+    <div class="score-card gaming">
+      <h3>游戏性能</h3>
+      <div class="val">${d.gamingScore}</div>
+      <div class="grade ${gradeColor(d.gamingGrade)}">${d.gamingGrade}</div>
+    </div>
+    <div class="score-card office">
+      <h3>办公性能</h3>
+      <div class="val">${d.officeScore}</div>
+      <div class="grade ${gradeColor(d.officeGrade)}">${d.officeGrade}</div>
+    </div>
+  </div>`;
+
+  html += `<div class="section">
+    <h2>🖥️ 硬件信息</h2>
+    <div class="info-grid">
+      <span class="label">处理器</span><span class="value">${d.cpuName}</span>
+      <span class="label">显卡</span><span class="value">${d.gpuName}</span>
+      <span class="label">主板</span><span class="value">${d.motherboardName || 'N/A'}</span>
+      <span class="label">内存</span><span class="value">${d.memoryInfo || 'N/A'}</span>
+      <span class="label">硬盘</span><span class="value">${d.diskInfo || 'N/A'}</span>
+      <span class="label">显示器</span><span class="value">${d.displayInfo || 'N/A'}</span>
+      <span class="label">系统</span><span class="value">${d.osName || 'N/A'}</span>
+    </div>
+  </div>`;
+
+  html += `<div class="section">
+    <h2>⚡ CPU 性能</h2>
+    <table class="bench-table">
+      <tr><th>项目</th><th>分数</th><th>详情</th></tr>
+      <tr><td>单核</td><td class="score ${scoreClass(d.cpu.singleCoreScore)}">${d.cpu.singleCoreScore}</td><td>${d.cpu.singleCoreIterations || ''} iterations</td></tr>
+      <tr><td>多核</td><td class="score ${scoreClass(d.cpu.multiCoreScore)}">${d.cpu.multiCoreScore}</td><td>${d.cpu.multiCoreIterations || ''} iterations</td></tr>
+      <tr><td>核间延迟</td><td class="score ${scoreClass(d.cpu.latencyScore)}">${d.cpu.latencyScore}</td><td>${d.cpu.latencyMatrix ? '平均 ' + d.cpu.latencyMatrix.averageNs + 'ns' : 'N/A'}</td></tr>
+    </table>`;
+  if (d.cpu.latencyMatrix && d.cpu.latencyMatrix.heatmapBase64) {
+    html += `<img class="heatmap-img" src="data:image/png;base64,${d.cpu.latencyMatrix.heatmapBase64}" alt="Latency Heatmap" />`;
+  }
+  html += `</div>`;
+
+  html += `<div class="section">
+    <h2>🎮 GPU 性能</h2>
+    <table class="bench-table">
+      <tr><th>项目</th><th>分数</th><th>详情</th></tr>
+      <tr><td>渲染性能</td><td class="score ${scoreClass(d.gpu.renderScore)}">${d.gpu.renderScore}</td><td>${d.gpu.renderFps ? d.gpu.renderFps + ' FPS' : ''}</td></tr>
+      <tr><td>FurMark</td><td class="score ${scoreClass(d.gpu.furMarkScore)}">${d.gpu.furMarkScore}</td><td>平均 ${Math.round(d.gpu.avgFps)} FPS</td></tr>
+      <tr><td>FPS范围</td><td class="score ${scoreClass(Math.round(d.gpu.minFps))}">${Math.round(d.gpu.minFps)}</td><td>最低 ${Math.round(d.gpu.minFps)} / 最高 ${Math.round(d.gpu.maxFps)}</td></tr>
+    </table>
+  </div>`;
+
+  html += `<div class="section">
+    <h2>💾 内存</h2>
+    <table class="bench-table">
+      <tr><th>项目</th><th>分数</th><th>详情</th></tr>
+      <tr><td>容量</td><td class="score ${scoreClass(d.memory.capacityScore)}">${d.memory.capacityScore}</td><td>${d.memory.totalCapacityGB} GB</td></tr>
+    </table>
+  </div>`;
+
+  html += `<div class="section">
+    <h2>💿 硬盘性能</h2>
+    <table class="bench-table">
+      <tr><th>项目</th><th>分数</th><th>详情</th></tr>
+      <tr><td>顺序读取</td><td class="score ${scoreClass(d.disk.seqReadScore)}">${d.disk.seqReadScore}</td><td>${Math.round(d.disk.seqReadMBs)} MB/s</td></tr>
+      <tr><td>顺序写入</td><td class="score ${scoreClass(d.disk.seqWriteScore)}">${d.disk.seqWriteScore}</td><td>${Math.round(d.disk.seqWriteMBs)} MB/s</td></tr>
+      <tr><td>4K随机读</td><td class="score ${scoreClass(d.disk.random4KReadScore)}">${d.disk.random4KReadScore}</td><td>${(d.disk.random4KReadIops / 1000).toFixed(0)}K IOPS</td></tr>
+      <tr><td>4K随机写</td><td class="score ${scoreClass(d.disk.random4KWriteScore)}">${d.disk.random4KWriteScore}</td><td>${(d.disk.random4KWriteIops / 1000).toFixed(0)}K IOPS</td></tr>
+      <tr><td>温度</td><td class="score ${scoreClass(d.disk.tempScore)}">${d.disk.tempScore}</td><td>${d.disk.temperature > 0 ? Math.round(d.disk.temperature) + '℃' : 'N/A'}</td></tr>
+    </table>
+  </div>`;
+
+  html += `<div class="section">
+    <h2>🌐 浏览器流畅度</h2>
+    <table class="bench-table">
+      <tr><th>项目</th><th>分数</th></tr>
+      <tr><td>JS 引擎</td><td class="score ${scoreClass(d.browser.jsScore)}">${d.browser.jsScore}</td></tr>
+      <tr><td>DOM 表格</td><td class="score ${scoreClass(d.browser.domScore)}">${d.browser.domScore}</td></tr>
+      <tr><td>DOM 卡片</td><td class="score ${scoreClass(d.browser.cardScore)}">${d.browser.cardScore}</td></tr>
+      <tr><td>CSS 动画</td><td class="score ${scoreClass(d.browser.cssScore)}">${d.browser.cssScore}</td></tr>
+      <tr><td>布局重排</td><td class="score ${scoreClass(d.browser.layoutScore)}">${d.browser.layoutScore}</td></tr>
+      <tr><td>事件处理</td><td class="score ${scoreClass(d.browser.eventScore)}">${d.browser.eventScore}</td></tr>
+      <tr><td><strong>总分</strong></td><td class="score ${scoreClass(d.browser.totalScore)}"><strong>${d.browser.totalScore}</strong></td></tr>
+    </table>
+  </div>`;
+
+  html += `<div class="footer">图吧工具箱 TubaWinUi3 · ${d.testTime} · 本报告由自动测试生成</div>`;
+
+  document.getElementById('report').innerHTML = html;
+
+  if (window.chrome && window.chrome.webview) {
+    window.chrome.webview.postMessage('report_ready');
+  }
+}
+
+window.renderReport = renderReport;
+</script>
+</body>
+</html>

@@ -216,6 +216,27 @@ public sealed partial class HomePage : Page
         }
     }
 
+    private async void DownloadToolsButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dialog = new ToolsBundleDownloadDialog
+            {
+                XamlRoot = XamlRoot,
+                RequestedTheme = ThemeService.CurrentElementTheme
+            };
+            await dialog.ShowDownloadAsync();
+
+            if (dialog.DownloadSucceeded)
+            {
+                ToolCatalog.RefreshToolsRoot();
+                ToolCatalog.InvalidateTagsCache();
+                _ = LoadToolsAsync();
+            }
+        }
+        catch { }
+    }
+
     private void UpdateTitle()
     {
         var query = _searchQuery;
@@ -275,6 +296,15 @@ public sealed partial class HomePage : Page
                     : _category is not null
                         ? "此分类下没有可用工具。"
                         : "没有找到任何工具，请检查 Tools 目录。";
+
+            DownloadToolsButton.Visibility = _tools.Count == 0
+                && string.IsNullOrEmpty(query)
+                && _selectedTag is null
+                && _category is null
+                && RuntimeHelper.IsMsixPackaged
+                && !ToolsBundleService.IsToolsBundleReady()
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
 
             StartIconLoading(tools);
 

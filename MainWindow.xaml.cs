@@ -12,6 +12,7 @@ using TubaWinUi3.Pages;
 using TubaWinUi3.Services;
 using Windows.UI;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Media;
 
 namespace TubaWinUi3;
 
@@ -24,6 +25,7 @@ public sealed partial class MainWindow : Window
     private readonly ObservableCollection<SearchResult> _searchResults = [];
     private readonly DispatcherQueueTimer _searchDebounceTimer;
     private Flyout? _downloadFlyout;
+    private int _lastBadgeCount;
 
     public MainWindow()
     {
@@ -99,7 +101,7 @@ public sealed partial class MainWindow : Window
         if (pageType == typeof(FavoritesPage)) return "favorites";
         if (pageType == typeof(HardwarePage)) return "hardware";
         if (pageType == typeof(BuiltinToolsPage)) return "builtin";
-        if (pageType == typeof(CommunityToolsPage)) return "community";
+
         if (pageType == typeof(HomePage))
         {
             if (parameter is string category) return category;
@@ -155,6 +157,38 @@ public sealed partial class MainWindow : Window
         {
             DownloadQueueBadge.Visibility = Visibility.Collapsed;
         }
+
+        if (count > _lastBadgeCount)
+        {
+            PlayDownloadPulseAnimation();
+        }
+        _lastBadgeCount = count;
+    }
+
+    private void PlayDownloadPulseAnimation()
+    {
+        var btn = DownloadQueueButton;
+        btn.RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5);
+        btn.RenderTransform = new ScaleTransform();
+
+        var scaleX = new DoubleAnimationUsingKeyFrames();
+        Storyboard.SetTargetProperty(scaleX, "(UIElement.RenderTransform).(ScaleTransform.ScaleX)");
+        Storyboard.SetTarget(scaleX, btn);
+        scaleX.KeyFrames.Add(new EasingDoubleKeyFrame { KeyTime = TimeSpan.Zero, Value = 1.0 });
+        scaleX.KeyFrames.Add(new EasingDoubleKeyFrame { KeyTime = TimeSpan.FromMilliseconds(150), Value = 1.3, EasingFunction = new CircleEase { EasingMode = EasingMode.EaseOut } });
+        scaleX.KeyFrames.Add(new EasingDoubleKeyFrame { KeyTime = TimeSpan.FromMilliseconds(400), Value = 1.0, EasingFunction = new BackEase { Amplitude = 0.4, EasingMode = EasingMode.EaseInOut } });
+
+        var scaleY = new DoubleAnimationUsingKeyFrames();
+        Storyboard.SetTargetProperty(scaleY, "(UIElement.RenderTransform).(ScaleTransform.ScaleY)");
+        Storyboard.SetTarget(scaleY, btn);
+        scaleY.KeyFrames.Add(new EasingDoubleKeyFrame { KeyTime = TimeSpan.Zero, Value = 1.0 });
+        scaleY.KeyFrames.Add(new EasingDoubleKeyFrame { KeyTime = TimeSpan.FromMilliseconds(150), Value = 1.3, EasingFunction = new CircleEase { EasingMode = EasingMode.EaseOut } });
+        scaleY.KeyFrames.Add(new EasingDoubleKeyFrame { KeyTime = TimeSpan.FromMilliseconds(400), Value = 1.0, EasingFunction = new BackEase { Amplitude = 0.4, EasingMode = EasingMode.EaseInOut } });
+
+        var sb = new Storyboard();
+        sb.Children.Add(scaleX);
+        sb.Children.Add(scaleY);
+        sb.Begin();
     }
 
     private void DownloadQueueButton_Click(object sender, RoutedEventArgs e)
@@ -272,9 +306,7 @@ public sealed partial class MainWindow : Window
                 case "builtin":
                     NavFrame.Navigate(typeof(BuiltinToolsPage));
                     break;
-                case "community":
-                    NavFrame.Navigate(typeof(CommunityToolsPage));
-                    break;
+
                 case "benchmark":
                     _navFromSidebar = false;
                     ExecuteBenchmarkToolAsync();
@@ -377,12 +409,6 @@ public sealed partial class MainWindow : Window
     public void RefreshToolCategories()
     {
         PopulateCategories();
-    }
-
-    public void NavigateToCommunity()
-    {
-        NavFrame.Navigate(typeof(CommunityToolsPage));
-        SyncNavSelection("community");
     }
 
     private async Task ExecuteBenchmarkToolAsync()
@@ -584,10 +610,7 @@ public sealed partial class MainWindow : Window
                     new SearchNavigationTarget { HighlightBuiltinId = result.MatchKey });
                 SyncNavSelection("builtin");
                 break;
-            case SearchItemKind.CommunityTool:
-                NavFrame.Navigate(typeof(CommunityToolsPage));
-                SyncNavSelection("community");
-                break;
+
             case SearchItemKind.Setting:
                 NavFrame.Navigate(typeof(SettingsPage),
                     new SearchNavigationTarget { HighlightSettingKey = result.MatchKey });
@@ -654,10 +677,7 @@ public sealed partial class MainWindow : Window
                 _navFromSidebar = false;
                 ExecuteBenchmarkToolAsync();
                 break;
-            case "community":
-                NavFrame.Navigate(typeof(CommunityToolsPage));
-                SyncNavSelection("community");
-                break;
+
             case "settings":
                 NavFrame.Navigate(typeof(SettingsPage));
                 break;

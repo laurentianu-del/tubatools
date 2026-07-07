@@ -1,8 +1,5 @@
-using System.Diagnostics;
-using System.IO.Compression;
-using System.Net.Http;
-using System.Reflection;
 using System.Text.Json;
+using TubaWinUi3.Models;
 
 namespace TubaWinUi3.Services;
 
@@ -12,13 +9,6 @@ public sealed record ToolsBundleUpdateInfo(
     string? GitCodeUrl = null,
     string? GitHubUrl = null,
     long Size = 0);
-
-public sealed record ToolsBundleProgress(
-    long BytesReceived,
-    long TotalBytes,
-    double Percentage,
-    double SpeedMbps,
-    TimeSpan? EstimatedRemaining);
 
 public static class ToolsBundleService
 {
@@ -54,6 +44,8 @@ public static class ToolsBundleService
         catch { return false; }
     }
 
+    public static string GetToolsBundleDir() => ToolsBundleDir;
+
     public static string? GetCurrentVersion()
     {
         return AppSettings.Get("ToolsBundleVersion");
@@ -63,7 +55,7 @@ public static class ToolsBundleService
     {
         get
         {
-            var v = Assembly.GetExecutingAssembly().GetName().Version;
+            var v = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
             return v is not null ? new Version(v.Major, v.Minor, v.Build) : new Version(1, 0, 0);
         }
     }
@@ -112,160 +104,52 @@ public static class ToolsBundleService
         return new ToolsBundleUpdateInfo(true, versionStr, gitCodeUrl, githubUrl, size);
     }
 
-    public static async Task<bool> DownloadAndExtractAsync(
-        ToolsBundleUpdateInfo info,
-        IProgress<ToolsBundleProgress>? progress = null,
-        CancellationToken ct = default)
-    {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"TubaWinUi3_Tools_{Guid.NewGuid():N}");
-        var tempZipPath = Path.Combine(tempDir, ToolsAssetName);
-
-        try
-        {
-            Directory.CreateDirectory(tempDir);
-
-            var downloadUrl = PickBestUrl(info);
-            if (string.IsNullOrEmpty(downloadUrl))
-                throw new InvalidOperationException("没有可用的下载链接");
-
-            await DownloadFileAsync(downloadUrl, tempZipPath, info.Size, progress, ct);
-
-            if (!File.Exists(tempZipPath))
-                throw new InvalidOperationException("下载文件不存在");
-
-            progress?.Report(new ToolsBundleProgress(0, 0, 0, 0, null));
-
-            await ExtractAndReplaceAsync(tempZipPath, ct);
-
-            AppSettings.Set("ToolsBundleVersion", info.Version);
-            ToolCatalog.InvalidateTagsCache();
-
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-        finally
-        {
-            try
-            {
-                if (Directory.Exists(tempDir))
-                    Directory.Delete(tempDir, true);
-            }
-            catch { }
-        }
-    }
-
-    private static string? PickBestUrl(ToolsBundleUpdateInfo info)
+    public static string? PickBestUrl(ToolsBundleUpdateInfo info)
     {
         if (!string.IsNullOrEmpty(info.GitCodeUrl)) return info.GitCodeUrl;
         if (!string.IsNullOrEmpty(info.GitHubUrl)) return info.GitHubUrl;
         return null;
     }
 
-    private static async Task DownloadFileAsync(
-        string url, string destPath, long knownSize,
-        IProgress<ToolsBundleProgress>? progress, CancellationToken ct)
+    public static Func<CancellationToken, Task<ResolvedDownloadUrl>> CreateUrlResolver(
+        ToolsBundleUpdateInfo info, bool preferGitCode = true)
     {
-        using var client = new HttpClient { Timeout = TimeSpan.FromMinutes(60) };
-        var sw = Stopwatch.StartNew();
-
-        using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
-        response.EnsureSuccessStatusCode();
-
-        var totalBytes = response.Content.Headers.ContentLength ?? knownSize;
-        using var stream = await response.Content.ReadAsStreamAsync(ct);
-        using var fs = File.Create(destPath);
-
-        var buffer = new byte[81920];
-        long bytesRead = 0;
-        var lastReport = sw.Elapsed;
-        long lastBytes = 0;
-
-        while (true)
+        return async ct =>
         {
-            ct.ThrowIfCancellationRequested();
+            var url = preferGitCode
+                ? (info.GitCodeUrl ?? info.GitHubUrl)
+                : (info.GitHubUrl ?? info.GitCodeUrl);
 
-            var read = await stream.ReadAsync(buffer, ct);
-            if (read == 0) break;
+            if (string.IsNullOrEmpty(url))
+                throw new InvalidOperationException("没有可用的下载链接");
 
-            await fs.WriteAsync(buffer.AsMemory(0, read), ct);
-            bytesRead += read;
-
-            var now = sw.Elapsed;
-            if (now - lastReport > TimeSpan.FromMilliseconds(300))
-            {
-                var chunkBytes = bytesRead - lastBytes;
-                var chunkTime = (now - lastReport).TotalSeconds;
-                var speedMbps = chunkBytes / Math.Max(chunkTime, 0.001) * 8 / 1_000_000;
-                var percentage = totalBytes > 0 ? (double)bytesRead / totalBytes * 100 : 0;
-                var remaining = totalBytes > 0 && speedMbps > 0
-                    ? TimeSpan.FromSeconds((totalBytes - bytesRead) / Math.Max(speedMbps * 1_000_000 / 8, 1))
-                    : (TimeSpan?)null;
-
-                progress?.Report(new ToolsBundleProgress(bytesRead, totalBytes, percentage, speedMbps, remaining));
-
-                lastReport = now;
-                lastBytes = bytesRead;
-            }
-        }
-
-        progress?.Report(new ToolsBundleProgress(bytesRead, totalBytes, 100, 0, TimeSpan.Zero));
+            var fileName = ToolsAssetName;
+            return new ResolvedDownloadUrl(url, fileName, info.Size);
+        };
     }
 
-    private static async Task ExtractAndReplaceAsync(string zipPath, CancellationToken ct)
+    public static string FormatSize(long bytes)
     {
-        var extractDir = Path.Combine(Path.GetTempPath(), $"TubaWinUi3_Extract_{Guid.NewGuid():N}");
+        if (bytes >= 1L << 30) return $"{(double)bytes / (1L << 30):F2} GB";
+        if (bytes >= 1L << 20) return $"{(double)bytes / (1L << 20):F1} MB";
+        if (bytes >= 1L << 10) return $"{(double)bytes / (1L << 10):F1} KB";
+        return $"{bytes} B";
+    }
 
-        try
-        {
-            await Task.Run(() =>
-            {
-                ZipFile.ExtractToDirectory(zipPath, extractDir, true);
-            }, ct);
+    public static string FormatSpeed(double mbps)
+    {
+        if (mbps >= 1000) return $"{mbps / 1000:F2} Gbps";
+        if (mbps >= 1) return $"{mbps:F2} Mbps";
+        return $"{mbps * 1000:F0} Kbps";
+    }
 
-            var toolsDir = ToolsBundleDir;
-
-            if (Directory.Exists(toolsDir))
-            {
-                var backupDir = toolsDir + "_bak";
-                if (Directory.Exists(backupDir))
-                {
-                    try { Directory.Delete(backupDir, true); } catch { }
-                }
-                try { Directory.Move(toolsDir, backupDir); } catch { }
-            }
-
-            try
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(toolsDir)!);
-                Directory.Move(extractDir, toolsDir);
-            }
-            catch
-            {
-                var backupDir = toolsDir + "_bak";
-                if (Directory.Exists(backupDir))
-                {
-                    try { Directory.Move(backupDir, toolsDir); } catch { }
-                }
-                throw;
-            }
-
-            var oldBackup = toolsDir + "_bak";
-            if (Directory.Exists(oldBackup))
-            {
-                try { Directory.Delete(oldBackup, true); } catch { }
-            }
-        }
-        catch
-        {
-            if (Directory.Exists(extractDir))
-            {
-                try { Directory.Delete(extractDir, true); } catch { }
-            }
-            throw;
-        }
+    public static string FormatTime(TimeSpan? time)
+    {
+        if (time is null || time.Value.TotalSeconds <= 0) return "--";
+        var t = time.Value;
+        if (t.TotalHours >= 1) return $"{(int)t.TotalHours}h {t.Minutes}m";
+        if (t.TotalMinutes >= 1) return $"{t.Minutes}m {t.Seconds}s";
+        return $"{t.Seconds}s";
     }
 
     private static async Task<(string Url, long Size, string Version)?> FetchGitCodeLatestAsync(CancellationToken ct)
@@ -280,27 +164,7 @@ public static class ToolsBundleService
             if (!response.IsSuccessStatusCode) return null;
 
             var json = await response.Content.ReadAsStringAsync(ct);
-            var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-
-            var tagName = root.GetProperty("tag_name").GetString() ?? "";
-            var versionStr = tagName.TrimStart('v', 'V');
-
-            if (!root.TryGetProperty("assets", out var assetsEl)) return null;
-
-            foreach (var asset in assetsEl.EnumerateArray())
-            {
-                var name = asset.GetProperty("name").GetString() ?? "";
-                if (!name.Equals(ToolsAssetName, StringComparison.OrdinalIgnoreCase)) continue;
-
-                var downloadUrl = asset.GetProperty("browser_download_url").GetString() ?? "";
-                var assetSize = asset.TryGetProperty("size", out var sizeEl) ? sizeEl.GetInt64() : 0;
-
-                if (string.IsNullOrEmpty(downloadUrl)) continue;
-                return (downloadUrl, assetSize, versionStr);
-            }
-
-            return null;
+            return ParseReleaseJson(json);
         }
         catch { return null; }
     }
@@ -348,29 +212,5 @@ public static class ToolsBundleService
             return null;
         }
         catch { return null; }
-    }
-
-    public static string FormatSize(long bytes)
-    {
-        if (bytes >= 1L << 30) return $"{(double)bytes / (1L << 30):F2} GB";
-        if (bytes >= 1L << 20) return $"{(double)bytes / (1L << 20):F1} MB";
-        if (bytes >= 1L << 10) return $"{(double)bytes / (1L << 10):F1} KB";
-        return $"{bytes} B";
-    }
-
-    public static string FormatSpeed(double mbps)
-    {
-        if (mbps >= 1000) return $"{mbps / 1000:F2} Gbps";
-        if (mbps >= 1) return $"{mbps:F2} Mbps";
-        return $"{mbps * 1000:F0} Kbps";
-    }
-
-    public static string FormatTime(TimeSpan? time)
-    {
-        if (time is null || time.Value.TotalSeconds <= 0) return "--";
-        var t = time.Value;
-        if (t.TotalHours >= 1) return $"{(int)t.TotalHours}h {t.Minutes}m";
-        if (t.TotalMinutes >= 1) return $"{t.Minutes}m {t.Seconds}s";
-        return $"{t.Seconds}s";
     }
 }

@@ -196,11 +196,6 @@
                         <FontIcon Glyph="&#xE90F;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Content="社区" Tag="community">
-                    <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE774;" />
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
                 <NavigationViewItem Content="性能测试" Tag="benchmark">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE9D9;" />

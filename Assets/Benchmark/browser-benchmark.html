@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>浏览器性能测试</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --card: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text2: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --yellow: #d29922;
+    --red: #f85149;
+    --purple: #bc8cff;
+    --cyan: #39d2c0;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    padding: 24px;
+    overflow-x: hidden;
+  }
+  .header {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  .header h1 {
+    font-size: 22px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent), var(--purple), var(--cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 4px;
+  }
+  .header p { color: var(--text2); font-size: 13px; }
+
+  .progress-section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .progress-bar-track {
+    width: 100%;
+    height: 8px;
+    background: #21262d;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 12px;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--accent), var(--purple));
+    transition: width 0.4s ease;
+    width: 0%;
+  }
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .progress-label span { font-size: 14px; font-weight: 600; }
+  .progress-label small { color: var(--text2); font-size: 12px; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s;
+  }
+  .card.running { border-color: var(--accent); }
+  .card.done { border-color: var(--green); }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    transition: background 0.3s;
+  }
+  .card.running::before {
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    animation: shimmer 1.5s infinite;
+  }
+  .card.done::before {
+    background: linear-gradient(90deg, transparent, var(--green), transparent);
+  }
+  @keyframes shimmer {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+  }
+  .card-icon { font-size: 20px; margin-bottom: 8px; }
+  .card-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .card-detail {
+    font-size: 11px;
+    color: var(--text2);
+    min-height: 16px;
+    margin-bottom: 8px;
+  }
+  .card-score {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--text2);
+    transition: color 0.3s;
+  }
+  .card-score.s { color: var(--green); }
+  .card-score.a { color: var(--accent); }
+  .card-score.b { color: var(--yellow); }
+  .card-score.c { color: var(--red); }
+  .card-mini-bar {
+    height: 3px;
+    background: #21262d;
+    border-radius: 2px;
+    margin-top: 10px;
+    overflow: hidden;
+  }
+  .card-mini-fill {
+    height: 100%;
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.6s ease, background 0.3s;
+    background: var(--accent);
+  }
+
+  .summary {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    text-align: center;
+    display: none;
+  }
+  .summary.show { display: block; animation: fadeIn 0.5s; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  .summary-total {
+    font-size: 52px;
+    font-weight: 900;
+    background: linear-gradient(135deg, var(--green), var(--cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .summary-grade {
+    font-size: 20px;
+    font-weight: 700;
+    margin-top: 4px;
+  }
+  .summary-breakdown {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .summary-item {
+    background: #21262d;
+    border-radius: 8px;
+    padding: 10px 6px;
+    text-align: center;
+  }
+  .summary-item label { font-size: 10px; color: var(--text2); display: block; }
+  .summary-item span { font-size: 18px; font-weight: 700; }
+
+  .canvas-overlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: -1;
+  }
+</style>
+</head>
+<body>
+
+<canvas class="canvas-overlay" id="bgCanvas"></canvas>
+
+<div class="header">
+  <h1>Browser Performance Benchmark</h1>
+  <p id="statusText">正在初始化...</p>
+</div>
+
+<div class="progress-section">
+  <div class="progress-label">
+    <span id="phaseText">准备中</span>
+    <small id="percentText">0%</small>
+  </div>
+  <div class="progress-bar-track">
+    <div class="progress-bar-fill" id="mainProgress"></div>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="card" id="card-js">
+    <div class="card-title">⚡ JS 引擎</div>
+    <div class="card-detail" id="detail-js">等待测试</div>
+    <div class="card-score" id="score-js">—</div>
+    <div class="card-mini-bar"><div class="card-mini-fill" id="bar-js"></div></div>
+  </div>
+  <div class="card" id="card-dom">
+    <div class="card-title">📊 DOM 表格</div>
+    <div class="card-detail" id="detail-dom">等待测试</div>
+    <div class="card-score" id="score-dom">—</div>
+    <div class="card-mini-bar"><div class="card-mini-fill" id="bar-dom"></div></div>
+  </div>
+  <div class="card" id="card-card">
+    <div class="card-title">🃏 DOM 卡片</div>
+    <div class="card-detail" id="detail-card">等待测试</div>
+    <div class="card-score" id="score-card">—</div>
+    <div class="card-mini-bar"><div class="card-mini-fill" id="bar-card"></div></div>
+  </div>
+  <div class="card" id="card-css">
+    <div class="card-title">🎨 CSS 动画</div>
+    <div class="card-detail" id="detail-css">等待测试</div>
+    <div class="card-score" id="score-css">—</div>
+    <div class="card-mini-bar"><div class="card-mini-fill" id="bar-css"></div></div>
+  </div>
+  <div class="card" id="card-layout">
+    <div class="card-title">📐 布局重排</div>
+    <div class="card-detail" id="detail-layout">等待测试</div>
+    <div class="card-score" id="score-layout">—</div>
+    <div class="card-mini-bar"><div class="card-mini-fill" id="bar-layout"></div></div>
+  </div>
+  <div class="card" id="card-event">
+    <div class="card-title">🖱️ 事件处理</div>
+    <div class="card-detail" id="detail-event">等待测试</div>
+    <div class="card-score" id="score-event">—</div>
+    <div class="card-mini-bar"><div class="card-mini-fill" id="bar-event"></div></div>
+  </div>
+</div>
+
+<div class="summary" id="summary">
+  <div style="font-size:13px;color:var(--text2);margin-bottom:8px;">综合得分</div>
+  <div class="summary-total" id="totalScore">0</div>
+  <div class="summary-grade" id="totalGrade"></div>
+  <div class="summary-breakdown" id="breakdown"></div>
+</div>
+
+<script>
+(function() {
+  const $ = id => document.getElementById(id);
+  let overallProgress = 0;
+
+  function setPhase(name, pct) {
+    $('phaseText').textContent = name;
+    $('percentText').textContent = Math.round(pct * 100) + '%';
+    $('mainProgress').style.width = (pct * 100) + '%';
+    $('statusText').textContent = name;
+  }
+
+  function setCardState(key, state) {
+    const card = $('card-' + key);
+    card.classList.remove('running', 'done');
+    if (state) card.classList.add(state);
+  }
+
+  function setCardResult(key, score, detail, maxScore) {
+    const scoreEl = $('score-' + key);
+    const detailEl = $('detail-' + key);
+    const barEl = $('bar-' + key);
+    scoreEl.textContent = score;
+    detailEl.textContent = detail;
+    const pct = Math.min(100, (score / Math.max(1, maxScore)) * 100);
+    barEl.style.width = pct + '%';
+    const cls = score >= 80 ? 's' : score >= 55 ? 'a' : score >= 30 ? 'b' : 'c';
+    scoreEl.classList.add(cls);
+    barEl.style.background = cls === 's' ? 'var(--green)' : cls === 'a' ? 'var(--accent)' : cls === 'b' ? 'var(--yellow)' : 'var(--red)';
+  }
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  function preciseNow() { return performance.now(); }
+
+  // ─── Benchmark 1: JS Engine ───
+  async function benchJS() {
+    setCardState('js', 'running');
+    setPhase('JS 引擎测试', overallProgress);
+    await sleep(50);
+
+    const iterations = 200000;
+    let ops = 0;
+    const t0 = preciseNow();
+    for (let i = 0; i < iterations; i++) {
+      Math.sqrt(i * 3.14159);
+      Math.sin(i * 0.001) * Math.cos(i * 0.002);
+      JSON.parse('{"a":' + i + '}');
+      ops += 3;
+    }
+    const t1 = preciseNow();
+    const dt = t1 - t0;
+    const opsPerSec = ops / (dt / 1000);
+
+    const fibIter = 50000;
+    let fibOps = 0;
+    const t2 = preciseNow();
+    for (let i = 0; i < fibIter; i++) {
+      let a = 0, b = 1;
+      for (let j = 0; j < 30; j++) { let c = a + b; a = b; b = c; fibOps++; }
+    }
+    const t3 = preciseNow();
+    const fibPerSec = fibOps / ((t3 - t2) / 1000);
+
+    const sortN = 5000;
+    const t4 = preciseNow();
+    for (let i = 0; i < sortN; i++) {
+      let arr = Array.from({length: 100}, (_, j) => Math.random());
+      arr.sort((a, b) => a - b);
+    }
+    const t5 = preciseNow();
+    const sortPerSec = sortN / ((t5 - t4) / 1000);
+
+    const score = Math.round(
+      clamp(opsPerSec / 800000, 0, 1) * 30 +
+      clamp(fibPerSec / 2000000, 0, 1) * 35 +
+      clamp(sortPerSec / 30000, 0, 1) * 35
+    );
+    const detail = `${formatNum(opsPerSec)} ops/s · ${formatNum(fibPerSec)} fib/s · ${formatNum(sortPerSec)} sort/s`;
+
+    setCardState('js', 'done');
+    setCardResult('js', score, detail, 100);
+    overallProgress += 1 / 6;
+    return { score, detail };
+  }
+
+  // ─── Benchmark 2: DOM Table ───
+  async function benchDOM() {
+    setCardState('dom', 'running');
+    setPhase('DOM 表格测试', overallProgress);
+    await sleep(50);
+
+    const t0 = preciseNow();
+    const table = document.createElement('table');
+    const tbody = document.createElement('tbody');
+    const rows = 500;
+    const cols = 10;
+    for (let i = 0; i < rows; i++) {
+      const tr = document.createElement('tr');
+      for (let j = 0; j < cols; j++) {
+        const td = document.createElement('td');
+        td.textContent = `R${i}C${j}`;
+        td.style.padding = '2px';
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    const t1 = preciseNow();
+    const createMs = t1 - t0;
+
+    const container = document.createElement('div');
+    container.style.cssText = 'position:fixed;left:-9999px;top:0;';
+    document.body.appendChild(container);
+    const t2 = preciseNow();
+    container.appendChild(table);
+    const t3 = preciseNow();
+    const appendMs = t3 - t2;
+
+    const t4 = preciseNow();
+    for (let i = 0; i < 200; i++) {
+      const row = tbody.children[Math.floor(Math.random() * rows)];
+      row.style.backgroundColor = '#1a1a2e';
+      void row.offsetHeight;
+      row.style.backgroundColor = '';
+      void row.offsetHeight;
+    }
+    const t5 = preciseNow();
+    const reflowMs = t5 - t4;
+
+    document.body.removeChild(container);
+
+    const score = Math.round(
+      clamp(1 - createMs / 200, 0, 1) * 30 +
+      clamp(1 - appendMs / 150, 0, 1) * 35 +
+      clamp(1 - reflowMs / 100, 0, 1) * 35
+    );
+    const detail = `创建 ${createMs.toFixed(1)}ms · 插入 ${appendMs.toFixed(1)}ms · 重排 ${reflowMs.toFixed(1)}ms`;
+
+    setCardState('dom', 'done');
+    setCardResult('dom', score, detail, 100);
+    overallProgress += 1 / 6;
+    return { score, detail };
+  }
+
+  // ─── Benchmark 3: DOM Cards ───
+  async function benchCard() {
+    setCardState('card', 'running');
+    setPhase('DOM 卡片测试', overallProgress);
+    await sleep(50);
+
+    const container = document.createElement('div');
+    container.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;display:flex;flex-wrap:wrap;gap:8px;';
+    document.body.appendChild(container);
+
+    const t0 = preciseNow();
+    const count = 800;
+    for (let i = 0; i < count; i++) {
+      const card = document.createElement('div');
+      card.style.cssText = 'width:80px;height:60px;background:#21262d;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#8b949e;';
+      card.textContent = '#' + i;
+      container.appendChild(card);
+    }
+    const t1 = preciseNow();
+    const createMs = t1 - t0;
+
+    const t2 = preciseNow();
+    for (let i = 0; i < 300; i++) {
+      const idx = Math.floor(Math.random() * container.children.length);
+      const el = container.children[idx];
+      el.style.transform = 'scale(1.05)';
+      el.style.boxShadow = '0 0 8px rgba(88,166,255,0.3)';
+      void el.offsetHeight;
+    }
+    const t3 = preciseNow();
+    const styleMs = t3 - t2;
+
+    const t4 = preciseNow();
+    for (let i = container.children.length - 1; i >= 0; i -= 3) {
+      container.removeChild(container.children[i]);
+    }
+    const t5 = preciseNow();
+    const removeMs = t5 - t4;
+
+    document.body.removeChild(container);
+
+    const score = Math.round(
+      clamp(1 - createMs / 400, 0, 1) * 35 +
+      clamp(1 - styleMs / 150, 0, 1) * 35 +
+      clamp(1 - removeMs / 80, 0, 1) * 30
+    );
+    const detail = `创建 ${count}卡片 ${createMs.toFixed(1)}ms · 样式 ${styleMs.toFixed(1)}ms · 删除 ${removeMs.toFixed(1)}ms`;
+
+    setCardState('card', 'done');
+    setCardResult('card', score, detail, 100);
+    overallProgress += 1 / 6;
+    return { score, detail };
+  }
+
+  // ─── Benchmark 4: CSS Animation ───
+  async function benchCSS() {
+    setCardState('css', 'running');
+    setPhase('CSS 动画测试', overallProgress);
+    await sleep(50);
+
+    const container = document.createElement('div');
+    container.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:hidden;z-index:-1;';
+    document.body.appendChild(container);
+
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes benchMove { 0%{transform:translate(0,0) rotate(0deg);opacity:1} 50%{transform:translate(300px,200px) rotate(180deg);opacity:0.5} 100%{transform:translate(0,0) rotate(360deg);opacity:1} }
+      @keyframes benchScale { 0%{transform:scale(1)} 50%{transform:scale(1.5)} 100%{transform:scale(1)} }
+      @keyframes benchColor { 0%{background:#58a6ff} 33%{background:#bc8cff} 66%{background:#3fb950} 100%{background:#58a6ff} }
+      .bench-anim { position:absolute; width:20px; height:20px; border-radius:50%; }
+    `;
+    document.head.appendChild(style);
+
+    const animCount = 300;
+    const t0 = preciseNow();
+    for (let i = 0; i < animCount; i++) {
+      const el = document.createElement('div');
+      el.className = 'bench-anim';
+      el.style.left = Math.random() * 90 + '%';
+      el.style.top = Math.random() * 90 + '%';
+      const anims = ['benchMove 1s infinite', 'benchScale 0.8s infinite', 'benchColor 1.2s infinite'];
+      el.style.animation = anims[i % 3];
+      container.appendChild(el);
+    }
+    const t1 = preciseNow();
+    const startMs = t1 - t0;
+
+    await sleep(2000);
+
+    const t2 = preciseNow();
+    let frameCount = 0;
+    await new Promise(resolve => {
+      function countFrame() {
+        frameCount++;
+        if (frameCount >= 60) resolve();
+        else requestAnimationFrame(countFrame);
+      }
+      requestAnimationFrame(countFrame);
+    });
+    const t3 = preciseNow();
+    const fps = frameCount / ((t3 - t2) / 1000);
+
+    document.body.removeChild(container);
+    document.head.removeChild(style);
+
+    const score = Math.round(
+      clamp(1 - startMs / 300, 0, 1) * 30 +
+      clamp(fps / 60, 0, 1) * 70
+    );
+    const detail = `${animCount}动画 · 启动 ${startMs.toFixed(1)}ms · FPS ${fps.toFixed(0)}`;
+
+    setCardState('css', 'done');
+    setCardResult('css', score, detail, 100);
+    overallProgress += 1 / 6;
+    return { score, detail };
+  }
+
+  // ─── Benchmark 5: Layout Reflow ───
+  async function benchLayout() {
+    setCardState('layout', 'running');
+    setPhase('布局重排测试', overallProgress);
+    await sleep(50);
+
+    const container = document.createElement('div');
+    container.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;';
+    document.body.appendChild(container);
+
+    const items = 500;
+    for (let i = 0; i < items; i++) {
+      const el = document.createElement('div');
+      el.style.cssText = 'padding:8px;margin:4px;border:1px solid #30363d;border-radius:4px;font-size:12px;';
+      el.textContent = 'Item ' + i;
+      container.appendChild(el);
+    }
+
+    const t0 = preciseNow();
+    for (let i = 0; i < 100; i++) {
+      container.style.width = (600 + (i % 5) * 50) + 'px';
+      void container.offsetHeight;
+    }
+    const t1 = preciseNow();
+    const widthMs = t1 - t0;
+
+    const t2 = preciseNow();
+    for (let i = 0; i < 100; i++) {
+      container.style.display = 'none';
+      void container.offsetHeight;
+      container.style.display = '';
+      void container.offsetHeight;
+    }
+    const t3 = preciseNow();
+    const displayMs = t3 - t2;
+
+    const t4 = preciseNow();
+    for (let i = 0; i < 100; i++) {
+      const el = container.children[i % items];
+      el.style.fontSize = (10 + (i % 8) * 2) + 'px';
+      el.style.padding = (4 + (i % 6) * 2) + 'px';
+      void container.offsetHeight;
+    }
+    const t5 = preciseNow();
+    const styleMs = t5 - t4;
+
+    document.body.removeChild(container);
+
+    const score = Math.round(
+      clamp(1 - widthMs / 200, 0, 1) * 35 +
+      clamp(1 - displayMs / 400, 0, 1) * 30 +
+      clamp(1 - styleMs / 300, 0, 1) * 35
+    );
+    const detail = `宽变 ${widthMs.toFixed(1)}ms · 显隐 ${displayMs.toFixed(1)}ms · 样式 ${styleMs.toFixed(1)}ms`;
+
+    setCardState('layout', 'done');
+    setCardResult('layout', score, detail, 100);
+    overallProgress += 1 / 6;
+    return { score, detail };
+  }
+
+  // ─── Benchmark 6: Event Handling ───
+  async function benchEvent() {
+    setCardState('event', 'running');
+    setPhase('事件处理测试', overallProgress);
+    await sleep(50);
+
+    const container = document.createElement('div');
+    container.style.cssText = 'position:fixed;left:-9999px;top:0;width:400px;height:400px;';
+    document.body.appendChild(container);
+
+    let clickCount = 0;
+    let hoverCount = 0;
+    let inputCount = 0;
+
+    const btns = 200;
+    for (let i = 0; i < btns; i++) {
+      const btn = document.createElement('button');
+      btn.textContent = 'B' + i;
+      btn.addEventListener('click', () => { clickCount++; });
+      btn.addEventListener('mouseenter', () => { hoverCount++; });
+      btn.addEventListener('mouseleave', () => { hoverCount++; });
+      container.appendChild(btn);
+    }
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.addEventListener('input', () => { inputCount++; });
+    container.appendChild(input);
+
+    const t0 = preciseNow();
+    const clicks = 1000;
+    for (let i = 0; i < clicks; i++) {
+      const btn = container.children[i % btns];
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    }
+    const t1 = preciseNow();
+    const clickMs = t1 - t0;
+
+    const t2 = preciseNow();
+    for (let i = 0; i < 500; i++) {
+      const btn = container.children[i % btns];
+      btn.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+      btn.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+    }
+    const t3 = preciseNow();
+    const hoverMs = t3 - t2;
+
+    const t4 = preciseNow();
+    for (let i = 0; i < 500; i++) {
+      input.value = 'test' + i;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    const t5 = preciseNow();
+    const inputMs = t5 - t4;
+
+    document.body.removeChild(container);
+
+    const score = Math.round(
+      clamp(1 - clickMs / 150, 0, 1) * 40 +
+      clamp(1 - hoverMs / 100, 0, 1) * 30 +
+      clamp(1 - inputMs / 80, 0, 1) * 30
+    );
+    const detail = `点击 ${clickMs.toFixed(1)}ms · 悬停 ${hoverMs.toFixed(1)}ms · 输入 ${inputMs.toFixed(1)}ms`;
+
+    setCardState('event', 'done');
+    setCardResult('event', score, detail, 100);
+    overallProgress += 1 / 6;
+    return { score, detail };
+  }
+
+  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+  function formatNum(n) {
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+    return n.toFixed(0);
+  }
+
+  function getGrade(total) {
+    if (total >= 130) return 'S';
+    if (total >= 100) return 'A+';
+    if (total >= 75) return 'A';
+    if (total >= 55) return 'B+';
+    if (total >= 40) return 'B';
+    if (total >= 20) return 'C';
+    if (total >= 10) return 'D';
+    return 'E';
+  }
+
+  function gradeColor(grade) {
+    const map = { 'S': 'var(--green)', 'A+': 'var(--green)', 'A': 'var(--accent)', 'B+': 'var(--accent)', 'B': 'var(--yellow)', 'C': 'var(--yellow)', 'D': 'var(--red)', 'E': 'var(--red)' };
+    return map[grade] || 'var(--text2)';
+  }
+
+  // ─── Background particle effect ───
+  (function initBg() {
+    const canvas = $('bgCanvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+    for (let i = 0; i < 50; i++) {
+      particles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: (Math.random() - 0.5) * 0.3,
+        r: Math.random() * 2 + 0.5,
+        a: Math.random() * 0.3 + 0.05
+      });
+    }
+    function drawBg() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles.forEach(p => {
+        p.x += p.vx; p.y += p.vy;
+        if (p.x < 0) p.x = canvas.width;
+        if (p.x > canvas.width) p.x = 0;
+        if (p.y < 0) p.y = canvas.height;
+        if (p.y > canvas.height) p.y = 0;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(88,166,255,${p.a})`;
+        ctx.fill();
+      });
+      for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+          const dx = particles[i].x - particles[j].x;
+          const dy = particles[i].y - particles[j].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 120) {
+            ctx.beginPath();
+            ctx.moveTo(particles[i].x, particles[i].y);
+            ctx.lineTo(particles[j].x, particles[j].y);
+            ctx.strokeStyle = `rgba(88,166,255,${0.08 * (1 - dist / 120)})`;
+            ctx.stroke();
+          }
+        }
+      }
+      requestAnimationFrame(drawBg);
+    }
+    drawBg();
+  })();
+
+  // ─── Main runner ───
+  async function run() {
+    await sleep(300);
+    const jsResult = await benchJS();
+    const domResult = await benchDOM();
+    const cardResult = await benchCard();
+    const cssResult = await benchCSS();
+    const layoutResult = await benchLayout();
+    const eventResult = await benchEvent();
+
+    setPhase('测试完成', 1);
+
+    const totalScore = jsResult.score + domResult.score + cardResult.score +
+                       cssResult.score + layoutResult.score + eventResult.score;
+    const grade = getGrade(totalScore);
+
+    $('totalScore').textContent = totalScore;
+    $('totalGrade').textContent = grade;
+    $('totalGrade').style.color = gradeColor(grade);
+
+    const breakdown = $('breakdown');
+    const items = [
+      { label: 'JS引擎', val: jsResult.score },
+      { label: 'DOM表格', val: domResult.score },
+      { label: 'DOM卡片', val: cardResult.score },
+      { label: 'CSS动画', val: cssResult.score },
+      { label: '布局重排', val: layoutResult.score },
+      { label: '事件处理', val: eventResult.score },
+    ];
+    items.forEach(it => {
+      const div = document.createElement('div');
+      div.className = 'summary-item';
+      const cls = it.val >= 80 ? 's' : it.val >= 55 ? 'a' : it.val >= 30 ? 'b' : 'c';
+      const color = cls === 's' ? 'var(--green)' : cls === 'a' ? 'var(--accent)' : cls === 'b' ? 'var(--yellow)' : 'var(--red)';
+      div.innerHTML = `<label>${it.label}</label><span style="color:${color}">${it.val}</span>`;
+      breakdown.appendChild(div);
+    });
+
+    $('summary').classList.add('show');
+
+    const payload = {
+      jsScore: jsResult.score,
+      jsDetail: jsResult.detail,
+      domScore: domResult.score,
+      domDetail: domResult.detail,
+      cardScore: cardResult.score,
+      cardDetail: cardResult.detail,
+      cssScore: cssResult.score,
+      cssDetail: cssResult.detail,
+      layoutScore: layoutResult.score,
+      layoutDetail: layoutResult.detail,
+      eventScore: eventResult.score,
+      eventDetail: eventResult.detail,
+      totalScore: totalScore,
+    };
+
+    if (window.chrome && window.chrome.webview) {
+      window.chrome.webview.postMessage(JSON.stringify(payload));
+    }
+  }
+
+  run();
+})();
+</script>
+</body>
+</html>

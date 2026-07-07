@@ -55,6 +55,7 @@ snippets/
 | Primary navigation shell | `snippets/patterns/app-shell.md` |
 | MVVM + DI wiring | `snippets/patterns/mvvm-di-setup.md` |
 | Light/dark theming, Mica | `snippets/patterns/theming.md` |
+| Download queue + TeachingTip feedback | `snippets/patterns/download-queue.md` |
 | Show a dialog | `snippets/dialogs/contentdialog.md` |
 | Scrollable list of data | `snippets/collections/listview.md` |
 | Grid/tile layout | `snippets/collections/gridview.md` |

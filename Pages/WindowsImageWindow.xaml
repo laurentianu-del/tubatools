@@ -29,6 +29,11 @@
             <Button x:Name="CloseButton" Grid.Column="2" Click="CloseButton_Click" Content="关闭" />
         </Grid>
 
+        <TeachingTip x:Name="QueueTeachingTip"
+                      IsLightDismissEnabled="True"
+                      PreferredPlacement="Bottom"
+                      CloseButtonContent="知道了" />
+
         <ScrollViewer Grid.Row="1" HorizontalScrollMode="Disabled" VerticalScrollBarVisibility="Auto" Padding="24,0,24,24">
             <StackPanel Spacing="14">
                 <InfoBar x:Name="StatusInfoBar" IsClosable="True" IsOpen="False" />

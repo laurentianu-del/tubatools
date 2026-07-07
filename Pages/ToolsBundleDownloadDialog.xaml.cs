@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using TubaWinUi3.Models;
 using TubaWinUi3.Services;
 
 namespace TubaWinUi3.Pages;
@@ -8,15 +9,9 @@ namespace TubaWinUi3.Pages;
 public sealed partial class ToolsBundleDownloadDialog : ContentDialog
 {
     private ToolsBundleUpdateInfo? _updateInfo;
-    private CancellationTokenSource? _cts;
     private bool _isBusy;
 
     public bool DownloadSucceeded { get; private set; }
-
-    public void SetDescription(string text)
-    {
-        DescText.Text = text;
-    }
 
     public ToolsBundleDownloadDialog()
     {
@@ -24,15 +19,17 @@ public sealed partial class ToolsBundleDownloadDialog : ContentDialog
         XamlRoot = App.MainWindow?.Content?.XamlRoot;
     }
 
+    public void SetDescription(string text)
+    {
+        DescText.Text = text;
+    }
+
     public async Task ShowDownloadAsync(ToolsBundleUpdateInfo? info = null)
     {
         if (info is not null && info.HasUpdate)
         {
             _updateInfo = info;
-            var sizeStr = info.Size > 0 ? ToolsBundleService.FormatSize(info.Size) : "";
-            DescText.Text = string.IsNullOrEmpty(sizeStr)
-                ? $"发现新版本工具包 v{info.Version}，下载完成后即可使用全部功能。"
-                : $"发现新版本工具包 v{info.Version}（{sizeStr}），下载完成后即可使用全部功能。";
+            UpdateDescriptionFromInfo(info);
         }
         else
         {
@@ -45,6 +42,14 @@ public sealed partial class ToolsBundleDownloadDialog : ContentDialog
         {
             _ = ResolveAndShowAsync();
         }
+    }
+
+    private void UpdateDescriptionFromInfo(ToolsBundleUpdateInfo info)
+    {
+        var sizeStr = info.Size > 0 ? ToolsBundleService.FormatSize(info.Size) : "";
+        DescText.Text = string.IsNullOrEmpty(sizeStr)
+            ? $"发现工具包 v{info.Version}，下载完成后即可使用全部功能。"
+            : $"发现工具包 v{info.Version}（{sizeStr}），下载完成后即可使用全部功能。";
     }
 
     private async Task ResolveAndShowAsync()
@@ -69,16 +74,42 @@ public sealed partial class ToolsBundleDownloadDialog : ContentDialog
                 return;
             }
 
-            var sizeStr = info.Size > 0 ? ToolsBundleService.FormatSize(info.Size) : "";
-            DescText.Text = string.IsNullOrEmpty(sizeStr)
-                ? $"发现工具包 v{info.Version}，下载完成后即可使用全部功能。"
-                : $"发现工具包 v{info.Version}（{sizeStr}），下载完成后即可使用全部功能。";
+            UpdateDescriptionFromInfo(info);
+            ShowSourceSelection(info);
         }
         catch (Exception ex)
         {
             ResolvingSection.Visibility = Visibility.Collapsed;
             ErrorBar.Message = ex.Message;
             ErrorBar.IsOpen = true;
+        }
+    }
+
+    private void ShowSourceSelection(ToolsBundleUpdateInfo info)
+    {
+        var hasGitCode = !string.IsNullOrEmpty(info.GitCodeUrl);
+        var hasGitHub = !string.IsNullOrEmpty(info.GitHubUrl);
+
+        if (hasGitCode && hasGitHub)
+        {
+            SourceSection.Visibility = Visibility.Visible;
+            GitCodeRadio.IsEnabled = true;
+            GitHubRadio.IsEnabled = true;
+            GitCodeRadio.IsChecked = true;
+        }
+        else if (hasGitCode)
+        {
+            SourceSection.Visibility = Visibility.Visible;
+            GitCodeRadio.IsEnabled = true;
+            GitHubRadio.IsEnabled = false;
+            GitCodeRadio.IsChecked = true;
+        }
+        else if (hasGitHub)
+        {
+            SourceSection.Visibility = Visibility.Visible;
+            GitCodeRadio.IsEnabled = false;
+            GitHubRadio.IsEnabled = true;
+            GitHubRadio.IsChecked = true;
         }
     }
 
@@ -114,83 +145,95 @@ public sealed partial class ToolsBundleDownloadDialog : ContentDialog
                 ErrorBar.IsOpen = true;
                 return;
             }
-        }
-
-        _cts = new CancellationTokenSource();
-        _isBusy = true;
-        IsPrimaryButtonEnabled = false;
-        CloseButtonText = null;
-
-        try
-        {
-            ProgressSection.Visibility = Visibility.Visible;
-            ResolvingSection.Visibility = Visibility.Collapsed;
-            PrimaryButtonText = "下载中...";
-            DownloadProgressBar.Value = 0;
-
-            var progress = new Progress<ToolsBundleProgress>(p =>
-            {
-                DispatcherQueue.TryEnqueue(() => UpdateProgress(p));
-            });
-
-            var success = await ToolsBundleService.DownloadAndExtractAsync(_updateInfo, progress, _cts.Token);
-
-            if (success)
-            {
-                DownloadSucceeded = true;
-                Hide();
-                await ShowSuccessDialog();
-            }
-            else
-            {
-                ErrorBar.Message = "工具包下载或解压失败，请重试。";
-                ErrorBar.IsOpen = true;
-                IsPrimaryButtonEnabled = true;
-                PrimaryButtonText = "重试";
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            IsPrimaryButtonEnabled = true;
-            PrimaryButtonText = "重试";
-        }
-        catch (Exception ex)
-        {
-            ErrorBar.Message = ex.Message;
-            ErrorBar.IsOpen = true;
-            IsPrimaryButtonEnabled = true;
-            PrimaryButtonText = "重试";
-        }
-        finally
-        {
-            _isBusy = false;
-            CloseButtonText = "跳过";
-        }
-    }
-
-    private void UpdateProgress(ToolsBundleProgress p)
-    {
-        if (p.Percentage >= 100 && p.BytesReceived == 0)
-        {
-            ProgressLabel.Text = "正在解压工具包...";
-            DownloadProgressBar.IsIndeterminate = true;
-            PercentText.Text = "解压中";
-            SpeedText.Text = "--";
-            SizeText.Text = "--";
-            TimeText.Text = "--";
+            UpdateDescriptionFromInfo(_updateInfo);
+            ShowSourceSelection(_updateInfo);
             return;
         }
 
-        ProgressLabel.Text = "正在下载工具包...";
+        var preferGitCode = GitCodeRadio.IsChecked == true;
+        var resolver = ToolsBundleService.CreateUrlResolver(_updateInfo, preferGitCode);
+
+        _isBusy = true;
+        IsPrimaryButtonEnabled = false;
+        CloseButtonText = null;
+        PrimaryButtonText = "已加入队列";
+        SourceSection.Visibility = Visibility.Collapsed;
+
+        var toolsDir = ToolsBundleService.GetToolsBundleDir();
+
+        var item = DownloadQueueService.EnqueueWithResolver(
+            displayName: "工具包 " + (_updateInfo.Version ?? ""),
+            urlResolver: resolver,
+            destinationPath: toolsDir,
+            postProcessor: new ToolsBundleExtractProcessor(_updateInfo.Version),
+            description: "图吧工具箱完整工具包",
+            glyph: "\uE896");
+
+        item.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName == nameof(DownloadItem.State))
+            {
+                DispatcherQueue.TryEnqueue(() => OnDownloadItemStateChanged(item));
+            }
+            else if (e.PropertyName == nameof(DownloadItem.Progress))
+            {
+                DispatcherQueue.TryEnqueue(() => OnDownloadItemProgressChanged(item));
+            }
+        };
+
+        ProgressSection.Visibility = Visibility.Visible;
+        DownloadProgressBar.IsIndeterminate = true;
+        ProgressLabel.Text = "已加入下载队列...";
+    }
+
+    private void OnDownloadItemStateChanged(DownloadItem item)
+    {
+        switch (item.State)
+        {
+            case DownloadItemState.Downloading:
+                ProgressLabel.Text = "正在下载工具包...";
+                DownloadProgressBar.IsIndeterminate = false;
+                break;
+            case DownloadItemState.Processing:
+                ProgressLabel.Text = "正在解压工具包...";
+                DownloadProgressBar.IsIndeterminate = true;
+                PercentText.Text = "解压中";
+                SpeedText.Text = "--";
+                SizeText.Text = "--";
+                TimeText.Text = "--";
+                break;
+            case DownloadItemState.Completed:
+                DownloadSucceeded = true;
+                Hide();
+                _ = ShowSuccessDialogAsync();
+                break;
+            case DownloadItemState.Failed:
+                ErrorBar.Message = string.IsNullOrEmpty(item.ErrorMessage)
+                    ? "工具包下载失败，请重试。" : item.ErrorMessage;
+                ErrorBar.IsOpen = true;
+                IsPrimaryButtonEnabled = true;
+                PrimaryButtonText = "重试";
+                ProgressSection.Visibility = Visibility.Collapsed;
+                _isBusy = false;
+                CloseButtonText = "跳过";
+                break;
+        }
+    }
+
+    private void OnDownloadItemProgressChanged(DownloadItem item)
+    {
+        if (item.Progress is null) return;
+        var p = item.Progress;
+
         DownloadProgressBar.IsIndeterminate = false;
         DownloadProgressBar.Value = p.Percentage;
         PercentText.Text = $"{p.Percentage:F1}%";
-        SpeedText.Text = ToolsBundleService.FormatSpeed(p.SpeedMbps);
-        SizeText.Text = $"{ToolsBundleService.FormatSize(p.BytesReceived)} / {ToolsBundleService.FormatSize(p.TotalBytes)}";
-        TimeText.Text = ToolsBundleService.FormatTime(p.EstimatedRemaining);
+        SpeedText.Text = DownloadQueueService.FormatSpeed(p.SpeedMbps);
+        SizeText.Text = $"{DownloadQueueService.FormatSize(p.BytesReceived)} / {DownloadQueueService.FormatSize(p.TotalBytes)}";
+        TimeText.Text = DownloadQueueService.FormatTime(p.EstimatedRemaining);
     }
 
-    private async Task ShowSuccessDialog()
+    private async Task ShowSuccessDialogAsync()
     {
         var dialog = new ContentDialog
         {

@@ -17,8 +17,7 @@ public static class UnifiedSearchService
         ("检查更新", "检查是否有新版本", "\uE895", "Update"),
         ("配置管理", "管理配置文件的存储位置、导出和导入", "\uE8B7", "ConfigManager"),
         ("自定义工具管理", "管理工具分类、导入自定义工具", "\uE8B7", "CustomToolManager"),
-        ("社区工具", "GitHub 登录与社区工具提交", "\uE9D5", "CommunityTool"),
-        ("监控驱动", "安装或卸载 PawnIO 驱动", "\uE9D9", "MonitorDriver"),
+		("监控驱动", "安装或卸载 PawnIO 驱动", "\uE9D9", "MonitorDriver"),
         ("导出当前软件", "打包成可分发压缩包", "\uE896", "ExportApp"),
     ];
 
@@ -27,8 +26,7 @@ public static class UnifiedSearchService
         ("硬件信息", "查看处理器、显卡、内存等硬件信息", "\uE977", "navigate:hardware"),
         ("常用工具", "查看收藏的工具", "\uE735", "navigate:favorites"),
         ("内置工具", "无需外部文件的系统工具", "\uE90F", "navigate:builtin"),
-        ("社区工具", "来自社区贡献的工具插件", "\uE9D5", "navigate:community"),
-        ("设置", "应用外观和功能设置", "\uE713", "navigate:settings"),
+		("设置", "应用外观和功能设置", "\uE713", "navigate:settings"),
     ];
 
     public static IReadOnlyList<SearchResult> Search(string query)

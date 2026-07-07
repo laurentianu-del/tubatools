@@ -242,11 +242,17 @@ public sealed partial class ToolsCommunitySettingsPage : Page
         InitGitHubLoginStatus();
     }
 
-    private async void CommunitySubmitButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (App.MainWindow is MainWindow mainWindow)
-        {
-            mainWindow.NavigateToCommunity();
-        }
-    }
+	private async void CommunitySubmitButton_Click(object sender, RoutedEventArgs e)
+	{
+		var tool = BuiltinToolRegistry.GetById("community-tools");
+		if (tool is not null)
+		{
+			var context = new BuiltinToolContext
+			{
+				XamlRoot = XamlRoot,
+				CancellationToken = CancellationToken.None
+			};
+			try { await tool.ExecuteAsync(context); } catch { }
+		}
+	}
 }

@@ -21,7 +21,6 @@ public sealed partial class GeneralSettingsPage : Page
         ("favorites", "常用"),
         ("hardware", "硬件信息"),
         ("builtin", "内置工具"),
-        ("community", "社区工具"),
     ];
 
     private string? _pendingHighlightKey;

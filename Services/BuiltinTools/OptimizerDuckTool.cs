@@ -51,6 +51,8 @@ public sealed class OptimizerDuckTool : IBuiltinTool
             postProcessor: new InstallerLaunchProcessor(),
             description: "当前仅提供 x64 版本，ARM64 设备可能需要通过兼容层运行",
             glyph: Glyph);
+
+        context.OnProgress?.Invoke("已加入下载队列，请在下载中心查看进度。");
     }
 
     private static string? FindInstalledExe()

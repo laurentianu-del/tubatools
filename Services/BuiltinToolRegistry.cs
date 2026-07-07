@@ -22,7 +22,6 @@ public static class BuiltinToolRegistry
         Register(new HostsEditorTool());
         Register(new KeyboardTestTool());
         Register(new JunkCleanerTool());
-        Register(new BsodAnalysisTool());
         Register(new BatteryAnalyzerTool());
         Register(new SpeedTestTool());
         Register(new WifiPasswordTool());
@@ -40,8 +39,10 @@ public static class BuiltinToolRegistry
         Register(new ViVeFeatureTool());
         Register(new PerformanceBenchmarkTool());
         Register(new BenchmarkCloudTool());
-        Register(new CommunityToolBuiltinTool());
-        Register(new WindowsImageTool());}
+        Register(new WindowsImageTool());
+        Register(new PcTutorialTool());
+        Register(new AntiMotionSicknessTool());
+}
 
     public static IReadOnlyList<string> GetCategories()
     {

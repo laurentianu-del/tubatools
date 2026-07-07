@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -56,7 +57,20 @@ public sealed class PerformanceBenchmarkTool : IBuiltinTool
 			window.AppWindow.TitleBar.ExtendsContentIntoTitleBar = true;
 			window.AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
 			ApplyTitleBarTheme(window);
+
+			var mainHwnd = App.MainWindow is not null
+				? WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow)
+				: IntPtr.Zero;
+			if (mainHwnd != IntPtr.Zero)
+			{
+				var exStyle = GetWindowLong(mainHwnd, GWL_EXSTYLE);
+				SetWindowLong(mainHwnd, GWL_EXSTYLE, exStyle | (int)WS_EX_NOACTIVATE);
+			}
+
 			window.Activate();
+
+			RestoreMainWindowActivationAsync(mainHwnd);
+
 			return Task.CompletedTask;
 		}
 		catch (Exception ex2)
@@ -65,6 +79,27 @@ public sealed class PerformanceBenchmarkTool : IBuiltinTool
 			throw;
 		}
 	}
+
+	private const int GWL_EXSTYLE = -20;
+	private const uint WS_EX_NOACTIVATE = 0x08000000;
+
+	private static async void RestoreMainWindowActivationAsync(IntPtr mainHwnd)
+	{
+		await Task.Delay(1000);
+		if (mainHwnd == IntPtr.Zero) return;
+		try
+		{
+			var exStyle = GetWindowLong(mainHwnd, GWL_EXSTYLE);
+			SetWindowLong(mainHwnd, GWL_EXSTYLE, exStyle & ~(int)WS_EX_NOACTIVATE);
+		}
+		catch { }
+	}
+
+	[DllImport("user32.dll")]
+	private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+	[DllImport("user32.dll")]
+	private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
 	private static void ApplyTitleBarTheme(Window window)
 	{

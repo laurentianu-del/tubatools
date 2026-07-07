@@ -52,6 +52,8 @@ public sealed class ContextMenuMgrTool : IBuiltinTool
             postProcessor: new InstallerLaunchProcessor(),
             description: "此软件运行后会在后台占用约 30MB 内存（托盘驻留进程）",
             glyph: Glyph);
+
+        context.OnProgress?.Invoke("已加入下载队列，请在下载中心查看进度。");
     }
 
     private static bool IsInstalled() => FindInstalledExe() is not null;

@@ -25,14 +25,6 @@
       ]
     },
     {
-      "match": "y-cruncher",
-      "description": "y-cruncher 圆周率计算烤机工具，支持多线程极致压力测试，可同时压测 CPU 和内存。",
-      "publisher": "Alex Yee",
-      "tags": [ "CPU", "内存", "烤机", "稳定性测试" ],
-      "downloadUrl": "gc:Tools/烤鸡工具/y-cruncher",
-      "launchTarget": "y-cruncher.exe"
-    },
-    {
       "match": "C2CLatency",
       "description": "CPU 缓存到缓存延迟测试工具，测量 L1/L2/L3 缓存间通信延迟。",
       "publisher": "",
@@ -622,25 +614,20 @@
     },
 
     {
-      "match": "BlenderBenchmark",
-      "description": "Blender 渲染性能基准测试工具，评估 CPU/GPU 的 3D 渲染能力。",
-      "publisher": "Blender Foundation",
-      "tags": [ "CPU", "显卡", "跑分", "性能测试" ],
-      "downloadUrl": "gc:Tools/处理器工具/BlenderBenchmark"
-    },
-    {
       "match": "FanControl",
       "description": "开源风扇曲线控制工具，支持自定义风扇转速策略和多风扇联动控制。",
       "publisher": "Rem0o",
       "tags": [ "风扇", "温控", "开源" ],
-      "downloadUrl": "gc:Tools/综合检测/FanControl"
+      "downloadUrl": "gh:Rem0o/FanControl.Releases",
+      "downloadFilter": "FanControl*_net_10_0.zip"
     },
     {
       "match": "PowerToys",
       "description": "微软官方系统增强工具集，包含窗口管理、颜色拾取、批量重命名、快捷键指南等实用功能。",
       "publisher": "Microsoft",
       "tags": [ "系统", "系统增强", "微软官方" ],
-      "downloadUrl": "gc:Tools/其他工具/PowerToys"
+      "downloadUrl": "gh:microsoft/PowerToys",
+      "downloadFilter": "PowerToysUserSetup*-x64.exe"
     },
     {
       "match": "USBDeview",
@@ -699,6 +686,13 @@
       "publisher": "ImbaSoft",
       "tags": [ "硬盘", "软件迁移", "分区" ],
       "downloadUrl": "gc:Tools/硬盘工具/FreeMove"
+    },
+    {
+      "match": "卡巴斯基",
+      "description": "目前最厉害的杀毒软件",
+      "publisher": "Kaspersky",
+      "tags": [ "杀毒", "安全" ],
+      "downloadUrl": "gc:Tools/其他工具/卡巴斯基"
     }
   ]
 }

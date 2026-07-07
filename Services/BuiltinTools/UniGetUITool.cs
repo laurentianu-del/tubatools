@@ -53,6 +53,8 @@ public sealed class UniGetUITool : IBuiltinTool
             postProcessor: new InstallerLaunchProcessor(),
             description: "安装包较大（约 135MB），下载可能需要较长时间",
             glyph: Glyph);
+
+        context.OnProgress?.Invoke("已加入下载队列，请在下载中心查看进度。");
     }
 
     private static bool IsInstalled() => FindInstalledExe() is not null;

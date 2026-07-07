@@ -169,6 +169,17 @@ function Build-ArchPackage {
         Copy-Item -Path "$ProjectDir\Metadata" -Destination $archDir -Recurse -Force
     }
 
+    # Ensure Metadata/tools.json is present (required for tool metadata in MSIX mode)
+    $metadataDir = Join-Path $archDir 'Metadata'
+    $toolsJsonPath = Join-Path $metadataDir 'tools.json'
+    if (-not (Test-Path -LiteralPath $toolsJsonPath)) {
+        if (-not (Test-Path -LiteralPath $metadataDir)) {
+            New-Item -ItemType Directory -Path $metadataDir -Force | Out-Null
+        }
+        Copy-Item -Path "$ProjectDir\Metadata\tools.json" -Destination $toolsJsonPath -Force
+        Write-Host '  Restored Metadata/tools.json into package' -ForegroundColor Yellow
+    }
+
     Write-Host '  Removing unnecessary files...' -ForegroundColor Yellow
     Remove-UnnecessaryFiles $archDir
 

@@ -69,6 +69,7 @@ public static class PostProcessorRegistry
         Register(new ArchiveExtractProcessor());
         Register(new InstallerLaunchProcessor());
         Register(new MoveToDestinationProcessor());
+        Register(new ToolsBundleExtractProcessor());
     }
 }
 
@@ -335,4 +336,80 @@ public sealed class DownloadItem : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
     internal void OnPropertyChanged([CallerMemberName] string? name = null)
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+}
+
+public sealed class ToolsBundleExtractProcessor : IDownloadPostProcessor
+{
+    private readonly string? _version;
+
+    public string DisplayName => "解压工具包";
+
+    public ToolsBundleExtractProcessor(string? version = null)
+    {
+        _version = version;
+    }
+
+    public async Task ExecuteAsync(string downloadedFilePath, string destinationPath,
+        IProgress<string>? statusProgress, CancellationToken ct)
+    {
+        statusProgress?.Report("正在解压工具包...");
+        await Task.Run(() =>
+        {
+            var extractDir = Path.Combine(Path.GetTempPath(), $"TubaWinUi3_Extract_{Guid.NewGuid():N}");
+            try
+            {
+                if (!File.Exists(downloadedFilePath))
+                    throw new FileNotFoundException("下载的文件不存在", downloadedFilePath);
+
+                System.IO.Compression.ZipFile.ExtractToDirectory(downloadedFilePath, extractDir, true);
+
+                if (Directory.Exists(destinationPath))
+                {
+                    var backupDir = destinationPath + "_bak";
+                    if (Directory.Exists(backupDir))
+                    {
+                        try { Directory.Delete(backupDir, true); } catch { }
+                    }
+                    try { Directory.Move(destinationPath, backupDir); } catch { }
+                }
+
+                try
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+                    Directory.Move(extractDir, destinationPath);
+                }
+                catch
+                {
+                    var backupDir = destinationPath + "_bak";
+                    if (Directory.Exists(backupDir))
+                    {
+                        try { Directory.Move(backupDir, destinationPath); } catch { }
+                    }
+                    throw;
+                }
+
+                var oldBackup = destinationPath + "_bak";
+                if (Directory.Exists(oldBackup))
+                {
+                    try { Directory.Delete(oldBackup, true); } catch { }
+                }
+
+                try { File.Delete(downloadedFilePath); } catch { }
+
+                if (!string.IsNullOrEmpty(_version))
+                {
+                    Services.AppSettings.Set("ToolsBundleVersion", _version);
+                }
+                Services.ToolCatalog.RefreshToolsRoot();
+            }
+            catch
+            {
+                if (Directory.Exists(extractDir))
+                {
+                    try { Directory.Delete(extractDir, true); } catch { }
+                }
+                throw;
+            }
+        }, ct);
+    }
 }

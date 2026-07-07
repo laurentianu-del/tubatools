@@ -20,8 +20,9 @@
         </ResourceDictionary>
     </ContentDialog.Resources>
 
-    <Grid RowSpacing="14" MinWidth="460">
+    <Grid RowSpacing="14" MinWidth="480">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -79,8 +80,23 @@
         </StackPanel>
 
         <StackPanel
-            x:Name="ProgressSection"
+            x:Name="SourceSection"
             Grid.Row="2"
+            Spacing="8"
+            Visibility="Collapsed">
+            <TextBlock FontSize="13" Opacity="0.72" Text="选择下载源：" />
+            <RadioButtons
+                x:Name="SourceRadio"
+                MaxColumns="2"
+                SelectedIndex="0">
+                <RadioButton x:Name="GitCodeRadio" Content="GitCode（国内推荐）" />
+                <RadioButton x:Name="GitHubRadio" Content="GitHub" />
+            </RadioButtons>
+        </StackPanel>
+
+        <StackPanel
+            x:Name="ProgressSection"
+            Grid.Row="3"
             Spacing="10"
             Visibility="Collapsed">
 
@@ -141,7 +157,7 @@
 
         <InfoBar
             x:Name="ErrorBar"
-            Grid.Row="3"
+            Grid.Row="4"
             IsOpen="False"
             IsClosable="True"
             Severity="Error"

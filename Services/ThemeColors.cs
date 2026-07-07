@@ -21,6 +21,7 @@ internal static class ThemeColors
     public static Color CardBg => IsDark ? Color.FromArgb(255, 45, 45, 45) : Color.FromArgb(255, 249, 249, 249);
     public static Color BorderColor => IsDark ? Color.FromArgb(255, 60, 60, 60) : Color.FromArgb(255, 229, 229, 229);
     public static Color DimText => IsDark ? Color.FromArgb(255, 140, 140, 140) : Color.FromArgb(255, 110, 110, 110);
+    public static Color SecondaryText => IsDark ? Color.FromArgb(255, 180, 180, 180) : Color.FromArgb(255, 70, 70, 70);
     public static Color PrimaryText => IsDark ? Color.FromArgb(255, 210, 210, 210) : Color.FromArgb(255, 30, 30, 30);
     public static Color HeaderBg => IsDark ? Color.FromArgb(255, 38, 38, 38) : Color.FromArgb(255, 245, 245, 245);
     public static Color RowHover => IsDark ? Color.FromArgb(255, 50, 50, 50) : Color.FromArgb(255, 240, 240, 240);

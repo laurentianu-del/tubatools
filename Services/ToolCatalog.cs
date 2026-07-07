@@ -279,6 +279,12 @@ public static class ToolCatalog
         Interlocked.Increment(ref _cacheVersion);
     }
 
+    public static void RefreshToolsRoot()
+    {
+        _cachedToolsRoot = null;
+        InvalidateTagsCache();
+    }
+
     public static IReadOnlyList<ToolItem> Search(string query, string? tag = null)
     {
         if (!Directory.Exists(ToolsRoot))

@@ -2,7 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
-using Microsoft.UI.Xaml.Shapes;
+
 using TubaWinUi3.Models;
 using TubaWinUi3.Services;
 using Windows.UI;
@@ -534,15 +534,15 @@ public sealed class GpuRankingPage : Page
             ColumnSpacing = 10,
             Padding = new Thickness(14, 8, 14, 8)
         };
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(44) });
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100) });
 
-        AddHeader(headerGrid, "#", 0);
-        AddHeader(headerGrid, "GPU", 1);
-        AddHeader(headerGrid, "品牌", 2);
+        AddHeader(headerGrid, "", 0);
+        AddHeader(headerGrid, "#", 1);
+        AddHeader(headerGrid, "GPU", 2);
         AddHeader(headerGrid, "TFLOPS", 3);
         AddHeader(headerGrid, "显存", 4);
 
@@ -731,31 +731,6 @@ public sealed class GpuRankingPage : Page
         namePanel.Children.Add(nameText);
         if (vramSubText is not null) namePanel.Children.Add(vramSubText);
 
-        FrameworkElement brandContent;
-        if (brandLogo is not null)
-        {
-            brandContent = new StackPanel
-            {
-                Orientation = Orientation.Horizontal, Spacing = 4,
-                Children =
-                {
-                    new Image { Source = brandLogo, Width = 14, Height = 14, VerticalAlignment = VerticalAlignment.Center },
-                    new TextBlock { Text = entry.Brand, FontSize = 11, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = new SolidColorBrush(brandColor), VerticalAlignment = VerticalAlignment.Center }
-                }
-            };
-        }
-        else
-        {
-            brandContent = new TextBlock { Text = entry.Brand, FontSize = 11, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = new SolidColorBrush(brandColor), VerticalAlignment = VerticalAlignment.Center };
-        }
-
-        var brandBadge = new Border
-        {
-            Padding = new Thickness(8, 3, 8, 3), CornerRadius = new CornerRadius(4),
-            Background = new SolidColorBrush(Color.FromArgb(30, brandColor.R, brandColor.G, brandColor.B)),
-            Child = brandContent
-        };
-
         var tflopsColor = entry.Rating >= 80 ? NvidiaGreen
             : entry.Rating >= 50 ? ThemeColors.AccentBlue
             : entry.Rating >= 20 ? ThemeColors.AccentOrange
@@ -775,16 +750,38 @@ public sealed class GpuRankingPage : Page
             VerticalAlignment = VerticalAlignment.Center
         };
 
+        FrameworkElement logoCell;
+        if (brandLogo is not null)
+        {
+            logoCell = new Image { Source = brandLogo, Width = 20, Height = 20, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+        }
+        else
+        {
+            logoCell = new Border
+            {
+                Width = 20, Height = 20,
+                CornerRadius = new CornerRadius(4),
+                Background = new SolidColorBrush(Color.FromArgb(30, brandColor.R, brandColor.G, brandColor.B)),
+                Child = new TextBlock
+                {
+                    Text = entry.Brand.Length > 0 ? entry.Brand[..1] : "?",
+                    FontSize = 10, FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                    Foreground = new SolidColorBrush(brandColor),
+                    HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
+                }
+            };
+        }
+
         var rowGrid = new Grid { ColumnSpacing = 10, VerticalAlignment = VerticalAlignment.Center };
+        rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });
         rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(44) });
         rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });
         rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100) });
 
-        rowGrid.Children.Add(rankBadge); Grid.SetColumn(rankBadge, 0);
-        rowGrid.Children.Add(namePanel); Grid.SetColumn(namePanel, 1);
-        rowGrid.Children.Add(brandBadge); Grid.SetColumn(brandBadge, 2);
+        rowGrid.Children.Add(logoCell); Grid.SetColumn(logoCell, 0);
+        rowGrid.Children.Add(rankBadge); Grid.SetColumn(rankBadge, 1);
+        rowGrid.Children.Add(namePanel); Grid.SetColumn(namePanel, 2);
         rowGrid.Children.Add(tflopsText); Grid.SetColumn(tflopsText, 3);
         rowGrid.Children.Add(vramText); Grid.SetColumn(vramText, 4);
 

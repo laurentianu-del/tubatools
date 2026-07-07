@@ -111,21 +111,27 @@ public partial class App : Application
 
     private static async Task ShowToolsBundleDownloadDialogAsync()
     {
-        try
+        for (int i = 0; i < 3; i++)
         {
-            if (MainWindow?.Content is FrameworkElement root)
+            try
             {
-                var dialog = new ToolsBundleDownloadDialog
+                await Task.Delay(i == 0 ? 300 : 1000);
+
+                if (MainWindow?.Content is FrameworkElement root)
                 {
-                    XamlRoot = root.XamlRoot,
-                    RequestedTheme = ThemeService.CurrentElementTheme
-                };
-                await dialog.ShowDownloadAsync();
+                    var dialog = new ToolsBundleDownloadDialog
+                    {
+                        XamlRoot = root.XamlRoot,
+                        RequestedTheme = ThemeService.CurrentElementTheme
+                    };
+                    await dialog.ShowDownloadAsync();
+                    return;
+                }
             }
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[ToolsBundle] Download dialog failed: {ex.Message}");
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ToolsBundle] Download dialog attempt {i + 1} failed: {ex.Message}");
+            }
         }
     }
 

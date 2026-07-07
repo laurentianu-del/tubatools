@@ -240,11 +240,11 @@ public sealed partial class WindowsImageWindow : Window
 
     private void DownloadBtn_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button { Tag: WindowsImageEntry entry }) return;
-        EnqueueDownload(entry);
+        if (sender is not Button { Tag: WindowsImageEntry entry } btn) return;
+        EnqueueDownload(entry, btn);
     }
 
-    private void EnqueueDownload(WindowsImageEntry entry)
+    private void EnqueueDownload(WindowsImageEntry entry, FrameworkElement? target = null)
     {
         var destDir = WindowsImageService.GetDownloadDir();
         DownloadQueueService.Enqueue(
@@ -259,11 +259,22 @@ public sealed partial class WindowsImageWindow : Window
         StatusInfoBar.Message = $"{entry.DisplayName} 正在下载至 {destDir}";
         StatusInfoBar.Severity = InfoBarSeverity.Success;
         StatusInfoBar.IsOpen = true;
+
+        ShowQueueTip(entry.DisplayName, target);
+    }
+
+    private void ShowQueueTip(string name, FrameworkElement? target)
+    {
+        QueueTeachingTip.Title = "已加入下载队列";
+        QueueTeachingTip.Subtitle = $"{name}\n点击主页搜索框旁的下载按钮可查看进度";
+        QueueTeachingTip.IconSource = new SymbolIconSource { Symbol = Symbol.Download };
+        QueueTeachingTip.Target = target;
+        QueueTeachingTip.IsOpen = true;
     }
 
     private async void DownloadAndConvertBtn_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button { Tag: WindowsImageEntry entry }) return;
+        if (sender is not Button { Tag: WindowsImageEntry entry } btn) return;
 
         if (!WindowsImageService.IsUltraIsoAvailable)
         {
@@ -315,6 +326,8 @@ public sealed partial class WindowsImageWindow : Window
         StatusInfoBar.Message = $"{entry.DisplayName} 下载完成后将自动转换为 ISO";
         StatusInfoBar.Severity = InfoBarSeverity.Success;
         StatusInfoBar.IsOpen = true;
+
+        ShowQueueTip(entry.DisplayName + " (ESD→ISO)", btn);
     }
 
     private void SearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
@@ -446,7 +459,7 @@ public sealed partial class WindowsImageWindow : Window
     private void MsDownloadBtn_Click(object sender, RoutedEventArgs e)
     {
         if (_msResolvedEntry is null) return;
-        EnqueueDownload(_msResolvedEntry);
+        EnqueueDownload(_msResolvedEntry, sender as FrameworkElement);
     }
 
     private async void MsOpenBrowserBtn_Click(object sender, RoutedEventArgs e)

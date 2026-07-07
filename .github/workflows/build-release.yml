@@ -37,6 +37,28 @@ env:
   DOTNET_NOLOGO: '1'
 
 jobs:
+  build-tools:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create Tools.zip
+        shell: pwsh
+        run: |
+          if (-not (Test-Path -LiteralPath 'Tools')) {
+            Write-Host '::error::Tools/ directory not found'
+            exit 1
+          }
+          Compress-Archive -Path 'Tools\*' -DestinationPath 'Tools.zip'
+          $size = [math]::Round((Get-Item 'Tools.zip').Length / 1MB, 1)
+          Write-Host "Tools.zip size: $size MB"
+
+      - name: Upload Tools.zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: tools-zip
+          path: Tools.zip
+
   build:
     strategy:
       matrix:
@@ -200,7 +222,7 @@ jobs:
           path: TubaWinUi3_Portable_${{ inputs.version }}_${{ matrix.arch }}.zip
 
   generate-changelog:
-    needs: build
+    needs: [build, build-tools]
     runs-on: ubuntu-latest
     outputs:
       changelog: ${{ steps.ai-changelog.outputs.result }}
@@ -268,7 +290,7 @@ jobs:
           python3 .github/generate-changelog.py "$TMPDIR"
 
   release:
-    needs: [build, generate-changelog]
+    needs: [build, build-tools, generate-changelog]
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
@@ -281,6 +303,9 @@ jobs:
         run: |
           mkdir -p release_files
           find artifacts -type f \( -name '*.exe' -o -name '*.zip' \) -exec cp {} release_files/ \;
+          if [ -f artifacts/tools-zip/Tools.zip ]; then
+            cp artifacts/tools-zip/Tools.zip release_files/Tools.zip
+          fi
 
       - name: Calculate file hashes
         id: hashes
@@ -319,6 +344,7 @@ jobs:
             | `TubaWinUi3_Portable_${{ inputs.version }}_x64.zip` | x64 便携版 |
             | `TubaWinUi3_Portable_${{ inputs.version }}_x86.zip` | x86 便携版 |
             | `TubaWinUi3_Portable_${{ inputs.version }}_arm64.zip` | ARM64 便携版 |
+            | `Tools.zip` | 工具包（商店版首次启动下载） |
 
             $(cat hash_table.md)
 

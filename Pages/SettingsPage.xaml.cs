@@ -42,7 +42,6 @@ public sealed partial class SettingsPage : Page
         ("favorites", "常用"),
         ("hardware", "硬件信息"),
         ("builtin", "内置工具"),
-        ("community", "社区工具"),
     ];
 
     private string? _pendingHighlightKey;
@@ -1348,13 +1347,19 @@ public sealed partial class SettingsPage : Page
         InitGitHubLoginStatus();
     }
 
-    private void CommunitySubmitButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (App.MainWindow is MainWindow mainWindow)
-        {
-            mainWindow.NavigateToCommunity();
-        }
-    }
+	private async void CommunitySubmitButton_Click(object sender, RoutedEventArgs e)
+	{
+		var tool = BuiltinToolRegistry.GetById("community-tools");
+		if (tool is not null)
+		{
+			var context = new BuiltinToolContext
+			{
+				XamlRoot = XamlRoot,
+				CancellationToken = CancellationToken.None
+			};
+			try { await tool.ExecuteAsync(context); } catch { }
+		}
+	}
 
     private void LoadCreditsAvatar()
     {

@@ -431,6 +431,16 @@
                     HorizontalAlignment="Center"
                     Opacity="0.42"
                     Text="" />
+                <Button
+                    x:Name="DownloadToolsButton"
+                    HorizontalAlignment="Center"
+                    Visibility="Collapsed"
+                    Click="DownloadToolsButton_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE896;" FontSize="14" />
+                        <TextBlock Text="下载工具包" />
+                    </StackPanel>
+                </Button>
             </StackPanel>
 
             <TeachingTip
