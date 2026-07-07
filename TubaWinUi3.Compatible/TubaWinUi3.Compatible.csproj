@@ -4,7 +4,7 @@
     <TargetFramework>net45</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>TubaWinUi3.Compatible</RootNamespace>
-    <ApplicationIcon>..\Assets\AppIcon.ico</ApplicationIcon>
+    <ApplicationIcon>..\TubaWinUi3.WinUI3\Assets\AppIcon.ico</ApplicationIcon>
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>disable</Nullable>
     <LangVersion>latest</LangVersion>
@@ -25,7 +25,7 @@
     <Reference Include="System.IO.Compression.FileSystem" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="..\Assets\AppIcon.ico">
+    <Content Include="..\TubaWinUi3.WinUI3\Assets\AppIcon.ico">
       <Link>Assets\AppIcon.ico</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

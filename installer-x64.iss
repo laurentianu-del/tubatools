@@ -18,7 +18,7 @@ DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=SetupOutput
 OutputBaseFilename=TubaWinUi3_Setup_{#MyAppVersion}_x64
-SetupIconFile=Assets\AppIcon.ico
+SetupIconFile=TubaWinUi3.WinUI3\Assets\AppIcon.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -34,6 +34,7 @@ UsePreviousAppDir=yes
 UsePreviousGroup=yes
 UsePreviousSetupType=yes
 UsePreviousTasks=yes
+DisableDirPage=no
 DirExistsWarning=no
 AppendDefaultDirName=yes
 

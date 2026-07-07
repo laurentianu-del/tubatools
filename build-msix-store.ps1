@@ -44,7 +44,8 @@ $ErrorActionPreference = 'Stop'
 
 # ── Project paths ──────────────────────────────────────────────
 $ProjectDir   = $PSScriptRoot
-$CsprojPath   = Join-Path $ProjectDir 'TubaWinUi3.csproj'
+$WinUI3Dir    = Join-Path $ProjectDir 'TubaWinUi3.WinUI3'
+$CsprojPath   = Join-Path $WinUI3Dir 'TubaWinUi3.csproj'
 $OutputDir    = Join-Path $ProjectDir 'StoreOutput'
 $TempDir      = Join-Path $env:TEMP 'TubaWinUi3_MSIX_Build'
 
@@ -194,20 +195,20 @@ function Build-ArchPackage {
         return $null
     }
 
-    Copy-Item -Path "$ProjectDir\Assets\*" -Destination "$archDir\Assets\" -Recurse -Force
+    Copy-Item -Path "$WinUI3Dir\Assets\*" -Destination "$archDir\Assets\" -Recurse -Force
 
-    $buildPriPattern = Join-Path $ProjectDir "bin\$Arch\Release\*\win-$Arch\TubaWinUi3.pri"
+    $buildPriPattern = Join-Path $WinUI3Dir "bin\$Arch\Release\*\win-$Arch\TubaWinUi3.pri"
     $foundPri = Get-Item $buildPriPattern -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($foundPri) {
         Copy-Item -LiteralPath $foundPri.FullName -Destination $archDir -Force
         Write-Host "  Restored TubaWinUi3.pri from build output" -ForegroundColor Gray
     }
 
-    if (Test-Path -LiteralPath "$ProjectDir\Metadata") {
-        Copy-Item -Path "$ProjectDir\Metadata" -Destination $archDir -Recurse -Force
+    if (Test-Path -LiteralPath "$WinUI3Dir\Metadata") {
+        Copy-Item -Path "$WinUI3Dir\Metadata" -Destination $archDir -Recurse -Force
     }
-    if (Test-Path -LiteralPath "$ProjectDir\CertBlock") {
-        Copy-Item -Path "$ProjectDir\CertBlock" -Destination $archDir -Recurse -Force
+    if (Test-Path -LiteralPath "$WinUI3Dir\CertBlock") {
+        Copy-Item -Path "$WinUI3Dir\CertBlock" -Destination $archDir -Recurse -Force
     }
 
     Get-ChildItem -LiteralPath $archDir -Filter '*.pdb' -Recurse -Force -ErrorAction SilentlyContinue |

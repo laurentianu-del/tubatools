@@ -20,7 +20,7 @@ $Target = switch ($Arch) {
 $rcContent = @"
 #include <windows.h>
 
-IDI_APP ICON "..\\Assets\\AppIcon.ico"
+IDI_APP ICON "..\\TubaWinUi3.WinUI3\\Assets\\AppIcon.ico"
 
 VS_VERSION_INFO VERSIONINFO
 FILEVERSION 1,0,0,0

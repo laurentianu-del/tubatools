@@ -493,11 +493,23 @@ public static class UpdateService
 
     public static UpdateAsset? FindBestPortableAsset(List<UpdateAsset> assets)
     {
+        if (RuntimeHelper.IsLiteBuild)
+            return FindBestLiteAsset(assets);
+
         var arch = CurrentArchitecture;
 
         var match = assets.FirstOrDefault(a =>
             a.Name.Contains(arch, StringComparison.OrdinalIgnoreCase) &&
-            a.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase));
+            a.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) &&
+            !a.Name.Contains("Lite", StringComparison.OrdinalIgnoreCase));
+
+        if (match is not null) return match;
+
+        match = assets.FirstOrDefault(a =>
+            a.Name.Contains(arch, StringComparison.OrdinalIgnoreCase) &&
+            (a.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
+             a.Name.EndsWith(".msixbundle", StringComparison.OrdinalIgnoreCase) ||
+             a.Name.EndsWith(".msix", StringComparison.OrdinalIgnoreCase)));
 
         if (match is not null) return match;
 
@@ -508,6 +520,24 @@ public static class UpdateService
         if (match is not null) return match;
 
         return FindBestAsset(assets);
+    }
+
+    public static UpdateAsset? FindBestLiteAsset(List<UpdateAsset> assets)
+    {
+        var arch = CurrentArchitecture;
+
+        var match = assets.FirstOrDefault(a =>
+            a.Name.Contains(arch, StringComparison.OrdinalIgnoreCase) &&
+            a.Name.Contains("Lite", StringComparison.OrdinalIgnoreCase) &&
+            a.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase));
+
+        if (match is not null) return match;
+
+        match = assets.FirstOrDefault(a =>
+            a.Name.Contains(arch, StringComparison.OrdinalIgnoreCase) &&
+            a.Name.Contains("Lite", StringComparison.OrdinalIgnoreCase));
+
+        return match;
     }
 
     public static UpdateAsset? FindBestInstallerAsset(List<UpdateAsset> assets)

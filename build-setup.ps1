@@ -1,6 +1,7 @@
 $ErrorActionPreference = 'Stop'
 
-$ProjectDir  = 'C:\Users\luolan\Desktop\tubawinui3'
+$RepoRoot     = 'C:\Users\luolan\Desktop\tubawinui3'
+$ProjectDir   = Join-Path $RepoRoot 'TubaWinUi3.WinUI3'
 $ISCC        = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
 $Version     = '1.0.2.0'
 $VersionShort = '1.0.2'
@@ -114,9 +115,9 @@ Write-Host '========================================' -ForegroundColor Cyan
 Write-Host '  Building Inno Setup installer' -ForegroundColor Cyan
 Write-Host '========================================' -ForegroundColor Cyan
 
-Set-Location -LiteralPath $ProjectDir
+Set-Location -LiteralPath $RepoRoot
 
-$issPath = Join-Path $ProjectDir 'installer.iss'
+$issPath = Join-Path $RepoRoot 'installer.iss'
 if (-not $arm64Ok) {
     $issContent = [System.IO.File]::ReadAllText($issPath, [System.Text.Encoding]::UTF8)
     $issContent = $issContent.Replace('ArchitecturesAllowed=x64compatible arm64', 'ArchitecturesAllowed=x64compatible')

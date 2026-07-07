@@ -11,7 +11,7 @@ dotnet build                          # Debug, x64 (RuntimeIdentifier auto-detec
 dotnet run                            # Unpackaged profile (the only profile in launchSettings.json)
 ```
 
-- **No `.sln` file** — all commands go through `TubaWinUi3.csproj`
+- All commands go through `TubaWinUi3.WinUI3/TubaWinUi3.csproj`
 - `EnableMsixTooling=false` + `WindowsPackageType=None` — app runs unpackaged; no MSIX registration needed for dev
 - Platforms: x86, x64, ARM64 — RuntimeIdentifier defaults to current process architecture
 - `AllowUnsafeBlocks=true` — unsafe code is used (e.g. P/Invoke structs in HardwareInfoService)

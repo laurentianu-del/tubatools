@@ -58,6 +58,11 @@ public sealed partial class UpdateWindow : Window
         SetupCardHover(SkipCard);
         SetupCardHover(IgnoreCard);
 
+        if (RuntimeHelper.IsLiteBuild)
+        {
+            TitleText.Text = "发现新版本（精简版）";
+        }
+
         PopulateUpdateInfo(updateInfo);
     }
 
@@ -110,6 +115,20 @@ public sealed partial class UpdateWindow : Window
             GitHubCard.IsHitTestVisible = false;
             GitCodeCard.Opacity = 0.4;
             GitHubCard.Opacity = 0.4;
+        }
+
+        if (RuntimeHelper.IsLiteBuild && activeAsset is not null)
+        {
+            var isLiteAsset = activeAsset.Name.Contains("Lite", StringComparison.OrdinalIgnoreCase);
+            if (!isLiteAsset)
+            {
+                ErrorInfoBar.Message = "当前为精简版，但未找到精简版更新文件。请前往发布页面手动下载。";
+                ErrorInfoBar.IsOpen = true;
+                GitCodeCard.IsHitTestVisible = false;
+                GitHubCard.IsHitTestVisible = false;
+                GitCodeCard.Opacity = 0.4;
+                GitHubCard.Opacity = 0.4;
+            }
         }
     }
 
@@ -275,7 +294,14 @@ public sealed partial class UpdateWindow : Window
 
         if (isZip && _isPortableMode)
         {
-            CompleteTipText.Text = "便携版更新：下载完成后将自动打开文件夹，请关闭本程序，将压缩包解压覆盖到当前程序目录即可完成更新";
+            if (RuntimeHelper.IsLiteBuild)
+            {
+                CompleteTipText.Text = "精简版更新：下载完成后将自动打开文件夹，请关闭本程序，将压缩包解压覆盖到当前程序目录即可完成更新（工具包将自动从网络获取）";
+            }
+            else
+            {
+                CompleteTipText.Text = "便携版更新：下载完成后将自动打开文件夹，请关闭本程序，将压缩包解压覆盖到当前程序目录即可完成更新";
+            }
         }
         else if (isExe)
         {

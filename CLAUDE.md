@@ -14,11 +14,11 @@ dotnet run                    # Unpackaged mode (no MSIX registration needed)
 dotnet publish -c Release -r win-x64   # Publish portable binary
 ```
 
-- All commands go through `TubaWinUi3.csproj` (the `.sln` only contains a compatibility project)
+- All commands go through `TubaWinUi3.WinUI3/TubaWinUi3.csproj` (the `.sln` contains both the main WinUI3 project and a compatibility project)
 - Platforms: x86, x64, ARM64
 - No test framework — verify with `dotnet build` only
 - Publish: `PublishTrimmed=false`, `PublishReadyToRun=false` — trimming is never used
-- The `.pri` file must be manually restored from `bin/` to publish output after `dotnet publish`
+- The `.pri` file must be manually restored from `TubaWinUi3.WinUI3/bin/` to publish output after `dotnet publish`
 
 ## Architecture
 

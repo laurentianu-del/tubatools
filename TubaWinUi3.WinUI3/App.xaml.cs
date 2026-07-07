@@ -95,7 +95,7 @@ public partial class App : Application
                 AppSettings.Set("SetupCompleted", true);
         }
 
-        if (RuntimeHelper.IsMsixPackaged)
+        if (RuntimeHelper.IsMsixPackaged || RuntimeHelper.IsLiteBuild)
         {
             if (!ToolsBundleService.IsToolsBundleReady())
             {
@@ -103,7 +103,8 @@ public partial class App : Application
             }
             _ = CheckForToolsUpdateSilentAsync();
         }
-        else
+
+        if (!RuntimeHelper.IsMsixPackaged)
         {
             _ = CheckForUpdateSilentAsync();
         }

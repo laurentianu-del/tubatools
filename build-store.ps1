@@ -17,10 +17,11 @@
 
 $ErrorActionPreference = 'Continue'
 
-$ProjectDir         = 'C:\Users\luolan\Desktop\tubawinui3'
+$RepoRoot            = 'C:\Users\luolan\Desktop\tubawinui3'
+$ProjectDir          = Join-Path $RepoRoot 'TubaWinUi3.WinUI3'
 $MakeAppxPath       = 'C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\makeappx.exe'
 $SignToolPath        = 'C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe'
-$CertPath            = 'C:\Users\luolan\Desktop\tubawinui3\TubaWinUi3_StoreKey.pfx'
+$CertPath            = Join-Path $RepoRoot 'TubaWinUi3_StoreKey.pfx'
 $CertPassword        = 'EasyNote2026'
 $PackageVersion      = '1.0.1.0'
 $PackageName         = 'DA3D64F4.winui3'
