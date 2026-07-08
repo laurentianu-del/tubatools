@@ -105,40 +105,45 @@ public sealed partial class ViVeFeatureWindow : Window
 
 	private async Task LoadDataAsync()
 	{
-		try
-		{
-			LoadingRing.IsActive = true;
-			LoadingPanel.Visibility = Visibility.Visible;
-			ListBorder.Visibility = Visibility.Collapsed;
-			HeaderBorder.Visibility = Visibility.Collapsed;
-			EmptyPanel.Visibility = Visibility.Collapsed;
-		}
-		catch
-		{
-			return;
-		}
+		LoadingRing.IsActive = true;
+		LoadingPanel.Visibility = Visibility.Visible;
+		ListBorder.Visibility = Visibility.Collapsed;
+		HeaderBorder.Visibility = Visibility.Collapsed;
+		EmptyPanel.Visibility = Visibility.Collapsed;
+
 		List<ViVeFeatureEntry> features = null;
+		string? loadError = null;
 		try
 		{
 			features = await Task.Run(() => ViVeService.QueryFeatures(ViVeStoreType.Runtime));
 		}
-		catch
+		catch (Exception ex)
 		{
+			loadError = ex.Message;
 		}
 		_allFeatures = features;
-		try
+
+		base.DispatcherQueue.TryEnqueue(delegate
 		{
-			base.DispatcherQueue.TryEnqueue(delegate
+			LoadingRing.IsActive = false;
+			LoadingPanel.Visibility = Visibility.Collapsed;
+
+			if (loadError != null)
 			{
-				UpdateStats();
-				ApplyFilter();
-				LoadingRing.IsActive = false;
-				LoadingPanel.Visibility = Visibility.Collapsed;
-			});
-		}
-		catch
-		{
-		}
+				ShowResult(InfoBarSeverity.Error, "加载失败", loadError);
+				EmptyPanel.Visibility = Visibility.Visible;
+				return;
+			}
+
+			if (_allFeatures == null || _allFeatures.Count == 0)
+			{
+				EmptyPanel.Visibility = Visibility.Visible;
+				return;
+			}
+
+			UpdateStats();
+			ApplyFilter();
+		});
 	}
 
 	private void UpdateStats()

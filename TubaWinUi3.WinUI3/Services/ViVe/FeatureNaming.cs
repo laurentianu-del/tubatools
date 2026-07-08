@@ -22,12 +22,20 @@ public static class FeatureNaming
 		using StreamReader streamReader = new StreamReader(File.OpenRead(DictFilePath));
 		while (!streamReader.EndOfStream)
 		{
-			string text = streamReader.ReadLine().ToLowerInvariant();
+			string? line = streamReader.ReadLine();
+			if (string.IsNullOrEmpty(line))
+			{
+				continue;
+			}
+			string text = line.ToLowerInvariant();
 			for (int num = list2.Count - 1; num >= 0; num--)
 			{
 				if (text.StartsWith(list2[num]))
 				{
-					list.Add(uint.Parse(text.Substring(list2[num].Length)));
+					if (uint.TryParse(text.Substring(list2[num].Length), out var id))
+					{
+						list.Add(id);
+					}
 					list2.RemoveAt(num);
 					break;
 				}
@@ -51,13 +59,19 @@ public static class FeatureNaming
 		using StreamReader streamReader = new StreamReader(File.OpenRead(DictFilePath));
 		while (!streamReader.EndOfStream)
 		{
-			string text = streamReader.ReadLine();
+			string? line = streamReader.ReadLine();
+			if (string.IsNullOrEmpty(line) || !line.Contains(','))
+			{
+				continue;
+			}
 			for (int num = list.Count - 1; num >= 0; num--)
 			{
-				if (text.EndsWith(list[num]))
+				if (line.EndsWith(list[num]))
 				{
-					uint key = uint.Parse(list[num].Substring(1));
-					dictionary[key] = text.Substring(0, text.IndexOf(','));
+					if (uint.TryParse(list[num].Substring(1), out var key))
+					{
+						dictionary[key] = line.Substring(0, line.IndexOf(','));
+					}
 					list.RemoveAt(num);
 					break;
 				}

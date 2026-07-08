@@ -123,7 +123,7 @@
                                     Visibility="Collapsed">
                                     <ComboBox.ItemTemplate>
                                         <DataTemplate>
-                                            <TextBlock FontSize="13" Text="{Binding DisplayText}" />
+                                            <TextBlock FontFamily="{StaticResource AppFontFamily}" FontSize="13" Text="{Binding DisplayText}" />
                                         </DataTemplate>
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>

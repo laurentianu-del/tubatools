@@ -129,12 +129,14 @@
                                     </Border>
                                     <StackPanel Grid.Column="1" Spacing="3">
                                         <TextBlock
+                                            FontFamily="{StaticResource AppFontFamily}"
                                             FontSize="16"
                                             FontWeight="SemiBold"
                                             MaxLines="1"
                                             Text="{Binding Name}"
                                             TextTrimming="CharacterEllipsis" />
                                         <TextBlock
+                                            FontFamily="{StaticResource AppFontFamily}"
                                             FontSize="12"
                                             Opacity="1.0"
                                             Text="{Binding Category}"
@@ -143,6 +145,7 @@
                                 </Grid>
 
                                 <TextBlock
+                                    FontFamily="{StaticResource AppFontFamily}"
                                     Grid.Row="1"
                                     MaxLines="2"
                                     Opacity="1.0"
@@ -162,6 +165,7 @@
                                         Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                         CornerRadius="6">
                                         <TextBlock
+                                            FontFamily="{StaticResource AppFontFamily}"
                                             FontSize="11"
                                             FontWeight="SemiBold"
                                             VerticalAlignment="Center"

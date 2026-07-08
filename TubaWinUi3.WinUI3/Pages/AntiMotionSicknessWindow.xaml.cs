@@ -1,54 +1,23 @@
 using Microsoft.UI;
-using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using TubaWinUi3.Services;
-using Windows.Graphics;
 using Windows.UI;
 
 namespace TubaWinUi3.Pages;
 
-public sealed partial class AntiMotionSicknessWindow : Window
+public sealed partial class AntiMotionSicknessWindow : Page
 {
+    private readonly Window _window;
     private AntiMotionSicknessConfig _cfg;
     private bool _suppressEvents = true;
 
-    public AntiMotionSicknessWindow()
+    public AntiMotionSicknessWindow(Window window)
     {
+        _window = window;
         InitializeComponent();
-
-        AppWindow.Title = "游戏防晕3D";
-        AppWindow.Resize(new SizeInt32(680, 760));
-
-        try
-        {
-            AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"));
-        }
-        catch { }
-
-        var presenter = AppWindow.Presenter as OverlappedPresenter;
-        if (presenter is not null)
-        {
-            presenter.IsResizable = true;
-            presenter.IsMaximizable = true;
-        }
-
-        if (Content is FrameworkElement root)
-            root.RequestedTheme = ThemeService.CurrentElementTheme;
-
-        try
-        {
-            var mainPos = App.MainWindow?.AppWindow.Position;
-            if (mainPos is not null)
-            {
-                AppWindow.Move(new PointInt32(
-                    mainPos.Value.X + 50,
-                    mainPos.Value.Y + 50));
-            }
-        }
-        catch { }
 
         _cfg = AntiMotionSicknessConfig.Load();
         LoadConfigToUI();
@@ -56,10 +25,14 @@ public sealed partial class AntiMotionSicknessWindow : Window
 
         _suppressEvents = false;
 
-        Closed += (_, _) =>
+        _window.Closed += (_, _) =>
         {
             AntiMotionSicknessOverlay.CloseOverlay();
             SaveConfigFromUI();
+        };
+
+        Loaded += (_, _) =>
+        {
         };
     }
 
@@ -203,7 +176,7 @@ public sealed partial class AntiMotionSicknessWindow : Window
         else
         {
             StatusIcon.Glyph = "\uE894";
-            StatusIcon.Foreground = new SolidColorBrush(Colors.Gray);
+            StatusIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 128, 128, 128));
             StatusTitle.Text = "辅助器已关闭";
             StatusDesc.Text = "点击下方按钮开启屏幕准星辅助";
             ToggleOverlayIcon.Glyph = "\uE73E";
@@ -224,8 +197,4 @@ public sealed partial class AntiMotionSicknessWindow : Window
             AntiMotionSicknessOverlay.RefreshVisuals();
     }
 
-    private void CloseButton_Click(object sender, RoutedEventArgs e)
-    {
-        Close();
-    }
 }

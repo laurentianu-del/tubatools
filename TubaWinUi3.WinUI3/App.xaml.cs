@@ -180,10 +180,23 @@ public partial class App : Application
 
             if (MainWindow?.DispatcherQueue is null) return;
 
+            if (UpdateService.IsUpdateAlreadyDownloaded(update))
+            {
+                MainWindow.DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (MainWindow is MainWindow mw)
+                        mw.ShowUpdateAlreadyDownloaded(update);
+                });
+                return;
+            }
+
+            var isMetered = NetworkHelper.IsMeteredConnection();
+            var autoDownload = !isMetered;
+
             MainWindow.DispatcherQueue.TryEnqueue(() =>
             {
-                var window = new UpdateWindow(update);
-                window.Activate();
+                if (MainWindow is MainWindow mw)
+                    mw.ShowUpdateBanner(update, autoDownload);
             });
         }
         catch (Exception ex)

@@ -26,17 +26,32 @@ public static class FeatureManager
 
 	public unsafe static RTL_FEATURE_CONFIGURATION[]? QueryAllFeatureConfigurations(RTL_FEATURE_CONFIGURATION_TYPE configurationType, ulong* changeStamp)
 	{
-		NtdllInterop.RtlQueryAllFeatureConfigurations(configurationType, changeStamp, null, out var featureConfigurationCount);
-		if (featureConfigurationCount == 0)
+		int retries = 3;
+		while (retries-- > 0)
 		{
-			return null;
-		}
-		RTL_FEATURE_CONFIGURATION[] array = new RTL_FEATURE_CONFIGURATION[featureConfigurationCount];
-		fixed (RTL_FEATURE_CONFIGURATION* featureConfigurations = array)
-		{
-			if (NtdllInterop.RtlQueryAllFeatureConfigurations(configurationType, changeStamp, featureConfigurations, out featureConfigurationCount) == 0)
+			NtdllInterop.RtlQueryAllFeatureConfigurations(configurationType, changeStamp, null, out var featureConfigurationCount);
+			if (featureConfigurationCount == 0)
 			{
-				return array;
+				return null;
+			}
+			int allocatedCount = featureConfigurationCount + 64;
+			RTL_FEATURE_CONFIGURATION[] array = new RTL_FEATURE_CONFIGURATION[allocatedCount];
+			fixed (RTL_FEATURE_CONFIGURATION* featureConfigurations = array)
+			{
+				int status = NtdllInterop.RtlQueryAllFeatureConfigurations(configurationType, changeStamp, featureConfigurations, out var actualCount);
+				if (status == 0)
+				{
+					if (actualCount <= allocatedCount)
+					{
+						if (actualCount < array.Length)
+						{
+							Array.Resize(ref array, actualCount);
+						}
+						return array;
+					}
+					continue;
+				}
+				return null;
 			}
 		}
 		return null;

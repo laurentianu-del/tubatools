@@ -178,12 +178,14 @@
                                         </Border>
                                         <StackPanel Grid.Column="1" Spacing="3">
                                             <TextBlock
+                                                FontFamily="{StaticResource AppFontFamily}"
                                                 FontSize="16"
                                                 FontWeight="SemiBold"
                                                 MaxLines="1"
                                                 Text="{Binding Name}"
                                                 TextTrimming="CharacterEllipsis" />
                                             <TextBlock
+                                                FontFamily="{StaticResource AppFontFamily}"
                                                 FontSize="12"
                                                 Opacity="1.0"
                                                 Text="{Binding Category}"
@@ -192,6 +194,7 @@
                                     </Grid>
 
                                     <TextBlock
+                                        FontFamily="{StaticResource AppFontFamily}"
                                         Grid.Row="1"
                                         MaxLines="2"
                                         Opacity="1.0"
@@ -200,6 +203,7 @@
                                         TextWrapping="Wrap" />
 
                                     <TextBlock
+                                        FontFamily="{StaticResource AppFontFamily}"
                                         Grid.Row="2"
                                         FontSize="10"
                                         MaxLines="1"
@@ -214,11 +218,13 @@
                                             CornerRadius="6"
                                             Background="{ThemeResource SubtleFillColorSecondaryBrush}">
                                             <TextBlock
+                                                FontFamily="{StaticResource AppFontFamily}"
                                                 FontSize="11"
                                                 FontWeight="SemiBold"
                                                 Text="{Binding InstallStatusText}" />
                                         </Border>
                                         <TextBlock
+                                            FontFamily="{StaticResource AppFontFamily}"
                                             FontSize="11"
                                             Opacity="1.0"
                                             VerticalAlignment="Center"
@@ -233,6 +239,7 @@
                                             Click="ActionButton_Click"
                                             IsEnabled="{Binding CanInstall}">
                                             <TextBlock
+                                                FontFamily="{StaticResource AppFontFamily}"
                                                 Text="{Binding LaunchButtonText}"
                                                 TextAlignment="Center"
                                                 TextTrimming="CharacterEllipsis" />

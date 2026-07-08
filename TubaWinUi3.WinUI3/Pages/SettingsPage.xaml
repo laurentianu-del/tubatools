@@ -109,14 +109,14 @@
                         x:Name="GeneralExpander"
                         HorizontalAlignment="Stretch"
                         HorizontalContentAlignment="Stretch"
-                        IsExpanded="False">
-                        <Expander.Header>
-                            <StackPanel Orientation="Horizontal" Spacing="12" Padding="0,8" MinHeight="56">
-                                <Border Style="{StaticResource NavCardIconBorderStyle}">
-                                    <FontIcon FontSize="20" Glyph="&#xE80F;" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                </Border>
-                                <StackPanel VerticalAlignment="Center" Spacing="2">
-                                    <TextBlock FontWeight="SemiBold" Text="常规" />
+                         IsExpanded="True">
+                         <Expander.Header>
+                             <StackPanel Orientation="Horizontal" Spacing="12" Padding="0,8" MinHeight="56">
+                                 <Border Style="{StaticResource NavCardIconBorderStyle}">
+                                     <FontIcon FontSize="20" Glyph="&#xE80F;" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                 </Border>
+                                 <StackPanel VerticalAlignment="Center" Spacing="2">
+                                     <TextBlock FontWeight="SemiBold" Text="常规" />
                                     <TextBlock Opacity="1.0" FontSize="13" Text="主题、更新、启动页面、快速模式" />
                                 </StackPanel>
                             </StackPanel>

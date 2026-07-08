@@ -410,6 +410,7 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock
+                                            FontFamily="{StaticResource AppFontFamily}"
                                             FontSize="15"
                                             Opacity="1.0"
                                             Text="{Binding Label}"
@@ -421,6 +422,7 @@
                                             Background="{ThemeResource DividerStrokeColorDefaultBrush}"
                                             VerticalAlignment="Center" />
                                         <TextBlock
+                                            FontFamily="{StaticResource AppFontFamily}"
                                             Grid.Column="2"
                                             FontSize="15"
                                             FontWeight="SemiBold"
@@ -438,6 +440,7 @@
                                                 <SolidColorBrush Color="#2600C864" />
                                             </Border.Background>
                                             <TextBlock
+                                                FontFamily="{StaticResource AppFontFamily}"
                                                 FontSize="11"
                                                 FontWeight="SemiBold"
                                                 Foreground="#FF00C864"

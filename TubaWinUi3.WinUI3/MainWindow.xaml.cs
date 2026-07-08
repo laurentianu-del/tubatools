@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Navigation;
+using TubaWinUi3.Controls;
 using TubaWinUi3.Models;
 using TubaWinUi3.Pages;
 using TubaWinUi3.Services;
@@ -30,6 +31,52 @@ public sealed partial class MainWindow : Window
     private bool _isTabMode;
 
     public bool IsTabMode => _isTabMode;
+
+    public void ShowUpdateBanner(Models.UpdateInfo update, bool autoDownload)
+    {
+        if (autoDownload)
+        {
+            UpdateBanner.ShowDownloading();
+            var item = UpdateService.AutoDownloadUpdate(update);
+            if (item is not null)
+            {
+                item.PropertyChanged += (s, e) =>
+                {
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        if (s is not DownloadItem di) return;
+                        switch (e.PropertyName)
+                        {
+                            case nameof(DownloadItem.State):
+                                if (di.State == DownloadItemState.Completed)
+                                    UpdateBanner.ShowDownloadComplete();
+                                else if (di.State == DownloadItemState.Failed)
+                                    UpdateBanner.ShowDownloadFailed(di.ErrorMessage ?? "未知错误");
+                                break;
+                            case nameof(DownloadItem.Progress):
+                                if (di.Progress is not null && di.Progress.TotalBytes > 0)
+                                    UpdateBanner.ShowDownloadProgress(di.Progress.Percentage);
+                                break;
+                        }
+                    });
+                };
+            }
+            else
+            {
+                UpdateBanner.ShowUpdateAvailable(update);
+            }
+        }
+        else
+        {
+            UpdateBanner.ShowUpdateAvailable(update);
+        }
+    }
+
+    public void ShowUpdateAlreadyDownloaded(Models.UpdateInfo update)
+    {
+        UpdateBanner.ShowUpdateAvailable(update);
+        UpdateBanner.ShowDownloadComplete();
+    }
 
     public MainWindow()
     {

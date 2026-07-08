@@ -18,7 +18,14 @@ public static class ViVeService
 		{
 			return [];
 		}
-		var names = FeatureNaming.FindNamesForFeatures(configs.Select(x => x.FeatureId));
+		Dictionary<uint, string>? names = null;
+		try
+		{
+			names = FeatureNaming.FindNamesForFeatures(configs.Select(x => x.FeatureId));
+		}
+		catch
+		{
+		}
 		var list = new List<ViVeFeatureEntry>(configs.Length);
 		foreach (var cfg in configs)
 		{

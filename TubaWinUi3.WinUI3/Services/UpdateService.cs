@@ -443,6 +443,174 @@ public static class UpdateService
         return filePath;
     }
 
+    private static string? _pendingUpdateVersion;
+    private static DownloadItem? _pendingDownloadItem;
+
+    public static event Action<UpdateInfo>? UpdateDownloaded;
+
+    public static string? PendingUpdateVersion => _pendingUpdateVersion;
+    public static DownloadItem? PendingDownloadItem => _pendingDownloadItem;
+
+    private static string UpdateTempDir => Path.Combine(Path.GetTempPath(), "TubaWinUi3_Update");
+
+    public static string? FindDownloadedUpdateFile()
+    {
+        try
+        {
+            var dir = UpdateTempDir;
+            if (!Directory.Exists(dir)) return null;
+            return Directory.GetFiles(dir)
+                .FirstOrDefault(f => f.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+                                  || f.EndsWith(".zip", StringComparison.OrdinalIgnoreCase));
+        }
+        catch { return null; }
+    }
+
+    public static bool IsUpdateAlreadyDownloaded(UpdateInfo update)
+    {
+        var file = FindDownloadedUpdateFile();
+        if (file is null) return false;
+        var fileName = Path.GetFileName(file);
+        return update.Assets.Any(a =>
+            string.Equals(a.Name, fileName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    public static void LaunchDownloadedUpdate()
+    {
+        var file = FindDownloadedUpdateFile();
+        if (file is null) return;
+
+        if (file.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = file,
+                UseShellExecute = true
+            });
+            Microsoft.UI.Xaml.Application.Current.Exit();
+        }
+        else
+        {
+            var folder = Path.GetDirectoryName(file)!;
+            Process.Start("explorer.exe", folder);
+        }
+    }
+
+    public static DownloadItem? AutoDownloadUpdate(UpdateInfo update)
+    {
+        var isPortable = !RuntimeHelper.IsMsixPackaged;
+        var asset = isPortable
+            ? FindBestPortableAsset(update.Assets)
+            : FindBestInstallerAsset(update.Assets);
+
+        if (asset is null) return null;
+
+        var tempDir = Path.Combine(Path.GetTempPath(), "TubaWinUi3_Update");
+
+        if (!string.IsNullOrEmpty(asset.GitCodeDownloadUrl))
+        {
+            var item = DownloadQueueService.EnqueueWithResolver(
+                displayName: $"软件更新 v{CurrentVersion}",
+                urlResolver: async ct =>
+                {
+                    Exception? lastError = null;
+                    var urls = new List<(string Url, string Label)>
+                    {
+                        (asset.GitCodeDownloadUrl!, "GitCode"),
+                        (asset.OriginalDownloadUrl!, "GitHub")
+                    };
+
+                    foreach (var (url, _) in urls)
+                    {
+                        try
+                        {
+                            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+                            client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-UpdateChecker");
+                            using var resp = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
+                            resp.EnsureSuccessStatusCode();
+                            var size = resp.Content.Headers.ContentLength ?? asset.Size;
+                            return new ResolvedDownloadUrl(url, asset.Name, size);
+                        }
+                        catch (Exception ex) { lastError = ex; }
+                    }
+                    throw lastError!;
+                },
+                destinationPath: tempDir,
+                postProcessor: new DelegatePostProcessor("更新就绪", (_, _, _, _) => Task.CompletedTask),
+                description: $"GitCode 优先 · {asset.Name} · {FormatSize(asset.Size)}",
+                glyph: "\uE895");
+
+            _pendingUpdateVersion = update.Version;
+            _pendingDownloadItem = item;
+            item.PropertyChanged += (s, e) =>
+            {
+                if (e.PropertyName == nameof(DownloadItem.State) && item.State == DownloadItemState.Completed)
+                    UpdateDownloaded?.Invoke(update);
+            };
+            return item;
+        }
+
+        if (!string.IsNullOrEmpty(asset.OriginalDownloadUrl))
+        {
+            var item = DownloadQueueService.Enqueue(
+                displayName: $"软件更新 v{CurrentVersion}",
+                downloadUrl: asset.OriginalDownloadUrl,
+                destinationPath: tempDir,
+                postProcessor: new DelegatePostProcessor("更新就绪", (_, _, _, _) => Task.CompletedTask),
+                description: $"GitHub 下载 · {asset.Name} · {FormatSize(asset.Size)}",
+                glyph: "\uE895");
+
+            _pendingUpdateVersion = update.Version;
+            _pendingDownloadItem = item;
+            item.PropertyChanged += (s, e) =>
+            {
+                if (e.PropertyName == nameof(DownloadItem.State) && item.State == DownloadItemState.Completed)
+                    UpdateDownloaded?.Invoke(update);
+            };
+            return item;
+        }
+
+        return null;
+    }
+
+    public static void LaunchUpdate()
+    {
+        LaunchDownloadedUpdate();
+    }
+
+    public static void LaunchUpdateFromItem()
+    {
+        if (_pendingDownloadItem is not null)
+        {
+            var fileName = _pendingDownloadItem.ResolvedFileName;
+            if (!string.IsNullOrEmpty(fileName))
+            {
+                var filePath = Path.Combine(UpdateTempDir, fileName);
+                if (File.Exists(filePath))
+                {
+                    if (filePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Process.Start(new ProcessStartInfo { FileName = filePath, UseShellExecute = true });
+                        Microsoft.UI.Xaml.Application.Current.Exit();
+                    }
+                    else
+                    {
+                        Process.Start("explorer.exe", UpdateTempDir);
+                    }
+                    return;
+                }
+            }
+        }
+
+        LaunchDownloadedUpdate();
+    }
+
+    public static void ClearPendingUpdate()
+    {
+        _pendingUpdateVersion = null;
+        _pendingDownloadItem = null;
+    }
+
     public static string FormatSize(long bytes)
     {
         if (bytes >= 1L << 30) return $"{(double)bytes / (1L << 30):F2} GB";

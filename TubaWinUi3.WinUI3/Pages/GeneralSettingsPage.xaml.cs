@@ -200,9 +200,10 @@ public sealed partial class GeneralSettingsPage : Page
 
             if (update is not null)
             {
-                UpdateStatusText.Text = $"发现新版本 v{update.Version}";
-                var window = new UpdateWindow(update);
-                window.Activate();
+                UpdateStatusText.Text = $"发现新版本 v{update.Version}，请查看顶部更新提示";
+                var isMetered = NetworkHelper.IsMeteredConnection();
+                var mainWindow = App.MainWindow as MainWindow;
+                mainWindow?.ShowUpdateBanner(update, !isMetered);
             }
             else
             {

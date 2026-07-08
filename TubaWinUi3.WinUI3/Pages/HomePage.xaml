@@ -283,7 +283,7 @@
                                             Visibility="{Binding ArchOptions.Count, Converter={StaticResource ArchOptionsCountConverter}}">
                                             <ComboBox.ItemTemplate>
                                                 <DataTemplate>
-                                                    <TextBlock FontSize="12" Text="{Binding DisplayText}" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock FontFamily="{StaticResource AppFontFamily}" FontSize="12" Text="{Binding DisplayText}" TextTrimming="CharacterEllipsis" />
                                                 </DataTemplate>
                                             </ComboBox.ItemTemplate>
                                         </ComboBox>
@@ -322,6 +322,7 @@
                                             Click="LaunchButton_Click"
                                             IsEnabled="{Binding CanLaunch}">
                                             <TextBlock
+                                                FontFamily="{StaticResource AppFontFamily}"
                                                 Text="{Binding LaunchButtonText}"
                                                 TextAlignment="Center"
                                                 TextTrimming="CharacterEllipsis" />

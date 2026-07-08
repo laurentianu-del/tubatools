@@ -186,7 +186,7 @@
                                                             <SolidColorBrush Color="{ThemeResource SubtleFillColorSecondary}" />
                                                         </Border.Background>
                                                         <StackPanel Spacing="4">
-                                                            <TextBlock FontSize="13" FontWeight="SemiBold" Text="{Binding DisplayName}" />
+                                                            <TextBlock FontFamily="{StaticResource AppFontFamily}" FontSize="13" FontWeight="SemiBold" Text="{Binding DisplayName}" />
                                                         </StackPanel>
                                                     </Border>
                                                 </DataTemplate>
