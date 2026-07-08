@@ -85,15 +85,6 @@ begin
   end;
 end;
 
-function IsVCRedistInstalled: Boolean;
-var
-  Installed: Cardinal;
-begin
-  Result := RegQueryDWordValue(HKLM, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x86', 'Installed', Installed) and (Installed = 1);
-  if not Result then
-    Result := RegQueryDWordValue(HKLM, 'SOFTWARE\WOW6432Node\Microsoft\VisualStudio\14.0\VC\Runtimes\x86', 'Installed', Installed) and (Installed = 1);
-end;
-
 function IsWindowsVersionOk: Boolean;
 var
   Version: TWindowsVersion;
@@ -105,7 +96,6 @@ end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
-  ErrorCode: Integer;
   Msg: String;
 begin
   if not IsWindowsVersionOk then
@@ -115,19 +105,6 @@ begin
            '请先更新 Windows 系统后再安装。';
     MsgBox(Msg, mbCriticalError, MB_OK);
     Result := '系统版本不满足要求，安装已取消。';
-    Exit;
-  end;
-
-  if not IsVCRedistInstalled then
-  begin
-    Msg := '检测到你的系统缺少以下运行库：' + #13#10#13#10 +
-           '• Microsoft Visual C++ 2015-2022 运行库 (x86)' + #13#10#13#10 +
-           '是否立即下载并安装？（安装完成后请重新运行本安装包）';
-    if MsgBox(Msg, mbConfirmation, MB_YESNO) = IDYES then
-    begin
-      ShellExec('open', 'https://aka.ms/vs/17/release/vc_redist.x86.exe', '', '', SW_SHOW, ewNoWait, ErrorCode);
-    end;
-    Result := '请先安装缺少的运行库后再继续安装。';
     Exit;
   end;
 

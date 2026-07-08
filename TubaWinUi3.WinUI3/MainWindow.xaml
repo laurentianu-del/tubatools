@@ -187,32 +187,32 @@
                         Content="全部"
                         Tag="all">
                         <NavigationViewItem.Icon>
-                            <FontIcon Glyph="&#xE80F;" />
+                            <FontIcon Glyph="&#xE80F;" FontWeight="Bold" />
                         </NavigationViewItem.Icon>
                     </NavigationViewItem>
                     <NavigationViewItem Content="常用" Tag="favorites">
                         <NavigationViewItem.Icon>
-                            <FontIcon Glyph="&#xE735;" />
+                            <FontIcon Glyph="&#xE735;" FontWeight="Bold" />
                         </NavigationViewItem.Icon>
                     </NavigationViewItem>
                     <NavigationViewItem Content="硬件信息" Tag="hardware">
                         <NavigationViewItem.Icon>
-                            <FontIcon Glyph="&#xE977;" />
+                            <FontIcon Glyph="&#xE977;" FontWeight="Bold" />
                         </NavigationViewItem.Icon>
                     </NavigationViewItem>
                     <NavigationViewItem Content="内置" Tag="builtin">
                         <NavigationViewItem.Icon>
-                            <FontIcon Glyph="&#xE90F;" />
+                            <FontIcon Glyph="&#xE90F;" FontWeight="Bold" />
                         </NavigationViewItem.Icon>
                     </NavigationViewItem>
                     <NavigationViewItem Content="性能测试" Tag="benchmark">
                         <NavigationViewItem.Icon>
-                            <FontIcon Glyph="&#xE9D9;" />
+                            <FontIcon Glyph="&#xE9D9;" FontWeight="Bold" />
                         </NavigationViewItem.Icon>
                     </NavigationViewItem>
                     <NavigationViewItem Content="社区" Tag="community">
                         <NavigationViewItem.Icon>
-                            <FontIcon Glyph="&#xE779;" />
+                            <FontIcon Glyph="&#xE779;" FontWeight="Bold" />
                         </NavigationViewItem.Icon>
                     </NavigationViewItem>
                 </NavigationView.MenuItems>

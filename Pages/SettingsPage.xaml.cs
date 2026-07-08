@@ -36,6 +36,12 @@ public sealed partial class SettingsPage : Page
     private bool _aiSettingsInitializing;
     private bool _aiTesting;
 
+    private FrameworkElement? _generalExpanderContent;
+    private FrameworkElement? _appearanceExpanderContent;
+    private FrameworkElement? _hardwareAiExpanderContent;
+    private FrameworkElement? _toolsCommunityExpanderContent;
+    private FrameworkElement? _creditsExpanderContent;
+
     private static readonly (string Tag, string DisplayName)[] DefaultPageOptions =
     [
         ("all", "全部工具"),
@@ -142,6 +148,12 @@ public sealed partial class SettingsPage : Page
     {
         InitializeComponent();
 
+        _generalExpanderContent = GeneralExpander.Content as FrameworkElement;
+        _appearanceExpanderContent = AppearanceExpander.Content as FrameworkElement;
+        _hardwareAiExpanderContent = HardwareAiExpander.Content as FrameworkElement;
+        _toolsCommunityExpanderContent = ToolsCommunityExpander.Content as FrameworkElement;
+        _creditsExpanderContent = CreditsExpander.Content as FrameworkElement;
+
         var version = Assembly.GetExecutingAssembly().GetName().Version;
         VersionText.Text = version is not null
             ? $"版本 {version.Major}.{version.Minor}.{version.Build}"
@@ -170,14 +182,14 @@ public sealed partial class SettingsPage : Page
     {
         base.OnNavigatedTo(e);
 
+        RestoreExpanderContent(GeneralExpander, _generalExpanderContent);
+        RestoreExpanderContent(AppearanceExpander, _appearanceExpanderContent);
+        RestoreExpanderContent(HardwareAiExpander, _hardwareAiExpanderContent);
+        RestoreExpanderContent(ToolsCommunityExpander, _toolsCommunityExpanderContent);
+        RestoreExpanderContent(CreditsExpander, _creditsExpanderContent);
+
         if (GeneralExpander is not null)
-        {
-            if (GeneralExpander.IsExpanded && IsExpanderContentEmpty(GeneralExpander))
-            {
-                GeneralExpander.IsExpanded = false;
-            }
             GeneralExpander.IsExpanded = true;
-        }
 
         if (e.Parameter is SearchNavigationTarget target && target.HighlightSettingKey is not null)
         {
@@ -189,6 +201,13 @@ public sealed partial class SettingsPage : Page
             StartHighlight(_pendingHighlightKey);
             _pendingHighlightKey = null;
         }
+    }
+
+    private static void RestoreExpanderContent(Expander? expander, FrameworkElement? savedContent)
+    {
+        if (expander is null || savedContent is null) return;
+        if (expander.Content is null || IsExpanderContentEmpty(expander))
+            expander.Content = savedContent;
     }
 
     private static bool IsExpanderContentEmpty(Expander expander)
