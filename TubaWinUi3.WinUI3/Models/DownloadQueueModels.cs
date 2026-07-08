@@ -413,3 +413,51 @@ public sealed class ToolsBundleExtractProcessor : IDownloadPostProcessor
         }, ct);
     }
 }
+
+public sealed class CommunityToolInstallProcessor : IDownloadPostProcessor
+{
+    private readonly string _toolId;
+    private readonly string _category;
+    private readonly bool _isArchive;
+
+    public string DisplayName => "安装社区工具";
+
+    public CommunityToolInstallProcessor(string toolId, string category, bool isArchive)
+    {
+        _toolId = toolId;
+        _category = category;
+        _isArchive = isArchive;
+    }
+
+    public async Task ExecuteAsync(string downloadedFilePath, string destinationPath,
+        IProgress<string>? statusProgress, CancellationToken ct)
+    {
+        await Task.Run(() =>
+        {
+            var toolsRoot = Services.ToolCatalog.ToolsRoot;
+            var categoryDir = Path.Combine(toolsRoot, _category);
+            Directory.CreateDirectory(categoryDir);
+            var toolDir = Path.Combine(categoryDir, _toolId);
+
+            if (Directory.Exists(toolDir))
+            {
+                try { Directory.Delete(toolDir, true); } catch { }
+            }
+            Directory.CreateDirectory(toolDir);
+
+            if (_isArchive)
+            {
+                statusProgress?.Report("正在解压...");
+                System.IO.Compression.ZipFile.ExtractToDirectory(downloadedFilePath, toolDir, true);
+                try { File.Delete(downloadedFilePath); } catch { }
+            }
+            else
+            {
+                var destPath = Path.Combine(toolDir, Path.GetFileName(downloadedFilePath));
+                File.Move(downloadedFilePath, destPath, true);
+            }
+
+            Services.ToolCatalog.InvalidateTagsCache();
+        }, ct);
+    }
+}

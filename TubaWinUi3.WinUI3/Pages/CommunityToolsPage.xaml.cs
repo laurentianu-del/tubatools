@@ -544,11 +544,6 @@ public sealed partial class CommunityToolsPage : Page
         };
         confirmStack.Children.Add(warningBorder);
 
-        confirmDialog.Content = confirmStack;
-
-        var confirmResult = await confirmDialog.ShowAsync();
-        if (confirmResult != ContentDialogResult.Primary) return;
-
         var downloadWindow = new GitHubDownloadWindow(tool);
         downloadWindow.DownloadSucceeded += () =>
         {
@@ -556,8 +551,8 @@ public sealed partial class CommunityToolsPage : Page
             {
                 tool.InstallStatus = CommunityToolInstallStatus.Installed;
                 tool.LocalPath = CommunityToolService.GetLocalPath(tool);
-
                 CommunityToolService.InvalidateCache();
+                _ = LoadToolsAsync();
             });
         };
         downloadWindow.Activate();
@@ -718,41 +713,20 @@ public sealed partial class CommunityToolsPage : Page
 
         var user = await GitHubAuthService.GetCurrentUserAsync();
 
-        var ofn = new OPENFILENAME
+        var methodRadio = new RadioButtons
         {
-            lStructSize = Marshal.SizeOf<OPENFILENAME>(),
-            hwndOwner = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow),
-            lpstrFilter = "压缩包\0*.zip\0所有文件\0*.*\0\0",
-            lpstrFile = new string(new char[1024]),
-            nMaxFile = 1024,
-            lpstrTitle = "选择工具压缩包",
-            Flags = OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR,
-            nFilterIndex = 1
+            Header = "上传方式",
+            ItemsSource = new[] { "上传压缩包", "提供下载链接" },
+            SelectedIndex = 0
         };
 
-        if (!GetOpenFileName(ref ofn)) return;
-
-        var packagePath = ofn.lpstrFile.TrimEnd('\0');
-        if (string.IsNullOrWhiteSpace(packagePath)) return;
-
-        var fileInfo = new FileInfo(packagePath);
-        if (fileInfo.Length > CommunityToolService.MaxUploadSizeBytes)
-        {
-            await ShowMessageAsync("文件过大", $"压缩包大小不能超过 {CommunityToolService.MaxUploadSizeBytes / 1024 / 1024} MB。\n当前文件：{FormatSize(fileInfo.Length)}");
-            return;
-        }
-
-        var executables = CustomToolPackageService.GetExecutables(packagePath);
-        if (executables.Count == 0)
-        {
-            await ShowMessageAsync("未找到可执行文件", "压缩包里需要至少包含一个 .exe 文件。");
-            return;
-        }
+        string? packagePath = null;
+        IReadOnlyList<ImportableExecutable>? executables = null;
+        FileInfo? fileInfo = null;
 
         var primaryComboBox = new ComboBox
         {
             Header = "主程序",
-            ItemsSource = executables,
             SelectedIndex = 0,
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
@@ -760,8 +734,334 @@ public sealed partial class CommunityToolsPage : Page
         var nameBox = new TextBox
         {
             Header = "工具名称",
-            Text = Path.GetFileNameWithoutExtension(executables[0].FileName),
             PlaceholderText = "例如 CPU-Z"
+        };
+
+        var variantsList = new ListView
+        {
+            Header = "多架构文件（可选）",
+            SelectionMode = ListViewSelectionMode.Multiple,
+            MaxHeight = 150
+        };
+
+        var packageInfo = new Border
+        {
+            Padding = new Thickness(12, 8, 12, 8),
+            Background = (Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"],
+            CornerRadius = new CornerRadius(6),
+            Visibility = Visibility.Collapsed,
+            Child = new StackPanel
+            {
+                Spacing = 4,
+                Children =
+                {
+                    new TextBlock { Text = "未选择文件", FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold },
+                    new TextBlock { Text = "", FontSize = 12, Opacity = 0.6 }
+                }
+            }
+        };
+
+        var packagePickButton = new Button
+        {
+            Content = "选择压缩包",
+            Padding = new Thickness(10, 4, 10, 4),
+            CornerRadius = new CornerRadius(6),
+            Visibility = Visibility.Visible
+        };
+
+        var downloadUrlBox = new TextBox
+        {
+            Header = "下载链接",
+            PlaceholderText = "例如 https://example.com/tool.zip 或 gh:owner/repo"
+        };
+
+        var downloadFilterBox = new TextBox
+        {
+            Header = "下载筛选（可选）",
+            PlaceholderText = "例如 *.exe 用于 gh: 链接"
+        };
+
+        var verifyButton = new Button
+        {
+            Content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 6,
+                Children =
+                {
+                    new FontIcon { FontSize = 12, Glyph = "\uE72C" },
+                    new TextBlock { Text = "验证并下载" }
+                }
+            },
+            Padding = new Thickness(14, 6, 14, 6),
+            CornerRadius = new CornerRadius(6)
+        };
+
+        var verifyProgress = new ProgressBar
+        {
+            IsIndeterminate = true,
+            Visibility = Visibility.Collapsed
+        };
+
+        var verifyStatusText = new TextBlock
+        {
+            FontSize = 12,
+            Opacity = 0.68,
+            Visibility = Visibility.Collapsed
+        };
+
+        var downloadUrlTip = new Border
+        {
+            Padding = new Thickness(12, 8, 12, 8),
+            Background = new SolidColorBrush(Color.FromArgb(25, 96, 165, 250)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(60, 96, 165, 250)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Child = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                Children =
+                {
+                    new FontIcon { Glyph = "\uE946", FontSize = 14, Foreground = new SolidColorBrush(Color.FromArgb(255, 96, 165, 250)) },
+                    new TextBlock
+                    {
+                        Text = "输入下载链接后点击「验证并下载」，下载完成后可查看并选择 exe 文件。",
+                        FontSize = 13,
+                        TextWrapping = TextWrapping.Wrap,
+                        VerticalAlignment = VerticalAlignment.Center
+                    }
+                }
+            }
+        };
+
+        var downloadedFileInfo = new Border
+        {
+            Padding = new Thickness(12, 8, 12, 8),
+            Background = (Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"],
+            CornerRadius = new CornerRadius(6),
+            Visibility = Visibility.Collapsed,
+            Child = new StackPanel
+            {
+                Spacing = 4,
+                Children =
+                {
+                    new TextBlock { Text = "未下载", FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold },
+                    new TextBlock { Text = "", FontSize = 12, Opacity = 0.6 }
+                }
+            }
+        };
+
+        string? downloadedPackagePath = null;
+
+        var zipSection = new StackPanel
+        {
+            Spacing = 8,
+            Visibility = Visibility.Visible,
+            Children = { packagePickButton, packageInfo }
+        };
+
+        var urlSection = new StackPanel
+        {
+            Spacing = 8,
+            Visibility = Visibility.Collapsed,
+            Children = { downloadUrlTip, downloadUrlBox, downloadFilterBox, verifyButton, verifyProgress, verifyStatusText, downloadedFileInfo }
+        };
+
+        methodRadio.SelectionChanged += (_, _) =>
+        {
+            var isZip = methodRadio.SelectedIndex == 0;
+            zipSection.Visibility = isZip ? Visibility.Visible : Visibility.Collapsed;
+            urlSection.Visibility = isZip ? Visibility.Collapsed : Visibility.Visible;
+        };
+
+        verifyButton.Click += async (_, _) =>
+        {
+            var url = downloadUrlBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                verifyStatusText.Visibility = Visibility.Visible;
+                verifyStatusText.Foreground = new SolidColorBrush(Color.FromArgb(255, 255, 68, 68));
+                verifyStatusText.Text = "请输入下载链接";
+                return;
+            }
+
+            verifyButton.IsEnabled = false;
+            verifyProgress.Visibility = Visibility.Visible;
+            verifyProgress.IsIndeterminate = true;
+            verifyStatusText.Visibility = Visibility.Visible;
+            verifyStatusText.Foreground = new SolidColorBrush(Color.FromArgb(255, 255, 68, 68));
+            verifyStatusText.Text = "正在解析下载链接...";
+            downloadedFileInfo.Visibility = Visibility.Collapsed;
+
+            try
+            {
+                var filter = downloadFilterBox.Text.Trim();
+                string resolvedUrl;
+                string resolvedFileName;
+                long resolvedSize;
+
+                if (url.StartsWith("gh:", StringComparison.OrdinalIgnoreCase) ||
+                    url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                {
+                    var downloadInfo = await ToolDownloaderService.ResolveDownloadUrlAsync(url, string.IsNullOrWhiteSpace(filter) ? null : filter);
+                    if (downloadInfo is null)
+                    {
+                        verifyStatusText.Foreground = new SolidColorBrush(Color.FromArgb(255, 255, 68, 68));
+                        verifyStatusText.Text = "无法解析链接，请检查链接是否正确";
+                        return;
+                    }
+                    resolvedUrl = downloadInfo.DownloadUrl;
+                    resolvedFileName = downloadInfo.FileName;
+                    resolvedSize = downloadInfo.Size;
+                }
+                else
+                {
+                    resolvedUrl = url;
+                    resolvedFileName = Path.GetFileName(new Uri(url).AbsolutePath);
+                    if (string.IsNullOrWhiteSpace(resolvedFileName) || resolvedFileName.Contains('?'))
+                        resolvedFileName = "download";
+                    resolvedSize = 0;
+                }
+
+                verifyStatusText.Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
+                verifyStatusText.Text = $"正在下载 {resolvedFileName}...";
+                verifyProgress.IsIndeterminate = false;
+                verifyProgress.Value = 0;
+
+                var tempDir = Path.Combine(Path.GetTempPath(), $"TubaCommunityVerify_{Guid.NewGuid():N}");
+                Directory.CreateDirectory(tempDir);
+
+                var progress = new Progress<ToolDownloadProgress>(p =>
+                {
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        if (p.Percentage > 0) verifyProgress.Value = p.Percentage;
+                        verifyStatusText.Text = $"正在下载... {p.Percentage:F0}%  {ToolDownloaderService.FormatSpeed(p.SpeedMbps)}";
+                    });
+                });
+
+                var filePath = await ToolDownloaderService.DownloadToFileAsync(resolvedUrl, tempDir, resolvedFileName, progress);
+
+                verifyStatusText.Text = "正在检查文件...";
+
+                var isArchive = filePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
+                                filePath.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase);
+
+                if (isArchive)
+                {
+                    var extractDir = Path.Combine(tempDir, "extracted");
+                    Directory.CreateDirectory(extractDir);
+                    await ToolDownloaderService.ExtractArchiveAsync(filePath, extractDir);
+                    var exes = Directory.GetFiles(extractDir, "*.exe", SearchOption.AllDirectories)
+                        .Select(f => new ImportableExecutable(f.Substring(extractDir.Length + 1).Replace('\\', '/')))
+                        .OrderBy(e => e.EntryPath, StringComparer.CurrentCultureIgnoreCase)
+                        .ToList();
+
+                    if (exes.Count == 0)
+                    {
+                        verifyStatusText.Foreground = new SolidColorBrush(Color.FromArgb(255, 255, 68, 68));
+                        verifyStatusText.Text = "下载的压缩包里没有 .exe 文件";
+                        return;
+                    }
+
+                    downloadedPackagePath = filePath;
+                    executables = exes;
+                    fileInfo = null;
+
+                    primaryComboBox.ItemsSource = exes;
+                    primaryComboBox.SelectedIndex = 0;
+                    variantsList.ItemsSource = exes;
+                    nameBox.Text = Path.GetFileNameWithoutExtension(exes[0].FileName);
+
+                    var innerStack = (StackPanel)downloadedFileInfo.Child;
+                    ((TextBlock)innerStack.Children[0]).Text = resolvedFileName;
+                    ((TextBlock)innerStack.Children[1]).Text = $"{exes.Count} 个可执行文件";
+                    downloadedFileInfo.Visibility = Visibility.Visible;
+
+                    verifyStatusText.Foreground = new SolidColorBrush(Color.FromArgb(255, 74, 222, 128));
+                    verifyStatusText.Text = $"下载完成，发现 {exes.Count} 个可执行文件";
+                }
+                else
+                {
+                    downloadedPackagePath = filePath;
+                    packagePath = filePath;
+                    executables = [new ImportableExecutable(resolvedFileName)];
+                    fileInfo = new FileInfo(filePath);
+
+                    primaryComboBox.ItemsSource = executables;
+                    primaryComboBox.SelectedIndex = 0;
+                    variantsList.ItemsSource = executables;
+                    if (string.IsNullOrWhiteSpace(nameBox.Text))
+                        nameBox.Text = Path.GetFileNameWithoutExtension(resolvedFileName);
+
+                    var innerStack = (StackPanel)downloadedFileInfo.Child;
+                    ((TextBlock)innerStack.Children[0]).Text = resolvedFileName;
+                    ((TextBlock)innerStack.Children[1]).Text = FormatSize(new FileInfo(filePath).Length);
+                    downloadedFileInfo.Visibility = Visibility.Visible;
+
+                    verifyStatusText.Foreground = new SolidColorBrush(Color.FromArgb(255, 74, 222, 128));
+                    verifyStatusText.Text = "下载完成";
+                }
+            }
+            catch (Exception ex)
+            {
+                verifyStatusText.Foreground = new SolidColorBrush(Color.FromArgb(255, 255, 68, 68));
+                verifyStatusText.Text = $"验证失败: {(ex.InnerException?.Message ?? ex.Message)}";
+            }
+            finally
+            {
+                verifyButton.IsEnabled = true;
+                verifyProgress.Visibility = Visibility.Collapsed;
+            }
+        };
+
+        packagePickButton.Click += (s, e) =>
+        {
+            var pkgOfn = new OPENFILENAME
+            {
+                lStructSize = Marshal.SizeOf<OPENFILENAME>(),
+                hwndOwner = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow),
+                lpstrFilter = "压缩包\0*.zip\0所有文件\0*.*\0\0",
+                lpstrFile = new string(new char[1024]),
+                nMaxFile = 1024,
+                lpstrTitle = "选择工具压缩包",
+                Flags = OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR,
+                nFilterIndex = 1
+            };
+
+            if (!GetOpenFileName(ref pkgOfn)) return;
+
+            var picked = pkgOfn.lpstrFile.TrimEnd('\0');
+            if (string.IsNullOrWhiteSpace(picked)) return;
+
+            var fi = new FileInfo(picked);
+            if (fi.Length > CommunityToolService.MaxUploadSizeBytes)
+            {
+                _ = ShowMessageAsync("文件过大", $"压缩包大小不能超过 {CommunityToolService.MaxUploadSizeBytes / 1024 / 1024} MB。\n当前文件：{FormatSize(fi.Length)}");
+                return;
+            }
+
+            var exes = CustomToolPackageService.GetExecutables(picked);
+            if (exes.Count == 0)
+            {
+                _ = ShowMessageAsync("未找到可执行文件", "压缩包里需要至少包含一个 .exe 文件。");
+                return;
+            }
+
+            packagePath = picked;
+            executables = exes;
+            fileInfo = fi;
+
+            var innerStack = (StackPanel)packageInfo.Child;
+            ((TextBlock)innerStack.Children[0]).Text = Path.GetFileName(picked);
+            ((TextBlock)innerStack.Children[1]).Text = $"{FormatSize(fi.Length)}  ·  {exes.Count} 个可执行文件";
+            packageInfo.Visibility = Visibility.Visible;
+
+            primaryComboBox.ItemsSource = exes;
+            primaryComboBox.SelectedIndex = 0;
+            variantsList.ItemsSource = exes;
+            nameBox.Text = Path.GetFileNameWithoutExtension(exes[0].FileName);
         };
 
         var categoryComboBox = new ComboBox
@@ -870,14 +1170,6 @@ public sealed partial class CommunityToolsPage : Page
             }
         };
 
-        var variantsList = new ListView
-        {
-            Header = "多架构文件（可选）",
-            ItemsSource = executables,
-            SelectionMode = ListViewSelectionMode.Multiple,
-            MaxHeight = 150
-        };
-
         var loginInfo = new Border
         {
             Padding = new Thickness(12, 8, 12, 8),
@@ -895,22 +1187,6 @@ public sealed partial class CommunityToolsPage : Page
             }
         };
 
-        var packageInfo = new Border
-        {
-            Padding = new Thickness(12, 8, 12, 8),
-            Background = (Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"],
-            CornerRadius = new CornerRadius(6),
-            Child = new StackPanel
-            {
-                Spacing = 4,
-                Children =
-                {
-                    new TextBlock { Text = Path.GetFileName(packagePath), FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold },
-                    new TextBlock { Text = $"{FormatSize(fileInfo.Length)}  ·  {executables.Count} 个可执行文件", FontSize = 12, Opacity = 0.6 }
-                }
-            }
-        };
-
         var content = new ScrollViewer
         {
             MaxHeight = 620,
@@ -920,7 +1196,9 @@ public sealed partial class CommunityToolsPage : Page
                 Children =
                 {
                     loginInfo,
-                    packageInfo,
+                    methodRadio,
+                    zipSection,
+                    urlSection,
                     nameBox,
                     categoryComboBox,
                     new TextBlock { Text = "主程序", Opacity = 0.68, FontSize = 12 },
@@ -953,9 +1231,23 @@ public sealed partial class CommunityToolsPage : Page
         var dialogResult = await dialog.ShowAsync();
         if (dialogResult != ContentDialogResult.Primary) return;
 
-        if (primaryComboBox.SelectedItem is not ImportableExecutable primary)
+        var isZipMode = methodRadio.SelectedIndex == 0;
+
+        if (isZipMode && (string.IsNullOrWhiteSpace(packagePath) || executables is null || executables.Count == 0))
         {
-            await ShowMessageAsync("请选择主程序", "需要指定一个 exe 作为打开工具时运行的主程序。");
+            await ShowMessageAsync("请选择压缩包", "上传压缩包模式下需要选择一个包含 exe 的压缩包。");
+            return;
+        }
+
+        if (!isZipMode && string.IsNullOrWhiteSpace(downloadUrlBox.Text))
+        {
+            await ShowMessageAsync("请填写下载链接", "下载链接模式下需要提供下载地址。");
+            return;
+        }
+
+        if (!isZipMode && string.IsNullOrWhiteSpace(downloadedPackagePath))
+        {
+            await ShowMessageAsync("请先验证链接", "请点击「验证并下载」确认链接可用后再提交。");
             return;
         }
 
@@ -966,8 +1258,16 @@ public sealed partial class CommunityToolsPage : Page
         }
 
         var category = categoryComboBox.SelectedItem as string ?? "其他工具";
+
+        ImportableExecutable? primary = primaryComboBox.SelectedItem as ImportableExecutable;
+        if (isZipMode && primary is null)
+        {
+            await ShowMessageAsync("请选择主程序", "需要指定一个 exe 作为打开工具时运行的主程序。");
+            return;
+        }
+
         var launchTarget = string.IsNullOrWhiteSpace(launchTargetBox.Text)
-            ? primary.FileName
+            ? primary?.FileName ?? ""
             : launchTargetBox.Text;
 
         var selectedVariants = variantsList.SelectedItems
@@ -976,13 +1276,18 @@ public sealed partial class CommunityToolsPage : Page
             .Where(item => !string.IsNullOrWhiteSpace(item.Arch))
             .ToList();
 
+        var effectiveDownloadUrl = isZipMode ? null : downloadUrlBox.Text.Trim();
+        var effectiveDownloadFilter = isZipMode ? null : downloadFilterBox.Text.Trim();
+
         var pluginJson = BuildPluginJson(
             nameBox.Text, descBox.Text, category,
-            tagsBox.Text, Path.GetFileName(packagePath),
+            tagsBox.Text, packagePath is not null ? Path.GetFileName(packagePath) : null,
             launchTarget, publisherBox.Text, homepageBox.Text,
             versionBox.Text, user?.Login ?? "",
             selectedVariants.Select(v => (v.EntryPath, v.Arch)).ToList(),
-            iconFilePath is not null ? Path.GetFileName(iconFilePath) : null);
+            iconFilePath is not null ? Path.GetFileName(iconFilePath) : null,
+            effectiveDownloadUrl,
+            string.IsNullOrWhiteSpace(effectiveDownloadFilter) ? null : effectiveDownloadFilter);
 
         var previewDialog = new ContentDialog
         {
@@ -1053,9 +1358,11 @@ public sealed partial class CommunityToolsPage : Page
 
         var submitWindow = new CommunitySubmitWindow(
             nameBox.Text, descBox.Text, category,
-            tagsBox.Text, packagePath, launchTarget,
+            tagsBox.Text, isZipMode ? packagePath : null, launchTarget,
             publisherBox.Text, homepageBox.Text, versionBox.Text,
-            iconFilePath);
+            iconFilePath,
+            effectiveDownloadUrl,
+            string.IsNullOrWhiteSpace(effectiveDownloadFilter) ? null : effectiveDownloadFilter);
         submitWindow.SubmitSucceeded += () =>
         {
             DispatcherQueue.TryEnqueue(async () =>
@@ -1104,10 +1411,12 @@ public sealed partial class CommunityToolsPage : Page
 
     private static string BuildPluginJson(
         string name, string description, string category, string tags,
-        string fileName, string launchTarget,
+        string? fileName, string launchTarget,
         string publisher, string homepage, string version, string author,
         List<(string EntryPath, string Arch)> archVariants,
-        string? iconFileName = null)
+        string? iconFileName = null,
+        string? downloadUrl = null,
+        string? downloadFilter = null)
     {
         var toolId = CommunityToolService.GenerateToolId(name);
         var tagList = tags.Split(',', '，', ';', '；')
@@ -1123,7 +1432,6 @@ public sealed partial class CommunityToolsPage : Page
             ["description"] = description,
             ["category"] = category,
             ["tags"] = tagList,
-            ["file"] = fileName,
             ["launchTarget"] = launchTarget,
             ["author"] = author,
             ["submittedAt"] = DateTimeOffset.UtcNow.ToString("o")
@@ -1132,6 +1440,9 @@ public sealed partial class CommunityToolsPage : Page
         if (!string.IsNullOrWhiteSpace(publisher)) plugin["publisher"] = publisher;
         if (!string.IsNullOrWhiteSpace(homepage)) plugin["homepage"] = homepage;
         if (!string.IsNullOrWhiteSpace(iconFileName)) plugin["icon"] = iconFileName;
+        if (!string.IsNullOrWhiteSpace(downloadUrl)) plugin["downloadUrl"] = downloadUrl;
+        if (!string.IsNullOrWhiteSpace(downloadFilter)) plugin["downloadFilter"] = downloadFilter;
+        if (!string.IsNullOrWhiteSpace(fileName)) plugin["file"] = fileName;
 
         if (archVariants.Count > 0)
         {

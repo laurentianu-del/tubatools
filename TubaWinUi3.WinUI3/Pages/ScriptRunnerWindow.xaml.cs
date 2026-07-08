@@ -360,6 +360,8 @@ public sealed partial class ScriptRunnerWindow : Window
         WorkDirBox.IsReadOnly = running;
         InputPanel.Visibility = running ? Visibility.Visible : Visibility.Collapsed;
         StatusText.Text = running ? "运行中..." : "就绪";
+        IdleIcon.Visibility = running ? Visibility.Collapsed : Visibility.Visible;
+        RunningRing.Visibility = running ? Visibility.Visible : Visibility.Collapsed;
 
         if (running)
         {

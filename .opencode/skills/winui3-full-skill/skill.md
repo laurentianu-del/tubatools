@@ -64,3 +64,16 @@ snippets/
 | All controls reference | `catalog/controls.md` |
 | Icon / glyph lookup (Segoe Fluent Icons) | `icon-reference.md` |
 | Open a secondary window / proportional sizing | `snippets/windowing/appwindow-multiple-windows.md` |
+
+## Project-specific window conventions (TubaWinUi3)
+
+All secondary/tool windows in this project **must** follow these conventions, matching the PcTutorialWindow pattern:
+
+1. **Proportional sizing** — 82% × 85% of display work area, centered. Fallback: 1100×750 offset 50px from main window.
+2. **ExtendsContentIntoTitleBar = true** — No separate close/minimize/maximize buttons in the page content; the system title bar handles it.
+3. **TitleBarHeightOption.Tall** — Use the tall title bar for comfortable drag area.
+4. **No custom close button** — Never add a "关闭" / Close button inside the page content. The system title bar X button is sufficient.
+5. **BackdropService.ApplyBackdrop(window)** — Always apply Mica/MicaAlt/Acrylic backdrop.
+6. **ApplyTitleBarTheme()** — Always set title bar button colors for dark/light mode (copy the method from PcTutorialTool.cs).
+7. **Theme inheritance** — Set `root.RequestedTheme = ThemeService.CurrentElementTheme` on the content.
+8. **Window lifecycle safety** — Track `_isWindowAlive` flag, cancel CTS on `Closed`, and guard all `Content.XamlRoot` access with try/catch to prevent COMException after window closure.

@@ -154,6 +154,7 @@ public sealed partial class MainWindow : Window
         if (pageType == typeof(FavoritesPage)) return "favorites";
         if (pageType == typeof(HardwarePage)) return "hardware";
         if (pageType == typeof(BuiltinToolsPage)) return "builtin";
+        if (pageType == typeof(CommunityToolsPage)) return "community";
 
         if (pageType == typeof(HomePage))
         {
@@ -364,6 +365,9 @@ public sealed partial class MainWindow : Window
                 case "builtin":
                     NavFrame.Navigate(typeof(BuiltinToolsPage));
                     break;
+                case "community":
+                    NavFrame.Navigate(typeof(CommunityToolsPage));
+                    break;
 
                 case "benchmark":
                     _navFromSidebar = false;
@@ -427,9 +431,9 @@ public sealed partial class MainWindow : Window
 
     private void PopulateCategories()
     {
-        while (NavView.MenuItems.Count > 6)
+        while (NavView.MenuItems.Count > 7)
         {
-            NavView.MenuItems.RemoveAt(5);
+            NavView.MenuItems.RemoveAt(6);
         }
 
         var categories = ToolCatalog.GetCategories();
@@ -561,6 +565,13 @@ public sealed partial class MainWindow : Window
             Tag = "benchmark",
             IsClosable = false
         });
+        MainTabView.TabItems.Add(new TabViewItem
+        {
+            Header = "社区",
+            IconSource = new FontIconSource { Glyph = "\uE779" },
+            Tag = "community",
+            IsClosable = false
+        });
 
         var categories = ToolCatalog.GetCategories();
         var otherCategory = categories.FirstOrDefault(c => c.Contains("其他"));
@@ -620,6 +631,9 @@ public sealed partial class MainWindow : Window
                 break;
             case "builtin":
                 TabNavFrame.Navigate(typeof(BuiltinToolsPage));
+                break;
+            case "community":
+                TabNavFrame.Navigate(typeof(CommunityToolsPage));
                 break;
             case "benchmark":
                 _navFromSidebar = false;

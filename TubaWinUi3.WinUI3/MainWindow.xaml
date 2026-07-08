@@ -201,6 +201,11 @@
                             <FontIcon Glyph="&#xE9D9;" />
                         </NavigationViewItem.Icon>
                     </NavigationViewItem>
+                    <NavigationViewItem Content="社区" Tag="community">
+                        <NavigationViewItem.Icon>
+                            <FontIcon Glyph="&#xE779;" />
+                        </NavigationViewItem.Icon>
+                    </NavigationViewItem>
                 </NavigationView.MenuItems>
                 <Frame x:Name="NavFrame" CacheSize="10" />
             </NavigationView>

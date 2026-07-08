@@ -20,6 +20,8 @@ public sealed partial class CommunitySubmitWindow : Window
     private readonly string _homepage;
     private readonly string _version;
     private readonly string? _iconFilePath;
+    private readonly string? _downloadUrl;
+    private readonly string? _downloadFilter;
     private bool _completed;
 
     public event Action? SubmitSucceeded;
@@ -28,7 +30,9 @@ public sealed partial class CommunitySubmitWindow : Window
         string name, string description, string category, string tags,
         string? zipFilePath, string launchTarget,
         string publisher, string homepage, string version,
-        string? iconFilePath = null)
+        string? iconFilePath = null,
+        string? downloadUrl = null,
+        string? downloadFilter = null)
     {
         InitializeComponent();
 
@@ -42,6 +46,8 @@ public sealed partial class CommunitySubmitWindow : Window
         _homepage = homepage;
         _version = version;
         _iconFilePath = iconFilePath;
+        _downloadUrl = downloadUrl;
+        _downloadFilter = downloadFilter;
 
         AppWindow.Title = "图吧工具箱 - 提交社区工具";
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"));
@@ -88,7 +94,8 @@ public sealed partial class CommunitySubmitWindow : Window
                     _name, _description, _category,
                     _tags, _zipFilePath, _launchTarget,
                     _publisher, _homepage,
-                    _version, progress, _iconFilePath, _cts.Token);
+                    _version, progress, _iconFilePath, _cts.Token,
+                    _downloadUrl, _downloadFilter);
 
                 DispatcherQueue.TryEnqueue(() => ShowSuccess(prUrl));
             }

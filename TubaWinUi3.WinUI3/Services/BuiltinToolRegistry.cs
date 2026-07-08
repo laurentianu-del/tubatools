@@ -42,6 +42,7 @@ public static class BuiltinToolRegistry
         Register(new WindowsImageTool());
         Register(new PcTutorialTool());
         Register(new AntiMotionSicknessTool());
+        Register(new CommunityToolBuiltinTool());
 }
 
     public static IReadOnlyList<string> GetCategories()

@@ -391,7 +391,8 @@ public static class CommunityToolService
         string name, string description, string category, string tags,
         string? zipFilePath, string launchTarget,
         string publisher, string homepage, string version,
-        IProgress<string>? progress, string? iconFilePath = null, CancellationToken ct = default)
+        IProgress<string>? progress, string? iconFilePath = null, CancellationToken ct = default,
+        string? downloadUrl = null, string? downloadFilter = null)
     {
         var token = GitHubAuthService.GetToken();
         if (string.IsNullOrWhiteSpace(token))
@@ -425,6 +426,16 @@ public static class CommunityToolService
         if (!string.IsNullOrWhiteSpace(zipFilePath))
         {
             pluginObj["file"] = Path.GetFileName(zipFilePath);
+        }
+
+        if (!string.IsNullOrWhiteSpace(downloadUrl))
+        {
+            pluginObj["downloadUrl"] = downloadUrl;
+        }
+
+        if (!string.IsNullOrWhiteSpace(downloadFilter))
+        {
+            pluginObj["downloadFilter"] = downloadFilter;
         }
 
         if (!string.IsNullOrWhiteSpace(iconFilePath))

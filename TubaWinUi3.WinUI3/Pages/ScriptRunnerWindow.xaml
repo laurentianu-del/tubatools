@@ -23,9 +23,16 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <Border Width="40" Height="40" Background="{ThemeResource AccentFillColorDefaultBrush}" CornerRadius="8">
-                <FontIcon FontSize="20" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" Glyph="&#xE756;" />
-            </Border>
+            <Grid Width="40" Height="40">
+                <!-- Idle icon -->
+                <Border x:Name="IdleIcon" Width="40" Height="40" Background="{ThemeResource AccentFillColorDefaultBrush}" CornerRadius="8">
+                    <FontIcon FontSize="20" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" Glyph="&#xE756;" />
+                </Border>
+                <!-- Running ring -->
+                <Grid x:Name="RunningRing" Width="40" Height="40" Visibility="Collapsed">
+                    <ProgressRing Width="40" Height="40" IsActive="True" />
+                </Grid>
+            </Grid>
             <StackPanel Grid.Column="1" Spacing="2">
                 <TextBlock x:Name="TitleText" FontSize="22" FontWeight="SemiBold" Text="脚本运行" />
                 <TextBlock x:Name="SubtitleText" Opacity="0.68" FontSize="11" FontFamily="Consolas" IsTextSelectionEnabled="True" />

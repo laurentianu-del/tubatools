@@ -17,7 +17,6 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <Border Width="40" Height="40" Background="{ThemeResource AccentFillColorDefaultBrush}" CornerRadius="8">
                 <FontIcon FontSize="20" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" Glyph="&#xE896;" />
@@ -26,7 +25,6 @@
                 <TextBlock FontSize="22" FontWeight="SemiBold" Text="Windows 镜像下载" />
                 <TextBlock Opacity="0.68" FontSize="12" Text="原版系统镜像下载，支持 ESD 转 ISO（需 UltraISO）" />
             </StackPanel>
-            <Button x:Name="CloseButton" Grid.Column="2" Click="CloseButton_Click" Content="关闭" />
         </Grid>
 
         <TeachingTip x:Name="QueueTeachingTip"
