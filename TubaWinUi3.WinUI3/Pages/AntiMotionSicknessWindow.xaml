@@ -26,7 +26,7 @@
             </Border>
             <StackPanel Grid.Column="1" Spacing="2">
                 <TextBlock FontSize="22" FontWeight="SemiBold" Text="游戏防晕3D" />
-                <TextBlock Opacity="0.68" FontSize="12" Text="一键帮你节约13块钱！（Steam某软件此功能居然收费！）" />
+                <TextBlock Opacity="1.0" FontSize="12" Text="一键帮你节约13块钱！（Steam某软件此功能居然收费！）" />
             </StackPanel>
             <Button x:Name="CloseButton" Grid.Column="2" Click="CloseButton_Click" Content="关闭" />
         </Grid>
@@ -46,7 +46,7 @@
                         <FontIcon x:Name="StatusIcon" FontSize="24" Glyph="&#xE894;" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                             <TextBlock x:Name="StatusTitle" FontWeight="SemiBold" Text="辅助器已关闭" />
-                            <TextBlock x:Name="StatusDesc" FontSize="12" Opacity="0.68" Text="点击下方按钮开启屏幕准星辅助" />
+                            <TextBlock x:Name="StatusDesc" FontSize="12" Opacity="1.0" Text="点击下方按钮开启屏幕准星辅助" />
                         </StackPanel>
                         <ToggleSwitch x:Name="OverlayToggle" Grid.Column="2" VerticalAlignment="Center" Toggled="OverlayToggle_Toggled" />
                     </Grid>
@@ -157,9 +157,9 @@
                 <!-- Hint -->
                 <Border Padding="14,10,14,10" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
                     <StackPanel Spacing="4">
-                        <TextBlock FontSize="13" Opacity="0.8" TextWrapping="Wrap" Text="使用说明：" FontWeight="SemiBold" />
-                        <TextBlock FontSize="12" Opacity="0.6" TextWrapping="Wrap" Text="开启辅助器后，屏幕中央会显示准星，四条边的中间会显示标记点。这些标记会帮助你在3D游戏中减少晕眩感。覆盖层不会影响鼠标点击和键盘操作。" />
-                        <TextBlock FontSize="12" Opacity="0.6" TextWrapping="Wrap" Text="关闭此窗口不会关闭覆盖层，如需关闭请关闭开关或再次打开此工具。" />
+                        <TextBlock FontSize="13" Opacity="1.0" TextWrapping="Wrap" Text="使用说明：" FontWeight="SemiBold" />
+                        <TextBlock FontSize="12" Opacity="1.0" TextWrapping="Wrap" Text="开启辅助器后，屏幕中央会显示准星，四条边的中间会显示标记点。这些标记会帮助你在3D游戏中减少晕眩感。覆盖层不会影响鼠标点击和键盘操作。" />
+                        <TextBlock FontSize="12" Opacity="1.0" TextWrapping="Wrap" Text="关闭此窗口不会关闭覆盖层，如需关闭请关闭开关或再次打开此工具。" />
                     </StackPanel>
                 </Border>
 
@@ -174,7 +174,7 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock VerticalAlignment="Center" FontSize="12" Opacity="0.5" Text="一键帮你节约13块钱！Steam某软件此功能居然收费！" />
+                <TextBlock VerticalAlignment="Center" FontSize="12" Opacity="1.0" Text="一键帮你节约13块钱！Steam某软件此功能居然收费！" />
                 <Button x:Name="ResetButton" Grid.Column="1" Click="ResetButton_Click">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon FontSize="12" Glyph="&#xE72C;" />

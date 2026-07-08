@@ -38,7 +38,7 @@
                     Margin="0,8,0,0"
                     Text="工具与社区" />
                 <TextBlock
-                    Opacity="0.72"
+                    Opacity="1.0"
                     Margin="0,0,0,16"
                     Text="配置管理、自定义工具和社区功能" />
 
@@ -61,7 +61,7 @@
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                             <TextBlock FontWeight="SemiBold" Text="配置管理" />
                             <TextBlock
-                                Opacity="0.68"
+                                Opacity="1.0"
                                 FontSize="13"
                                 TextWrapping="Wrap"
                                 Text="管理配置文件的存储位置、导出和导入" />
@@ -100,7 +100,7 @@
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                             <TextBlock FontWeight="SemiBold" Text="自定义工具管理" />
                             <TextBlock
-                                Opacity="0.68"
+                                Opacity="1.0"
                                 FontSize="13"
                                 TextWrapping="Wrap"
                                 Text="管理工具分类、导入自定义工具，支持拖拽排序" />
@@ -136,7 +136,7 @@
                             <TextBlock FontWeight="SemiBold" Text="导出当前软件" />
                             <TextBlock
                                 x:Name="ExportAppStatusText"
-                                Opacity="0.68"
+                                Opacity="1.0"
                                 FontSize="13"
                                 TextWrapping="Wrap"
                                 Text="把当前程序目录、工具和元数据打包成可分发压缩包。" />
@@ -176,7 +176,7 @@
                             <TextBlock FontWeight="SemiBold" Text="GitHub 账号" />
                             <TextBlock
                                 x:Name="GitHubLoginStatusText"
-                                Opacity="0.68"
+                                Opacity="1.0"
                                 FontSize="13"
                                 TextWrapping="Wrap"
                                 Text="未登录" />
@@ -226,7 +226,7 @@
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                             <TextBlock FontWeight="SemiBold" Text="提交社区工具" />
                             <TextBlock
-                                Opacity="0.68"
+                                Opacity="1.0"
                                 FontSize="13"
                                 TextWrapping="Wrap"
                                 Text="将工具提交到社区仓库，审核通过后所有人可见" />

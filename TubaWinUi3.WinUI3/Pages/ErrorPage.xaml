@@ -36,7 +36,7 @@
                 <TextBlock
                     HorizontalAlignment="Center"
                     FontSize="16"
-                    Opacity="0.68"
+                    Opacity="1.0"
                     Text="应用遇到了一个未处理的异常，你可以复制详细信息并提交 Issue。"
                     TextAlignment="Center"
                     TextWrapping="Wrap" />
@@ -54,7 +54,7 @@
                             VerticalAlignment="Center"
                             FontSize="14"
                             FontWeight="SemiBold"
-                            Opacity="0.78"
+                            Opacity="1.0"
                             Text="异常详情" />
                         <Button
                             x:Name="CopyButton"
@@ -73,7 +73,7 @@
                             x:Name="ErrorText"
                             FontFamily="Cascadia Code, Consolas"
                             FontSize="13"
-                            Opacity="0.82"
+                            Opacity="1.0"
                             TextWrapping="Wrap" />
                     </ScrollViewer>
                 </StackPanel>

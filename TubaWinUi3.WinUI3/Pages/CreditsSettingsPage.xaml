@@ -103,7 +103,7 @@
                 <TextBlock
                     Margin="0,4,0,20"
                     FontSize="13"
-                    Opacity="0.62"
+                    Opacity="1.0"
                     Text="工具来源、作者信息和开源引用" />
 
                 <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="工具来源" />
@@ -126,7 +126,7 @@
                             <TextBlock FontWeight="SemiBold" Text="图吧工具箱" />
                             <TextBlock
                                 FontSize="12"
-                                Opacity="0.64"
+                                Opacity="1.0"
                                 Text="本软件所集成的全部硬件检测与测试工具，均来源于「图吧工具箱」项目。"
                                 TextWrapping="Wrap" />
                         </StackPanel>
@@ -155,7 +155,7 @@
                             VerticalAlignment="Center" />
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                             <TextBlock FontWeight="SemiBold" Text="哈基毅" />
-                            <TextBlock FontSize="12" Opacity="0.64" Text="开发者 / Designer" />
+                            <TextBlock FontSize="12" Opacity="1.0" Text="开发者 / Designer" />
                         </StackPanel>
                         <HyperlinkButton
                             Grid.Column="2"
@@ -187,7 +187,7 @@
                         </Border>
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                             <TextBlock FontWeight="SemiBold" Text="官方网站" />
-                            <TextBlock FontSize="12" Opacity="0.64" Text="tubawinui3.cn" />
+                            <TextBlock FontSize="12" Opacity="1.0" Text="tubawinui3.cn" />
                         </StackPanel>
                         <HyperlinkButton
                             Grid.Column="2"
@@ -215,7 +215,7 @@
                         </Border>
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                             <TextBlock FontWeight="SemiBold" Text="开源引用" />
-                            <TextBlock FontSize="12" Opacity="0.64" Text="查看本软件使用的所有开源项目" />
+                            <TextBlock FontSize="12" Opacity="1.0" Text="查看本软件使用的所有开源项目" />
                         </StackPanel>
                         <Button
                             Grid.Column="2"
@@ -249,7 +249,7 @@
                             <TextBlock FontWeight="SemiBold" Text="测试异常页面" />
                             <TextBlock
                                 FontSize="12"
-                                Opacity="0.64"
+                                Opacity="1.0"
                                 Text="手动抛出一个未处理异常，用于验证全局错误页面。"
                                 TextWrapping="Wrap" />
                         </StackPanel>
@@ -341,7 +341,7 @@
                                         <TextBlock FontWeight="SemiBold" Text="Windows App SDK (WinUI 3)" />
                                         <TextBlock
                                             FontSize="12"
-                                            Opacity="0.64"
+                                            Opacity="1.0"
                                             Text="Microsoft.WindowsAppSDK — 应用框架" />
                                         <HyperlinkButton
                                             Padding="0"
@@ -374,7 +374,7 @@
                                         <TextBlock FontWeight="SemiBold" Text="Win2D" />
                                         <TextBlock
                                             FontSize="12"
-                                            Opacity="0.64"
+                                            Opacity="1.0"
                                             Text="Microsoft.Graphics.Win2D — 2D 图形渲染库" />
                                         <HyperlinkButton
                                             Padding="0"
@@ -407,7 +407,7 @@
                                         <TextBlock FontWeight="SemiBold" Text="LibreHardwareMonitorLib" />
                                         <TextBlock
                                             FontSize="12"
-                                            Opacity="0.64"
+                                            Opacity="1.0"
                                             Text="LibreHardwareMonitorLib — 硬件传感器监控库" />
                                         <HyperlinkButton
                                             Padding="0"
@@ -440,7 +440,7 @@
                                         <TextBlock FontWeight="SemiBold" Text="System.Drawing.Common" />
                                         <TextBlock
                                             FontSize="12"
-                                            Opacity="0.64"
+                                            Opacity="1.0"
                                             Text="图标提取与图像处理" />
                                         <HyperlinkButton
                                             Padding="0"
@@ -473,7 +473,7 @@
                                         <TextBlock FontWeight="SemiBold" Text="System.Management" />
                                         <TextBlock
                                             FontSize="12"
-                                            Opacity="0.64"
+                                            Opacity="1.0"
                                             Text="WMI 硬件信息查询" />
                                         <HyperlinkButton
                                             Padding="0"
@@ -506,7 +506,7 @@
                                         <TextBlock FontWeight="SemiBold" Text="System.Diagnostics.EventLog" />
                                         <TextBlock
                                             FontSize="12"
-                                            Opacity="0.64"
+                                            Opacity="1.0"
                                             Text="系统事件日志读取 — 蓝屏分析" />
                                         <HyperlinkButton
                                             Padding="0"
@@ -539,7 +539,7 @@
                                         <TextBlock FontWeight="SemiBold" Text="Microsoft.Windows.SDK.BuildTools" />
                                         <TextBlock
                                             FontSize="12"
-                                            Opacity="0.64"
+                                            Opacity="1.0"
                                             Text="WinApp 运行时支持" />
                                         <HyperlinkButton
                                             Padding="0"

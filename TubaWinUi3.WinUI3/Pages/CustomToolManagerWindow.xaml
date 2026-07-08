@@ -69,7 +69,7 @@
                     x:Name="StatusText"
                     Grid.Column="2"
                     VerticalAlignment="Center"
-                    Opacity="0.68"
+                    Opacity="1.0"
                     FontSize="12"
                     TextWrapping="Wrap"
                     MaxWidth="400" />

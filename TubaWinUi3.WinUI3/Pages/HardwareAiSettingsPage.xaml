@@ -40,7 +40,7 @@
                     FontWeight="SemiBold"
                     Text="硬件与 AI" />
                 <TextBlock
-                    Opacity="0.72"
+                    Opacity="1.0"
                     Margin="0,0,0,16"
                     Text="硬件显示选项、数据源和 AI 服务配置" />
 
@@ -63,7 +63,7 @@
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                             <TextBlock FontWeight="SemiBold" Text="硬件信息一屏显示" />
                             <TextBlock
-                                Opacity="0.68"
+                                Opacity="1.0"
                                 FontSize="13"
                                 TextWrapping="Wrap"
                                 Text="自动缩放使所有硬件信息在一屏内显示，关闭后允许滚动浏览" />
@@ -92,7 +92,7 @@
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                             <TextBlock FontWeight="SemiBold" Text="多设备换行显示" />
                             <TextBlock
-                                Opacity="0.68"
+                                Opacity="1.0"
                                 FontSize="13"
                                 TextWrapping="Wrap"
                                 Text="当存在多个显卡、硬盘等设备时，每个设备单独一行显示" />
@@ -126,7 +126,7 @@
                             <TextBlock FontWeight="SemiBold" Text="硬件信息数据源" />
                             <TextBlock
                                 x:Name="CpuzDataSourceStatusText"
-                                Opacity="0.68"
+                                Opacity="1.0"
                                 FontSize="13"
                                 TextWrapping="Wrap"
                                 Text="使用 CPU-Z 读取真实硬件信息，防止厂商伪造" />
@@ -175,7 +175,7 @@
                                 <TextBlock FontWeight="SemiBold" Text="AI 服务配置" />
                                 <TextBlock
                                     x:Name="AiConfigStatusText"
-                                    Opacity="0.68"
+                                    Opacity="1.0"
                                     FontSize="13"
                                     TextWrapping="Wrap"
                                     Text="配置 OpenAI 兼容 API，启用 AI 智能功能" />
@@ -200,7 +200,7 @@
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                 <TextBlock FontWeight="SemiBold" Text="API 地址" />
                                 <TextBlock
-                                    Opacity="0.68"
+                                    Opacity="1.0"
                                     FontSize="13"
                                     TextWrapping="Wrap"
                                     Text="OpenAI 兼容 API 的 Base URL" />
@@ -229,7 +229,7 @@
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                 <TextBlock FontWeight="SemiBold" Text="模型名" />
                                 <TextBlock
-                                    Opacity="0.68"
+                                    Opacity="1.0"
                                     FontSize="13"
                                     TextWrapping="Wrap"
                                     Text="使用的模型标识符" />
@@ -259,7 +259,7 @@
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                 <TextBlock FontWeight="SemiBold" Text="API Key" />
                                 <TextBlock
-                                    Opacity="0.68"
+                                    Opacity="1.0"
                                     FontSize="13"
                                     TextWrapping="Wrap"
                                     Text="API 密钥，将安全保存在本地" />
@@ -302,7 +302,7 @@
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                 <TextBlock FontWeight="SemiBold" Text="搜索 API Key" />
                                 <TextBlock
-                                    Opacity="0.68"
+                                    Opacity="1.0"
                                     FontSize="13"
                                     TextWrapping="Wrap"
                                     Text="uapis.cn 搜索 API 密钥（留空使用免费额度）" />

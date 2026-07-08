@@ -96,7 +96,7 @@
                                     <TextBlock
                                         x:Name="HeroCategory"
                                         FontSize="14"
-                                        Opacity="0.68" />
+                                        Opacity="1.0" />
                                     <Border
                                         x:Name="HeroExtBadge"
                                         Padding="8,2"
@@ -176,7 +176,7 @@
                                     <TextBlock
                                         FontSize="13"
                                         FontWeight="SemiBold"
-                                        Opacity="0.52"
+                                        Opacity="1.0"
                                         Text="介绍" />
                                     <TextBlock
                                         x:Name="DescriptionText"
@@ -189,7 +189,7 @@
                                     <TextBlock
                                         FontSize="13"
                                         FontWeight="SemiBold"
-                                        Opacity="0.52"
+                                        Opacity="1.0"
                                         Text="说明文档" />
                                     <Border
                                         Padding="16"
@@ -205,7 +205,7 @@
                                                 x:Name="ReadmeText"
                                                 FontSize="13"
                                                 LineHeight="20"
-                                                Opacity="0.82"
+                                                Opacity="1.0"
                                                 TextWrapping="Wrap" />
                                         </ScrollViewer>
                                     </Border>
@@ -223,7 +223,7 @@
                                     <TextBlock
                                         FontSize="13"
                                         FontWeight="SemiBold"
-                                        Opacity="0.52"
+                                        Opacity="1.0"
                                         Text="详细信息" />
 
                                     <StackPanel Spacing="8">
@@ -235,9 +235,9 @@
                                             <FontIcon
                                                 FontSize="12"
                                                 Glyph="&#xE946;"
-                                                Opacity="0.52" />
+                                                Opacity="1.0" />
                                             <StackPanel Grid.Column="1" Spacing="2">
-                                                <TextBlock FontSize="11" Opacity="0.52" Text="发布者" />
+                                                <TextBlock FontSize="11" Opacity="1.0" Text="发布者" />
                                                 <TextBlock
                                                     x:Name="PublisherText"
                                                     FontSize="13"
@@ -253,9 +253,9 @@
                                             <FontIcon
                                                 FontSize="12"
                                                 Glyph="&#xE922;"
-                                                Opacity="0.52" />
+                                                Opacity="1.0" />
                                             <StackPanel Grid.Column="1" Spacing="2">
-                                                <TextBlock FontSize="11" Opacity="0.52" Text="版本" />
+                                                <TextBlock FontSize="11" Opacity="1.0" Text="版本" />
                                                 <TextBlock x:Name="VersionText" FontSize="13" />
                                             </StackPanel>
                                         </Grid>
@@ -268,9 +268,9 @@
                                             <FontIcon
                                                 FontSize="12"
                                                 Glyph="&#xE8E5;"
-                                                Opacity="0.52" />
+                                                Opacity="1.0" />
                                             <StackPanel Grid.Column="1" Spacing="2">
-                                                <TextBlock FontSize="11" Opacity="0.52" Text="文件类型" />
+                                                <TextBlock FontSize="11" Opacity="1.0" Text="文件类型" />
                                                 <TextBlock x:Name="FileTypeText" FontSize="13" />
                                             </StackPanel>
                                         </Grid>
@@ -283,9 +283,9 @@
                                             <FontIcon
                                                 FontSize="12"
                                                 Glyph="&#xE8B7;"
-                                                Opacity="0.52" />
+                                                Opacity="1.0" />
                                             <StackPanel Grid.Column="1" Spacing="2">
-                                                <TextBlock FontSize="11" Opacity="0.52" Text="路径" />
+                                                <TextBlock FontSize="11" Opacity="1.0" Text="路径" />
                                                 <TextBlock
                                                     x:Name="PathText"
                                                     FontSize="12"

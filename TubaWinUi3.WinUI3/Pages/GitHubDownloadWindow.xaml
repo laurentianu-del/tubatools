@@ -29,7 +29,7 @@
 
             <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                 <TextBlock x:Name="TitleText" FontSize="26" FontWeight="SemiBold" Text="正在下载" />
-                <TextBlock x:Name="SubtitleText" Opacity="0.68" FontSize="13" TextWrapping="Wrap"
+                <TextBlock x:Name="SubtitleText" Opacity="1.0" FontSize="13" TextWrapping="Wrap"
                            Text="正在测速选择最佳下载源..." />
             </StackPanel>
         </Grid>
@@ -44,8 +44,8 @@
                         BorderThickness="1" CornerRadius="10">
                     <StackPanel Spacing="4">
                         <TextBlock x:Name="InfoTitleText" FontSize="15" FontWeight="SemiBold" />
-                        <TextBlock x:Name="InfoDescText" FontSize="13" Opacity="0.7" TextWrapping="Wrap" />
-                        <TextBlock x:Name="InfoDetailText" FontSize="12" Opacity="0.6" />
+                        <TextBlock x:Name="InfoDescText" FontSize="13" Opacity="1.0" TextWrapping="Wrap" />
+                        <TextBlock x:Name="InfoDetailText" FontSize="12" Opacity="1.0" />
                     </StackPanel>
                 </Border>
 
@@ -55,7 +55,7 @@
                         BorderThickness="1" CornerRadius="6">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon Glyph="&#xE7BA;" FontSize="14" Foreground="#FFFB923C" />
-                        <TextBlock x:Name="WarningText" FontSize="12" Opacity="0.8" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <TextBlock x:Name="WarningText" FontSize="12" Opacity="1.0" TextWrapping="Wrap" VerticalAlignment="Center" />
                     </StackPanel>
                 </Border>
 
@@ -81,7 +81,7 @@
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                         BorderThickness="1" CornerRadius="10">
                     <StackPanel Spacing="8">
-                        <TextBlock FontSize="13" Opacity="0.7" Text="选择下载源" />
+                        <TextBlock FontSize="13" Opacity="1.0" Text="选择下载源" />
                         <RadioButtons x:Name="SourceRadioButtons" />
                     </StackPanel>
                 </Border>
@@ -120,7 +120,7 @@
                             <FontIcon FontSize="14" Glyph="&#xE73E;" Foreground="#0F7B0F" />
                             <TextBlock FontSize="14" FontWeight="SemiBold" Text="下载完成" />
                         </StackPanel>
-                        <TextBlock x:Name="SuccessDetailText" FontSize="13" Opacity="0.7" TextWrapping="Wrap" />
+                        <TextBlock x:Name="SuccessDetailText" FontSize="13" Opacity="1.0" TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
 
@@ -133,7 +133,7 @@
                             <FontIcon FontSize="14" Glyph="&#xE783;" Foreground="#FF4444" />
                             <TextBlock FontSize="14" FontWeight="SemiBold" Text="下载失败" />
                         </StackPanel>
-                        <TextBlock x:Name="ErrorText" FontSize="13" Opacity="0.8" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                        <TextBlock x:Name="ErrorText" FontSize="13" Opacity="1.0" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
                     </StackPanel>
                 </Border>
 

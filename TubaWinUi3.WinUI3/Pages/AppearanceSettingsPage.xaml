@@ -48,7 +48,7 @@
                                 FontWeight="SemiBold"
                                 Text="外观" />
                             <TextBlock
-                                Opacity="0.72"
+                                Opacity="1.0"
                                 Text="窗口材质、背景图片、水印等个性化设置" />
                         </StackPanel>
                     </Grid>
@@ -73,7 +73,7 @@
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                     <TextBlock FontWeight="SemiBold" Text="窗口材质" />
                                     <TextBlock
-                                        Opacity="0.68"
+                                        Opacity="1.0"
                                         FontSize="13"
                                         TextWrapping="Wrap"
                                         Text="选择窗口背景的视觉材质效果" />
@@ -217,7 +217,7 @@
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                     <TextBlock FontWeight="SemiBold" Text="背景图片" />
                                     <TextBlock
-                                        Opacity="0.68"
+                                        Opacity="1.0"
                                         FontSize="13"
                                         TextWrapping="Wrap"
                                         Text="导入图片作为主页面背景" />
@@ -277,7 +277,7 @@
                                         TextTrimming="CharacterEllipsis"
                                         MaxLines="1" />
                                     <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                        <TextBlock FontSize="12" Opacity="0.68" VerticalAlignment="Center" Text="透明度" />
+                                        <TextBlock FontSize="12" Opacity="1.0" VerticalAlignment="Center" Text="透明度" />
                                         <Slider
                                             x:Name="BgOpacitySlider"
                                             Width="160"
@@ -285,7 +285,7 @@
                                         <TextBlock
                                             x:Name="BgOpacityText"
                                             FontSize="12"
-                                            Opacity="0.68"
+                                            Opacity="1.0"
                                             VerticalAlignment="Center"
                                             Text="15%" />
                                     </StackPanel>
@@ -300,11 +300,11 @@
                                 IsExpanded="False">
                                 <Expander.Header>
                                     <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <FontIcon FontSize="14" Glyph="&#xE8B9;" Opacity="0.68" />
+                                        <FontIcon FontSize="14" Glyph="&#xE8B9;" Opacity="1.0" />
                                         <TextBlock Text="已导入的图片" />
                                         <TextBlock
                                             x:Name="BgHistoryCountText"
-                                            Opacity="0.52"
+                                            Opacity="1.0"
                                             FontSize="12" />
                                     </StackPanel>
                                 </Expander.Header>
@@ -323,7 +323,7 @@
                                         </ScrollViewer>
                                         <TextBlock
                                             x:Name="BgListEmptyText"
-                                            Opacity="0.52"
+                                            Opacity="1.0"
                                             FontSize="13"
                                             Text="还没有导入过图片"
                                             Visibility="Collapsed" />
@@ -348,7 +348,7 @@
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                 <TextBlock FontWeight="SemiBold" Text="显示品牌 Logo" />
                                 <TextBlock
-                                    Opacity="0.68"
+                                    Opacity="1.0"
                                     FontSize="13"
                                     TextWrapping="Wrap"
                                     Text="在硬件信息页面的处理器和显卡行前显示品牌图标" />
@@ -385,7 +385,7 @@
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                     <TextBlock FontWeight="SemiBold" Text="截图水印" />
                                     <TextBlock
-                                        Opacity="0.68"
+                                        Opacity="1.0"
                                         FontSize="13"
                                         TextWrapping="Wrap"
                                         Text="硬件信息截图时在右下角添加水印" />
@@ -418,7 +418,7 @@
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                     <TextBlock FontWeight="SemiBold" Text="水印文字" />
                                     <TextBlock
-                                        Opacity="0.68"
+                                        Opacity="1.0"
                                         FontSize="13"
                                         TextWrapping="Wrap"
                                         Text="自定义截图水印显示的文字" />
@@ -447,7 +447,7 @@
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                     <TextBlock FontWeight="SemiBold" Text="水印字体" />
                                     <TextBlock
-                                        Opacity="0.68"
+                                        Opacity="1.0"
                                         FontSize="13"
                                         TextWrapping="Wrap"
                                         Text="自定义截图水印使用的字体" />

@@ -29,7 +29,7 @@
 
             <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                 <TextBlock FontSize="26" FontWeight="SemiBold" Text="出现了意外错误" />
-                <TextBlock Opacity="0.68" FontSize="13" TextWrapping="Wrap"
+                <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap"
                            Text="应用遇到了一个未处理的异常，你可以复制详细信息并提交 Issue 帮助我们改进。" />
             </StackPanel>
         </Grid>
@@ -49,8 +49,8 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <FontIcon FontSize="14" Glyph="&#xE946;" Opacity="0.68" />
-                                <TextBlock FontSize="14" FontWeight="SemiBold" Opacity="0.78" Text="异常详情" />
+                                <FontIcon FontSize="14" Glyph="&#xE946;" Opacity="1.0" />
+                                <TextBlock FontSize="14" FontWeight="SemiBold" Opacity="1.0" Text="异常详情" />
                             </StackPanel>
                             <Button x:Name="CopyButton" Grid.Column="1"
                                     Padding="10,4" Click="CopyButton_Click"
@@ -66,7 +66,7 @@
                                       VerticalScrollBarVisibility="Auto">
                             <TextBlock x:Name="ErrorText"
                                        FontFamily="Cascadia Code, Consolas"
-                                       FontSize="12" Opacity="0.82"
+                                       FontSize="12" Opacity="1.0"
                                        TextWrapping="Wrap" IsTextSelectionEnabled="True" />
                         </ScrollViewer>
                     </StackPanel>
@@ -85,10 +85,10 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <FontIcon x:Name="SysInfoChevron" FontSize="10" Glyph="&#xE70D;" Opacity="0.5" />
-                                <FontIcon FontSize="14" Glyph="&#xE950;" Opacity="0.68" />
-                                <TextBlock FontSize="14" FontWeight="SemiBold" Opacity="0.78" Text="系统信息" />
-                                <TextBlock x:Name="SysInfoSummary" FontSize="12" Opacity="0.5"
+                                <FontIcon x:Name="SysInfoChevron" FontSize="10" Glyph="&#xE70D;" Opacity="1.0" />
+                                <FontIcon FontSize="14" Glyph="&#xE950;" Opacity="1.0" />
+                                <TextBlock FontSize="14" FontWeight="SemiBold" Opacity="1.0" Text="系统信息" />
+                                <TextBlock x:Name="SysInfoSummary" FontSize="12" Opacity="1.0"
                                            VerticalAlignment="Center" />
                             </StackPanel>
                             <Button x:Name="CopySysInfoButton" Grid.Column="1"
@@ -107,7 +107,7 @@
                                       Visibility="Collapsed">
                             <TextBlock x:Name="SysInfoText"
                                        FontFamily="Cascadia Code, Consolas"
-                                       FontSize="12" Opacity="0.82"
+                                       FontSize="12" Opacity="1.0"
                                        TextWrapping="Wrap" IsTextSelectionEnabled="True" />
                         </ScrollViewer>
                     </StackPanel>
@@ -119,10 +119,10 @@
                         BorderThickness="1" CornerRadius="10">
                     <StackPanel Spacing="8">
                         <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                            <FontIcon FontSize="14" Glyph="&#xE8BD;" Opacity="0.68" />
-                            <TextBlock FontSize="14" FontWeight="SemiBold" Opacity="0.78" Text="复现步骤" />
+                            <FontIcon FontSize="14" Glyph="&#xE8BD;" Opacity="1.0" />
+                            <TextBlock FontSize="14" FontWeight="SemiBold" Opacity="1.0" Text="复现步骤" />
                         </StackPanel>
-                        <TextBlock Opacity="0.55" FontSize="12" TextWrapping="Wrap"
+                        <TextBlock Opacity="1.0" FontSize="12" TextWrapping="Wrap"
                                    Text="请描述你遇到此错误时的操作步骤，帮助我们定位问题。" />
                         <TextBox x:Name="ReproStepsBox"
                                  PlaceholderText="例如：1. 打开硬件信息页&#x0a;2. 点击刷新按钮&#x0a;3. 应用崩溃"

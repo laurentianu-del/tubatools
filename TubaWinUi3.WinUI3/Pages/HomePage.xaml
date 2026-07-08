@@ -105,11 +105,11 @@
                         VerticalAlignment="Bottom"
                         Margin="0,0,0,4"
                         FontSize="14"
-                        Opacity="0.6" />
+                        Opacity="1.0" />
                 </StackPanel>
                 <TextBlock
                     x:Name="CategorySubtitle"
-                    Opacity="0.72" />
+                    Opacity="1.0" />
             </StackPanel>
 
 
@@ -180,51 +180,54 @@
                                             <RowDefinition Height="Auto" />
                                         </Grid.RowDefinitions>
 
-                                    <Grid ColumnSpacing="12">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="48" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <Border
-                                            Width="48"
-                                            Height="48"
-                                            Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                                            CornerRadius="8">
-                                            <Grid>
-                                                <Image
-                                                    Width="32"
-                                                    Height="32"
-                                                    Source="{Binding IconPath}"
-                                                    Stretch="Uniform"
-                                                    Visibility="{Binding IconPath, Converter={StaticResource NullToCollapse}}" />
-                                                <FontIcon
-                                                    FontSize="24"
-                                                    Glyph="{Binding IconGlyph}"
-                                                    Visibility="{Binding IconGlyph, Converter={StaticResource NullToCollapse}}" />
-                                            </Grid>
-                                        </Border>
-                                        <StackPanel Grid.Column="1" Spacing="3">
-                                            <TextBlock
-                                                FontSize="16"
-                                                FontWeight="SemiBold"
-                                                MaxLines="1"
-                                                Text="{Binding Name}"
-                                                TextTrimming="CharacterEllipsis" />
-                                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                                <TextBlock
-                                                    FontSize="12"
-                                                    Opacity="0.64"
-                                                    Text="{Binding Category}"
-                                                    TextTrimming="CharacterEllipsis" />
-                                                <TextBlock
-                                                    FontSize="12"
-                                                    Opacity="0.5"
-                                                    Text="{Binding CategoriesDisplay}"
-                                                    TextTrimming="CharacterEllipsis"
-                                                    Visibility="{Binding CategoriesDisplay, Converter={StaticResource NullToCollapse}}" />
-                                            </StackPanel>
-                                        </StackPanel>
+                                        <Grid ColumnSpacing="12">
+                                         <Grid.ColumnDefinitions>
+                                             <ColumnDefinition Width="56" />
+                                             <ColumnDefinition Width="*" />
+                                             <ColumnDefinition Width="Auto" />
+                                         </Grid.ColumnDefinitions>
+                                         <Border
+                                             Width="56"
+                                             Height="56"
+                                             Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                             CornerRadius="8">
+                                             <Grid>
+                                                 <Image
+                                                     Width="40"
+                                                     Height="40"
+                                                     Source="{Binding IconPath}"
+                                                     Stretch="Uniform"
+                                                     Visibility="{Binding IconPath, Converter={StaticResource NullToCollapse}}" />
+                                                 <FontIcon
+                                                     FontSize="28"
+                                                     Glyph="{Binding IconGlyph}"
+                                                     Visibility="{Binding IconGlyph, Converter={StaticResource NullToCollapse}}" />
+                                             </Grid>
+                                         </Border>
+                                         <StackPanel Grid.Column="1" Spacing="3">
+                                             <TextBlock
+                                                 FontFamily="{StaticResource AppFontFamily}"
+                                                 FontSize="18"
+                                                 FontWeight="SemiBold"
+                                                 MaxLines="1"
+                                                 Text="{Binding Name}"
+                                                 TextTrimming="CharacterEllipsis" />
+                                             <StackPanel Orientation="Horizontal" Spacing="4">
+                                                 <TextBlock
+                                                     FontFamily="{StaticResource AppFontFamily}"
+                                                     FontSize="12"
+                                                     Opacity="1.0"
+                                                     Text="{Binding Category}"
+                                                     TextTrimming="CharacterEllipsis" />
+                                                 <TextBlock
+                                                     FontFamily="{StaticResource AppFontFamily}"
+                                                     FontSize="12"
+                                                     Opacity="1.0"
+                                                     Text="{Binding CategoriesDisplay}"
+                                                     TextTrimming="CharacterEllipsis"
+                                                     Visibility="{Binding CategoriesDisplay, Converter={StaticResource NullToCollapse}}" />
+                                             </StackPanel>
+                                         </StackPanel>
                                         <Button
                                             Grid.Column="2"
                                             Width="32"
@@ -241,17 +244,19 @@
 
                                     <TextBlock
                                         Grid.Row="1"
+                                        FontFamily="{StaticResource AppFontFamily}"
                                         MaxLines="2"
-                                        Opacity="0.72"
+                                        Opacity="1.0"
                                         Text="{Binding Description}"
                                         TextTrimming="CharacterEllipsis"
                                         TextWrapping="Wrap" />
 
                                     <TextBlock
                                         Grid.Row="2"
+                                        FontFamily="{StaticResource AppFontFamily}"
                                         FontSize="10"
                                         MaxLines="1"
-                                        Opacity="0.68"
+                                        Opacity="1.0"
                                         Text="{Binding TagsText}"
                                         TextTrimming="CharacterEllipsis"
                                         Visibility="{Binding TagsText, Converter={StaticResource NullToCollapse}}" />
@@ -375,20 +380,20 @@
                                 ToolTipService.ToolTip="{Binding Description}">
                                 <StackPanel HorizontalAlignment="Center" Spacing="6">
                                     <Border
-                                        Width="48"
-                                        Height="48"
+                                        Width="52"
+                                        Height="52"
                                         HorizontalAlignment="Center"
                                         Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                         CornerRadius="10">
                                         <Grid>
                                             <Image
-                                                Width="36"
-                                                Height="36"
+                                                Width="38"
+                                                Height="38"
                                                 Source="{Binding IconPath}"
                                                 Stretch="Uniform"
                                                 Visibility="{Binding IconPath, Converter={StaticResource NullToCollapse}}" />
                                             <FontIcon
-                                                FontSize="24"
+                                                FontSize="26"
                                                 HorizontalAlignment="Center"
                                                 VerticalAlignment="Center"
                                                 Glyph="{Binding IconGlyph}"
@@ -396,8 +401,9 @@
                                         </Grid>
                                     </Border>
                                     <TextBlock
+                                        FontFamily="{StaticResource AppFontFamily}"
                                         HorizontalAlignment="Center"
-                                        FontSize="12"
+                                        FontSize="13"
                                         MaxLines="2"
                                         Text="{Binding Name}"
                                         TextAlignment="Center"
@@ -420,16 +426,16 @@
                     HorizontalAlignment="Center"
                     FontSize="48"
                     Glyph="&#xE721;"
-                    Opacity="0.3" />
+                    Opacity="1.0" />
                 <TextBlock
                     HorizontalAlignment="Center"
                     FontSize="18"
-                    Opacity="0.52"
+                    Opacity="1.0"
                     Text="没有找到匹配的工具" />
                 <TextBlock
                     x:Name="EmptyStateText"
                     HorizontalAlignment="Center"
-                    Opacity="0.42"
+                    Opacity="1.0"
                     Text="" />
                 <Button
                     x:Name="DownloadToolsButton"
@@ -449,9 +455,9 @@
                 PreferredPlacement="Right">
                 <StackPanel MaxWidth="420" Spacing="8">
                     <TextBlock x:Name="DetailDescriptionText" TextWrapping="Wrap" />
-                    <TextBlock x:Name="DetailPublisherText" Opacity="0.72" TextWrapping="Wrap" />
-                    <TextBlock x:Name="DetailVersionText" Opacity="0.72" TextWrapping="Wrap" />
-                    <TextBlock x:Name="DetailPathText" Opacity="0.72" TextWrapping="Wrap" />
+                    <TextBlock x:Name="DetailPublisherText" Opacity="1.0" TextWrapping="Wrap" />
+                    <TextBlock x:Name="DetailVersionText" Opacity="1.0" TextWrapping="Wrap" />
+                    <TextBlock x:Name="DetailPathText" Opacity="1.0" TextWrapping="Wrap" />
                 </StackPanel>
             </TeachingTip>
 

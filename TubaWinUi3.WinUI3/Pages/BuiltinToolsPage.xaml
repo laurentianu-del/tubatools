@@ -38,7 +38,7 @@
                 FontWeight="SemiBold"
                 Text="内置" />
             <TextBlock
-                Opacity="0.72"
+                Opacity="1.0"
                 Text="无需外部文件，直接使用的系统工具集。" />
         </StackPanel>
 
@@ -74,7 +74,7 @@
                         Text="内置工具" />
                     <TextBlock
                         x:Name="ToolCountText"
-                        Opacity="0.68" />
+                        Opacity="1.0" />
                 </StackPanel>
 
                 <ComboBox
@@ -136,7 +136,7 @@
                                             TextTrimming="CharacterEllipsis" />
                                         <TextBlock
                                             FontSize="12"
-                                            Opacity="0.64"
+                                            Opacity="1.0"
                                             Text="{Binding Category}"
                                             TextTrimming="CharacterEllipsis" />
                                     </StackPanel>
@@ -145,7 +145,7 @@
                                 <TextBlock
                                     Grid.Row="1"
                                     MaxLines="2"
-                                    Opacity="0.72"
+                                    Opacity="1.0"
                                     Text="{Binding Description}"
                                     TextTrimming="CharacterEllipsis"
                                     TextWrapping="Wrap" />
@@ -188,8 +188,8 @@
                 PreferredPlacement="Right">
                 <StackPanel MaxWidth="420" Spacing="8">
                     <TextBlock x:Name="DetailDescriptionText" TextWrapping="Wrap" />
-                    <TextBlock x:Name="DetailCategoryText" Opacity="0.72" TextWrapping="Wrap" />
-                    <TextBlock x:Name="DetailKindText" Opacity="0.72" TextWrapping="Wrap" />
+                    <TextBlock x:Name="DetailCategoryText" Opacity="1.0" TextWrapping="Wrap" />
+                    <TextBlock x:Name="DetailKindText" Opacity="1.0" TextWrapping="Wrap" />
                 </StackPanel>
             </TeachingTip>
 

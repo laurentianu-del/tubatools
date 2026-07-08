@@ -29,7 +29,7 @@
 
             <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                 <TextBlock x:Name="TitleText" FontSize="26" FontWeight="SemiBold" Text="正在提交" />
-                <TextBlock x:Name="SubtitleText" Opacity="0.68" FontSize="13" TextWrapping="Wrap"
+                <TextBlock x:Name="SubtitleText" Opacity="1.0" FontSize="13" TextWrapping="Wrap"
                            Text="正在将你的工具提交到社区仓库..." />
             </StackPanel>
         </Grid>
@@ -44,11 +44,11 @@
                         BorderThickness="1" CornerRadius="10">
                     <StackPanel Spacing="12">
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <FontIcon FontSize="14" Glyph="&#xE946;" Opacity="0.68" />
-                            <TextBlock FontSize="14" FontWeight="SemiBold" Opacity="0.78" Text="提交进度" />
+                            <FontIcon FontSize="14" Glyph="&#xE946;" Opacity="1.0" />
+                            <TextBlock FontSize="14" FontWeight="SemiBold" Opacity="1.0" Text="提交进度" />
                         </StackPanel>
                         <ProgressBar x:Name="SubmitProgressBar" IsIndeterminate="True" />
-                        <TextBlock x:Name="ProgressText" FontSize="13" Opacity="0.7" Text="正在 Fork 仓库..." />
+                        <TextBlock x:Name="ProgressText" FontSize="13" Opacity="1.0" Text="正在 Fork 仓库..." />
                     </StackPanel>
                 </Border>
 
@@ -61,7 +61,7 @@
                             <FontIcon FontSize="14" Glyph="&#xE73E;" Foreground="#0F7B0F" />
                             <TextBlock FontSize="14" FontWeight="SemiBold" Text="提交成功" />
                         </StackPanel>
-                        <TextBlock FontSize="13" Opacity="0.7" TextWrapping="Wrap"
+                        <TextBlock FontSize="13" Opacity="1.0" TextWrapping="Wrap"
                                    Text="你的工具已成功提交 Pull Request，审核通过后即可在社区中展示。" />
                         <HyperlinkButton x:Name="PrLink" Content="查看 Pull Request" Visibility="Collapsed" />
                     </StackPanel>
@@ -95,7 +95,7 @@
                                       VerticalScrollBarVisibility="Auto">
                             <TextBlock x:Name="ErrorText"
                                        FontFamily="Cascadia Code, Consolas"
-                                       FontSize="12" Opacity="0.82"
+                                       FontSize="12" Opacity="1.0"
                                        TextWrapping="Wrap" IsTextSelectionEnabled="True" />
                         </ScrollViewer>
                     </StackPanel>

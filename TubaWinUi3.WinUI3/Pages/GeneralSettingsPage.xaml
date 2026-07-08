@@ -38,7 +38,7 @@
                         VerticalAlignment="Center" />
                 </StackPanel>
                 <TextBlock
-                    Opacity="0.72"
+                    Opacity="1.0"
                     Margin="48,0,0,16"
                     Text="主题、更新、启动页面等基础设置" />
 
@@ -58,7 +58,7 @@
                             <TextBlock FontWeight="SemiBold" Text="检查更新" />
                             <TextBlock
                                 x:Name="UpdateStatusText"
-                                Opacity="0.68"
+                                Opacity="1.0"
                                 FontSize="13"
                                 Text="点击检查是否有新版本" />
                         </StackPanel>
@@ -93,7 +93,7 @@
                             <TextBlock FontWeight="SemiBold" Text="工具包更新" />
                             <TextBlock
                                 x:Name="ToolsBundleStatusText"
-                                Opacity="0.68"
+                                Opacity="1.0"
                                 FontSize="13"
                                 Text="点击检查工具包是否有新版本" />
                         </StackPanel>
@@ -127,7 +127,7 @@
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                             <TextBlock FontWeight="SemiBold" Text="应用主题" />
                             <TextBlock
-                                Opacity="0.68"
+                                Opacity="1.0"
                                 FontSize="13"
                                 Text="选择浅色、深色或跟随系统" />
                         </StackPanel>
@@ -155,7 +155,7 @@
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                             <TextBlock FontWeight="SemiBold" Text="简洁列表模式" />
                             <TextBlock
-                                Opacity="0.68"
+                                Opacity="1.0"
                                 FontSize="13"
                                 TextWrapping="Wrap"
                                 Text="原版图吧工具箱的样式" />
@@ -184,7 +184,7 @@
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                             <TextBlock FontWeight="SemiBold" Text="默认启动页面" />
                             <TextBlock
-                                Opacity="0.68"
+                                Opacity="1.0"
                                 FontSize="13"
                                 TextWrapping="Wrap"
                                 Text="选择应用启动后默认打开的页面" />
@@ -213,7 +213,7 @@
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                             <TextBlock FontWeight="SemiBold" Text="快速模式" />
                             <TextBlock
-                                Opacity="0.68"
+                                Opacity="1.0"
                                 FontSize="13"
                                 TextWrapping="Wrap"
                                 Text="禁用所有动画，提升响应速度" />
@@ -242,7 +242,7 @@
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                             <TextBlock FontWeight="SemiBold" Text="记住窗口位置和大小" />
                             <TextBlock
-                                Opacity="0.68"
+                                Opacity="1.0"
                                 FontSize="13"
                                 TextWrapping="Wrap"
                                 Text="关闭后下次启动将居中显示，避免多显示器断开后窗口位置异常" />

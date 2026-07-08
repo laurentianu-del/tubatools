@@ -25,7 +25,7 @@
             </Border>
             <StackPanel Grid.Column="1" Spacing="2">
                 <TextBlock FontSize="22" FontWeight="SemiBold" Text="配置修改器" />
-                <TextBlock x:Name="SubtitleText" Opacity="0.68" FontSize="12" Text="修改注册表中的硬件信息显示" />
+                <TextBlock x:Name="SubtitleText" Opacity="1.0" FontSize="12" Text="修改注册表中的硬件信息显示" />
             </StackPanel>
             <Button x:Name="CloseButton" Grid.Column="2" Click="CloseButton_Click" Content="关闭" />
         </Grid>
@@ -36,19 +36,19 @@
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                     <Border Padding="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
                         <StackPanel Spacing="2">
-                            <TextBlock FontSize="11" Opacity="0.68" Text="已修改项" />
+                            <TextBlock FontSize="11" Opacity="1.0" Text="已修改项" />
                             <TextBlock x:Name="ModifiedCountText" FontSize="20" FontWeight="Bold" Text="0" />
                         </StackPanel>
                     </Border>
                     <Border Grid.Column="1" Padding="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
                         <StackPanel Spacing="2">
-                            <TextBlock FontSize="11" Opacity="0.68" Text="备份状态" />
+                            <TextBlock FontSize="11" Opacity="1.0" Text="备份状态" />
                             <TextBlock x:Name="BackupStatusText" FontSize="14" FontWeight="SemiBold" Text="无备份" />
                         </StackPanel>
                     </Border>
                     <Border Grid.Column="2" Padding="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
                         <StackPanel Spacing="2">
-                            <TextBlock FontSize="11" Opacity="0.68" Text="管理员权限" />
+                            <TextBlock FontSize="11" Opacity="1.0" Text="管理员权限" />
                             <TextBlock x:Name="AdminStatusText" FontSize="14" FontWeight="SemiBold" Text="检测中..." />
                         </StackPanel>
                     </Border>
@@ -87,7 +87,7 @@
                             <TextBlock VerticalAlignment="Center" FontSize="13" Text="频率 (MHz)：" />
                             <TextBox x:Name="CpuMhzBox" Grid.Column="1" HorizontalAlignment="Stretch" PlaceholderText="如 3600" />
                         </Grid>
-                        <TextBlock x:Name="CpuOriginalText" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+                        <TextBlock x:Name="CpuOriginalText" FontSize="11" Opacity="1.0" TextWrapping="Wrap" />
                     </StackPanel>
                 </Expander>
 
@@ -113,7 +113,7 @@
                                 <x:String>Intel</x:String>
                             </ComboBox>
                         </Grid>
-                        <TextBlock x:Name="GpuOriginalText" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+                        <TextBlock x:Name="GpuOriginalText" FontSize="11" Opacity="1.0" TextWrapping="Wrap" />
                     </StackPanel>
                 </Expander>
 
@@ -147,7 +147,7 @@
                             <TextBlock VerticalAlignment="Center" FontSize="13" Text="系统系列：" />
                             <TextBox x:Name="SystemFamilyBox" Grid.Column="1" HorizontalAlignment="Stretch" PlaceholderText="可选" />
                         </Grid>
-                        <TextBlock x:Name="SystemOriginalText" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+                        <TextBlock x:Name="SystemOriginalText" FontSize="11" Opacity="1.0" TextWrapping="Wrap" />
                     </StackPanel>
                 </Expander>
 
@@ -189,7 +189,7 @@
                             <TextBlock VerticalAlignment="Center" FontSize="13" Text="主板型号：" />
                             <TextBox x:Name="BoardProductBox" Grid.Column="1" HorizontalAlignment="Stretch" PlaceholderText="可选" />
                         </Grid>
-                        <TextBlock x:Name="BiosOriginalText" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+                        <TextBlock x:Name="BiosOriginalText" FontSize="11" Opacity="1.0" TextWrapping="Wrap" />
                     </StackPanel>
                 </Expander>
 

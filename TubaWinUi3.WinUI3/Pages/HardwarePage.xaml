@@ -250,7 +250,7 @@
                         </StackPanel>
                         <TextBlock
                             FontSize="16"
-                            Opacity="0.72"
+                            Opacity="1.0"
                             Text="汇总本机型号、系统和关键硬件参数。" />
                     </StackPanel>
 
@@ -311,7 +311,7 @@
                                 <FontIcon FontSize="24" Glyph="&#xE772;" />
                             </Border>
                             <StackPanel Grid.Column="1" Spacing="5">
-                                <TextBlock FontSize="15" Opacity="0.68" Text="型号信息" />
+                                <TextBlock FontSize="15" Opacity="1.0" Text="型号信息" />
                                 <TextBlock
                                     x:Name="ModelText"
                                     FontSize="20"
@@ -335,7 +335,7 @@
                                 <FontIcon FontSize="24" Glyph="&#xE770;" />
                             </Border>
                             <StackPanel Grid.Column="1" Spacing="5">
-                                <TextBlock FontSize="15" Opacity="0.68" Text="系统信息" />
+                                <TextBlock FontSize="15" Opacity="1.0" Text="系统信息" />
                                 <TextBlock
                                     x:Name="SystemText"
                                     FontSize="20"
@@ -359,7 +359,7 @@
                                 <FontIcon FontSize="24" Glyph="&#xE917;" />
                             </Border>
                             <StackPanel Grid.Column="1" Spacing="5">
-                                <TextBlock FontSize="15" Opacity="0.68" Text="运行时间" />
+                                <TextBlock FontSize="15" Opacity="1.0" Text="运行时间" />
                                 <TextBlock
                                     x:Name="UptimeText"
                                     Width="220"
@@ -411,7 +411,7 @@
                                         </Grid.ColumnDefinitions>
                                         <TextBlock
                                             FontSize="15"
-                                            Opacity="0.65"
+                                            Opacity="1.0"
                                             Text="{Binding Label}"
                                             VerticalAlignment="Center" />
                                         <Border

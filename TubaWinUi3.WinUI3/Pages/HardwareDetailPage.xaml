@@ -34,7 +34,7 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <TextBlock FontSize="12" Opacity="0.6" Text="{Binding Label}" VerticalAlignment="Center" />
+                <TextBlock FontSize="12" Opacity="1.0" Text="{Binding Label}" VerticalAlignment="Center" />
                 <Border Grid.Column="1" Width="1" Height="12" Background="{ThemeResource DividerStrokeColorDefaultBrush}" VerticalAlignment="Center" />
                 <TextBlock Grid.Column="2" FontSize="12" FontWeight="SemiBold" Text="{Binding Value}" TextWrapping="Wrap" VerticalAlignment="Center" />
             </Grid>
@@ -93,7 +93,7 @@
                                     Text="CPU-Z" />
                             </Border>
                         </StackPanel>
-                        <TextBlock FontSize="13" Opacity="0.72" Text="完整硬件参数一览" />
+                        <TextBlock FontSize="13" Opacity="1.0" Text="完整硬件参数一览" />
                     </StackPanel>
                     <Button
                         x:Name="RefreshButton"

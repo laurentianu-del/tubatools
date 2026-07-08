@@ -25,7 +25,7 @@
             </Border>
             <StackPanel Grid.Column="1" Spacing="2">
                 <TextBlock FontSize="22" FontWeight="SemiBold" Text="Windows 功能开关" />
-                <TextBlock Opacity="0.68" FontSize="12" Text="管理 Windows A/B 实验性功能开关，启用/禁用/重置隐藏功能" />
+                <TextBlock Opacity="1.0" FontSize="12" Text="管理 Windows A/B 实验性功能开关，启用/禁用/重置隐藏功能" />
             </StackPanel>
             <Button x:Name="CloseButton" Grid.Column="2" Click="CloseButton_Click" Content="关闭" />
         </Grid>
@@ -68,25 +68,25 @@
                     </Grid.ColumnDefinitions>
                     <Border x:Name="StatTotal" Padding="12" CornerRadius="6" BorderThickness="1">
                         <StackPanel Spacing="2">
-                            <TextBlock FontSize="11" Opacity="0.68" Text="总计" />
+                            <TextBlock FontSize="11" Opacity="1.0" Text="总计" />
                             <TextBlock x:Name="TotalCountText" FontSize="22" FontWeight="Bold" />
                         </StackPanel>
                     </Border>
                     <Border x:Name="StatEnabled" Grid.Column="1" Padding="12" CornerRadius="6" BorderThickness="1">
                         <StackPanel Spacing="2">
-                            <TextBlock FontSize="11" Opacity="0.68" Text="已开启" />
+                            <TextBlock FontSize="11" Opacity="1.0" Text="已开启" />
                             <TextBlock x:Name="EnabledCountText" FontSize="22" FontWeight="Bold" />
                         </StackPanel>
                     </Border>
                     <Border x:Name="StatDisabled" Grid.Column="2" Padding="12" CornerRadius="6" BorderThickness="1">
                         <StackPanel Spacing="2">
-                            <TextBlock FontSize="11" Opacity="0.68" Text="已关闭" />
+                            <TextBlock FontSize="11" Opacity="1.0" Text="已关闭" />
                             <TextBlock x:Name="DisabledCountText" FontSize="22" FontWeight="Bold" />
                         </StackPanel>
                     </Border>
                     <Border x:Name="StatDefault" Grid.Column="3" Padding="12" CornerRadius="6" BorderThickness="1">
                         <StackPanel Spacing="2">
-                            <TextBlock FontSize="11" Opacity="0.68" Text="默认" />
+                            <TextBlock FontSize="11" Opacity="1.0" Text="默认" />
                             <TextBlock x:Name="DefaultCountText" FontSize="22" FontWeight="Bold" />
                         </StackPanel>
                     </Border>
@@ -120,7 +120,7 @@
                             <TextBlock Text="更多" />
                         </StackPanel>
                     </Button>
-                    <TextBlock x:Name="CountText" Grid.Column="4" FontSize="12" Opacity="0.68" VerticalAlignment="Center" />
+                    <TextBlock x:Name="CountText" Grid.Column="4" FontSize="12" Opacity="1.0" VerticalAlignment="Center" />
                 </Grid>
 
                 <InfoBar x:Name="ResultBar" IsClosable="True" IsOpen="False" />
@@ -134,10 +134,10 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="220" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" FontSize="11" FontWeight="SemiBold" Opacity="0.68" Text="功能 ID" />
-                        <TextBlock Grid.Column="1" FontSize="11" FontWeight="SemiBold" Opacity="0.68" Text="状态" />
-                        <TextBlock Grid.Column="2" FontSize="11" FontWeight="SemiBold" Opacity="0.68" Text="名称" />
-                        <TextBlock Grid.Column="3" FontSize="11" FontWeight="SemiBold" Opacity="0.68" Text="操作" />
+                        <TextBlock Grid.Column="0" FontSize="11" FontWeight="SemiBold" Opacity="1.0" Text="功能 ID" />
+                        <TextBlock Grid.Column="1" FontSize="11" FontWeight="SemiBold" Opacity="1.0" Text="状态" />
+                        <TextBlock Grid.Column="2" FontSize="11" FontWeight="SemiBold" Opacity="1.0" Text="名称" />
+                        <TextBlock Grid.Column="3" FontSize="11" FontWeight="SemiBold" Opacity="1.0" Text="操作" />
                     </Grid>
                 </Border>
 
@@ -148,14 +148,14 @@
 
                 <!-- Empty state -->
                 <StackPanel x:Name="EmptyPanel" HorizontalAlignment="Center" Spacing="8" Padding="0,40,0,40" Visibility="Collapsed">
-                    <FontIcon Glyph="&#xE711;" FontSize="36" Opacity="0.4" />
-                    <TextBlock FontSize="14" Opacity="0.68" Text="没有找到匹配的功能" HorizontalAlignment="Center" />
+                    <FontIcon Glyph="&#xE711;" FontSize="36" Opacity="1.0" />
+                    <TextBlock FontSize="14" Opacity="1.0" Text="没有找到匹配的功能" HorizontalAlignment="Center" />
                 </StackPanel>
 
                 <!-- Loading -->
                 <StackPanel x:Name="LoadingPanel" HorizontalAlignment="Center" Spacing="8" Padding="0,40,0,40" Visibility="Collapsed">
                     <ProgressRing x:Name="LoadingRing" Width="36" Height="36" IsActive="True" />
-                    <TextBlock FontSize="13" Opacity="0.68" Text="正在加载功能列表..." />
+                    <TextBlock FontSize="13" Opacity="1.0" Text="正在加载功能列表..." />
                 </StackPanel>
             </StackPanel>
         </ScrollViewer>

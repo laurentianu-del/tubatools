@@ -45,7 +45,7 @@
                     Text="常用" />
                 <TextBlock
                     x:Name="SubtitleText"
-                    Opacity="0.72"
+                    Opacity="1.0"
                     Text="你收藏的工具会显示在这里。" />
             </StackPanel>
 
@@ -80,7 +80,7 @@
                             Text="我的收藏" />
                         <TextBlock
                             x:Name="ToolCountText"
-                            Opacity="0.68" />
+                            Opacity="1.0" />
                     </StackPanel>
 
                     <Button
@@ -155,7 +155,7 @@
                                             TextTrimming="CharacterEllipsis" />
                                         <TextBlock
                                             FontSize="12"
-                                            Opacity="0.64"
+                                            Opacity="1.0"
                                             Text="{Binding Category}"
                                             TextTrimming="CharacterEllipsis" />
                                     </StackPanel>
@@ -164,7 +164,7 @@
                                 <TextBlock
                                     Grid.Row="1"
                                     MaxLines="2"
-                                    Opacity="0.72"
+                                    Opacity="1.0"
                                     Text="{Binding Description}"
                                     TextTrimming="CharacterEllipsis"
                                     TextWrapping="Wrap" />
@@ -262,15 +262,15 @@
                     HorizontalAlignment="Center"
                     FontSize="48"
                     Glyph="&#xE735;"
-                    Opacity="0.3" />
+                    Opacity="1.0" />
                 <TextBlock
                     HorizontalAlignment="Center"
                     FontSize="18"
-                    Opacity="0.52"
+                    Opacity="1.0"
                     Text="还没有收藏的工具" />
                 <TextBlock
                     HorizontalAlignment="Center"
-                    Opacity="0.42"
+                    Opacity="1.0"
                     Text="在全部页面点击星标按钮即可收藏" />
             </StackPanel>
 
@@ -284,7 +284,7 @@
                         FontWeight="SemiBold"
                         Text="最近使用" />
                     <TextBlock
-                        Opacity="0.6"
+                        Opacity="1.0"
                         FontSize="13"
                         Text="最近打开过的工具" />
                 </StackPanel>
@@ -350,9 +350,9 @@
                 PreferredPlacement="Right">
                 <StackPanel MaxWidth="420" Spacing="8">
                     <TextBlock x:Name="DetailDescriptionText" TextWrapping="Wrap" />
-                    <TextBlock x:Name="DetailPublisherText" Opacity="0.72" TextWrapping="Wrap" />
-                    <TextBlock x:Name="DetailVersionText" Opacity="0.72" TextWrapping="Wrap" />
-                    <TextBlock x:Name="DetailPathText" Opacity="0.72" TextWrapping="Wrap" />
+                    <TextBlock x:Name="DetailPublisherText" Opacity="1.0" TextWrapping="Wrap" />
+                    <TextBlock x:Name="DetailVersionText" Opacity="1.0" TextWrapping="Wrap" />
+                    <TextBlock x:Name="DetailPathText" Opacity="1.0" TextWrapping="Wrap" />
                 </StackPanel>
             </TeachingTip>
 

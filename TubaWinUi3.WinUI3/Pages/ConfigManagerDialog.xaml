@@ -17,7 +17,7 @@
             <TextBlock
                 FontSize="14"
                 FontWeight="SemiBold"
-                Opacity="0.62"
+                Opacity="1.0"
                 Text="配置存储位置" />
 
             <Border
@@ -43,7 +43,7 @@
             <TextBlock
                 FontSize="14"
                 FontWeight="SemiBold"
-                Opacity="0.62"
+                Opacity="1.0"
                 Text="当前配置目录" />
 
             <Border
@@ -85,7 +85,7 @@
                 </Grid>
             </Border>
 
-            <TextBlock x:Name="DataSizeText" Opacity="0.68" FontSize="13" />
+            <TextBlock x:Name="DataSizeText" Opacity="1.0" FontSize="13" />
 
             <Border
                 Padding="0,1"
@@ -94,7 +94,7 @@
             <TextBlock
                 FontSize="14"
                 FontWeight="SemiBold"
-                Opacity="0.62"
+                Opacity="1.0"
                 Text="数据操作" />
 
             <StackPanel Orientation="Horizontal" Spacing="8">
@@ -120,7 +120,7 @@
 
             <TextBlock
                 x:Name="StatusText"
-                Opacity="0.68"
+                Opacity="1.0"
                 FontSize="12"
                 TextWrapping="Wrap" />
 

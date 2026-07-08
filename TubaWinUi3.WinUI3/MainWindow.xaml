@@ -22,6 +22,8 @@
         <TitleBar
             x:Name="AppTitleBar"
             Title="图吧工具箱"
+            FontFamily="{StaticResource AppFontFamily}"
+            FontWeight="Bold"
             BackRequested="TitleBar_BackRequested"
             IsBackButtonVisible="True"
             IsPaneToggleButtonVisible="True"
@@ -115,7 +117,7 @@
                                                         TextTrimming="CharacterEllipsis" />
                                                     <TextBlock
                                                         FontSize="11"
-                                                        Opacity="0.6"
+                                                        Opacity="1.0"
                                                         MaxLines="1"
                                                         Text="{Binding Subtitle}"
                                                         TextTrimming="CharacterEllipsis" />
