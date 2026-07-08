@@ -141,6 +141,7 @@ public sealed class ToolItem : INotifyPropertyChanged
         get => _selectedArch;
         set
         {
+            if (_suppressArchSelection) return;
             if (SetField(ref _selectedArch, value))
             {
                 OnPropertyChanged(nameof(EffectivePath));
@@ -178,8 +179,11 @@ public sealed class ToolItem : INotifyPropertyChanged
         OnPropertyChanged(nameof(OtherCategories));
     }
 
+    private bool _suppressArchSelection;
+
     public void InitArchOptions()
     {
+        _suppressArchSelection = true;
         ArchOptions.Clear();
         var primary = new ArchOption { Name = Name, Path = Path, Arch = PrimaryArch ?? "" };
         ArchOptions.Add(primary);
@@ -187,8 +191,7 @@ public sealed class ToolItem : INotifyPropertyChanged
         {
             ArchOptions.Add(new ArchOption { Name = v.Name, Path = v.Path, Arch = v.Arch });
         }
-        // Delegate to ToolCatalog so OS-arch detection (OSArchitecture, not
-        // ProcessArchitecture) and the ARM64 > x64 > x86 fallback chain stay in one place.
+        _suppressArchSelection = false;
         SelectedArch = ToolCatalog.PickPreferredArchOption(ArchOptions, primary);
     }
 
@@ -213,7 +216,7 @@ public sealed class ArchVariant
     public required string Arch { get; init; }
 }
 
-public sealed class ArchOption
+public sealed class ArchOption : IEquatable<ArchOption>
 {
     public required string Name { get; init; }
     public required string Path { get; init; }
@@ -222,4 +225,11 @@ public sealed class ArchOption
     public string DisplayText => string.IsNullOrEmpty(Arch) ? "默认" : Arch;
 
     public override string ToString() => DisplayText;
+
+    public bool Equals(ArchOption? other) =>
+        other is not null && Path.Equals(other.Path, StringComparison.OrdinalIgnoreCase);
+
+    public override bool Equals(object? obj) => Equals(obj as ArchOption);
+
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Path);
 }

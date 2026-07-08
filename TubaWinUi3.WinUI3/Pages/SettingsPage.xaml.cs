@@ -174,6 +174,15 @@ public sealed partial class SettingsPage : Page
     {
         base.OnNavigatedTo(e);
 
+        if (GeneralExpander is not null)
+        {
+            if (GeneralExpander.IsExpanded && IsExpanderContentEmpty(GeneralExpander))
+            {
+                GeneralExpander.IsExpanded = false;
+            }
+            GeneralExpander.IsExpanded = true;
+        }
+
         if (e.Parameter is SearchNavigationTarget target && target.HighlightSettingKey is not null)
         {
             _pendingHighlightKey = target.HighlightSettingKey;
@@ -184,6 +193,16 @@ public sealed partial class SettingsPage : Page
             StartHighlight(_pendingHighlightKey);
             _pendingHighlightKey = null;
         }
+    }
+
+    private static bool IsExpanderContentEmpty(Expander expander)
+    {
+        if (expander.Content is not FrameworkElement content) return true;
+        if (content is ScrollViewer sv && sv.Content is StackPanel sp)
+            return sp.Children.Count == 0;
+        if (content is StackPanel sp2)
+            return sp2.Children.Count == 0;
+        return false;
     }
 
     private void StartHighlight(string settingKey)
