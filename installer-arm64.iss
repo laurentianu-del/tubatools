@@ -81,6 +81,12 @@ begin
   end;
 end;
 
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+    SaveStringToFile(ExpandConstant('{app}\.installed'), 'installed', False);
+end;
+
 function IsWindowsVersionOk: Boolean;
 var
   Version: TWindowsVersion;

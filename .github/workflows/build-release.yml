@@ -146,6 +146,7 @@ jobs:
             Copy-Item -LiteralPath $priFile -Destination publish_${{ matrix.arch }}_installer -Force
             Write-Host "Restored TubaWinUi3.pri for installer"
           }
+          New-Item -ItemType File -Path (Join-Path "publish_${{ matrix.arch }}_installer" '.installed') -Force | Out-Null
 
       - name: Verify remotedefender in publish output
         shell: pwsh
@@ -196,7 +197,7 @@ jobs:
           if (Test-Path -LiteralPath $stagingDir) { Remove-Item -LiteralPath $stagingDir -Recurse -Force }
           New-Item -ItemType Directory -Path $srcDir -Force | Out-Null
 
-          Get-ChildItem -LiteralPath $publishDir | Move-Item -Destination $srcDir -Force
+          Get-ChildItem -LiteralPath $publishDir | Where-Object { $_.Extension -ne '.pdb' -and $_.Name -ne '.installed' } | Move-Item -Destination $srcDir -Force
 
           Copy-Item -LiteralPath "Launcher\bin\图吧工具箱WinUI3_${{ matrix.arch }}.exe" -Destination (Join-Path $stagingDir '图吧工具箱WinUI3.exe') -Force
 

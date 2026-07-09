@@ -89,6 +89,8 @@ function Publish-Arch {
 
     Remove-Item -LiteralPath (Join-Path $outDir 'TubaWinUi3.pdb') -Force -ErrorAction SilentlyContinue
 
+    New-Item -ItemType File -Path (Join-Path $outDir '.installed') -Force | Out-Null
+
     $files = Get-ChildItem -LiteralPath $outDir -Recurse -File
     $totalSize = [math]::Round(($files | Measure-Object -Property Length -Sum).Sum / 1MB, 1)
     Write-Host "  Done: $($files.Count) files, $totalSize MB" -ForegroundColor Green

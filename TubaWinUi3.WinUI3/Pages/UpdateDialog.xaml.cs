@@ -63,7 +63,7 @@ public sealed partial class UpdateDialog : ContentDialog
         else
         {
             _portableAsset = null;
-            _installerAsset = UpdateService.FindBestAsset(updateInfo.Assets);
+            _installerAsset = UpdateService.FindBestInstallerAsset(updateInfo.Assets);
         }
 
         var activeAsset = _isPortableMode ? _portableAsset ?? _installerAsset : _installerAsset;

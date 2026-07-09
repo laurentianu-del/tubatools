@@ -716,8 +716,6 @@ public static class UpdateService
             a.Name.Contains(arch, StringComparison.OrdinalIgnoreCase) &&
             a.Name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
 
-        if (match is not null) return match;
-
-        return FindBestAsset(assets);
+        return match;
     }
 }
