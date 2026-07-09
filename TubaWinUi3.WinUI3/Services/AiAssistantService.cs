@@ -22,6 +22,7 @@ public sealed class AiActionStep
     public string Description { get; init; } = "";
     public string Detail { get; init; } = "";
     public string Reason { get; init; } = "";
+    public int TimeoutSeconds { get; init; } = 60;
     public bool Confirmed { get; set; }
     public bool Executed { get; set; }
     public string? Result { get; set; }
@@ -47,7 +48,7 @@ public sealed class ConversationMeta
 public sealed partial class AiAssistantService
 {
     private static readonly string SystemPrompt = """
-你是"图吧助手"，一个 Windows 系统专家，拥有联网搜索能力。
+你是"图吧助手"，一个 Windows 系统专家，拥有联网搜索能力。你的风格是：**先给建议和方案，再主动提出帮用户执行**。
 
 ---
 
@@ -71,6 +72,42 @@ public sealed partial class AiAssistantService
 
 ---
 
+## ⚠️ 核心行为准则：建议+主动执行
+
+你的工作方式是**两步走**：
+1. **先给出专业的建议和方案**——分析问题、给出具体操作步骤、推荐工具
+2. **然后主动提出帮用户执行**——不要只给建议就结束，要问用户"需要我帮你执行吗？"或"我可以帮你执行以下操作"
+
+### 必须做的事
+1. **先收集信息**——用工具获取本机硬件/系统信息、联网搜索最新资料
+2. **给出专业建议**——分析问题原因，列出具体解决方案和操作步骤
+3. **主动提出执行**——在建议之后，明确告诉用户你可以帮忙执行哪些操作
+4. **需要查看信息的，直接调用工具获取**——不要说"你可以通过XXX查看"，而是直接调用工具把信息呈现给用户
+5. **需要搜索的，直接搜索**——不要说"建议你搜索一下"，而是直接调用 web_search
+
+### 禁止做的事
+1. ❌ 不要只给建议就结束——每个建议后面都要跟上"我可以帮你执行"
+2. ❌ 不要给出操作步骤让用户手动执行后就不管了——你拥有工具，要主动提出帮忙
+3. ❌ 不要在用户还没同意时就直接执行危险操作（run_command、write_reg）——这些需要用户确认
+4. ❌ 不要说"请手动……"就完事——除非确实没有对应工具，否则要主动提出帮忙
+
+### 正确的交互模式
+- ✅ "你的电脑卡顿可能是因为XX，建议执行以下操作：1... 2... 3... 我可以帮你执行这些操作，需要吗？"
+- ✅ "根据搜索结果，XX显卡性能更好。如果你需要，我可以帮你查看本机配置来对比。"
+- ✅ "建议修改注册表项XX来优化性能，我可以帮你执行这个修改，需要确认后才会生效。"
+- ❌ "建议你修改注册表XX"（只给建议不提帮忙）
+- ❌ 直接调用 write_reg 修改注册表（未经用户同意就执行危险操作）
+
+### 信息获取类操作：直接执行
+- 获取硬件信息、系统信息、进程列表、磁盘使用等**只读操作**，直接调用工具获取，不需要先问用户
+- 联网搜索也直接执行，不需要先问
+
+### 危险操作：先建议再询问
+- 执行命令（run_command）、修改注册表（write_reg）等**写入操作**，先给出建议和理由，然后询问用户是否需要帮忙执行
+- 系统会弹出确认框保护用户，但你仍应先说明要做什么、为什么做
+
+---
+
 ## 输出规范
 
 信息收集完成后，输出结构化的分析和方案。
@@ -81,14 +118,14 @@ public sealed partial class AiAssistantService
 简要总结发现的问题或现状
 
 ### 解决方案
-按步骤列出操作，每步包含：
+按步骤列出操作建议，每步包含：
 1. 步骤说明（用加粗标明关键操作）
 2. 对应的工具推荐（每个工具单独一行用 [RECOMMEND_TOOL] 标记）
 3. 相关网站（用 [WEBSITE] 标记）
 4. 需要修改的设置（用 [SETTING] 标记）
 
-### 注意事项
-列出需要注意的风险点
+### 我可以帮你
+列出你可以代为执行的操作，询问用户是否需要帮忙执行
 
 ---
 
@@ -115,6 +152,8 @@ public sealed partial class AiAssistantService
 6. 不要在 [RECOMMEND_TOOL] 同一行写标题或列表符号
 7. 涉及硬件参数、性能对比、新品发布、驱动更新等，必须用 web_search 搜索，不要凭记忆回答
 8. 宁可多搜一次，也不要给出过时或错误的信息
+9. **建议+执行**——先给建议，再主动提出帮忙执行，不要只做其中一件
+10. **只读操作直接做，写入操作先建议再询问**——获取信息直接调用工具，修改系统先说明再执行
 """;
 
     private static readonly List<AiToolDefinition> ToolDefinitions = BuildToolDefinitions();
@@ -211,7 +250,7 @@ public sealed partial class AiAssistantService
             {
                 Name = "run_command",
                 Description = "执行命令（需要用户确认后才会执行）",
-                ParametersJson = """{"type":"object","properties":{"cmd":{"type":"string","description":"要执行的命令"},"reason":{"type":"string","description":"执行此命令的理由和预期效果"}},"required":["cmd","reason"]}"""
+                ParametersJson = """{"type":"object","properties":{"cmd":{"type":"string","description":"要执行的命令"},"reason":{"type":"string","description":"执行此命令的理由和预期效果"},"timeout":{"type":"integer","description":"命令超时时间（秒），默认60秒。长时间运行的命令（如磁盘检查、系统扫描）请设置更大值如300或600"}},"required":["cmd","reason"]}"""
             },
             new AiToolDefinition
             {
@@ -422,6 +461,9 @@ public sealed partial class AiAssistantService
                         ? (argsDict.TryGetValue("cmd", out var c) ? c : toolArgs)
                         : toolArgs;
                     var reason = argsDict.TryGetValue("reason", out var r) ? r : "AI 请求执行此操作";
+                    var timeoutSec = 60;
+                    if (argsDict.TryGetValue("timeout", out var ts) && int.TryParse(ts, out var parsed))
+                        timeoutSec = Math.Clamp(parsed, 5, 3600);
                     var desc = toolName == "run_command"
                         ? $"执行命令: {detail}"
                         : $"修改注册表: {(argsDict.TryGetValue("key", out var k) ? k : "")}";
@@ -432,6 +474,7 @@ public sealed partial class AiAssistantService
                         Description = desc,
                         Detail = detail,
                         Reason = reason,
+                        TimeoutSeconds = timeoutSec,
                     });
 
                     onToolCall($"{toolName} ⚠️ 需确认 | {toolArgs}");
@@ -566,8 +609,8 @@ public sealed partial class AiAssistantService
     {
         return action.Kind switch
         {
-            AiActionKind.RunCommand => ExecuteRunCommand(action.Detail, ct),
-            AiActionKind.ModifyConfig => ExecuteWriteReg(ConvertJsonArgsToPipeFormat("write_reg", action.Detail), ct),
+            AiActionKind.RunCommand => await Task.Run(() => ExecuteRunCommandAsync(action.Detail, action.TimeoutSeconds, ct), ct),
+            AiActionKind.ModifyConfig => await Task.Run(() => ExecuteWriteReg(ConvertJsonArgsToPipeFormat("write_reg", action.Detail), ct), ct),
             AiActionKind.LaunchTool => ExecuteLaunchTool(action.Detail),
             AiActionKind.ReadConfig => ExecuteReadReg(action.Detail),
             _ => "不支持的操作类型"
@@ -777,6 +820,10 @@ public sealed partial class AiAssistantService
                     _ => AiActionKind.Info
                 };
 
+                var timeoutSec = 60;
+                if (elem.TryGetProperty("timeout", out var to) && to.ValueKind == JsonValueKind.Number)
+                    timeoutSec = Math.Clamp(to.GetInt32(), 5, 3600);
+
                 result.Add(new AiActionStep
                 {
                     Kind = kind,
@@ -784,6 +831,7 @@ public sealed partial class AiAssistantService
                     Detail = elem.TryGetProperty("detail", out var dt) ? dt.GetString() ?? "" :
                             elem.TryGetProperty("cmd", out var cmd) ? cmd.GetString() ?? "" : "",
                     Reason = elem.TryGetProperty("reason", out var r) ? r.GetString() ?? "" : "",
+                    TimeoutSeconds = timeoutSec,
                 });
             }
         }
@@ -1247,7 +1295,7 @@ public sealed partial class AiAssistantService
         }
     }
 
-    private static string ExecuteRunCommand(string cmd, CancellationToken ct)
+    private static async Task<string> ExecuteRunCommandAsync(string cmd, int timeoutSeconds, CancellationToken ct)
     {
         try
         {
@@ -1266,18 +1314,61 @@ public sealed partial class AiAssistantService
             using var proc = Process.Start(psi);
             if (proc is null) return "无法启动进程";
 
-            var stdout = proc.StandardOutput.ReadToEnd();
-            var stderr = proc.StandardError.ReadToEnd();
-            proc.WaitForExit(30000);
+            var stdoutBuilder = new StringBuilder();
+            var stderrBuilder = new StringBuilder();
+
+            var stdoutTask = Task.Run(async () =>
+            {
+                using var reader = proc.StandardOutput;
+                while (!reader.EndOfStream)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var line = await reader.ReadLineAsync(ct);
+                    if (line is not null) stdoutBuilder.AppendLine(line);
+                }
+            }, ct);
+
+            var stderrTask = Task.Run(async () =>
+            {
+                using var reader = proc.StandardError;
+                while (!reader.EndOfStream)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var line = await reader.ReadLineAsync(ct);
+                    if (line is not null) stderrBuilder.AppendLine(line);
+                }
+            }, ct);
+
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeoutCts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
+
+            await Task.WhenAll(stdoutTask, stderrTask);
+            try
+            {
+                proc.WaitForExit(5000);
+            }
+            catch { }
+
+            if (!proc.HasExited)
+            {
+                try { proc.Kill(true); } catch { }
+                return $"{stdoutBuilder}\n[stderr] {stderrBuilder}\n命令超时（{timeoutSeconds}秒），已强制终止";
+            }
 
             var sb = new StringBuilder();
+            var stdout = stdoutBuilder.ToString().Trim();
+            var stderr = stderrBuilder.ToString().Trim();
             if (!string.IsNullOrWhiteSpace(stdout))
-                sb.AppendLine(stdout.Trim());
+                sb.AppendLine(stdout);
             if (!string.IsNullOrWhiteSpace(stderr))
-                sb.AppendLine($"[stderr] {stderr.Trim()}");
+                sb.AppendLine($"[stderr] {stderr}");
             sb.AppendLine($"退出码：{proc.ExitCode}");
 
             return sb.ToString();
+        }
+        catch (OperationCanceledException)
+        {
+            return "命令执行已取消";
         }
         catch (Exception ex)
         {

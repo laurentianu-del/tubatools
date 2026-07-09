@@ -39,8 +39,24 @@ public sealed partial class ScriptRunnerWindow : Window
         _dq = DispatcherQueue.GetForCurrentThread();
 
         AppWindow.Title = "脚本运行";
-        AppWindow.Resize(new SizeInt32(860, 620));
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"));
+
+        var displayArea = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary);
+        if (displayArea is not null)
+        {
+            var screenWidth = displayArea.WorkArea.Width;
+            var screenHeight = displayArea.WorkArea.Height;
+            var w = (int)(screenWidth * 0.8);
+            var h = (int)(screenHeight * 0.8);
+            AppWindow.Resize(new SizeInt32(w, h));
+            AppWindow.Move(new PointInt32(
+                (screenWidth - w) / 2 + displayArea.WorkArea.X,
+                (screenHeight - h) / 2 + displayArea.WorkArea.Y));
+        }
+        else
+        {
+            AppWindow.Resize(new SizeInt32(1100, 750));
+        }
 
         var presenter = AppWindow.Presenter as OverlappedPresenter;
         if (presenter is not null)
@@ -51,6 +67,8 @@ public sealed partial class ScriptRunnerWindow : Window
 
         if (Content is FrameworkElement root)
             root.RequestedTheme = ThemeService.CurrentElementTheme;
+
+        ApplyTitleBarTheme();
 
         CmdBadge.Background = new SolidColorBrush(ThemeColors.SubtleBg);
         StatusText.Text = "就绪";
@@ -607,5 +625,21 @@ public sealed partial class ScriptRunnerWindow : Window
             _closed = true;
             _durationTimer?.Stop();
         }
+    }
+
+    private void ApplyTitleBarTheme()
+    {
+        var isDark = ThemeService.CurrentElementTheme == ElementTheme.Dark ||
+                     (ThemeService.CurrentElementTheme == ElementTheme.Default &&
+                      Application.Current.RequestedTheme == ApplicationTheme.Dark);
+        var titleBar = AppWindow.TitleBar;
+        titleBar.BackgroundColor = isDark ? Color.FromArgb(255, 32, 32, 32) : Color.FromArgb(255, 243, 243, 243);
+        titleBar.ForegroundColor = isDark ? Color.FromArgb(255, 210, 210, 210) : Color.FromArgb(255, 30, 30, 30);
+        titleBar.InactiveBackgroundColor = titleBar.BackgroundColor;
+        titleBar.InactiveForegroundColor = isDark ? Color.FromArgb(255, 100, 100, 100) : Color.FromArgb(255, 160, 160, 160);
+        titleBar.ButtonBackgroundColor = Color.FromArgb(0, 0, 0, 0);
+        titleBar.ButtonForegroundColor = titleBar.ForegroundColor;
+        titleBar.ButtonInactiveBackgroundColor = Color.FromArgb(0, 0, 0, 0);
+        titleBar.ButtonInactiveForegroundColor = isDark ? Color.FromArgb(255, 80, 80, 80) : Color.FromArgb(255, 180, 180, 180);
     }
 }

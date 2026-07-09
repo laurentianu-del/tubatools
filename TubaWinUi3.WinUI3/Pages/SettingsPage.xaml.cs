@@ -1478,6 +1478,74 @@ public sealed partial class SettingsPage : Page
         throw new InvalidOperationException("这是一条手动抛出的测试异常，用于验证全局错误页面是否正常工作。");
     }
 
+    private int _easterEggClickCount;
+    private CancellationTokenSource? _easterEggCts;
+    private static readonly string[] EasterEggMessages =
+    [
+        "被你发现啦～ 🎉",
+        "呜呜别戳我啦 >_<",
+        "再戳就要坏掉了哦～",
+        "嘻嘻，你真有耐心呢 ✨",
+        "今天也要元气满满鸭！",
+        "偷偷告诉你：开发者很可爱 🤫",
+        "戳我干嘛～看配置去啦！",
+        "我是一只工具箱喵～ 🐱",
+        "你点我一下，我开心一下 ☺️",
+        "好啦好啦，知道你在啦～",
+    ];
+
+    private void AppInfoCard_Tapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (FastModeService.IsFastModeEnabled()) return;
+
+        _easterEggCts?.Cancel();
+        _easterEggCts = new CancellationTokenSource();
+        var ct = _easterEggCts.Token;
+
+        _easterEggClickCount++;
+        var idx = (_easterEggClickCount - 1) % EasterEggMessages.Length;
+
+        AppInfoCardScale.ScaleX = 0.92;
+        AppInfoCardScale.ScaleY = 1.08;
+        AppTitleText.Text = "🎉 " + EasterEggMessages[idx];
+        AppSubtitleText.Opacity = 0.5;
+
+        var bounce = new Storyboard();
+        var sx = new DoubleAnimation { From = 0.92, To = 1.0, Duration = TimeSpan.FromMilliseconds(300), EasingFunction = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.6 } };
+        var sy = new DoubleAnimation { From = 1.08, To = 1.0, Duration = TimeSpan.FromMilliseconds(300), EasingFunction = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.6 } };
+        Storyboard.SetTarget(sx, AppInfoCardScale);
+        Storyboard.SetTargetProperty(sx, "ScaleX");
+        Storyboard.SetTarget(sy, AppInfoCardScale);
+        Storyboard.SetTargetProperty(sy, "ScaleY");
+        bounce.Children.Add(sx);
+        bounce.Children.Add(sy);
+        bounce.Begin();
+
+        _ = RestoreEasterEggAsync(ct);
+    }
+
+    private async Task RestoreEasterEggAsync(CancellationToken ct)
+    {
+        try { await Task.Delay(2000, ct); } catch (OperationCanceledException) { return; }
+        if (ct.IsCancellationRequested) return;
+
+        AppInfoCardScale.ScaleX = 0.95;
+        AppInfoCardScale.ScaleY = 1.05;
+        AppTitleText.Text = "图吧工具箱";
+        AppSubtitleText.Opacity = 1.0;
+
+        var restore = new Storyboard();
+        var rx = new DoubleAnimation { From = 0.95, To = 1.0, Duration = TimeSpan.FromMilliseconds(250), EasingFunction = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.3 } };
+        var ry = new DoubleAnimation { From = 1.05, To = 1.0, Duration = TimeSpan.FromMilliseconds(250), EasingFunction = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.3 } };
+        Storyboard.SetTarget(rx, AppInfoCardScale);
+        Storyboard.SetTargetProperty(rx, "ScaleX");
+        Storyboard.SetTarget(ry, AppInfoCardScale);
+        Storyboard.SetTargetProperty(ry, "ScaleY");
+        restore.Children.Add(rx);
+        restore.Children.Add(ry);
+        restore.Begin();
+    }
+
     private async Task ShowMessageAsync(string title, string message)
     {
         var dialog = new ContentDialog

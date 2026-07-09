@@ -718,6 +718,16 @@ public static partial class AiMarkdownRenderer
                 });
             }
 
+            if (action.Kind == AiActionKind.RunCommand && action.TimeoutSeconds != 60)
+            {
+                actionStack.Children.Add(new TextBlock
+                {
+                    Text = $"超时：{action.TimeoutSeconds} 秒",
+                    FontSize = 12,
+                    Foreground = (Brush)Application.Current.Resources["TextFillColorTertiaryBrush"]
+                });
+            }
+
             var btnRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 4, 0, 0) };
 
             var confirmBtn = new Button
@@ -995,6 +1005,10 @@ public static partial class AiMarkdownRenderer
                     _ => AiActionKind.Info
                 };
 
+                var timeoutSec = 60;
+                if (elem.TryGetProperty("timeout", out var to) && to.ValueKind == System.Text.Json.JsonValueKind.Number)
+                    timeoutSec = Math.Clamp(to.GetInt32(), 5, 3600);
+
                 result.Add(new AiActionStep
                 {
                     Kind = kind,
@@ -1002,6 +1016,7 @@ public static partial class AiMarkdownRenderer
                     Detail = elem.TryGetProperty("detail", out var dt) ? dt.GetString() ?? "" :
                             elem.TryGetProperty("cmd", out var cmd) ? cmd.GetString() ?? "" : "",
                     Reason = elem.TryGetProperty("reason", out var r) ? r.GetString() ?? "" : "",
+                    TimeoutSeconds = timeoutSec,
                 });
             }
         }

@@ -31,7 +31,7 @@ public static class ToolMetadataService
         var dirName = Path.GetFileName(Path.GetDirectoryName(toolPath));
         if (string.IsNullOrWhiteSpace(dirName)) return;
 
-        var metadataRoot = FindRoot("Metadata");
+        var metadataRoot = GetWritableMetadataDir();
         var metadataPath = Path.Combine(metadataRoot, "tools.json");
         if (!File.Exists(metadataPath)) return;
 
@@ -176,7 +176,7 @@ public static class ToolMetadataService
             return _metadata;
         }
 
-        var path = Path.Combine(FindRoot("Metadata"), "tools.json");
+        var path = Path.Combine(GetWritableMetadataDir(), "tools.json");
         if (!File.Exists(path))
         {
             _metadata = [];
@@ -248,6 +248,41 @@ public static class ToolMetadataService
         }
 
         return outputRoot;
+    }
+
+    public static string GetWritableMetadataDir()
+    {
+        if (!RuntimeHelper.IsMsixPackaged)
+            return FindRoot("Metadata");
+
+        var writableDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "TubaWinUi3", "Metadata");
+
+        if (!Directory.Exists(writableDir))
+        {
+            var installDir = FindRoot("Metadata");
+            if (Directory.Exists(installDir))
+            {
+                Directory.CreateDirectory(writableDir);
+                foreach (var file in Directory.EnumerateFiles(installDir))
+                {
+                    try
+                    {
+                        var dest = Path.Combine(writableDir, Path.GetFileName(file));
+                        if (!File.Exists(dest))
+                            File.Copy(file, dest, false);
+                    }
+                    catch { }
+                }
+            }
+            else
+            {
+                Directory.CreateDirectory(writableDir);
+            }
+        }
+
+        return writableDir;
     }
 
     private sealed class JsonToolDatabase

@@ -135,7 +135,7 @@ public static class CustomToolPackageService
 
     private static async Task UpsertMetadataAsync(CustomToolImportRequest request, string metadataMatch)
     {
-        var metadataRoot = FindRoot("Metadata");
+        var metadataRoot = ToolMetadataService.GetWritableMetadataDir();
         Directory.CreateDirectory(metadataRoot);
         var metadataPath = Path.Combine(metadataRoot, "tools.json");
 
@@ -224,23 +224,4 @@ public static class CustomToolPackageService
         return new string(chars).Trim();
     }
 
-    private static string FindRoot(string folderName)
-    {
-        var appDir = ToolCatalog.AppDirectory;
-        var outputRoot = Path.Combine(appDir, folderName);
-        if (Directory.Exists(outputRoot))
-            return outputRoot;
-
-        var directory = new DirectoryInfo(appDir);
-        while (directory is not null)
-        {
-            var candidate = Path.Combine(directory.FullName, folderName);
-            if (Directory.Exists(candidate))
-                return candidate;
-
-            directory = directory.Parent;
-        }
-
-        return outputRoot;
-    }
 }

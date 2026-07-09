@@ -161,8 +161,7 @@ function Build-ArchPackage {
     # Copy Assets from project
     Copy-Item -Path "$ProjectDir\Assets\*" -Destination "$archDir\Assets\" -Recurse -Force
 
-    # Copy Tools, CertBlock, Metadata from source
-    Copy-Item -Path "$ProjectDir\Tools" -Destination $archDir -Recurse -Force
+    # Copy CertBlock, Metadata from source (Tools are downloaded at runtime via ToolsBundleService)
     if (Test-Path -LiteralPath "$ProjectDir\CertBlock") {
         Copy-Item -Path "$ProjectDir\CertBlock" -Destination $archDir -Recurse -Force
     }
@@ -183,6 +182,13 @@ function Build-ArchPackage {
 
     Write-Host '  Removing unnecessary files...' -ForegroundColor Yellow
     Remove-UnnecessaryFiles $archDir
+
+    # Remove Tools directory (MSIX mode downloads tools at runtime via ToolsBundleService)
+    $toolsDir = Join-Path $archDir 'Tools'
+    if (Test-Path -LiteralPath $toolsDir) {
+        Remove-Item -LiteralPath $toolsDir -Recurse -Force
+        Write-Host '  Removed Tools directory (downloaded at runtime in MSIX mode)' -ForegroundColor Yellow
+    }
 
     Write-Host '  Writing manifest...' -ForegroundColor Yellow
     Write-CleanManifest (Join-Path $archDir 'AppxManifest.xml') $Arch

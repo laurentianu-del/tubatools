@@ -288,7 +288,8 @@ public sealed class AiAssistantTool : IBuiltinTool
                                 },
                                 description = a.Description,
                                 detail = a.Detail,
-                                reason = a.Reason
+                                reason = a.Reason,
+                                timeout = a.TimeoutSeconds
                             }));
                             var card = AiMarkdownRenderer.CreateActionCard(actionContent, onAllResolved: results =>
                             {
@@ -415,7 +416,8 @@ public sealed class AiAssistantTool : IBuiltinTool
                                 },
                                 description = a.Description,
                                 detail = a.Detail,
-                                reason = a.Reason
+                                reason = a.Reason,
+                                timeout = a.TimeoutSeconds
                             }));
                             var card = AiMarkdownRenderer.CreateActionCard(actionContent, onAllResolved: results =>
                             {
