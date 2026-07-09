@@ -51,7 +51,7 @@ public sealed partial class UpdateWindow : Window
         if (Content is FrameworkElement root)
             root.RequestedTheme = ThemeService.CurrentElementTheme;
 
-        _isPortableMode = !RuntimeHelper.IsMsixPackaged;
+        _isPortableMode = !RuntimeHelper.IsInstalled;
 
         SetupCardHover(GitCodeCard);
         SetupCardHover(GitHubCard);

@@ -22,7 +22,7 @@ public sealed partial class UpdateDialog : ContentDialog
     {
         InitializeComponent();
         XamlRoot = App.MainWindow?.Content?.XamlRoot;
-        _isPortableMode = !RuntimeHelper.IsMsixPackaged;
+        _isPortableMode = !RuntimeHelper.IsInstalled;
 
         SetupCardHover(GitCodeCard);
         SetupCardHover(GitHubCard);

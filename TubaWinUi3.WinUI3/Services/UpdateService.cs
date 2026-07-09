@@ -498,7 +498,7 @@ public static class UpdateService
 
     public static DownloadItem? AutoDownloadUpdate(UpdateInfo update)
     {
-        var isPortable = !RuntimeHelper.IsMsixPackaged;
+        var isPortable = !RuntimeHelper.IsInstalled;
         var asset = isPortable
             ? FindBestPortableAsset(update.Assets)
             : FindBestInstallerAsset(update.Assets);
