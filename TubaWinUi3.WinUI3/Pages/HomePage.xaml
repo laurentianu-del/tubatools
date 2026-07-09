@@ -15,7 +15,7 @@
         <local:NullToVisibilityConverter x:Key="NullToCollapse" />
         <local:HasAlternatesToVisibilityConverter x:Key="HasAlternatesToVis" />
         <local:NoAlternatesToVisibilityConverter x:Key="NoAlternatesToVis" />
-        <local:ArchOptionsCountConverter x:Key="ArchOptionsCountConverter" />
+
         <local:ZeroToIndeterminateConverter x:Key="ZeroIsIndeterminate" />
         <local:BoolToVisibilityConverter x:Key="BoolToVis" />
         <Style x:Key="TagRadioButtonStyle" TargetType="RadioButton">
@@ -272,21 +272,7 @@
                                                 FontWeight="SemiBold"
                                                 Text="{Binding Extension}" />
                                         </Border>
-                                        <ComboBox
-                                            Width="78"
-                                            MinHeight="24"
-                                            Padding="6,1"
-                                            FontSize="12"
-                                            VerticalAlignment="Center"
-                                            ItemsSource="{Binding ArchOptions}"
-                                            SelectedItem="{Binding SelectedArch, Mode=TwoWay}"
-                                            Visibility="{Binding ArchOptions.Count, Converter={StaticResource ArchOptionsCountConverter}}">
-                                            <ComboBox.ItemTemplate>
-                                                <DataTemplate>
-                                                    <TextBlock FontFamily="{StaticResource AppFontFamily}" FontSize="12" Text="{Binding DisplayText}" TextTrimming="CharacterEllipsis" />
-                                                </DataTemplate>
-                                            </ComboBox.ItemTemplate>
-                                        </ComboBox>
+
                                     </StackPanel>
 
                                     <Grid Grid.Row="4" ColumnSpacing="6">

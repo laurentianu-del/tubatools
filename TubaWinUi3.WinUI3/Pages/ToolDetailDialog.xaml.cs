@@ -126,17 +126,6 @@ public sealed partial class ToolDetailDialog : UserControl
         AdminButton.Visibility = tool.NeedsDownload ? Visibility.Collapsed : Visibility.Visible;
         LaunchButtonText.Text = tool.LaunchButtonText;
 
-        if (tool.ArchOptions.Count > 1)
-        {
-            ArchComboBox.ItemsSource = tool.ArchOptions;
-            ArchComboBox.SelectedItem = tool.SelectedArch;
-            ArchComboBox.Visibility = Visibility.Visible;
-        }
-        else
-        {
-            ArchComboBox.Visibility = Visibility.Collapsed;
-        }
-
         UpdateFavoriteIcon(tool.IsFavorite);
 
         LoadReadme(tool);
@@ -432,16 +421,6 @@ public sealed partial class ToolDetailDialog : UserControl
         _tool.IsFavorite = !_tool.IsFavorite;
         UpdateFavoriteIcon(_tool.IsFavorite);
         FavoriteChanged?.Invoke(_tool);
-    }
-
-    private void ArchComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_tool is null || ArchComboBox.SelectedItem is not ArchOption selected)
-            return;
-
-        _tool.SelectedArch = selected;
-        PathText.Text = _tool.EffectivePath;
-        LaunchButtonText.Text = _tool.LaunchButtonText;
     }
 
     private void DesktopShortcutButton_Click(object sender, RoutedEventArgs e)

@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Navigation;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -227,6 +228,87 @@ public sealed partial class FavoritesPage : Page
         }
     }
 
+    private void FavItem_RightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if (sender is FrameworkElement fe && fe.DataContext is ToolItem tool)
+        {
+            var flyout = (MenuFlyout)ToolsGrid.Resources["FavItemFlyout"];
+            PopulateArchSubmenu(flyout, tool);
+            flyout.ShowAt(fe, e.GetPosition(fe));
+        }
+    }
+
+    private void FavMenu_SendToDesktop(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuFlyoutItem { DataContext: ToolItem tool })
+        {
+            try
+            {
+                CreateDesktopShortcut(tool);
+                ShowStatus("已创建", $"已将「{tool.Name}」快捷方式发送到桌面", InfoBarSeverity.Success);
+            }
+            catch (Exception ex)
+            {
+                ShowStatus("创建失败", ex.Message, InfoBarSeverity.Error);
+            }
+        }
+    }
+
+    private void FavMenu_RunAsAdmin(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuFlyoutItem { DataContext: ToolItem tool })
+            LaunchTool(tool, runAsAdmin: true);
+    }
+
+    private void FavMenu_OpenDirectory(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuFlyoutItem { DataContext: ToolItem tool })
+            OpenToolDirectory(tool);
+    }
+
+    private static void OpenToolDirectory(ToolItem tool)
+    {
+        try
+        {
+            var dir = tool.EffectiveWorkingDir;
+            if (Directory.Exists(dir))
+                Process.Start(new ProcessStartInfo(dir) { UseShellExecute = true });
+        }
+        catch { }
+    }
+
+    private void PopulateArchSubmenu(MenuFlyout flyout, ToolItem tool)
+    {
+        var submenu = flyout.Items.OfType<MenuFlyoutSubItem>().FirstOrDefault(i => i.Name == "FavArchSubmenu");
+        if (submenu is null) return;
+
+        submenu.Items.Clear();
+
+        if (tool.ArchOptions.Count <= 1)
+        {
+            submenu.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        submenu.Visibility = Visibility.Visible;
+        foreach (var opt in tool.ArchOptions)
+        {
+            var label = string.IsNullOrEmpty(opt.Arch) ? "默认" : opt.Arch;
+            var item = new ToggleMenuFlyoutItem
+            {
+                Text = label,
+                IsChecked = opt == tool.SelectedArch,
+                DataContext = opt
+            };
+            item.Click += (s, e) =>
+            {
+                if (s is ToggleMenuFlyoutItem { DataContext: ArchOption selected })
+                    tool.SelectedArch = selected;
+            };
+            submenu.Items.Add(item);
+        }
+    }
+
     private static void CreateDesktopShortcut(ToolItem tool)
     {
         var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
@@ -346,21 +428,6 @@ public sealed partial class FavoritesPage : Page
     private static string ValueOrUnknown(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? "未知" : value;
-    }
-}
-
-public sealed class ArchOptionsCountConverterFav : Microsoft.UI.Xaml.Data.IValueConverter
-{
-    public object Convert(object value, Type targetType, object parameter, string language)
-    {
-        if (value is int count && count > 1)
-            return Visibility.Visible;
-        return Visibility.Collapsed;
-    }
-
-    public object ConvertBack(object value, Type targetType, object parameter, string language)
-    {
-        throw new NotImplementedException();
     }
 }
 

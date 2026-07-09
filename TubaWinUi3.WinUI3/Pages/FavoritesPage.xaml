@@ -13,8 +13,18 @@
         <local:NullToVisibilityConverter x:Key="NullToCollapse" />
         <local:HasAlternatesToVisibilityConverter x:Key="HasAlternatesToVis" />
         <local:NoAlternatesToVisibilityConverter x:Key="NoAlternatesToVis" />
-        <local:ArchOptionsCountConverterFav x:Key="ArchOptionsCountConverter" />
+
         <local:HistoryCountToVisibilityConverter x:Key="HistoryCountToVis" />
+        <MenuFlyout x:Key="FavItemFlyout">
+            <MenuFlyoutItem Text="发送到桌面快捷方式" Click="FavMenu_SendToDesktop" Icon="Link" />
+            <MenuFlyoutItem Text="以管理员身份运行" Click="FavMenu_RunAsAdmin" Icon="Admin" />
+            <MenuFlyoutItem Text="打开工具所在目录" Click="FavMenu_OpenDirectory" Icon="Folder" />
+            <MenuFlyoutSubItem x:Name="FavArchSubmenu" Text="选择架构" Visibility="Collapsed">
+                <MenuFlyoutSubItem.Icon>
+                    <FontIcon Glyph="&#xE912;" />
+                </MenuFlyoutSubItem.Icon>
+            </MenuFlyoutSubItem>
+        </MenuFlyout>
         <Style x:Key="FavCardStyle" TargetType="GridViewItem">
             <Setter Property="Margin" Value="0,0,12,12" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -114,7 +124,8 @@
                             BorderThickness="1"
                             CornerRadius="8"
                             HorizontalAlignment="Stretch"
-                            VerticalAlignment="Stretch">
+                            VerticalAlignment="Stretch"
+                            RightTapped="FavItem_RightTapped">
                             <Grid RowSpacing="7">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
@@ -175,7 +186,6 @@
                                 <Grid Grid.Row="2" ColumnSpacing="6">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <Border
@@ -188,21 +198,7 @@
                                             FontWeight="SemiBold"
                                             Text="{Binding Extension}" />
                                     </Border>
-                                    <ComboBox
-                                        Grid.Column="1"
-                                        Width="78"
-                                        MinHeight="24"
-                                        Padding="6,1"
-                                        FontSize="12"
-                                        ItemsSource="{Binding ArchOptions}"
-                                        SelectedItem="{Binding SelectedArch, Mode=TwoWay}"
-                                        Visibility="{Binding ArchOptions.Count, Converter={StaticResource ArchOptionsCountConverter}}">
-                                        <ComboBox.ItemTemplate>
-                                            <DataTemplate>
-                                                <TextBlock FontFamily="{StaticResource AppFontFamily}" FontSize="12" Text="{Binding DisplayText}" TextTrimming="CharacterEllipsis" />
-                                            </DataTemplate>
-                                        </ComboBox.ItemTemplate>
-                                    </ComboBox>
+
                                 </Grid>
 
                                 <Grid Grid.Row="3" ColumnSpacing="6">

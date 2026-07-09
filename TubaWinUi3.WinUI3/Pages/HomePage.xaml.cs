@@ -1298,21 +1298,6 @@ public sealed partial class HomePage : Page
     }
 }
 
-public sealed class ArchOptionsCountConverter : Microsoft.UI.Xaml.Data.IValueConverter
-{
-    public object Convert(object value, Type targetType, object parameter, string language)
-    {
-        if (value is int count && count > 1)
-            return Visibility.Visible;
-        return Visibility.Collapsed;
-    }
-
-    public object ConvertBack(object value, Type targetType, object parameter, string language)
-    {
-        throw new NotImplementedException();
-    }
-}
-
 public sealed class ZeroToIndeterminateConverter : Microsoft.UI.Xaml.Data.IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, string language)

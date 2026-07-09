@@ -490,11 +490,11 @@ public static class PerformanceBenchmarkService
 			int halfDuration = Math.Max(durationSec / 2, 3);
 			string fileSize = "1G";
 			progress?.Report(new BenchmarkProgress { Phase = "硬盘", SubPhase = "顺序读取", Progress = 0.6 });
-			disk.SeqReadMBs = RunDiskSpd(diskSpdExe, filePath, fileSize, "1M", 1, 1, 0, halfDuration, ct);
+			disk.SeqReadMBs = RunDiskSpd(diskSpdExe, filePath, fileSize, "1M", 1, 8, 0, halfDuration, ct);
 			disk.SeqReadScore = NormalizeDiskSeq(disk.SeqReadMBs);
 			ct.ThrowIfCancellationRequested();
 			progress?.Report(new BenchmarkProgress { Phase = "硬盘", SubPhase = "顺序写入", Progress = 0.65 });
-			disk.SeqWriteMBs = RunDiskSpd(diskSpdExe, filePath, fileSize, "1M", 1, 1, 100, halfDuration, ct);
+			disk.SeqWriteMBs = RunDiskSpd(diskSpdExe, filePath, fileSize, "1M", 1, 8, 100, halfDuration, ct);
 			disk.SeqWriteScore = NormalizeDiskSeq(disk.SeqWriteMBs);
 			ct.ThrowIfCancellationRequested();
 			progress?.Report(new BenchmarkProgress { Phase = "硬盘", SubPhase = "4K随机读取", Progress = 0.7 });
