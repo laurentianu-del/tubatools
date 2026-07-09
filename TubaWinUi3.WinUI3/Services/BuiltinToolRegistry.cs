@@ -36,7 +36,6 @@ public static class BuiltinToolRegistry
         Register(new UniGetUITool());
         Register(new OptimizerDuckTool());
         Register(new AiAssistantTool());
-        Register(new ViVeFeatureTool());
         Register(new PerformanceBenchmarkTool());
         Register(new BenchmarkCloudTool());
         Register(new WindowsImageTool());

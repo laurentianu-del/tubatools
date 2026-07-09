@@ -783,16 +783,28 @@ public static class HardwareInfoService
 
     private static string FormatDisks()
     {
-        var disks = Query("Win32_DiskDrive")
-            .Select(item =>
-            {
-                var model = Get(item, "Model");
-                var size = ToLong(Get(item, "Size")) / 1024d / 1024d / 1024d;
-                return string.IsNullOrWhiteSpace(model) ? null : $"{model} ({size:0.#}GB)";
-            })
-            .Where(value => !string.IsNullOrWhiteSpace(value));
+        var diskModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var diskEntries = new List<string>();
 
-        return string.Join(GetSeparator(), disks);
+        foreach (var item in Query("Win32_DiskDrive"))
+        {
+            var model = Get(item, "Model");
+            var size = ToLong(Get(item, "Size")) / 1024d / 1024d / 1024d;
+            if (string.IsNullOrWhiteSpace(model)) continue;
+            diskModels.Add(model);
+            diskEntries.Add($"{model} ({size:0.#}GB)");
+        }
+
+        foreach (var item in Query("Win32_PnPEntity"))
+        {
+            if (Get(item, "PNPClass") != "DiskDrive") continue;
+            var name = Get(item, "Name");
+            if (string.IsNullOrWhiteSpace(name) || diskModels.Contains(name)) continue;
+            diskModels.Add(name);
+            diskEntries.Add(name);
+        }
+
+        return diskEntries.Count > 0 ? string.Join(GetSeparator(), diskEntries) : "未知";
     }
 
     private static string FormatDisplays()
@@ -1738,11 +1750,13 @@ public static class HardwareInfoService
     private static List<DiskDetail> BuildDiskDetails()
     {
         var disks = new List<DiskDetail>();
+        var seenModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var item in Query("Win32_DiskDrive"))
         {
             var model = Get(item, "Model");
             if (string.IsNullOrWhiteSpace(model)) continue;
+            seenModels.Add(model);
 
             var deviceId = Get(item, "DeviceID");
             var size = ToLong(Get(item, "Size"));
@@ -1771,6 +1785,25 @@ public static class HardwareInfoService
             }
 
             disks.Add(disk);
+        }
+
+        foreach (var item in Query("Win32_PnPEntity"))
+        {
+            if (Get(item, "PNPClass") != "DiskDrive") continue;
+            var name = Get(item, "Name");
+            if (string.IsNullOrWhiteSpace(name) || seenModels.Contains(name)) continue;
+            seenModels.Add(name);
+
+            var pnpDeviceId = Get(item, "DeviceID");
+            var interfaceType = InferDiskInterfaceFromPnpId(pnpDeviceId);
+
+            disks.Add(new DiskDetail
+            {
+                Model = name,
+                MediaType = DetermineMediaType(null, interfaceType),
+                InterfaceType = MapInterfaceType(interfaceType),
+                Partitions = []
+            });
         }
 
         EnrichDiskTemperatures(disks);
@@ -1833,6 +1866,17 @@ public static class HardwareInfoService
             "1394" => "IEEE 1394",
             _ => value.Trim()
         };
+    }
+
+    private static string? InferDiskInterfaceFromPnpId(string? pnpDeviceId)
+    {
+        if (string.IsNullOrWhiteSpace(pnpDeviceId)) return null;
+        var upper = pnpDeviceId.ToUpperInvariant();
+        if (upper.Contains("NVME")) return "NVMe";
+        if (upper.Contains("USBSTOR")) return "USB";
+        if (upper.Contains("IDE") || upper.Contains("CHANNEL")) return "IDE";
+        if (upper.Contains("SCSI")) return "SCSI";
+        return null;
     }
 
     private static List<PartitionDetail> GetDiskPartitions(string deviceId)

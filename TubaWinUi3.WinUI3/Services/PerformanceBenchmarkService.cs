@@ -68,7 +68,7 @@ public static class PerformanceBenchmarkService
 				ct.ThrowIfCancellationRequested();
 				result.Memory = await Task.Run(() => RunMemoryBenchmark(1, progress, cts.Token), cts.Token);
 				ct.ThrowIfCancellationRequested();
-				result.Disk = await Task.Run(() => RunDiskBenchmark(20, progress, cts.Token), cts.Token);
+				result.Disk = await Task.Run(() => RunDiskBenchmark(120, progress, cts.Token), cts.Token);
 				ct.ThrowIfCancellationRequested();
 				result.Gpu = await Task.Run(() => RunGpuBenchmarkFurMark(60, progress, cts.Token), cts.Token);
 				ct.ThrowIfCancellationRequested();
@@ -565,7 +565,7 @@ public static class PerformanceBenchmarkService
 	{
 		try
 		{
-			string arguments = "-c" + fileSize + " -b" + blockSize + " -t" + threads + " -o" + outstanding + " -d" + durationSec + " -w" + writePct + " -Sh \"" + filePath + "\"";
+			string arguments = "-c" + fileSize + " -b" + blockSize + " -t" + threads + " -o" + outstanding + " -W5 -d" + durationSec + " -w" + writePct + " -Sh \"" + filePath + "\"";
 			using var process = Process.Start(new ProcessStartInfo(diskSpdPath, arguments)
 			{
 				RedirectStandardOutput = true,
@@ -591,7 +591,7 @@ public static class PerformanceBenchmarkService
 	{
 		try
 		{
-			string arguments = "-c" + fileSize + " -b" + blockSize + " -t" + threads + " -o" + outstanding + " -r -d" + durationSec + " -w" + writePct + " -Sh \"" + filePath + "\"";
+			string arguments = "-c" + fileSize + " -b" + blockSize + " -t" + threads + " -o" + outstanding + " -r -W5 -d" + durationSec + " -w" + writePct + " -Sh \"" + filePath + "\"";
 			using var process = Process.Start(new ProcessStartInfo(diskSpdPath, arguments)
 			{
 				RedirectStandardOutput = true,
