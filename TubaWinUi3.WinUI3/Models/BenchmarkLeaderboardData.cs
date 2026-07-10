@@ -1,0 +1,98 @@
+using System;
+using System.Collections.Generic;
+using System.Text.Json.Serialization;
+
+namespace TubaWinUi3.Models;
+
+public sealed class BenchmarkLeaderboardData
+{
+    public string UpdatedAt { get; set; } = "";
+
+    public int TotalReports { get; set; }
+
+    public Dictionary<string, List<BenchmarkLeaderboardRankEntry>> Leaderboards { get; set; } = new();
+}
+
+public sealed class BenchmarkLeaderboardRankEntry
+{
+    public int Rank { get; set; }
+
+    public string Id { get; set; } = "";
+
+    public string Author { get; set; } = "";
+
+    public string CpuName { get; set; } = "";
+
+    public string GpuName { get; set; } = "";
+
+    public int GamingScore { get; set; }
+
+    public int OfficeScore { get; set; }
+
+    public int CpuSingleCoreScore { get; set; }
+
+    public int CpuMultiCoreScore { get; set; }
+
+    public int GpuRenderScore { get; set; }
+
+    public int MemoryCapacityScore { get; set; }
+
+    public int DiskSeqReadScore { get; set; }
+
+    public int DiskSeqWriteScore { get; set; }
+
+    public int Disk4KReadScore { get; set; }
+
+    public int Disk4KWriteScore { get; set; }
+
+    public int BrowserTotalScore { get; set; }
+
+    public string GamingGrade { get; set; } = "";
+
+    public string OfficeGrade { get; set; } = "";
+
+    public string SubmittedAt { get; set; } = "";
+
+    public string OsName { get; set; } = "";
+
+    public string MotherboardName { get; set; } = "";
+
+    public string MemoryInfo { get; set; } = "";
+
+    public string DiskInfo { get; set; } = "";
+
+    public string DisplayInfo { get; set; } = "";
+
+    public string RepoPath { get; set; } = "";
+
+    public BenchmarkReportEntry ToReportEntry()
+    {
+        return new BenchmarkReportEntry
+        {
+            Id = Id,
+            Author = Author,
+            CpuName = CpuName,
+            GpuName = GpuName,
+            GamingScore = GamingScore,
+            OfficeScore = OfficeScore,
+            CpuSingleCoreScore = CpuSingleCoreScore,
+            CpuMultiCoreScore = CpuMultiCoreScore,
+            GpuRenderScore = GpuRenderScore,
+            MemoryCapacityScore = MemoryCapacityScore,
+            DiskSeqReadScore = DiskSeqReadScore,
+            DiskSeqWriteScore = DiskSeqWriteScore,
+            Disk4KReadScore = Disk4KReadScore,
+            Disk4KWriteScore = Disk4KWriteScore,
+            BrowserTotalScore = BrowserTotalScore,
+            GamingGrade = GamingGrade,
+            OfficeGrade = OfficeGrade,
+            OsName = OsName,
+            MotherboardName = MotherboardName,
+            MemoryInfo = MemoryInfo,
+            DiskInfo = DiskInfo,
+            DisplayInfo = DisplayInfo,
+            RepoPath = RepoPath,
+            SubmittedAt = DateTimeOffset.TryParse(SubmittedAt, out var dt) ? dt : DateTimeOffset.MinValue
+        };
+    }
+}

@@ -64,6 +64,12 @@ public sealed partial class ToolsCommunitySettingsPage : Page
     {
         InitializeComponent();
         InitGitHubLoginStatus();
+
+        if (RuntimeHelper.IsMsixPackaged)
+        {
+            SettingsCommunityCard.Visibility = Visibility.Collapsed;
+            SettingsCommunitySubmitCard.Visibility = Visibility.Collapsed;
+        }
     }
 
     protected override void OnNavigatedTo(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)

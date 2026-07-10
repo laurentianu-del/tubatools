@@ -215,17 +215,18 @@
                                         Text="详细信息" />
 
                                     <StackPanel Spacing="8">
-                                        <Grid ColumnSpacing="8">
+                                        <Grid x:Name="PublisherRow" ColumnSpacing="8">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <FontIcon
+                                                x:Name="PublisherIcon"
                                                 FontSize="12"
                                                 Glyph="&#xE946;"
                                                 Opacity="1.0" />
                                             <StackPanel Grid.Column="1" Spacing="2">
-                                                <TextBlock FontSize="11" Opacity="1.0" Text="发布者" />
+                                                <TextBlock x:Name="PublisherLabel" FontSize="11" Opacity="1.0" Text="发布者" />
                                                 <TextBlock
                                                     x:Name="PublisherText"
                                                     FontSize="13"
@@ -233,7 +234,7 @@
                                             </StackPanel>
                                         </Grid>
 
-                                        <Grid ColumnSpacing="8">
+                                        <Grid x:Name="VersionRow" ColumnSpacing="8">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
@@ -248,7 +249,7 @@
                                             </StackPanel>
                                         </Grid>
 
-                                        <Grid ColumnSpacing="8">
+                                        <Grid x:Name="FileTypeRow" ColumnSpacing="8">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
@@ -263,7 +264,7 @@
                                             </StackPanel>
                                         </Grid>
 
-                                        <Grid ColumnSpacing="8">
+                                        <Grid x:Name="PathRow" ColumnSpacing="8">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />

@@ -23,6 +23,12 @@ public sealed class ToolItem : INotifyPropertyChanged
 
     public bool IsLinked { get; init; }
 
+    public bool IsBuiltinLink { get; init; }
+
+    public string? BuiltinToolId { get; init; }
+
+    public string? BuiltinKindText { get; init; }
+
     public string CategoriesDisplay => _categories.Count <= 1 ? "" : string.Join(" · ", _categories.Where(c => c != Category));
 
     public IReadOnlyList<string> OtherCategories => _categories.Where(c => !c.Equals(Category, StringComparison.OrdinalIgnoreCase)).ToList();
@@ -76,11 +82,13 @@ public sealed class ToolItem : INotifyPropertyChanged
 
     public string Folder => System.IO.Path.GetDirectoryName(RelativePath) ?? Category;
 
-    public bool NeedsDownload => !File.Exists(EffectivePath) && (!string.IsNullOrWhiteSpace(DownloadUrl) || !string.IsNullOrWhiteSpace(WingetId));
+    public bool NeedsDownload => !IsBuiltinLink && !File.Exists(EffectivePath) && (!string.IsNullOrWhiteSpace(DownloadUrl) || !string.IsNullOrWhiteSpace(WingetId));
 
     public bool HasUpdateSource => !string.IsNullOrWhiteSpace(DownloadUrl);
 
     public bool NeedsWingetInstall => !string.IsNullOrWhiteSpace(WingetId);
+
+    public bool CanSendToDesktop => !IsBuiltinLink;
 
     private bool _isWingetInstalled;
     public bool IsWingetInstalled
@@ -125,7 +133,7 @@ public sealed class ToolItem : INotifyPropertyChanged
         set => SetField(ref _wingetInstallStatus, value);
     }
 
-    public bool CanLaunch => !IsWingetInstalling;
+    public bool CanLaunch => IsBuiltinLink || !IsWingetInstalling;
 
     public string? PrimaryArch { get; init; }
 
@@ -160,6 +168,7 @@ public sealed class ToolItem : INotifyPropertyChanged
     {
         get
         {
+            if (IsBuiltinLink) return "打开";
             if (!string.IsNullOrWhiteSpace(DownloadUrl) && !File.Exists(EffectivePath))
                 return "下载";
             if (!string.IsNullOrWhiteSpace(WingetId))

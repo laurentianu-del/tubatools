@@ -37,12 +37,22 @@ public sealed partial class HomePage : Page
         _compactMode = CompactModeService.IsCompactModeEnabled();
         ApplyCompactMode();
         CompactModeService.CompactModeChanged += OnCompactModeChanged;
+        ToolCatalog.ToolsChanged += OnToolsChanged;
     }
 
     private void OnCompactModeChanged(bool enabled)
     {
         _compactMode = enabled;
         ApplyCompactMode();
+    }
+
+    private void OnToolsChanged()
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            ToolCatalog.InvalidateTagsCache();
+            _ = LoadToolsAsync();
+        });
     }
 
     private void ApplyCompactMode()
@@ -409,6 +419,7 @@ public sealed partial class HomePage : Page
             var flyout = (MenuFlyout)CompactGrid.Resources["CompactItemFlyout"];
             PopulateArchSubmenu(flyout, tool);
             UpdateCheckUpdateVisibility(flyout, tool, "CompactMenuCheckUpdate");
+            UpdateBuiltinLinkFlyoutItems(flyout, tool, "CompactMenu");
             flyout.ShowAt(fe, e.GetPosition(fe));
         }
     }
@@ -448,6 +459,7 @@ public sealed partial class HomePage : Page
             var flyout = (MenuFlyout)ToolsGrid.Resources["NormalItemFlyout"];
             PopulateArchSubmenu(flyout, tool);
             UpdateCheckUpdateVisibility(flyout, tool, "NormalMenuCheckUpdate");
+            UpdateBuiltinLinkFlyoutItems(flyout, tool, "NormalMenu");
             flyout.ShowAt(fe, e.GetPosition(fe));
         }
     }
@@ -534,6 +546,30 @@ public sealed partial class HomePage : Page
         menuItem.Visibility = !string.IsNullOrWhiteSpace(tool.DownloadUrl)
             ? Visibility.Visible : Visibility.Collapsed;
         menuItem.DataContext = tool;
+    }
+
+    private static void UpdateBuiltinLinkFlyoutItems(MenuFlyout flyout, ToolItem tool, string prefix)
+    {
+        var isBuiltin = tool.IsBuiltinLink;
+        var sendToDesktop = flyout.Items.OfType<MenuFlyoutItem>()
+            .FirstOrDefault(i => i.Text.Contains("桌面快捷方式"));
+        if (sendToDesktop is not null)
+            sendToDesktop.Visibility = isBuiltin ? Visibility.Collapsed : Visibility.Visible;
+
+        var runAsAdmin = flyout.Items.OfType<MenuFlyoutItem>()
+            .FirstOrDefault(i => i.Text.Contains("管理员"));
+        if (runAsAdmin is not null)
+            runAsAdmin.Visibility = isBuiltin ? Visibility.Collapsed : Visibility.Visible;
+
+        var openDir = flyout.Items.OfType<MenuFlyoutItem>()
+            .FirstOrDefault(i => i.Text.Contains("所在目录"));
+        if (openDir is not null)
+            openDir.Visibility = isBuiltin ? Visibility.Collapsed : Visibility.Visible;
+
+        var deleteItem = flyout.Items.OfType<MenuFlyoutItem>()
+            .FirstOrDefault(i => i.Text.Contains("删除工具"));
+        if (deleteItem is not null)
+            deleteItem.Visibility = isBuiltin ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void NormalMenu_CheckUpdate(object sender, RoutedEventArgs e)
@@ -1127,6 +1163,20 @@ public sealed partial class HomePage : Page
 
     private void ShowToolDetail(ToolItem tool)
     {
+        if (tool.IsBuiltinLink)
+        {
+            ToolDetailTip.Title = tool.Name;
+            ToolDetailTip.Subtitle = tool.Category;
+            DetailDescriptionText.Text = string.IsNullOrWhiteSpace(tool.Description)
+                ? "暂无介绍。"
+                : tool.Description;
+            DetailPublisherText.Text = $"类型：{tool.BuiltinKindText ?? "内置"}";
+            DetailVersionText.Text = "";
+            DetailPathText.Text = "";
+            ToolDetailTip.IsOpen = true;
+            return;
+        }
+
         ToolDetailTip.Title = tool.Name;
         ToolDetailTip.Subtitle = tool.Category;
         DetailDescriptionText.Text = string.IsNullOrWhiteSpace(tool.Description)
@@ -1140,6 +1190,12 @@ public sealed partial class HomePage : Page
 
     private void LaunchTool(ToolItem tool, bool runAsAdmin)
     {
+        if (tool.IsBuiltinLink)
+        {
+            _ = LaunchBuiltinToolAsync(tool);
+            return;
+        }
+
         if (!string.IsNullOrWhiteSpace(tool.RemoteUrl))
         {
             Pages.BrowserWindow.Open(tool.RemoteUrl, tool.Name);
@@ -1179,6 +1235,33 @@ public sealed partial class HomePage : Page
 
             LaunchHistoryService.RecordLaunch(tool.Path);
             ShowStatus(runAsAdmin ? "已以管理员身份启动" : "已启动", tool.Name, InfoBarSeverity.Success);
+        }
+        catch (Exception ex)
+        {
+            ShowStatus("启动失败", ex.Message, InfoBarSeverity.Error);
+        }
+    }
+
+    private async Task LaunchBuiltinToolAsync(ToolItem tool)
+    {
+        var builtinTool = BuiltinToolRegistry.GetById(tool.BuiltinToolId!);
+        if (builtinTool is null)
+        {
+            ShowStatus("启动失败", "找不到对应的内置工具", InfoBarSeverity.Error);
+            return;
+        }
+
+        try
+        {
+            var context = new BuiltinToolContext
+            {
+                XamlRoot = XamlRoot,
+                OnProgress = msg => DispatcherQueue.TryEnqueue(() =>
+                    ShowStatus(builtinTool.Name, msg, InfoBarSeverity.Informational))
+            };
+            await builtinTool.ExecuteAsync(context);
+            LaunchHistoryService.RecordLaunch(tool.Path);
+            ShowStatus("已启动", tool.Name, InfoBarSeverity.Success);
         }
         catch (Exception ex)
         {

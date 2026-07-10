@@ -118,17 +118,39 @@ public sealed partial class ToolDetailDialog : UserControl
             ? "暂无介绍。"
             : tool.Description;
 
-        PublisherText.Text = ValueOrUnknown(tool.Publisher);
-        VersionText.Text = ValueOrUnknown(tool.Version);
-        FileTypeText.Text = tool.Extension.ToUpperInvariant();
-        PathText.Text = tool.EffectivePath;
+        if (tool.IsBuiltinLink)
+        {
+            PublisherIcon.Glyph = "\uE90F";
+            PublisherLabel.Text = "类型";
+            PublisherText.Text = tool.BuiltinKindText ?? "内置";
+            VersionRow.Visibility = Visibility.Collapsed;
+            FileTypeRow.Visibility = Visibility.Collapsed;
+            PathRow.Visibility = Visibility.Collapsed;
+            DesktopShortcutButton.Visibility = Visibility.Collapsed;
+            OpenFolderButton.Visibility = Visibility.Collapsed;
+            AdminButton.Visibility = Visibility.Collapsed;
+            ReadmeSection.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            PublisherIcon.Glyph = "\uE946";
+            PublisherLabel.Text = "发布者";
+            PublisherText.Text = ValueOrUnknown(tool.Publisher);
+            VersionRow.Visibility = Visibility.Visible;
+            VersionText.Text = ValueOrUnknown(tool.Version);
+            FileTypeRow.Visibility = Visibility.Visible;
+            FileTypeText.Text = tool.Extension.ToUpperInvariant();
+            PathRow.Visibility = Visibility.Visible;
+            PathText.Text = tool.EffectivePath;
+            DesktopShortcutButton.Visibility = Visibility.Visible;
+            OpenFolderButton.Visibility = Visibility.Visible;
+            AdminButton.Visibility = tool.NeedsDownload ? Visibility.Collapsed : Visibility.Visible;
+            LoadReadme(tool);
+        }
 
-        AdminButton.Visibility = tool.NeedsDownload ? Visibility.Collapsed : Visibility.Visible;
         LaunchButtonText.Text = tool.LaunchButtonText;
 
         UpdateFavoriteIcon(tool.IsFavorite);
-
-        LoadReadme(tool);
     }
 
     private void LoadReadme(ToolItem tool)
@@ -374,13 +396,48 @@ public sealed partial class ToolDetailDialog : UserControl
     private void LaunchButton_Click(object sender, RoutedEventArgs e)
     {
         if (_tool is null) return;
+
+        if (_tool.IsBuiltinLink)
+        {
+            _ = LaunchBuiltinFromDetailAsync(_tool);
+            return;
+        }
+
         ToolLaunched?.Invoke(_tool);
         Close();
     }
 
+    private async Task LaunchBuiltinFromDetailAsync(ToolItem tool)
+    {
+        var builtinTool = BuiltinToolRegistry.GetById(tool.BuiltinToolId!);
+        if (builtinTool is null)
+        {
+            ShowStatus("启动失败", "找不到对应的内置工具", InfoBarSeverity.Error);
+            return;
+        }
+
+        try
+        {
+            var xamlRoot = App.MainWindow?.Content?.XamlRoot;
+            if (xamlRoot is null) return;
+
+            var context = new BuiltinToolContext
+            {
+                XamlRoot = xamlRoot,
+                OnProgress = msg => ShowStatus(builtinTool.Name, msg, InfoBarSeverity.Informational)
+            };
+            await builtinTool.ExecuteAsync(context);
+            LaunchHistoryService.RecordLaunch(tool.Path);
+        }
+        catch (Exception ex)
+        {
+            ShowStatus("启动失败", ex.Message, InfoBarSeverity.Error);
+        }
+    }
+
     private void AdminButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_tool is null) return;
+        if (_tool is null || _tool.IsBuiltinLink) return;
 
         if (!string.IsNullOrWhiteSpace(_tool.RemoteUrl))
         {

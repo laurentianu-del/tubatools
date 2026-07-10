@@ -62,11 +62,13 @@ public sealed class BenchmarkCloudPage : Page
 
 	private WebView2 CompareRadarChart;
 
-	private ComboBox CompareMyCombo;
+	private List<ComboBox> CompareCombos = new List<ComboBox>();
 
-	private ComboBox CompareOtherCombo;
+	private StackPanel CompareComboPanel;
 
 	private Button CompareButton;
+
+	private const int MaxCompareCount = 6;
 
 	private ProgressBar LeaderboardProgress;
 
@@ -388,34 +390,37 @@ public sealed class BenchmarkCloudPage : Page
 	{
 		StackPanel stack = new() { Spacing = 8.0 };
 
-		StackPanel comboRow = new()
+		CompareComboPanel = new StackPanel { Spacing = 6.0 };
+		AddCompareRow();
+		AddCompareRow();
+		stack.Children.Add(CompareComboPanel);
+
+		StackPanel btnRow = new()
 		{
 			Orientation = Orientation.Horizontal,
-			Spacing = 8.0,
-			VerticalAlignment = VerticalAlignment.Center
+			Spacing = 8.0
 		};
-		CompareMyCombo = new ComboBox
+		var addBtn = new Button
 		{
-			MinWidth = 200.0,
-			PlaceholderText = "选择报告1"
+			Content = new StackPanel
+			{
+				Orientation = Orientation.Horizontal,
+				Spacing = 4.0,
+				Children =
+				{
+					new FontIcon { Glyph = "\uE710", FontSize = 12.0 },
+					new TextBlock { Text = "添加报告", FontSize = 12.0 }
+				}
+			},
+			CornerRadius = new CornerRadius(6.0),
+			Padding = new Thickness(12.0, 4.0, 12.0, 4.0)
 		};
-		comboRow.Children.Add(CompareMyCombo);
-
-		comboRow.Children.Add(new TextBlock
+		addBtn.Click += (s, e) =>
 		{
-			Text = "vs",
-			FontSize = 14.0,
-			FontWeight = FontWeights.SemiBold,
-			VerticalAlignment = VerticalAlignment.Center,
-			Margin = new Thickness(4.0, 0.0, 4.0, 0.0)
-		});
-
-		CompareOtherCombo = new ComboBox
-		{
-			MinWidth = 200.0,
-			PlaceholderText = "选择报告2"
+			if (CompareCombos.Count < MaxCompareCount) AddCompareRow();
+			if (CompareCombos.Count >= MaxCompareCount) addBtn.IsEnabled = false;
 		};
-		comboRow.Children.Add(CompareOtherCombo);
+		btnRow.Children.Add(addBtn);
 
 		CompareButton = new Button
 		{
@@ -424,8 +429,8 @@ public sealed class BenchmarkCloudPage : Page
 			Padding = new Thickness(16.0, 6.0, 16.0, 6.0)
 		};
 		CompareButton.Click += CompareButton_Click;
-		comboRow.Children.Add(CompareButton);
-		stack.Children.Add(comboRow);
+		btnRow.Children.Add(CompareButton);
+		stack.Children.Add(btnRow);
 
 		CompareProgress = new ProgressBar
 		{
@@ -436,7 +441,7 @@ public sealed class BenchmarkCloudPage : Page
 
 		CompareRadarChart = new WebView2
 		{
-			Height = 400.0
+			Height = 460.0
 		};
 		CompareResultArea = new ScrollViewer
 		{
@@ -463,7 +468,7 @@ public sealed class BenchmarkCloudPage : Page
 		});
 		CompareEmpty.Children.Add(new TextBlock
 		{
-			Text = "选择两个报告进行对比",
+			Text = "选择报告进行对比（最多6个）",
 			FontSize = 14.0,
 			Foreground = dimText,
 			HorizontalAlignment = HorizontalAlignment.Center
@@ -475,6 +480,66 @@ public sealed class BenchmarkCloudPage : Page
 			Header = "跑分对比",
 			Content = stack
 		};
+	}
+
+	private void AddCompareRow()
+	{
+		int idx = CompareCombos.Count + 1;
+		var row = new StackPanel
+		{
+			Orientation = Orientation.Horizontal,
+			Spacing = 6.0,
+			VerticalAlignment = VerticalAlignment.Center
+		};
+		var combo = new ComboBox
+		{
+			MinWidth = 260.0,
+			PlaceholderText = $"选择报告{idx}",
+			HorizontalAlignment = HorizontalAlignment.Stretch,
+			ItemsSource = _allReports
+		};
+		CompareCombos.Add(combo);
+		row.Children.Add(combo);
+
+		if (CompareCombos.Count > 2)
+		{
+			var removeBtn = new Button
+			{
+				Content = new FontIcon { Glyph = "\uE711", FontSize = 12.0 },
+				CornerRadius = new CornerRadius(6.0),
+				Padding = new Thickness(6.0, 4.0, 6.0, 4.0),
+				Tag = combo
+			};
+			removeBtn.Click += (s, e) =>
+			{
+				if (CompareCombos.Count <= 2) return;
+				var target = (ComboBox)((Button)s).Tag;
+				CompareCombos.Remove(target);
+				RebuildComparePanel();
+			};
+			row.Children.Add(removeBtn);
+		}
+
+		CompareComboPanel.Children.Add(row);
+	}
+
+	private void RebuildComparePanel()
+	{
+		var selected = CompareCombos.Select(c => c.SelectedItem as BenchmarkReportEntry).ToList();
+		CompareComboPanel.Children.Clear();
+		CompareCombos.Clear();
+		for (int i = 0; i < Math.Max(selected.Count, 2); i++)
+		{
+			AddCompareRow();
+			if (i < selected.Count && selected[i] != null)
+			{
+				CompareCombos[i].SelectedItem = selected[i];
+			}
+		}
+		foreach (var combo in CompareCombos)
+		{
+			combo.ItemsSource = _allReports;
+		}
 	}
 
 	private PivotItem BuildMyHistoryPivotItem(SolidColorBrush cardBg, Color borderColor, SolidColorBrush dimText)
@@ -632,7 +697,7 @@ public sealed class BenchmarkCloudPage : Page
 		{
 			_allReports = await BenchmarkCloudService.GetAllReportsAsync(CancellationToken.None);
 			ReportCountText.Text = $"{_allReports.Count} 份报告";
-			RefreshLeaderboard();
+			await RefreshLeaderboardAsync();
 			await LoadCompareCombos();
 			await LoadSameHardware();
 			await LoadMyHistory();
@@ -652,16 +717,16 @@ public sealed class BenchmarkCloudPage : Page
 	{
 		if (_loaded)
 		{
-			RefreshLeaderboard();
+			_ = RefreshLeaderboardAsync();
 		}
 	}
 
 	private void Filter_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
 	{
-		RefreshLeaderboard();
+		_ = RefreshLeaderboardAsync();
 	}
 
-	private void RefreshLeaderboard()
+	private async Task RefreshLeaderboardAsync()
 	{
 		string sortBy = SortByCombo.SelectedIndex switch
 		{
@@ -673,7 +738,7 @@ public sealed class BenchmarkCloudPage : Page
 			_ => "gaming", 
 		};
 		string text = CpuFilterBox.Text;
-		_leaderboard = BenchmarkCloudService.ComputeLeaderboard(_allReports, sortBy, text);
+		_leaderboard = await BenchmarkCloudService.GetLeaderboardAsync(sortBy, text, null, CancellationToken.None);
 		LeaderboardList.ItemsSource = _leaderboard;
 		LeaderboardList.Visibility = ((_leaderboard.Count <= 0) ? Visibility.Collapsed : Visibility.Visible);
 		LeaderboardEmpty.Visibility = ((_leaderboard.Count != 0) ? Visibility.Collapsed : Visibility.Visible);
@@ -689,28 +754,33 @@ public sealed class BenchmarkCloudPage : Page
 
 	private async Task LoadCompareCombos()
 	{
-		CompareMyCombo.ItemsSource = _allReports;
-		CompareOtherCombo.ItemsSource = _allReports;
-		if (_myReports.Count > 0)
+		foreach (var combo in CompareCombos)
 		{
-			CompareMyCombo.SelectedIndex = 0;
+			combo.ItemsSource = _allReports;
 		}
-		else if (_allReports.Count > 0)
+		if (CompareCombos.Count > 0 && _myReports.Count > 0)
 		{
-			CompareMyCombo.SelectedIndex = 0;
+			CompareCombos[0].SelectedIndex = 0;
+		}
+		else if (CompareCombos.Count > 0 && _allReports.Count > 0)
+		{
+			CompareCombos[0].SelectedIndex = 0;
 		}
 	}
 
 	private async void CompareButton_Click(object sender, RoutedEventArgs e)
 	{
-		BenchmarkReportEntry benchmarkReportEntry = CompareMyCombo.SelectedItem as BenchmarkReportEntry;
-		BenchmarkReportEntry benchmarkReportEntry2 = CompareOtherCombo.SelectedItem as BenchmarkReportEntry;
-		if (benchmarkReportEntry == null || benchmarkReportEntry2 == null)
+		var selected = CompareCombos
+			.Select(c => c.SelectedItem as BenchmarkReportEntry)
+			.Where(r => r != null)
+			.Distinct()
+			.ToList();
+		if (selected.Count < 2)
 		{
 			await new ContentDialog
 			{
 				Title = "提示",
-				Content = "请选择两个报告进行对比",
+				Content = "请至少选择两个报告进行对比",
 				CloseButtonText = "确定",
 				XamlRoot = XamlRoot,
 				RequestedTheme = ThemeService.CurrentElementTheme
@@ -720,78 +790,96 @@ public sealed class BenchmarkCloudPage : Page
 		{
 			CompareEmpty.Visibility = Visibility.Collapsed;
 			CompareResultArea.Visibility = Visibility.Visible;
-			await RenderRadarChart(benchmarkReportEntry, benchmarkReportEntry2);
+			await RenderRadarChart(selected);
 		}
 	}
 
-	private async Task RenderRadarChart(BenchmarkReportEntry a, BenchmarkReportEntry b)
+	private async Task RenderRadarChart(List<BenchmarkReportEntry> reports)
 	{
 		await CompareRadarChart.EnsureCoreWebView2Async();
-		string htmlContent = BuildRadarChartHtml(a, b);
+		string htmlContent = BuildRadarChartHtml(reports);
 		CompareRadarChart.NavigateToString(htmlContent);
 	}
 
-	private static string BuildRadarChartHtml(BenchmarkReportEntry a, BenchmarkReportEntry b)
+	private static readonly (string fill, string stroke)[] ChartColors = new[]
 	{
-		string[] array = new string[9] { "CPU单核", "CPU多核", "GPU渲染", "内存", "硬盘读", "硬盘写", "4K读", "4K写", "浏览器" };
-		int[] array2 = new int[9]
+		("rgba(59,125,216,0.20)", "#3b7dd8"),
+		("rgba(224,123,57,0.20)", "#e07b39"),
+		("rgba(80,180,80,0.20)", "#50b450"),
+		("rgba(180,80,180,0.20)", "#b450b4"),
+		("rgba(220,180,50,0.20)", "#dcb432"),
+		("rgba(50,180,180,0.20)", "#32b4b4")
+	};
+
+	private static string BuildRadarChartHtml(List<BenchmarkReportEntry> reports)
+	{
+		string[] axes = new string[9] { "CPU单核", "CPU多核", "GPU渲染", "内存", "硬盘读", "硬盘写", "4K读", "4K写", "浏览器" };
+		int[][] scoreArrays = new int[reports.Count][];
+		for (int r = 0; r < reports.Count; r++)
 		{
-			a.CpuSingleCoreScore * 10,
-			a.CpuMultiCoreScore,
-			a.GpuRenderScore,
-			a.MemoryCapacityScore,
-			a.DiskSeqReadScore,
-			a.DiskSeqWriteScore,
-			a.Disk4KReadScore,
-			a.Disk4KWriteScore,
-			a.BrowserTotalScore
-		};
-		int[] array3 = new int[9]
-		{
-			b.CpuSingleCoreScore * 10,
-			b.CpuMultiCoreScore,
-			b.GpuRenderScore,
-			b.MemoryCapacityScore,
-			b.DiskSeqReadScore,
-			b.DiskSeqWriteScore,
-			b.Disk4KReadScore,
-			b.Disk4KWriteScore,
-			b.BrowserTotalScore
-		};
-		int num = array.Length;
-		int num2 = 200;
-		int num3 = 200;
-		int num4 = 150;
-		int num5 = Math.Max(array2.Max(), array3.Max());
-		if (num5 == 0)
-		{
-			num5 = 1;
+			var rep = reports[r];
+			scoreArrays[r] = new int[9]
+			{
+				rep.CpuSingleCoreScore,
+				rep.CpuMultiCoreScore,
+				rep.GpuRenderScore,
+				rep.MemoryCapacityScore,
+				rep.DiskSeqReadScore,
+				rep.DiskSeqWriteScore,
+				rep.Disk4KReadScore,
+				rep.Disk4KWriteScore,
+				rep.BrowserTotalScore
+			};
 		}
-		List<string> list = new List<string>();
-		List<string> list2 = new List<string>();
-		List<string> list3 = new List<string>();
+		int num = axes.Length;
+		int cx = 220;
+		int cy = 220;
+		int radius = 150;
+		int maxVal = 1;
+		for (int r = 0; r < reports.Count; r++)
+		{
+			int m = scoreArrays[r].Max();
+			if (m > maxVal) maxVal = m;
+		}
+		List<string>[] polygons = new List<string>[reports.Count];
+		for (int r = 0; r < reports.Count; r++) polygons[r] = new List<string>();
+		List<string> svg = new List<string>();
 		for (int i = 0; i < num; i++)
 		{
-			double num6 = -Math.PI / 2.0 + Math.PI * 2.0 * (double)i / (double)num;
-			double num7 = Math.Cos(num6);
-			double num8 = Math.Sin(num6);
-			double num9 = (double)array2[i] / (double)num5 * (double)num4;
-			double num10 = (double)array3[i] / (double)num5 * (double)num4;
-			list.Add($"{(double)num2 + num9 * num7:F1},{(double)num3 + num9 * num8:F1}");
-			list2.Add($"{(double)num2 + num10 * num7:F1},{(double)num3 + num10 * num8:F1}");
-			double value = (double)num2 + (double)(num4 + 20) * num7;
-			double value2 = (double)num3 + (double)(num4 + 20) * num8;
-			list3.Add($"<text x='{value:F0}' y='{value2:F0}' text-anchor='middle' dominant-baseline='middle' font-size='10' fill='#5a7a9a'>{array[i]}</text>");
-			for (double num11 = 0.25; num11 <= 1.0; num11 += 0.25)
+			double angle = -Math.PI / 2.0 + Math.PI * 2.0 * (double)i / (double)num;
+			double cosA = Math.Cos(angle);
+			double sinA = Math.Sin(angle);
+			for (int r = 0; r < reports.Count; r++)
 			{
-				list3.Add($"<circle cx='{num2}' cy='{num3}' r='{(double)num4 * num11:F0}' fill='none' stroke='#d0dde8' stroke-width='0.5'/>");
+				double rVal = (double)scoreArrays[r][i] / (double)maxVal * (double)radius;
+				polygons[r].Add($"{(double)cx + rVal * cosA:F1},{(double)cy + rVal * sinA:F1}");
 			}
-			list3.Add($"<line x1='{num2}' y1='{num3}' x2='{(double)num2 + (double)num4 * num7:F1}' y2='{(double)num3 + (double)num4 * num8:F1}' stroke='#d0dde8' stroke-width='0.5'/>");
+			double labelX = (double)cx + (double)(radius + 20) * cosA;
+			double labelY = (double)cy + (double)(radius + 20) * sinA;
+			svg.Add($"<text x='{labelX:F0}' y='{labelY:F0}' text-anchor='middle' dominant-baseline='middle' font-size='10' fill='#5a7a9a'>{axes[i]}</text>");
+			double scoreY = labelY + 13;
+			for (int r = 0; r < reports.Count; r++)
+			{
+				svg.Add($"<text x='{labelX:F0}' y='{scoreY:F0}' text-anchor='middle' dominant-baseline='middle' font-size='9' fill='{ChartColors[r].stroke}'>{scoreArrays[r][i]}</text>");
+				scoreY += 11;
+			}
+			for (double ring = 0.25; ring <= 1.0; ring += 0.25)
+			{
+				svg.Add($"<circle cx='{cx}' cy='{cy}' r='{(double)radius * ring:F0}' fill='none' stroke='#d0dde8' stroke-width='0.5'/>");
+			}
+			svg.Add($"<line x1='{cx}' y1='{cy}' x2='{(double)cx + (double)radius * cosA:F1}' y2='{(double)cy + (double)radius * sinA:F1}' stroke='#d0dde8' stroke-width='0.5'/>");
 		}
-		return $"<!DOCTYPE html><html><head><meta charset=\"utf-8\">\n<style>body{{font-family:'Segoe UI',sans-serif;margin:0;background:#f8fafd;display:flex;justify-content:center;align-items:center;min-height:360px}}\n.legend{{position:absolute;top:12px;left:16px;font-size:12px;display:flex;gap:16px}}\n.legend-dot{{width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:4px}}\n</style></head><body>\n<div class=\"legend\"><span><span class=\"legend-dot\" style=\"background:rgba(59,125,216,0.5)\"></span>{ShortName(a)}</span><span><span class=\"legend-dot\" style=\"background:rgba(224,123,57,0.5)\"></span>{ShortName(b)}</span></div>\n<svg width='400' height='400' viewBox='0 0 400 400'>\n{string.Join("\n", list3)}\n<polygon points='{string.Join(" ", list)}' fill='rgba(59,125,216,0.25)' stroke='#3b7dd8' stroke-width='1.5'/>\n<polygon points='{string.Join(" ", list2)}' fill='rgba(224,123,57,0.25)' stroke='#e07b39' stroke-width='1.5'/>\n</svg></body></html>";
-		static string ShortName(BenchmarkReportEntry r)
+		var legendItems = new List<string>();
+		for (int r = 0; r < reports.Count; r++)
 		{
-			return r.Author + " · " + r.CpuName.Split(' ').FirstOrDefault();
+			var c = ChartColors[r];
+			legendItems.Add($"<span><span class=\"legend-dot\" style=\"background:{c.fill}\"></span>{ShortName(reports[r])}</span>");
+		}
+		int svgSize = 440 + (reports.Count - 2) * 20;
+		return $"<!DOCTYPE html><html><head><meta charset=\"utf-8\">\n<style>body{{font-family:'Segoe UI',sans-serif;margin:0;background:#f8fafd;display:flex;justify-content:center;align-items:center;min-height:{svgSize}px}}\n.legend{{position:absolute;top:12px;left:16px;font-size:12px;display:flex;gap:16px;flex-wrap:wrap}}\n.legend-dot{{width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:4px}}\n</style></head><body>\n<div class=\"legend\">{string.Join("", legendItems)}</div>\n<svg width='{svgSize}' height='{svgSize}' viewBox='0 0 {svgSize} {svgSize}'>\n{string.Join("\n", svg)}\n{string.Join("\n", polygons.Select((pts, r) => $"<polygon points='{string.Join(" ", pts)}' fill='{ChartColors[r].fill}' stroke='{ChartColors[r].stroke}' stroke-width='1.5'/>"))}\n</svg></body></html>";
+		static string ShortName(BenchmarkReportEntry rep)
+		{
+			return rep.Author + " · " + rep.CpuName.Split(' ').FirstOrDefault();
 		}
 	}
 

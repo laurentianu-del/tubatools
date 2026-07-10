@@ -78,6 +78,8 @@ public sealed partial class MainWindow : Window
         UpdateBanner.ShowDownloadComplete();
     }
 
+    private bool _initialized;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -106,14 +108,48 @@ public sealed partial class MainWindow : Window
         NavFrame.Navigated += NavFrame_Navigated;
         TabNavFrame.Navigated += TabNavFrame_Navigated;
 
-        PopulateCategories();
-        ApplyNavLayoutMode();
-        NavLayoutModeService.NavLayoutModeChanged += OnNavLayoutModeChanged;
-        NavigateToDefaultPage();
+        if (RuntimeHelper.IsMsixPackaged)
+        {
+            NavView.MenuItems.Remove(CommunityNavItem);
+        }
 
-        DownloadQueueService.Initialize(DispatcherQueue);
-        DownloadQueueService.QueueChanged += OnDownloadQueueChanged;
-        UpdateDownloadBadge();
+        SplashVersionText.Text = UpdateService.CurrentVersion.ToString();
+        _ = InitializeAfterSplashAsync();
+    }
+
+    private async Task InitializeAfterSplashAsync()
+    {
+        await Task.Run(() =>
+        {
+            UpdateSplashStatus("正在扫描工具目录...");
+            _ = ToolCatalog.ToolsRoot;
+            _ = ToolCatalog.GetCategories();
+        });
+
+        UpdateSplashStatus("正在加载工具列表...");
+        await Task.Run(() => _ = ToolCatalog.GetAllToolsCached());
+
+        UpdateSplashStatus("正在准备界面...");
+
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            PopulateCategories();
+            ApplyNavLayoutMode();
+            NavLayoutModeService.NavLayoutModeChanged += OnNavLayoutModeChanged;
+            NavigateToDefaultPage();
+
+            DownloadQueueService.Initialize(DispatcherQueue);
+            DownloadQueueService.QueueChanged += OnDownloadQueueChanged;
+            UpdateDownloadBadge();
+
+            _initialized = true;
+            SplashOverlay.Visibility = Visibility.Collapsed;
+        });
+    }
+
+    private void UpdateSplashStatus(string text)
+    {
+        DispatcherQueue.TryEnqueue(() => SplashStatusText.Text = text);
     }
 
     private void NavFrame_Navigated(object sender, NavigationEventArgs e)
@@ -413,6 +449,7 @@ public sealed partial class MainWindow : Window
                     NavFrame.Navigate(typeof(BuiltinToolsPage));
                     break;
                 case "community":
+                    if (RuntimeHelper.IsMsixPackaged) break;
                     NavFrame.Navigate(typeof(CommunityToolsPage));
                     break;
 
@@ -478,9 +515,10 @@ public sealed partial class MainWindow : Window
 
     private void PopulateCategories()
     {
-        while (NavView.MenuItems.Count > 7)
+        var baseCount = NavView.MenuItems.Count;
+        while (NavView.MenuItems.Count > baseCount)
         {
-            NavView.MenuItems.RemoveAt(6);
+            NavView.MenuItems.RemoveAt(baseCount);
         }
 
         var categories = ToolCatalog.GetCategories();
@@ -612,13 +650,17 @@ public sealed partial class MainWindow : Window
             Tag = "benchmark",
             IsClosable = false
         });
-        MainTabView.TabItems.Add(new TabViewItem
+
+        if (!RuntimeHelper.IsMsixPackaged)
         {
-            Header = "社区",
-            IconSource = new FontIconSource { Glyph = "\uE779" },
-            Tag = "community",
-            IsClosable = false
-        });
+            MainTabView.TabItems.Add(new TabViewItem
+            {
+                Header = "社区",
+                IconSource = new FontIconSource { Glyph = "\uE779" },
+                Tag = "community",
+                IsClosable = false
+            });
+        }
 
         var categories = ToolCatalog.GetCategories();
         var otherCategory = categories.FirstOrDefault(c => c.Contains("其他"));
@@ -680,6 +722,7 @@ public sealed partial class MainWindow : Window
                 TabNavFrame.Navigate(typeof(BuiltinToolsPage));
                 break;
             case "community":
+                if (RuntimeHelper.IsMsixPackaged) break;
                 TabNavFrame.Navigate(typeof(CommunityToolsPage));
                 break;
             case "benchmark":

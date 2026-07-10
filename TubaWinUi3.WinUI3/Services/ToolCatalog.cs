@@ -116,9 +116,18 @@ public static class ToolCatalog
             var linkInfo = TryResolveLink(toolDir);
             if (linkInfo is not null)
             {
-                var linkedItem = CreateLinkedToolItem(category, categoryRoot, toolDir, linkInfo);
-                if (linkedItem is not null)
-                    items.Add(linkedItem);
+                if (linkInfo.IsBuiltin)
+                {
+                    var builtinItem = CreateBuiltinLinkedToolItem(category, toolDir, linkInfo);
+                    if (builtinItem is not null)
+                        items.Add(builtinItem);
+                }
+                else
+                {
+                    var linkedItem = CreateLinkedToolItem(category, categoryRoot, toolDir, linkInfo);
+                    if (linkedItem is not null)
+                        items.Add(linkedItem);
+                }
             }
             else
             {
@@ -214,6 +223,8 @@ public static class ToolCatalog
 
     public static int CacheVersion => _cacheVersion;
 
+    public static event Action? ToolsChanged;
+
     public static IReadOnlyList<ToolItem> GetAllToolsCached()
     {
         if (_cachedAllTools is not null)
@@ -283,6 +294,7 @@ public static class ToolCatalog
     {
         _cachedToolsRoot = null;
         InvalidateTagsCache();
+        ToolsChanged?.Invoke();
     }
 
     public static IReadOnlyList<ToolItem> Search(string query, string? tag = null)
@@ -803,6 +815,8 @@ public static class ToolCatalog
     {
         public required string TargetRelativePath { get; init; }
         public required string TargetFullPath { get; init; }
+        public string? BuiltinToolId { get; init; }
+        public bool IsBuiltin => !string.IsNullOrWhiteSpace(BuiltinToolId);
     }
 
     private static LinkInfo? TryResolveLink(string toolDir)
@@ -817,6 +831,17 @@ public static class ToolCatalog
         try
         {
             using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(linkPath));
+            if (doc.RootElement.TryGetProperty("builtin", out var builtinVal))
+            {
+                var builtinId = builtinVal.GetString();
+                if (string.IsNullOrWhiteSpace(builtinId)) return null;
+                return new LinkInfo
+                {
+                    TargetRelativePath = "",
+                    TargetFullPath = "",
+                    BuiltinToolId = builtinId
+                };
+            }
             if (doc.RootElement.TryGetProperty("target", out var targetVal))
             {
                 var target = targetVal.GetString();
@@ -829,6 +854,38 @@ public static class ToolCatalog
         catch { }
 
         return null;
+    }
+
+    private static ToolItem? CreateBuiltinLinkedToolItem(string category, string linkDir, LinkInfo linkInfo)
+    {
+        var builtinTool = BuiltinToolRegistry.GetById(linkInfo.BuiltinToolId!);
+        if (builtinTool is null) return null;
+
+        var dirName = Path.GetFileName(linkDir);
+        var kindText = builtinTool.Kind switch
+        {
+            BuiltinToolKind.Dialog => "弹窗",
+            BuiltinToolKind.BackgroundTask => "后台任务",
+            BuiltinToolKind.ProgressTask => "进度任务",
+            BuiltinToolKind.InstantAction => "即时操作",
+            _ => "内置"
+        };
+
+        return new ToolItem
+        {
+            Name = builtinTool.Name,
+            Category = category,
+            Path = linkDir,
+            RelativePath = Path.GetRelativePath(ToolsRoot, linkDir),
+            Extension = "内置",
+            IconGlyph = builtinTool.Glyph,
+            Description = builtinTool.Description,
+            IsFavorite = FavoritesService.IsFavorite(linkDir),
+            IsBuiltinLink = true,
+            BuiltinToolId = builtinTool.Id,
+            BuiltinKindText = kindText,
+            Tags = []
+        };
     }
 
     private static ToolItem? CreateLinkedToolItem(string category, string categoryRoot, string linkDir, LinkInfo linkInfo)

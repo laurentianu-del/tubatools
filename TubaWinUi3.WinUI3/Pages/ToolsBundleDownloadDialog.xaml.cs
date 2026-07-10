@@ -34,14 +34,10 @@ public sealed partial class ToolsBundleDownloadDialog : ContentDialog
         else
         {
             ResolvingSection.Visibility = Visibility.Visible;
+            _ = ResolveAndShowAsync();
         }
 
         await ShowAsync();
-
-        if (_updateInfo is null && !_isBusy)
-        {
-            _ = ResolveAndShowAsync();
-        }
     }
 
     private void UpdateDescriptionFromInfo(ToolsBundleUpdateInfo info)

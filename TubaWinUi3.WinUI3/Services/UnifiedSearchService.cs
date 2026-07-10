@@ -39,7 +39,8 @@ public static class UnifiedSearchService
 
         SearchExternalTools(normalized, results);
         SearchBuiltinTools(normalized, results);
-        SearchCommunityTools(normalized, results);
+        if (!RuntimeHelper.IsMsixPackaged)
+            SearchCommunityTools(normalized, results);
         SearchSettings(normalized, results);
 
         DeduplicateResults(results);
@@ -171,10 +172,28 @@ public static class UnifiedSearchService
 
     private static void DeduplicateResults(List<SearchResult> results)
     {
+        var builtinIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var r in results)
+        {
+            if (r.Kind == SearchItemKind.ExternalTool)
+            {
+                var tool = ToolCatalog.GetAllToolsCached()
+                    .FirstOrDefault(t => t.Path.Equals(r.MatchKey, StringComparison.OrdinalIgnoreCase));
+                if (tool?.IsBuiltinLink == true && !string.IsNullOrWhiteSpace(tool.BuiltinToolId))
+                    builtinIds.Add(tool.BuiltinToolId);
+            }
+        }
+
         var seen = new HashSet<(SearchItemKind, string)>();
         for (var i = results.Count - 1; i >= 0; i--)
         {
-            var key = (results[i].Kind, results[i].MatchKey);
+            var r = results[i];
+            if (r.Kind == SearchItemKind.BuiltinTool && builtinIds.Contains(r.MatchKey))
+            {
+                results.RemoveAt(i);
+                continue;
+            }
+            var key = (r.Kind, r.MatchKey);
             if (!seen.Add(key))
                 results.RemoveAt(i);
         }

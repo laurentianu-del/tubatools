@@ -41,7 +41,10 @@ public static class BuiltinToolRegistry
         Register(new WindowsImageTool());
         Register(new PcTutorialTool());
         Register(new AntiMotionSicknessTool());
-        Register(new CommunityToolBuiltinTool());
+        if (!RuntimeHelper.IsMsixPackaged)
+            Register(new CommunityToolBuiltinTool());
+        Register(new FileTransferTool());
+        Register(new ScreenTestTool());
 }
 
     public static IReadOnlyList<string> GetCategories()

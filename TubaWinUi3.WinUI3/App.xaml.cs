@@ -60,14 +60,17 @@ public partial class App : Application
         _window = new MainWindow();
         _window.Activate();
         ThemeService.ApplySavedTheme();
-        _ = Task.Run(() => ToolIconService.CleanExpiredCache());
-        HardwareInfoService.Preload();
 
         _ = RunStartupSequenceAsync();
     }
 
     private static async Task RunStartupSequenceAsync()
     {
+        await Task.Delay(1000);
+
+        _ = Task.Run(() => ToolIconService.CleanExpiredCache());
+        HardwareInfoService.Preload();
+
         try
         {
             if (AppSettings.Get("SetupCompleted") == null)
@@ -141,9 +144,6 @@ public partial class App : Application
         try
         {
             if (!ToolsBundleService.IsToolsBundleReady()) return;
-
-            var currentVersion = ToolsBundleService.GetCurrentVersion();
-            if (currentVersion is null) return;
 
             var info = await ToolsBundleService.CheckForToolsUpdateAsync();
             if (info is null || !info.HasUpdate) return;

@@ -180,6 +180,12 @@ public sealed partial class SettingsPage : Page
         InitAiSettings();
         InitGitHubLoginStatus();
         LoadCreditsAvatar();
+
+        if (RuntimeHelper.IsMsixPackaged)
+        {
+            SettingsCommunityCard.Visibility = Visibility.Collapsed;
+            SettingsCommunitySubmitCard.Visibility = Visibility.Collapsed;
+        }
     }
 
     protected override void OnNavigatedTo(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)

@@ -21,6 +21,65 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
+        <Grid x:Name="SplashOverlay"
+              Grid.RowSpan="3"
+              HorizontalAlignment="Stretch"
+              VerticalAlignment="Stretch"
+              Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
+              Canvas.ZIndex="9999">
+            <Grid HorizontalAlignment="Center" VerticalAlignment="Center" RowSpacing="24">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Border
+                    Width="96"
+                    Height="96"
+                    Background="{ThemeResource AccentFillColorDefaultBrush}"
+                    CornerRadius="20"
+                    HorizontalAlignment="Center">
+                    <Image
+                        Width="64"
+                        Height="64"
+                        Source="ms-appx:///Assets/AppIcon.ico"
+                        Stretch="Uniform"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center" />
+                </Border>
+
+                <StackPanel Grid.Row="1" HorizontalAlignment="Center" Spacing="4">
+                    <TextBlock
+                        FontSize="28"
+                        FontWeight="Bold"
+                        HorizontalAlignment="Center"
+                        Text="图吧工具箱" />
+                    <TextBlock
+                        FontSize="13"
+                        HorizontalAlignment="Center"
+                        Opacity="0.6"
+                        x:Name="SplashStatusText"
+                        Text="正在初始化..." />
+                </StackPanel>
+
+                <ProgressBar
+                    x:Name="SplashProgress"
+                    Grid.Row="2"
+                    Width="200"
+                    IsIndeterminate="True"
+                    HorizontalAlignment="Center" />
+
+                <TextBlock
+                    x:Name="SplashVersionText"
+                    Grid.Row="3"
+                    FontSize="11"
+                    HorizontalAlignment="Center"
+                    Opacity="0.4" />
+            </Grid>
+        </Grid>
+
         <TitleBar
             x:Name="AppTitleBar"
             Title="图吧工具箱"
@@ -210,7 +269,7 @@
                             <FontIcon Glyph="&#xE9D9;" FontWeight="Bold" />
                         </NavigationViewItem.Icon>
                     </NavigationViewItem>
-                    <NavigationViewItem Content="社区" Tag="community">
+                    <NavigationViewItem x:Name="CommunityNavItem" Content="社区" Tag="community">
                         <NavigationViewItem.Icon>
                             <FontIcon Glyph="&#xE779;" FontWeight="Bold" />
                         </NavigationViewItem.Icon>
