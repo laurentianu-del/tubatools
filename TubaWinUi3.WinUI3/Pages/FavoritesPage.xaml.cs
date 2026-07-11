@@ -232,7 +232,7 @@ public sealed partial class FavoritesPage : Page
     {
         if (sender is FrameworkElement fe && fe.DataContext is ToolItem tool)
         {
-            var flyout = (MenuFlyout)ToolsGrid.Resources["FavItemFlyout"];
+            var flyout = (MenuFlyout)Resources["FavItemFlyout"];
             PopulateArchSubmenu(flyout, tool);
             flyout.ShowAt(fe, e.GetPosition(fe));
         }

@@ -1223,6 +1223,20 @@ public sealed partial class HomePage : Page
             return;
         }
 
+        var ext = Path.GetExtension(exePath);
+        if (ext.Equals(".bat", StringComparison.OrdinalIgnoreCase) ||
+            ext.Equals(".cmd", StringComparison.OrdinalIgnoreCase) ||
+            ext.Equals(".ps1", StringComparison.OrdinalIgnoreCase))
+        {
+            var command = ext.Equals(".ps1", StringComparison.OrdinalIgnoreCase)
+                ? $"powershell -ExecutionPolicy Bypass -Command \"& '{exePath}'\""
+                : $"cmd.exe /c \"{exePath}\"";
+            ScriptRunnerWindow.ShowAndRun(command, tool.EffectiveWorkingDir, $"安装 {tool.Name}");
+            LaunchHistoryService.RecordLaunch(tool.Path);
+            ShowStatus("已启动", tool.Name, InfoBarSeverity.Success);
+            return;
+        }
+
         try
         {
             Process.Start(new ProcessStartInfo

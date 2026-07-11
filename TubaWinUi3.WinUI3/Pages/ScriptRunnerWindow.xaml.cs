@@ -218,10 +218,24 @@ public sealed partial class ScriptRunnerWindow : Window
         }
 
         if (trimmed.StartsWith("powershell ", StringComparison.OrdinalIgnoreCase))
-            return ("powershell.exe", $"-NoProfile -Command {trimmed[11..]}");
+        {
+            var rest = trimmed[11..].TrimStart();
+            if (rest.StartsWith("-ExecutionPolicy", StringComparison.OrdinalIgnoreCase) ||
+                rest.StartsWith("-File", StringComparison.OrdinalIgnoreCase) ||
+                rest.StartsWith("-f ", StringComparison.OrdinalIgnoreCase))
+                return ("powershell.exe", $"-NoProfile {rest}");
+            return ("powershell.exe", $"-NoProfile -Command {rest}");
+        }
 
         if (trimmed.StartsWith("pwsh ", StringComparison.OrdinalIgnoreCase))
-            return ("pwsh.exe", $"-NoProfile -Command {trimmed[5..]}");
+        {
+            var rest = trimmed[5..].TrimStart();
+            if (rest.StartsWith("-ExecutionPolicy", StringComparison.OrdinalIgnoreCase) ||
+                rest.StartsWith("-File", StringComparison.OrdinalIgnoreCase) ||
+                rest.StartsWith("-f ", StringComparison.OrdinalIgnoreCase))
+                return ("pwsh.exe", $"-NoProfile {rest}");
+            return ("pwsh.exe", $"-NoProfile -Command {rest}");
+        }
 
         if (trimmed.StartsWith('"'))
         {

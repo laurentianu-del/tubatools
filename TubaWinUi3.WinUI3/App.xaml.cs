@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using TubaWinUi3.Pages;
 using TubaWinUi3.Services;
+using TubaWinUi3.Models;
 
 namespace TubaWinUi3;
 
@@ -59,6 +60,7 @@ public partial class App : Application
 
         _window = new MainWindow();
         _window.Activate();
+        ToolItem.SetUIDispatcher(_window.DispatcherQueue);
         ThemeService.ApplySavedTheme();
 
         _ = RunStartupSequenceAsync();

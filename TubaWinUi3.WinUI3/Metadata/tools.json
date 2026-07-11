@@ -360,19 +360,20 @@
       "tags": [ "显示器", "色域检测" ],
       "downloadUrl": "gc:Tools/显示器工具/色域检测"
     },
-    {
-      "match": "在线屏幕测试",
-      "description": "在线屏幕坏点、色彩和灰阶测试工具，通过浏览器进行屏幕检测。",
-      "publisher": "",
-      "tags": [ "显示器", "屏幕测试" ],
-      "downloadUrl": "gc:Tools/显示器工具/在线屏幕测试"
-    },
+
     {
       "match": "UFO",
       "description": "UFO Test 在线显示器刷新率和运动模糊测试工具。",
       "publisher": "",
       "tags": [ "显示器", "刷新率测试" ],
       "downloadUrl": "gc:Tools/显示器工具/UFO测试"
+    },
+    {
+      "match": "Windows HDR Calibration",
+      "description": "微软官方 HDR 校准工具，用于校准显示器 HDR 亮度和色彩表现，通过 Microsoft Store 安装。",
+      "publisher": "Microsoft",
+      "tags": [ "显示器", "HDR", "校准" ],
+      "wingetId": "9N7F2SM5D1LR"
     },
     {
       "match": "AresonMouseTest",

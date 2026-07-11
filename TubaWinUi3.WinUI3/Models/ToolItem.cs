@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using Microsoft.UI.Dispatching;
 using TubaWinUi3.Services;
 
 namespace TubaWinUi3.Models;
@@ -206,16 +207,35 @@ public sealed class ToolItem : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
+    private static DispatcherQueue? _uiDispatcher;
+
+    public static void SetUIDispatcher(DispatcherQueue dispatcher) => _uiDispatcher = dispatcher;
+
+    private void RaisePropertyChanged(string propertyName)
+    {
+        var handler = PropertyChanged;
+        if (handler is null) return;
+
+        var dq = DispatcherQueue.GetForCurrentThread();
+        if (dq is not null)
+        {
+            handler.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+        else if (_uiDispatcher is not null)
+        {
+            _uiDispatcher.TryEnqueue(() => handler.Invoke(this, new PropertyChangedEventArgs(propertyName)));
+        }
+    }
+
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value)) return false;
         field = value;
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        RaisePropertyChanged(propertyName!);
         return true;
     }
 
-    private void OnPropertyChanged(string propertyName) =>
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    private void OnPropertyChanged(string propertyName) => RaisePropertyChanged(propertyName);
 }
 
 public sealed class ArchVariant
