@@ -1425,6 +1425,31 @@ public sealed partial class SettingsPage : Page
 		}
 	}
 
+    private async void FeedbackButton_Click(object sender, RoutedEventArgs e)
+    {
+        const string repoIssuesUrl = "https://github.com/luolangaga/tubatool/issues/new";
+        var body = Uri.EscapeDataString(
+            "## 描述\n\n请描述您的问题或建议...\n\n" +
+            "## 系统信息\n\n```\n" + GetSystemInfoForFeedback() + "\n```\n");
+        var url = $"{repoIssuesUrl}?title=[反馈]+&body={body}";
+        await global::Windows.System.Launcher.LaunchUriAsync(new Uri(url));
+    }
+
+    private static string GetSystemInfoForFeedback()
+    {
+        try
+        {
+            var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
+            var osVersion = Environment.OSVersion.VersionString;
+            var arch = RuntimeInformation.ProcessArchitecture;
+            return $"App: {version}\nOS: {osVersion}\nArch: {arch}";
+        }
+        catch
+        {
+            return "Unable to get system info";
+        }
+    }
+
     private void LoadCreditsAvatar()
     {
         try

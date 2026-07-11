@@ -849,6 +849,29 @@
                                     </Grid>
                                 </Border>
 
+                                <Border x:Name="SettingsFeedbackCard" Style="{StaticResource SettingsCardStyle}">
+                                    <Grid ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource IconBorderStyle}">
+                                            <FontIcon FontSize="18" Glyph="&#xE8BD;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                            <TextBlock FontWeight="SemiBold" Text="反馈与建议" />
+                                            <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="在 GitHub 上提交问题、功能建议或反馈" />
+                                        </StackPanel>
+                                        <Button x:Name="FeedbackButton" Grid.Column="2" VerticalAlignment="Center" Padding="14,6" Click="FeedbackButton_Click">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <FontIcon FontSize="12" Glyph="&#xE8BD;" />
+                                                <TextBlock Text="提交反馈" />
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+                                </Border>
+
                             </StackPanel>
                             </ScrollViewer>
                         </Expander.Content>
