@@ -508,6 +508,20 @@ public static class HardwareInfoService
         };
     }
 
+    private static long GetTotalPhysicalMemoryBytes()
+    {
+        try
+        {
+            foreach (var obj in Query("Win32_ComputerSystem"))
+            {
+                var val = ToLong(Get(obj, "TotalPhysicalMemory"));
+                if (val > 0) return val;
+            }
+        }
+        catch { }
+        return 0;
+    }
+
     private static string FormatMemory()
     {
         var allSlots = Query("Win32_PhysicalMemory").ToList();
@@ -529,7 +543,18 @@ public static class HardwareInfoService
             return $"空插槽 {totalSlots} 个";
         }
 
-        var totalBytes = modules.Sum(item => ToLong(Get(item, "Capacity")));
+        var modulesTotal = modules.Sum(item => ToLong(Get(item, "Capacity")));
+        var systemTotal = GetTotalPhysicalMemoryBytes();
+        var totalBytes = modulesTotal;
+        
+        if (systemTotal > 0 && modulesTotal > 0)
+        {
+            var ratio = (double)modulesTotal / systemTotal;
+            if (ratio < 0.85 || ratio > 1.05)
+            {
+                totalBytes = systemTotal;
+            }
+        }
         var manufacturer = modules.Select(item => CleanMemManufacturer(Get(item, "Manufacturer"))).FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
 
         var memType = ToInt(modules.Select(item => Get(item, "SMBIOSMemoryType")).FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)));
@@ -1599,7 +1624,19 @@ public static class HardwareInfoService
             .Sum();
         if (totalSlots == 0) totalSlots = allSlots.Count;
 
-        var totalBytes = modules.Sum(item => ToLong(Get(item, "Capacity")));
+        var modulesTotal = modules.Sum(item => ToLong(Get(item, "Capacity")));
+        var systemTotal = GetTotalPhysicalMemoryBytes();
+        var totalBytes = modulesTotal;
+        
+        if (systemTotal > 0 && modulesTotal > 0)
+        {
+            var ratio = (double)modulesTotal / systemTotal;
+            if (ratio < 0.85 || ratio > 1.05)
+            {
+                totalBytes = systemTotal;
+            }
+        }
+        
         var memType = ToInt(modules.Select(item => Get(item, "SMBIOSMemoryType")).FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)));
         var typeLabel = GetMemoryTypeLabel(memType);
 
