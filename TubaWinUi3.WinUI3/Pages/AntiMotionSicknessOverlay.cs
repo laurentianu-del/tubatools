@@ -341,6 +341,7 @@ public sealed class AntiMotionSicknessOverlay
             unsafe
             {
                 var ptr = (byte*)pBits;
+                var opacityByte = (byte)(cfg.Opacity * 255 / 100.0);
                 for (var y = 0; y < screenH; y++)
                 {
                     for (var x = 0; x < screenW; x++)
@@ -352,7 +353,7 @@ public sealed class AntiMotionSicknessOverlay
 
                         if (r != 0 || g != 0 || b != 0)
                         {
-                            ptr[off + 3] = 255;
+                            ptr[off + 3] = opacityByte;
                         }
                     }
                 }
@@ -381,16 +382,16 @@ public sealed class AntiMotionSicknessOverlay
         }
     }
 
-    private static uint ColorToCOLORREF(Color color, double opacityPercent)
+    private static uint ColorToCOLORREF(Color color)
     {
-        return (uint)(color.B | (color.G << 8) | (color.R << 16));
+        return (uint)(color.R | (color.G << 8) | (color.B << 16));
     }
 
     private static void DrawCrosshairGdi(IntPtr hdc, int cx, int cy, AntiMotionSicknessConfig cfg, Color color, double opacity)
     {
         var size = (int)cfg.CenterSize;
         var thickness = (int)cfg.CenterThickness;
-        var colorRef = ColorToCOLORREF(color, opacity);
+        var colorRef = (uint)(color.R | (color.G << 8) | (color.B << 16));
 
         switch (cfg.CenterStyle)
         {
@@ -467,13 +468,146 @@ public sealed class AntiMotionSicknessOverlay
                     DeleteObject(hollowPen);
                 }
                 break;
+
+            case CrosshairStyle.TShape:
+                {
+                    var pen = CreatePen(PS_SOLID, thickness, colorRef);
+                    var oldPen = SelectObject(hdc, pen);
+                    MoveToEx(hdc, cx - size, cy, out _);
+                    LineTo(hdc, cx + size, cy);
+                    MoveToEx(hdc, cx, cy, out _);
+                    LineTo(hdc, cx, cy + size);
+                    SelectObject(hdc, oldPen);
+                    DeleteObject(pen);
+                }
+                break;
+
+            case CrosshairStyle.XShape:
+                {
+                    var pen = CreatePen(PS_SOLID, thickness, colorRef);
+                    var oldPen = SelectObject(hdc, pen);
+                    var offset = (int)(size * 0.707);
+                    MoveToEx(hdc, cx - offset, cy - offset, out _);
+                    LineTo(hdc, cx + offset, cy + offset);
+                    MoveToEx(hdc, cx + offset, cy - offset, out _);
+                    LineTo(hdc, cx - offset, cy + offset);
+                    SelectObject(hdc, oldPen);
+                    DeleteObject(pen);
+                }
+                break;
+
+            case CrosshairStyle.Circle:
+                {
+                    var nullBrush = GetStockObject(NULL_BRUSH);
+                    var oldBrush = SelectObject(hdc, nullBrush);
+                    var pen = CreatePen(PS_SOLID, thickness, colorRef);
+                    var oldPen = SelectObject(hdc, pen);
+                    Ellipse(hdc, cx - size, cy - size, cx + size, cy + size);
+                    SelectObject(hdc, oldPen);
+                    SelectObject(hdc, oldBrush);
+                    DeleteObject(pen);
+                }
+                break;
+
+            case CrosshairStyle.CrossDotLarge:
+                {
+                    var pen = CreatePen(PS_SOLID, thickness, colorRef);
+                    var oldPen = SelectObject(hdc, pen);
+                    MoveToEx(hdc, cx - size, cy, out _);
+                    LineTo(hdc, cx + size, cy);
+                    MoveToEx(hdc, cx, cy - size, out _);
+                    LineTo(hdc, cx, cy + size);
+                    SelectObject(hdc, oldPen);
+                    DeleteObject(pen);
+
+                    var dotR = (int)(size * 0.4);
+                    var brush = CreateSolidBrush(colorRef);
+                    var oldBrush = SelectObject(hdc, brush);
+                    pen = CreatePen(PS_SOLID, 1, colorRef);
+                    oldPen = SelectObject(hdc, pen);
+                    Ellipse(hdc, cx - dotR, cy - dotR, cx + dotR, cy + dotR);
+                    SelectObject(hdc, oldPen);
+                    SelectObject(hdc, oldBrush);
+                    DeleteObject(pen);
+                    DeleteObject(brush);
+                }
+                break;
+
+            case CrosshairStyle.Split:
+                {
+                    var pen = CreatePen(PS_SOLID, thickness, colorRef);
+                    var oldPen = SelectObject(hdc, pen);
+                    var gap = (int)(thickness * 2);
+                    MoveToEx(hdc, cx - size, cy, out _);
+                    LineTo(hdc, cx - gap, cy);
+                    MoveToEx(hdc, cx + gap, cy, out _);
+                    LineTo(hdc, cx + size, cy);
+                    MoveToEx(hdc, cx, cy - size, out _);
+                    LineTo(hdc, cx, cy - gap);
+                    MoveToEx(hdc, cx, cy + gap, out _);
+                    LineTo(hdc, cx, cy + size);
+                    SelectObject(hdc, oldPen);
+                    DeleteObject(pen);
+                }
+                break;
+
+            case CrosshairStyle.Crosshatch:
+                {
+                    var pen = CreatePen(PS_SOLID, thickness, colorRef);
+                    var oldPen = SelectObject(hdc, pen);
+                    MoveToEx(hdc, cx - size, cy, out _);
+                    LineTo(hdc, cx + size, cy);
+                    MoveToEx(hdc, cx, cy - size, out _);
+                    LineTo(hdc, cx, cy + size);
+                    var offset = (int)(size * 0.707);
+                    MoveToEx(hdc, cx - offset, cy - offset, out _);
+                    LineTo(hdc, cx + offset, cy + offset);
+                    MoveToEx(hdc, cx + offset, cy - offset, out _);
+                    LineTo(hdc, cx - offset, cy + offset);
+                    SelectObject(hdc, oldPen);
+                    DeleteObject(pen);
+                }
+                break;
+
+            case CrosshairStyle.DoubleCircle:
+                {
+                    var nullBrush = GetStockObject(NULL_BRUSH);
+                    var oldBrush = SelectObject(hdc, nullBrush);
+                    var pen = CreatePen(PS_SOLID, thickness, colorRef);
+                    var oldPen = SelectObject(hdc, pen);
+                    Ellipse(hdc, cx - size, cy - size, cx + size, cy + size);
+                    var innerR = (int)(size * 0.6);
+                    Ellipse(hdc, cx - innerR, cy - innerR, cx + innerR, cy + innerR);
+                    SelectObject(hdc, oldPen);
+                    SelectObject(hdc, oldBrush);
+                    DeleteObject(pen);
+                }
+                break;
+
+            case CrosshairStyle.CrossGap:
+                {
+                    var pen = CreatePen(PS_SOLID, thickness, colorRef);
+                    var oldPen = SelectObject(hdc, pen);
+                    var gap = (int)(size * 0.3);
+                    MoveToEx(hdc, cx - size, cy, out _);
+                    LineTo(hdc, cx - gap, cy);
+                    MoveToEx(hdc, cx + gap, cy, out _);
+                    LineTo(hdc, cx + size, cy);
+                    MoveToEx(hdc, cx, cy - size, out _);
+                    LineTo(hdc, cx, cy - gap);
+                    MoveToEx(hdc, cx, cy + gap, out _);
+                    LineTo(hdc, cx, cy + size);
+                    SelectObject(hdc, oldPen);
+                    DeleteObject(pen);
+                }
+                break;
         }
     }
 
     private static void DrawEdgeMarkerGdi(IntPtr hdc, int x, int y, AntiMotionSicknessConfig cfg, Color color, double opacity, int posIndex)
     {
         var size = (int)cfg.EdgeSize;
-        var colorRef = ColorToCOLORREF(color, opacity);
+        var colorRef = (uint)(color.R | (color.G << 8) | (color.B << 16));
         int drawX, drawY;
 
         switch (posIndex)
@@ -513,6 +647,108 @@ public sealed class AntiMotionSicknessOverlay
                     Polygon(hdc, pts, 4);
                 }
                 break;
+
+            case EdgeMarkerShape.Triangle:
+                {
+                    var half = size / 2;
+                    var pts = new POINT[]
+                    {
+                        new() { X = drawX + half, Y = drawY },
+                        new() { X = drawX + size, Y = drawY + size },
+                        new() { X = drawX, Y = drawY + size }
+                    };
+                    Polygon(hdc, pts, 3);
+                }
+                break;
+
+            case EdgeMarkerShape.Plus:
+                {
+                    var half = size / 2;
+                    var pen2 = CreatePen(PS_SOLID, Math.Max(1, size / 4), colorRef);
+                    var oldPen2 = SelectObject(hdc, pen2);
+                    MoveToEx(hdc, drawX + half, drawY, out _);
+                    LineTo(hdc, drawX + half, drawY + size);
+                    MoveToEx(hdc, drawX, drawY + half, out _);
+                    LineTo(hdc, drawX + size, drawY + half);
+                    SelectObject(hdc, oldPen2);
+                    DeleteObject(pen2);
+                    SelectObject(hdc, oldBrush);
+                    DeleteObject(brush);
+                    return;
+                }
+
+            case EdgeMarkerShape.Line:
+                {
+                    var pen2 = CreatePen(PS_SOLID, Math.Max(1, size / 4), colorRef);
+                    var oldPen2 = SelectObject(hdc, pen2);
+                    var half = size / 2;
+                    if (posIndex == 0 || posIndex == 1)
+                        MoveToEx(hdc, drawX, drawY + half, out _);
+                    else
+                        MoveToEx(hdc, drawX + half, drawY, out _);
+                    if (posIndex == 0 || posIndex == 1)
+                        LineTo(hdc, drawX + size, drawY + half);
+                    else
+                        LineTo(hdc, drawX + half, drawY + size);
+                    SelectObject(hdc, oldPen2);
+                    DeleteObject(pen2);
+                    SelectObject(hdc, oldBrush);
+                    DeleteObject(brush);
+                    return;
+                }
+
+            case EdgeMarkerShape.Cross:
+                {
+                    var half = size / 2;
+                    var pen2 = CreatePen(PS_SOLID, Math.Max(1, size / 4), colorRef);
+                    var oldPen2 = SelectObject(hdc, pen2);
+                    MoveToEx(hdc, drawX + half - size / 3, drawY + half - size / 3, out _);
+                    LineTo(hdc, drawX + half + size / 3, drawY + half + size / 3);
+                    MoveToEx(hdc, drawX + half + size / 3, drawY + half - size / 3, out _);
+                    LineTo(hdc, drawX + half - size / 3, drawY + half + size / 3);
+                    SelectObject(hdc, oldPen2);
+                    DeleteObject(pen2);
+                    SelectObject(hdc, oldBrush);
+                    DeleteObject(brush);
+                    return;
+                }
+
+            case EdgeMarkerShape.Star:
+                {
+                    var half = size / 2;
+                    var innerR = size / 4;
+                    var pts = new POINT[10];
+                    for (var i = 0; i < 10; i++)
+                    {
+                        var angle = i * 36 - 90;
+                        var rad = angle * Math.PI / 180.0;
+                        var radius = i % 2 == 0 ? half : innerR;
+                        pts[i] = new POINT
+                        {
+                            X = drawX + half + (int)(radius * Math.Cos(rad)),
+                            Y = drawY + half + (int)(radius * Math.Sin(rad))
+                        };
+                    }
+                    Polygon(hdc, pts, 10);
+                }
+                break;
+
+            case EdgeMarkerShape.Ring:
+                {
+                    SelectObject(hdc, oldBrush);
+                    DeleteObject(brush);
+                    var nullBrush = GetStockObject(NULL_BRUSH);
+                    oldBrush = SelectObject(hdc, nullBrush);
+                    var ringPen = CreatePen(PS_SOLID, Math.Max(1, size / 5), colorRef);
+                    var oldRingPen = SelectObject(hdc, ringPen);
+                    Ellipse(hdc, drawX, drawY, drawX + size, drawY + size);
+                    SelectObject(hdc, oldRingPen);
+                    SelectObject(hdc, oldBrush);
+                    DeleteObject(ringPen);
+                    SelectObject(hdc, oldPen);
+                    DeleteObject(pen);
+                    return;
+                }
         }
 
         SelectObject(hdc, oldPen);
@@ -536,14 +772,28 @@ public enum CrosshairStyle
     Cross,
     Dot,
     CrossDot,
-    CrossCircle
+    CrossCircle,
+    TShape,
+    XShape,
+    Circle,
+    CrossDotLarge,
+    Split,
+    Crosshatch,
+    DoubleCircle,
+    CrossGap
 }
 
 public enum EdgeMarkerShape
 {
     Square,
     Circle,
-    Diamond
+    Diamond,
+    Triangle,
+    Plus,
+    Line,
+    Cross,
+    Star,
+    Ring
 }
 
 public sealed class AntiMotionSicknessConfig

@@ -116,6 +116,14 @@
                                 <ComboBoxItem Content="圆点" />
                                 <ComboBoxItem Content="十字+圆点" />
                                 <ComboBoxItem Content="十字+圆圈" />
+                                <ComboBoxItem Content="T字形" />
+                                <ComboBoxItem Content="X字形" />
+                                <ComboBoxItem Content="空心圆" />
+                                <ComboBoxItem Content="十字+大圆点" />
+                                <ComboBoxItem Content="缺口十字" />
+                                <ComboBoxItem Content="米字" />
+                                <ComboBoxItem Content="双圆圈" />
+                                <ComboBoxItem Content="间隙十字" />
                             </ComboBox>
                         </Grid>
                     </StackPanel>
@@ -148,6 +156,12 @@
                                 <ComboBoxItem Content="方块" />
                                 <ComboBoxItem Content="圆点" />
                                 <ComboBoxItem Content="菱形" />
+                                <ComboBoxItem Content="三角形" />
+                                <ComboBoxItem Content="加号" />
+                                <ComboBoxItem Content="短线" />
+                                <ComboBoxItem Content="X形" />
+                                <ComboBoxItem Content="星形" />
+                                <ComboBoxItem Content="空心圆" />
                             </ComboBox>
                         </Grid>
                     </StackPanel>
