@@ -22,6 +22,8 @@
 
 [官网文档](https://tubawinui3.cn) | [下载](https://github.com/luolangaga/tubatool/releases) | [反馈](https://github.com/luolangaga/tubatool/issues) | [讨论](https://github.com/luolangaga/tubatool/discussions)
 
+<img src=".github/screenshot.png" alt="TubaWinUi3 截图" width="100%"/>
+
 </div>
 
 ---
