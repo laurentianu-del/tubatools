@@ -307,7 +307,7 @@
                                 </Border>
                                 <StackPanel VerticalAlignment="Center" Spacing="2">
                                     <TextBlock FontWeight="SemiBold" Text="外观" />
-                                    <TextBlock Opacity="1.0" FontSize="13" Text="窗口材质、背景图片、水印、品牌 Logo" />
+                                    <TextBlock Opacity="1.0" FontSize="13" Text="窗口材质、背景图片、界面字体、水印、品牌 Logo" />
                                 </StackPanel>
                             </StackPanel>
                         </Expander.Header>
@@ -520,6 +520,68 @@
                                                 <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="自定义截图水印使用的字体" />
                                             </StackPanel>
                                             <ComboBox x:Name="WatermarkFontComboBox" Grid.Column="2" MinWidth="160" SelectionChanged="WatermarkFontComboBox_SelectionChanged" />
+                                        </Grid>
+                                    </Grid>
+                                </Border>
+
+                                <Border x:Name="SettingsInterfaceFontCard" Style="{StaticResource SettingsCardStyle}">
+                                    <Grid RowSpacing="12">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <Grid ColumnSpacing="16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource IconBorderStyle}">
+                                                <FontIcon FontSize="18" Glyph="&#xE9F5;" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                                <TextBlock FontWeight="SemiBold" Text="界面字体" />
+                                                <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="自定义应用界面显示的字体（重启后生效）" />
+                                            </StackPanel>
+                                            <Button x:Name="ResetFontButton" Grid.Column="2" VerticalAlignment="Center" Padding="10,6" Click="ResetFontButton_Click">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <FontIcon FontSize="12" Glyph="&#xE72C;" />
+                                                    <TextBlock Text="恢复默认" />
+                                                </StackPanel>
+                                            </Button>
+                                        </Grid>
+                                        <Border Grid.Row="1" Padding="0,1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                                        <Grid Grid.Row="2" ColumnSpacing="16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource IconBorderStyle}">
+                                                <FontIcon FontSize="18" Glyph="&#xE8D2;" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                                <TextBlock FontWeight="SemiBold" Text="中文字体" />
+                                                <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="用于显示中文文本" />
+                                            </StackPanel>
+                                            <ComboBox x:Name="ChineseFontComboBox" Grid.Column="2" MinWidth="160" SelectionChanged="ChineseFontComboBox_SelectionChanged" />
+                                        </Grid>
+                                        <Grid Grid.Row="3" ColumnSpacing="16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource IconBorderStyle}">
+                                                <FontIcon FontSize="18" Glyph="&#xE8D2;" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                                <TextBlock FontWeight="SemiBold" Text="西文字体" />
+                                                <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="用于显示英文、数字等西文字符" />
+                                            </StackPanel>
+                                            <ComboBox x:Name="WesternFontComboBox" Grid.Column="2" MinWidth="160" SelectionChanged="WesternFontComboBox_SelectionChanged" />
                                         </Grid>
                                     </Grid>
                                 </Border>

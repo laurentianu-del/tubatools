@@ -72,25 +72,38 @@ public static class ToolMetadataService
 
     public static ToolMetadata GetMetadata(string category, string toolPath)
     {
-        FileVersionInfo? versionInfo = null;
-        try
-        {
-            if (File.Exists(toolPath))
-                versionInfo = FileVersionInfo.GetVersionInfo(toolPath);
-        }
-        catch { }
-
         var jsonMetadata = FindJsonMetadata(toolPath);
-        var description = FirstUseful(
-            jsonMetadata?.Description,
-            versionInfo?.FileDescription,
-            versionInfo?.ProductName,
-            ReadFolderDescription(toolPath));
+
+        string? description = jsonMetadata?.Description;
+        string? publisher = jsonMetadata?.Publisher;
+        string? version = null;
+
+        if (File.Exists(toolPath))
+        {
+            try
+            {
+                var ext = Path.GetExtension(toolPath);
+                if (ext.Equals(".exe", StringComparison.OrdinalIgnoreCase) ||
+                    ext.Equals(".lnk", StringComparison.OrdinalIgnoreCase))
+                {
+                    var versionInfo = FileVersionInfo.GetVersionInfo(toolPath);
+                    description ??= FirstUseful(versionInfo.FileDescription, versionInfo.ProductName);
+                    publisher ??= FirstUseful(versionInfo.CompanyName, versionInfo.LegalCopyright);
+                    version = FirstUseful(versionInfo.ProductVersion, versionInfo.FileVersion);
+                }
+            }
+            catch { }
+        }
+
+        if (description is null)
+        {
+            description = ReadFolderDescription(toolPath);
+        }
 
         return new ToolMetadata(
             description,
-            FirstUseful(jsonMetadata?.Publisher, versionInfo?.CompanyName, versionInfo?.LegalCopyright),
-            FirstUseful(versionInfo?.ProductVersion, versionInfo?.FileVersion),
+            publisher,
+            version,
             jsonMetadata is null ? null : "JSON",
             jsonMetadata?.DownloadUrl,
             jsonMetadata?.DownloadFilter,

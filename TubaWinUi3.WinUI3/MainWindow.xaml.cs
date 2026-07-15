@@ -119,32 +119,36 @@ public sealed partial class MainWindow : Window
 
     private async Task InitializeAfterSplashAsync()
     {
-        await Task.Run(() =>
+        SplashOverlay.Visibility = Visibility.Collapsed;
+        _initialized = true;
+
+        NavigateToDefaultPage();
+
+        _ = Task.Run(async () =>
         {
-            UpdateSplashStatus("正在扫描工具目录...");
-            _ = ToolCatalog.ToolsRoot;
-            _ = ToolCatalog.GetCategories();
+            try
+            {
+                _ = ToolCatalog.ToolsRoot;
+                _ = ToolCatalog.GetCategories();
+                
+                if (!ToolCatalog.IsCacheReady)
+                {
+                    await ToolCatalog.GetAllToolsAsync();
+                }
+
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    PopulateCategories();
+                    ApplyNavLayoutMode();
+                    NavLayoutModeService.NavLayoutModeChanged += OnNavLayoutModeChanged;
+                });
+            }
+            catch { }
         });
 
-        UpdateSplashStatus("正在加载工具列表...");
-        await Task.Run(() => _ = ToolCatalog.GetAllToolsCached());
-
-        UpdateSplashStatus("正在准备界面...");
-
-        DispatcherQueue.TryEnqueue(() =>
-        {
-            PopulateCategories();
-            ApplyNavLayoutMode();
-            NavLayoutModeService.NavLayoutModeChanged += OnNavLayoutModeChanged;
-            NavigateToDefaultPage();
-
-            DownloadQueueService.Initialize(DispatcherQueue);
-            DownloadQueueService.QueueChanged += OnDownloadQueueChanged;
-            UpdateDownloadBadge();
-
-            _initialized = true;
-            SplashOverlay.Visibility = Visibility.Collapsed;
-        });
+        DownloadQueueService.Initialize(DispatcherQueue);
+        DownloadQueueService.QueueChanged += OnDownloadQueueChanged;
+        UpdateDownloadBadge();
     }
 
     private void UpdateSplashStatus(string text)

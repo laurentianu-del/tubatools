@@ -17,7 +17,7 @@ function Remove-UnnecessaryFiles {
 
     $removeNames = @(
         'Dism++x86.exe', 'Dism++ARM64.exe',
-        'Speccy.exe', 'HWMonitor_x32.exe', 'cpuz_x32.exe',
+        'Speccy.exe', 'HWMonitor_x32.exe', 'hwmonitor_arm64.exe', 'cpuz_x32.exe',
         'HWiNFO32.exe', 'Core Temp x86.exe', 'DiskInfo32S.exe',
         'procexp.exe', 'Ventoy2Disk_ARM.exe', 'Ventoy2Disk_ARM64.exe',
         'VentoyPlugson_X64.exe', 'Rw.ini.bak',

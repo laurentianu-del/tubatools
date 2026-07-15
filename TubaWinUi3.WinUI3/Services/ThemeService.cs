@@ -48,23 +48,8 @@ public static class ThemeService
 
         root.RequestedTheme = elementTheme;
 
-        // Propagate theme to nested elements that might not inherit
-        PropagateTheme(root, elementTheme);
-
         if (window is MainWindow mw)
             mw.ApplyTitleBarTheme(elementTheme);
-    }
-
-    private static void PropagateTheme(DependencyObject parent, ElementTheme theme)
-    {
-        var count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent);
-        for (int i = 0; i < count; i++)
-        {
-            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
-            if (child is FrameworkElement fe)
-                fe.RequestedTheme = theme;
-            PropagateTheme(child, theme);
-        }
     }
 }
 

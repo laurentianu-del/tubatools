@@ -30,6 +30,9 @@ public sealed partial class SettingsPage : Page
     private bool _watermarkInitializing;
     private bool _watermarkTextInitializing;
     private bool _watermarkFontInitializing;
+    private bool _chineseFontInitializing;
+    private bool _westernFontInitializing;
+    private bool _fontChangePending;
     private Border[] _backdropOptions = [];
     private bool _hardwareFitScreenInitializing;
     private bool _hardwareMultiDeviceNewLineInitializing;
@@ -107,6 +110,7 @@ public sealed partial class SettingsPage : Page
         ["Backdrop"] = "AppearanceExpander",
         ["BrandLogo"] = "AppearanceExpander",
         ["Watermark"] = "AppearanceExpander",
+        ["InterfaceFont"] = "AppearanceExpander",
         ["HardwareFitScreen"] = "HardwareAiExpander",
         ["HardwareMultiDeviceNewLine"] = "HardwareAiExpander",
         ["MonitorDriver"] = "HardwareAiExpander",
@@ -134,6 +138,7 @@ public sealed partial class SettingsPage : Page
         ["Backdrop"] = "SettingsBackdropCard",
         ["BrandLogo"] = "SettingsBrandLogoCard",
         ["Watermark"] = "SettingsWatermarkCard",
+        ["InterfaceFont"] = "SettingsInterfaceFontCard",
         ["HardwareFitScreen"] = "SettingsHardwareFitScreenCard",
         ["HardwareMultiDeviceNewLine"] = "SettingsHardwareMultiDeviceNewLineCard",
         ["MonitorDriver"] = "SettingsCpuzDataSourceCard",
@@ -174,6 +179,7 @@ public sealed partial class SettingsPage : Page
         LoadBackgroundSettings();
         InitBrandLogoToggle();
         InitWatermarkSettings();
+        InitInterfaceFontSettings();
         InitHardwareFitScreenToggle();
         InitHardwareMultiDeviceNewLineToggle();
         InitCpuzDataSourceStatus();
@@ -931,6 +937,123 @@ public sealed partial class SettingsPage : Page
         if (_watermarkFontInitializing) return;
         if (WatermarkFontComboBox.SelectedItem is string font)
             AppSettings.Set("ScreenshotWatermarkFont", font);
+    }
+
+    private void InitInterfaceFontSettings()
+    {
+        _chineseFontInitializing = true;
+        InitChineseFontComboBox();
+        _chineseFontInitializing = false;
+
+        _westernFontInitializing = true;
+        InitWesternFontComboBox();
+        _westernFontInitializing = false;
+    }
+
+    private void InitChineseFontComboBox()
+    {
+        ChineseFontComboBox.Items.Clear();
+        var savedFont = FontService.GetCurrentChineseFont();
+        var isDefault = savedFont == FontService.DefaultChineseFont;
+        var fonts = FontService.GetInstalledChineseFonts();
+
+        var selectedIndex = 0;
+        for (var i = 0; i < fonts.Count; i++)
+        {
+            ChineseFontComboBox.Items.Add(fonts[i]);
+            if (isDefault && fonts[i].Contains("（默认）"))
+            {
+                selectedIndex = i;
+            }
+            else if (!isDefault)
+            {
+                var actualFont = fonts[i].Replace("（默认）", "");
+                if (actualFont == savedFont)
+                    selectedIndex = i;
+            }
+        }
+
+        ChineseFontComboBox.SelectedIndex = selectedIndex;
+    }
+
+    private void InitWesternFontComboBox()
+    {
+        WesternFontComboBox.Items.Clear();
+        var savedFont = FontService.GetCurrentWesternFont();
+        var isDefault = savedFont == FontService.DefaultWesternFont;
+        var fonts = FontService.GetInstalledWesternFonts();
+
+        var selectedIndex = 0;
+        for (var i = 0; i < fonts.Count; i++)
+        {
+            WesternFontComboBox.Items.Add(fonts[i]);
+            if (isDefault && fonts[i].Contains("（默认）"))
+            {
+                selectedIndex = i;
+            }
+            else if (!isDefault)
+            {
+                var actualFont = fonts[i].Replace("（默认）", "");
+                if (actualFont == savedFont)
+                    selectedIndex = i;
+            }
+        }
+
+        WesternFontComboBox.SelectedIndex = selectedIndex;
+    }
+
+    private void ChineseFontComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_chineseFontInitializing) return;
+        if (ChineseFontComboBox.SelectedItem is string font)
+        {
+            var actualFont = font.Replace("（默认）", "");
+            FontService.SetChineseFont(actualFont);
+            ShowRestartHint();
+        }
+    }
+
+    private void WesternFontComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_westernFontInitializing) return;
+        if (WesternFontComboBox.SelectedItem is string font)
+        {
+            var actualFont = font.Replace("（默认）", "");
+            FontService.SetWesternFont(actualFont);
+            ShowRestartHint();
+        }
+    }
+
+    private void ResetFontButton_Click(object sender, RoutedEventArgs e)
+    {
+        FontService.SetChineseFont(FontService.DefaultChineseFont);
+        FontService.SetWesternFont(FontService.DefaultWesternFont);
+
+        _chineseFontInitializing = true;
+        _westernFontInitializing = true;
+        InitChineseFontComboBox();
+        InitWesternFontComboBox();
+        _chineseFontInitializing = false;
+        _westernFontInitializing = false;
+
+        ShowRestartHint();
+    }
+
+    private async void ShowRestartHint()
+    {
+        if (_fontChangePending) return;
+        _fontChangePending = true;
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = "字体已更改",
+            Content = "字体设置已保存，需要重启应用才能生效。",
+            CloseButtonText = "知道了",
+            RequestedTheme = ThemeService.CurrentElementTheme
+        };
+
+        await dialog.ShowAsync();
     }
 
     private void InitHardwareFitScreenToggle()

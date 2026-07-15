@@ -159,16 +159,21 @@ public static class HardwareInfoService
         get { lock (_lock) { return _cache != null; } }
     }
 
-    public static void Preload()
+    public static Task PreloadAsync()
     {
-        Task.Run(() =>
+        return Task.Run(async () =>
         {
             try
             {
-                _ = LoadAsync();
+                _ = await LoadAsync();
             }
             catch { }
         });
+    }
+
+    public static void Preload()
+    {
+        _ = PreloadAsync();
     }
 
     public static Task<IReadOnlyList<HardwareInfoSection>> LoadAsync(bool forceRefresh = false)
@@ -186,9 +191,11 @@ public static class HardwareInfoService
 
         var sections = CreateEmptySections();
 
-        FillSummary(sections[0]);
-        FillSystem(sections[1]);
-        FillDetails(sections[2]);
+        var summaryTask = Task.Run(() => FillSummary(sections[0]));
+        var systemTask = Task.Run(() => FillSystem(sections[1]));
+        var detailsTask = Task.Run(() => FillDetails(sections[2]));
+
+        Task.WaitAll(summaryTask, systemTask, detailsTask);
 
         lock (_lock)
         {
@@ -404,29 +411,41 @@ public static class HardwareInfoService
 
     private static void FillDetails(HardwareInfoSection section)
     {
-        section.Items.Add(Item("主板", BoardModel()));
-        var cpuName = FirstName("Win32_Processor");
-        var cpuItem = Item("处理器", cpuName);
-        cpuItem.BrandKey = DetectCpuBrand(cpuName);
-        section.Items.Add(cpuItem);
-        section.Items.Add(Item("内存", FormatMemory()));
-        var gpuDisplay = BuildGpuDisplayText();
-        var gpuItem = Item("显卡", gpuDisplay);
-        gpuItem.BrandKey = DetectGpuBrand(gpuDisplay);
-        section.Items.Add(gpuItem);
-        var npuName = DetectNpuName();
-        if (npuName != null)
-            section.Items.Add(Item("NPU", npuName));
-        section.Items.Add(Item("显示器", FormatDisplays()));
-        section.Items.Add(Item("硬盘", FormatDisks()));
-        section.Items.Add(Item("声卡", JoinNames("Win32_SoundDevice", item =>
+        var boardTask = Task.Run(() => BoardModel());
+        var cpuTask = Task.Run(() => FirstName("Win32_Processor"));
+        var memTask = Task.Run(() => FormatMemory());
+        var gpuTask = Task.Run(() => BuildGpuDisplayText());
+        var npuTask = Task.Run(() => DetectNpuName());
+        var displayTask = Task.Run(() => FormatDisplays());
+        var diskTask = Task.Run(() => FormatDisks());
+        var soundTask = Task.Run(() => JoinNames("Win32_SoundDevice", item =>
         {
             var name = Get(item, "Name");
             return !ContainsAny(name, "Virtual", "虚拟", "Software", "Remote Audio", "Stereo Mix", "Wave", "VB-Audio", "VBAN", "Voicemeeter", "CABLE", "VAC", "Senary Audio", "Nahimic Easy Surround", "Nahimic mirroring", "USB 音频", "蓝牙音频", "蓝牙");
-        })));
-        section.Items.Add(Item("网卡", JoinNames("Win32_NetworkAdapter", item =>
+        }));
+        var netTask = Task.Run(() => JoinNames("Win32_NetworkAdapter", item =>
             IsTrue(item, "PhysicalAdapter") &&
-            !ContainsAny(Get(item, "Name"), "Virtual", "Bluetooth", "WAN Miniport"))));
+            !ContainsAny(Get(item, "Name"), "Virtual", "Bluetooth", "WAN Miniport")));
+
+        Task.WaitAll(boardTask, cpuTask, memTask, gpuTask, npuTask, displayTask, diskTask, soundTask, netTask);
+
+        section.Items.Add(Item("主板", boardTask.Result));
+        var cpuName = cpuTask.Result;
+        var cpuItem = Item("处理器", cpuName);
+        cpuItem.BrandKey = DetectCpuBrand(cpuName);
+        section.Items.Add(cpuItem);
+        section.Items.Add(Item("内存", memTask.Result));
+        var gpuDisplay = gpuTask.Result;
+        var gpuItem = Item("显卡", gpuDisplay);
+        gpuItem.BrandKey = DetectGpuBrand(gpuDisplay);
+        section.Items.Add(gpuItem);
+        var npuName = npuTask.Result;
+        if (npuName != null)
+            section.Items.Add(Item("NPU", npuName));
+        section.Items.Add(Item("显示器", displayTask.Result));
+        section.Items.Add(Item("硬盘", diskTask.Result));
+        section.Items.Add(Item("声卡", soundTask.Result));
+        section.Items.Add(Item("网卡", netTask.Result));
     }
 
     private static string? DetectCpuBrand(string? cpuName)

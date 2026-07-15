@@ -17,6 +17,9 @@ public partial class App : Application
     {
         Environment.SetEnvironmentVariable("MICROSOFT_WINDOWSAPPRUNTIME_BASE_DIRECTORY", AppContext.BaseDirectory);
         InitializeComponent();
+        
+        _ = Task.Run(() => AppSettings.Load());
+        
         BuiltinToolRegistry.RegisterDefaults();
 
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
@@ -62,23 +65,20 @@ public partial class App : Application
         _window.Activate();
         ToolItem.SetUIDispatcher(_window.DispatcherQueue);
         ThemeService.ApplySavedTheme();
+        FontService.ApplySavedFonts();
 
         _ = RunStartupSequenceAsync();
     }
 
     private static async Task RunStartupSequenceAsync()
     {
-        await Task.Delay(1000);
-
         _ = Task.Run(() => ToolIconService.CleanExpiredCache());
-        HardwareInfoService.Preload();
+        _ = Task.Run(() => HardwareInfoService.PreloadAsync());
 
         try
         {
             if (AppSettings.Get("SetupCompleted") == null)
             {
-                await Task.Delay(500);
-
                 if (MainWindow?.Content is FrameworkElement root)
                 {
                     var wizard = new SetupWizardDialog

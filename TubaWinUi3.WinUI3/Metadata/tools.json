@@ -451,7 +451,8 @@
       "downloadUrl": "gc:Tools/综合检测/HWMonitor",
       "archVariants": [
         { "file": "HWMonitor_x32.exe", "arch": "x86" },
-        { "file": "HWMonitor_x64.exe", "arch": "x64" }
+        { "file": "HWMonitor_x64.exe", "arch": "x64" },
+        { "file": "hwmonitor_arm64.exe", "arch": "ARM64" }
       ]
     },
     {

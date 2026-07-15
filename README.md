@@ -11,7 +11,7 @@
 <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&size=28&pause=1000&color=0078D4&center=true&vCenter=true&width=600&lines=PC+%E7%A1%AC%E4%BB%B6%E5%B7%A5%E5%85%B7%E9%9B%86%E5%90%88;WinUI+3+%C2%B7+.NET+10;82+%E6%AC%BE%E5%B7%A5%E5%85%B7+%C2%B7+%E4%B8%80%E9%94%AE%E5%90%AF%E5%8A%A8" alt="Typing SVG" />
 </a>
 
-[![GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue?style=flat-square)](LICENSE)
+[![GPL-3.0](https://img.shields.io/badge/License-GPL--3.0+附加条款-blue?style=flat-square)](LICENSE)
 [![.NET 10](https://img.shields.io/badge/.NET-10-512bd4?style=flat-square&logo=dotnet)](https://dotnet.microsoft.com/)
 [![WinUI 3](https://img.shields.io/badge/WinUI-3-0078d4?style=flat-square&logo=windows)](https://learn.microsoft.com/windows/apps/winui/)
 [![Stars](https://img.shields.io/github/stars/luolangaga/tubatool?style=flat-square&logo=github)](https://github.com/luolangaga/tubatool)
@@ -40,7 +40,7 @@
 | 界面动画 |   基本无   |  流畅过渡动画与交互反馈   |
 | ARM 平台 |   不支持   |   原生支持 ARM64   |
 | 自动更新 |  手动下载   |  启动时自动检查，一键更新  |
-| 开源 |   闭源    | 界面开源 (GPL-3.0) |
+| 开源 | 闭源 | 界面开源 (GPL-3.0 + [附加条款](LICENSE-ADDITIONAL)) |
 | 工具更新 | 跟随大版本发布 |  持续更新，工具版本更及时  |
 | 主题 |  单一主题   | 亮色 / 暗色 / 跟随系统 |
 

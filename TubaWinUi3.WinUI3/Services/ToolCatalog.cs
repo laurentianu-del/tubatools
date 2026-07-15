@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using TubaWinUi3.Models;
 
 namespace TubaWinUi3.Services;
@@ -15,6 +16,10 @@ public static class ToolCatalog
         ".ps1",
         ".vbs"
     ];
+
+    private static bool _isLoadingFromCache;
+
+    public static bool IsCacheReady => _cachedAllTools is not null || _isLoadingFromCache;
 
     public static string AppDirectory
     {
@@ -267,6 +272,79 @@ public static class ToolCatalog
         return _cachedAllTools;
     }
 
+    public static async Task<IReadOnlyList<ToolItem>> GetAllToolsAsync()
+    {
+        if (_cachedAllTools is not null)
+            return _cachedAllTools;
+
+        _isLoadingFromCache = true;
+
+        if (ToolCacheService.TryLoadCache(out var cachedEntries) && cachedEntries.Count > 0)
+        {
+            var cachedTools = cachedEntries.Select(e => new ToolItem
+            {
+                Name = e.Name,
+                Category = e.Category,
+                Path = e.Path,
+                RelativePath = e.RelativePath,
+                Extension = e.Extension,
+                Description = e.Description,
+                Publisher = e.Publisher,
+                Version = e.Version,
+                DownloadUrl = e.DownloadUrl,
+                WingetId = e.WingetId,
+                IconGlyph = e.IconGlyph,
+                PrimaryArch = e.PrimaryArch,
+                Tags = e.Tags,
+                IsFavorite = e.IsFavorite,
+                IsBuiltinLink = e.IsBuiltinLink,
+                BuiltinToolId = e.BuiltinToolId,
+                BuiltinKindText = e.BuiltinKindText
+            }).ToList();
+
+            _cachedAllTools = cachedTools;
+            _isLoadingFromCache = false;
+
+            _ = Task.Run(RefreshCacheInBackground);
+
+            return cachedTools;
+        }
+
+        _isLoadingFromCache = false;
+        return await Task.Run(() => GetAllToolsCached());
+    }
+
+    private static void RefreshCacheInBackground()
+    {
+        try
+        {
+            var tools = GetAllToolsCached();
+            var entries = tools.Select(t => new ToolCacheEntry
+            {
+                Name = t.Name,
+                Category = t.Category,
+                Path = t.Path,
+                RelativePath = t.RelativePath,
+                Extension = t.Extension,
+                Description = t.Description,
+                Publisher = t.Publisher,
+                Version = t.Version,
+                DownloadUrl = t.DownloadUrl,
+                WingetId = t.WingetId,
+                IconGlyph = t.IconGlyph,
+                PrimaryArch = t.PrimaryArch,
+                Tags = t.Tags.ToList(),
+                IsFavorite = t.IsFavorite,
+                IsBuiltinLink = t.IsBuiltinLink,
+                BuiltinToolId = t.BuiltinToolId,
+                BuiltinKindText = t.BuiltinKindText
+            }).ToList();
+
+            ToolCacheService.SaveCache(entries);
+        }
+        catch { }
+    }
+
     public static IReadOnlyList<string> GetAllTags()
     {
         if (_cachedTags is not null)
@@ -288,6 +366,7 @@ public static class ToolCatalog
         _cachedAllTools = null;
         lock (_cacheLock) { _toolsCache.Clear(); }
         Interlocked.Increment(ref _cacheVersion);
+        ToolCacheService.Invalidate();
     }
 
     public static void RefreshToolsRoot()
