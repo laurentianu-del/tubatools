@@ -13,6 +13,7 @@ public sealed partial class AntiMotionSicknessWindow : Page
     private readonly Window _window;
     private AntiMotionSicknessConfig _cfg;
     private bool _suppressEvents = true;
+    private List<MonitorInfo> _monitors = new();
 
     public AntiMotionSicknessWindow(Window window)
     {
@@ -20,6 +21,7 @@ public sealed partial class AntiMotionSicknessWindow : Page
         InitializeComponent();
 
         _cfg = AntiMotionSicknessConfig.Load();
+        LoadMonitors();
         LoadConfigToUI();
         UpdateOverlayStatus(AntiMotionSicknessOverlay.IsRunning);
 
@@ -30,10 +32,57 @@ public sealed partial class AntiMotionSicknessWindow : Page
             AntiMotionSicknessOverlay.CloseOverlay();
             SaveConfigFromUI();
         };
+    }
 
-        Loaded += (_, _) =>
+    private void LoadMonitors()
+    {
+        try
         {
-        };
+            _monitors = AntiMotionSicknessOverlay.GetMonitors();
+        }
+        catch
+        {
+            _monitors = new List<MonitorInfo>();
+        }
+
+        MonitorCombo.Items.Clear();
+
+        if (_monitors.Count == 0)
+        {
+            MonitorCombo.Items.Add(new ComboBoxItem { Content = "主显示器", Tag = 0 });
+            MonitorCombo.SelectedIndex = 0;
+            MonitorInfoText.Text = "使用主显示器";
+            return;
+        }
+
+        for (var i = 0; i < _monitors.Count; i++)
+        {
+            var m = _monitors[i];
+            MonitorCombo.Items.Add(new ComboBoxItem { Content = m.DisplayName, Tag = i });
+        }
+
+        var savedIndex = AppSettings.GetInt("AntiMotionSickness_MonitorIndex", 0);
+        if (savedIndex >= 0 && savedIndex < _monitors.Count)
+            MonitorCombo.SelectedIndex = savedIndex;
+        else if (_monitors.Count > 0)
+            MonitorCombo.SelectedIndex = 0;
+
+        UpdateMonitorInfoText();
+    }
+
+    private void UpdateMonitorInfoText()
+    {
+        if (_monitors.Count == 0)
+        {
+            MonitorInfoText.Text = "未检测到显示器";
+            return;
+        }
+
+        var idx = MonitorCombo.SelectedIndex;
+        if (idx < 0 || idx >= _monitors.Count) return;
+
+        var m = _monitors[idx];
+        MonitorInfoText.Text = $"分辨率: {m.Width}×{m.Height}";
     }
 
     private void LoadConfigToUI()
@@ -58,6 +107,8 @@ public sealed partial class AntiMotionSicknessWindow : Page
         EdgeSizeSlider.Value = _cfg.EdgeSize;
         EdgeSizeText.Text = ((int)_cfg.EdgeSize).ToString();
         EdgeShapeCombo.SelectedIndex = (int)_cfg.EdgeShape;
+
+        ForceTopmostToggle.IsOn = AppSettings.GetBool("AntiMotionSickness_ForceTopmost", false);
     }
 
     private void SaveConfigFromUI()
@@ -140,6 +191,13 @@ public sealed partial class AntiMotionSicknessWindow : Page
     private void StartOverlay()
     {
         SaveConfigFromUI();
+
+        var savedIndex = AppSettings.GetInt("AntiMotionSickness_MonitorIndex", 0);
+        AntiMotionSicknessOverlay.TargetMonitorIndex = savedIndex;
+
+        var forceTopmost = AppSettings.GetBool("AntiMotionSickness_ForceTopmost", false);
+        AntiMotionSicknessOverlay.ForceTopmostMode = forceTopmost;
+
         try
         {
             AntiMotionSicknessOverlay.ShowOverlay();
@@ -197,4 +255,32 @@ public sealed partial class AntiMotionSicknessWindow : Page
             AntiMotionSicknessOverlay.RefreshVisuals();
     }
 
+    private void MonitorCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressEvents || MonitorCombo.SelectedIndex < 0) return;
+
+        var idx = MonitorCombo.SelectedIndex;
+        AppSettings.Set("AntiMotionSickness_MonitorIndex", idx);
+        AntiMotionSicknessOverlay.TargetMonitorIndex = idx;
+
+        UpdateMonitorInfoText();
+
+        if (AntiMotionSicknessOverlay.IsRunning)
+            AntiMotionSicknessOverlay.MoveToMonitor(idx);
+    }
+
+    private void ForceTopmostToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_suppressEvents) return;
+
+        var forceTopmost = ForceTopmostToggle.IsOn;
+        AppSettings.Set("AntiMotionSickness_ForceTopmost", forceTopmost);
+        AntiMotionSicknessOverlay.ForceTopmostMode = forceTopmost;
+
+        if (AntiMotionSicknessOverlay.IsRunning)
+        {
+            AntiMotionSicknessOverlay.CloseOverlay();
+            AntiMotionSicknessOverlay.ShowOverlay();
+        }
+    }
 }

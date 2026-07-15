@@ -10,6 +10,9 @@ public sealed class AntiMotionSicknessOverlay
 
     public static bool IsRunning => _instance is not null;
 
+    public static int TargetMonitorIndex { get; set; } = 0;
+    public static bool ForceTopmostMode { get; set; } = false;
+
     public static void ShowOverlay()
     {
         if (_instance is not null) return;
@@ -28,6 +31,43 @@ public sealed class AntiMotionSicknessOverlay
     {
         _instance?.Render();
     }
+
+    public static void MoveToMonitor(int monitorIndex)
+    {
+        TargetMonitorIndex = monitorIndex;
+        _instance?.Reposition();
+    }
+
+    public static List<MonitorInfo> GetMonitors()
+    {
+        var monitors = new List<MonitorInfo>();
+        EnumDisplayMonitorsProc callback = (hMonitor, hdcMonitor, lprcMonitor, dwData) =>
+        {
+            var mi = new MONITORINFOEX();
+            mi.cbSize = Marshal.SizeOf<MONITORINFOEX>();
+            if (GetMonitorInfo(hMonitor, ref mi))
+            {
+                monitors.Add(new MonitorInfo
+                {
+                    Handle = hMonitor,
+                    Left = mi.rcMonitor.left,
+                    Top = mi.rcMonitor.top,
+                    Width = mi.rcMonitor.right - mi.rcMonitor.left,
+                    Height = mi.rcMonitor.bottom - mi.rcMonitor.top,
+                    IsPrimary = (mi.dwFlags & MONITORINFOF_PRIMARY) != 0,
+                    DeviceName = mi.szDevice
+                });
+            }
+            return true;
+        };
+        _ = EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, callback, IntPtr.Zero);
+        return monitors;
+    }
+
+    private delegate bool EnumDisplayMonitorsProc(IntPtr hMonitor, IntPtr hdcMonitor, IntPtr lprcMonitor, IntPtr dwData);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr lprcClip, EnumDisplayMonitorsProc lpfnEnum, IntPtr dwData);
 
     #region Win32 P/Invoke
 
@@ -48,6 +88,18 @@ public sealed class AntiMotionSicknessOverlay
 
     [DllImport("user32.dll")]
     private static extern int GetSystemMetrics(int nIndex);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFOEX lpmi);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int cbSize);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
 
     [DllImport("gdi32.dll")]
     private static extern IntPtr CreateCompatibleDC(IntPtr hdc);
@@ -130,6 +182,28 @@ public sealed class AntiMotionSicknessOverlay
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    private struct RECT
+    {
+        public int left;
+        public int top;
+        public int right;
+        public int bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct MONITORINFOEX
+    {
+        public int cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+        public string szDevice;
+    }
+
+    private const int MONITORINFOF_PRIMARY = 1;
+
+    [StructLayout(LayoutKind.Sequential)]
     private struct BLENDFUNCTION
     {
         public byte BlendOp;
@@ -182,6 +256,7 @@ public sealed class AntiMotionSicknessOverlay
     private const uint WM_DESTROY = 0x0002;
     private const uint WM_DISPLAYCHANGE = 0x007E;
     private const uint WM_NCHITTEST = 0x0084;
+    private const uint WM_TIMER = 0x0113;
     private const int HTTRANSPARENT = -1;
     private const byte AC_SRC_OVER = 0x00;
     private const byte AC_SRC_ALPHA = 0x01;
@@ -189,19 +264,27 @@ public sealed class AntiMotionSicknessOverlay
     private const uint DIB_RGB_COLORS = 0;
     private const uint BI_RGB = 0;
 
+    private const int DWMWA_EXCLUDED_FROM_LIVEPREVIEW = 33;
+    private const int DWMWA_CLOAK = 14;
+    private const uint TIMER_ID_TOPMOST = 1;
+    private const uint TIMER_INTERVAL_MS = 200;
+
     #endregion
 
     private IntPtr _hwnd;
     private WndProcDelegate? _wndProc;
     private static ushort _classAtom;
-    private const string ClassName = "TubaAntiMSOvl2";
+    private const string ClassName = "TubaAntiMSOvl3";
+    private int _monitorX;
+    private int _monitorY;
+    private int _monitorW;
+    private int _monitorH;
 
     private void Create()
     {
         RegisterClass();
 
-        var screenW = GetSystemMetrics(SM_CXSCREEN);
-        var screenH = GetSystemMetrics(SM_CYSCREEN);
+        GetTargetMonitorBounds();
 
         var exStyle = WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
 
@@ -210,18 +293,61 @@ public sealed class AntiMotionSicknessOverlay
             ClassName,
             "",
             WS_POPUP | WS_VISIBLE,
-            0, 0, screenW, screenH,
+            _monitorX, _monitorY, _monitorW, _monitorH,
             IntPtr.Zero, IntPtr.Zero,
             Marshal.GetHINSTANCE(typeof(AntiMotionSicknessOverlay).Module),
             IntPtr.Zero);
 
         if (_hwnd == IntPtr.Zero) return;
 
+        var excluded = 1;
+        DwmSetWindowAttribute(_hwnd, DWMWA_EXCLUDED_FROM_LIVEPREVIEW, ref excluded, sizeof(int));
+
         ShowWindow(_hwnd, SW_SHOW);
-        SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        SetWindowPos(_hwnd, HWND_TOPMOST, _monitorX, _monitorY, _monitorW, _monitorH, SWP_NOACTIVATE);
+
+        if (ForceTopmostMode)
+        {
+            SetTimer(_hwnd, TIMER_ID_TOPMOST, TIMER_INTERVAL_MS, IntPtr.Zero);
+        }
 
         Render();
     }
+
+    private void Reposition()
+    {
+        if (_hwnd == IntPtr.Zero) return;
+
+        GetTargetMonitorBounds();
+        SetWindowPos(_hwnd, HWND_TOPMOST, _monitorX, _monitorY, _monitorW, _monitorH, SWP_NOACTIVATE);
+        Render();
+    }
+
+    private void GetTargetMonitorBounds()
+    {
+        var monitors = GetMonitors();
+        if (monitors.Count == 0)
+        {
+            _monitorX = 0;
+            _monitorY = 0;
+            _monitorW = GetSystemMetrics(SM_CXSCREEN);
+            _monitorH = GetSystemMetrics(SM_CYSCREEN);
+            return;
+        }
+
+        var idx = Math.Max(0, Math.Min(TargetMonitorIndex, monitors.Count - 1));
+        var target = monitors[idx];
+        _monitorX = target.Left;
+        _monitorY = target.Top;
+        _monitorW = target.Width;
+        _monitorH = target.Height;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetTimer(IntPtr hWnd, uint nIDEvent, uint uElapse, IntPtr lpTimerFunc);
+
+    [DllImport("user32.dll")]
+    private static extern bool KillTimer(IntPtr hWnd, uint uIDEvent);
 
     private void RegisterClass()
     {
@@ -251,14 +377,22 @@ public sealed class AntiMotionSicknessOverlay
             case WM_NCHITTEST:
                 return (IntPtr)HTTRANSPARENT;
 
+            case WM_TIMER:
+                if (wParam == TIMER_ID_TOPMOST)
+                {
+                    SetWindowPos(hWnd, HWND_TOPMOST, _monitorX, _monitorY, _monitorW, _monitorH, SWP_NOACTIVATE);
+                    return IntPtr.Zero;
+                }
+                break;
+
             case WM_DISPLAYCHANGE:
-                var screenW = GetSystemMetrics(SM_CXSCREEN);
-                var screenH = GetSystemMetrics(SM_CYSCREEN);
-                SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, screenW, screenH, SWP_NOACTIVATE);
+                GetTargetMonitorBounds();
+                SetWindowPos(hWnd, HWND_TOPMOST, _monitorX, _monitorY, _monitorW, _monitorH, SWP_NOACTIVATE);
                 Render();
                 return IntPtr.Zero;
 
             case WM_DESTROY:
+                KillTimer(hWnd, TIMER_ID_TOPMOST);
                 _instance = null;
                 return IntPtr.Zero;
         }
@@ -270,8 +404,8 @@ public sealed class AntiMotionSicknessOverlay
     {
         if (_hwnd == IntPtr.Zero) return;
 
-        var screenW = GetSystemMetrics(SM_CXSCREEN);
-        var screenH = GetSystemMetrics(SM_CYSCREEN);
+        var screenW = _monitorW;
+        var screenH = _monitorH;
         if (screenW <= 0 || screenH <= 0) return;
 
         var screenDC = GetDC(IntPtr.Zero);
@@ -359,7 +493,7 @@ public sealed class AntiMotionSicknessOverlay
                 }
             }
 
-            var ptDst = new POINT { X = 0, Y = 0 };
+            var ptDst = new POINT { X = _monitorX, Y = _monitorY };
             var size = new SIZE { cx = screenW, cy = screenH };
             var ptSrc = new POINT { X = 0, Y = 0 };
             var blend = new BLENDFUNCTION
@@ -888,4 +1022,17 @@ public sealed class AntiMotionSicknessConfig
     {
         AppSettings.Set(key, $"{color.A},{color.R},{color.G},{color.B}");
     }
+}
+
+public sealed class MonitorInfo
+{
+    public IntPtr Handle { get; set; }
+    public int Left { get; set; }
+    public int Top { get; set; }
+    public int Width { get; set; }
+    public int Height { get; set; }
+    public bool IsPrimary { get; set; }
+    public string DeviceName { get; set; } = string.Empty;
+
+    public string DisplayName => IsPrimary ? $"{DeviceName} (主显示器)" : DeviceName;
 }
