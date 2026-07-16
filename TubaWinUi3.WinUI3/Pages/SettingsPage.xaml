@@ -530,6 +530,24 @@
                                     </Grid>
                                 </Border>
 
+                                <Border x:Name="SettingsBrandEasterEggCard" Style="{StaticResource SettingsCardStyle}">
+                                    <Grid ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource IconBorderStyle}">
+                                            <FontIcon FontSize="18" Glyph="&#xE739;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                            <TextBlock FontWeight="SemiBold" Text="禁用品牌彩蛋背景" />
+                                            <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="关闭后将不会自动下载和应用品牌专属背景图" />
+                                        </StackPanel>
+                                        <ToggleSwitch x:Name="DisableBrandEasterEggToggle" Grid.Column="2" VerticalAlignment="Center" Toggled="DisableBrandEasterEggToggle_Toggled" />
+                                    </Grid>
+                                </Border>
+
                                 <Border x:Name="SettingsBrandLogoCard" Style="{StaticResource SettingsCardStyle}">
                                     <Grid ColumnSpacing="16">
                                         <Grid.ColumnDefinitions>

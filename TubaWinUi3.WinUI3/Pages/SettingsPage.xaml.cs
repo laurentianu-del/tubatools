@@ -183,6 +183,7 @@ public sealed partial class SettingsPage : Page
         InitBackdropSettings();
         LoadBackgroundSettings();
         InitBrandLogoToggle();
+        InitDisableBrandEasterEggToggle();
         InitWatermarkSettings();
         InitInterfaceFontSettings();
         InitHardwareFitScreenToggle();
@@ -864,6 +865,21 @@ public sealed partial class SettingsPage : Page
         _brandLogoInitializing = true;
         BrandLogoToggle.IsOn = AppSettings.GetBool("ShowBrandLogo", true);
         _brandLogoInitializing = false;
+    }
+
+    private bool _disableBrandEasterEggInitializing;
+
+    private void DisableBrandEasterEggToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_disableBrandEasterEggInitializing) return;
+        BrandEasterEggService.SetBrandBackgroundDisabled(DisableBrandEasterEggToggle.IsOn);
+    }
+
+    private void InitDisableBrandEasterEggToggle()
+    {
+        _disableBrandEasterEggInitializing = true;
+        DisableBrandEasterEggToggle.IsOn = BrandEasterEggService.IsBrandBackgroundDisabled();
+        _disableBrandEasterEggInitializing = false;
     }
 
     private void InitWatermarkSettings()

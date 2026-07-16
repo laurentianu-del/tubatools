@@ -8,7 +8,9 @@ public static class BrandEasterEggService
 {
     private static readonly HttpClient _http = new();
     private static string? _cachedBrand;
-    private static bool _isDownloading;
+    private static bool _downloadAttempted;
+
+    private const string DisableBrandBackgroundKey = "DisableBrandBackground";
 
     private static readonly BrandEasterEgg[] BrandEasterEggs =
     [
@@ -43,7 +45,8 @@ public static class BrandEasterEggService
 
     public static void StartBackgroundDownload()
     {
-        if (_isDownloading) return;
+        if (_downloadAttempted) return;
+        if (IsBrandBackgroundDisabled()) return;
 
         var easterEgg = GetDetectedEasterEgg();
         if (easterEgg is null) return;
@@ -53,7 +56,7 @@ public static class BrandEasterEggService
 
         if (File.Exists(path)) return;
 
-        _isDownloading = true;
+        _downloadAttempted = true;
 
         _ = Task.Run(async () =>
         {
@@ -77,15 +80,12 @@ public static class BrandEasterEggService
                 BrandBackgroundLoaded?.Invoke(null, new BrandEasterEggLoadedEventArgs(easterEgg.Name, path));
             }
             catch { }
-            finally
-            {
-                _isDownloading = false;
-            }
         });
     }
 
     public static bool ShouldApplyBrandBackground()
     {
+        if (IsBrandBackgroundDisabled()) return false;
         var customBg = BackgroundService.GetBackgroundPath();
         return string.IsNullOrEmpty(customBg) && GetDetectedBrand() is not null;
     }
@@ -99,6 +99,16 @@ public static class BrandEasterEggService
         {
             BackgroundService.SetBackgroundPath(path);
         }
+    }
+
+    public static bool IsBrandBackgroundDisabled()
+    {
+        return AppSettings.GetBool(DisableBrandBackgroundKey, false);
+    }
+
+    public static void SetBrandBackgroundDisabled(bool disabled)
+    {
+        AppSettings.Set(DisableBrandBackgroundKey, disabled);
     }
 
     private static string? DetectBrand()
