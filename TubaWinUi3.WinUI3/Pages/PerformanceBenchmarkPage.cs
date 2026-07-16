@@ -22,10 +22,9 @@ using Windows.UI;
 
 namespace TubaWinUi3.Pages;
 
-public sealed class PerformanceBenchmarkPage : Page
+public sealed partial class PerformanceBenchmarkPage : Page
 {
-	private readonly Window _window;
-	private CancellationTokenSource _cts = new();
+	private CancellationTokenSource _cts;
 	private PerformanceBenchmarkResult? _result;
 	private bool _isRunning;
 	private TextBlock _gamingScoreText;
@@ -90,9 +89,9 @@ public sealed class PerformanceBenchmarkPage : Page
 	private static readonly Color ColorC = Color.FromArgb(byte.MaxValue, 248, 113, 113);
 	private static readonly Color ColorD = Color.FromArgb(byte.MaxValue, 220, 38, 38);
 
-	public PerformanceBenchmarkPage(Window window)
+	public PerformanceBenchmarkPage()
 	{
-		_window = window;
+		_cts = new CancellationTokenSource();
 		base.Content = BuildUI();
 	}
 
@@ -699,7 +698,7 @@ public sealed class PerformanceBenchmarkPage : Page
 			Stopwatch sw = Stopwatch.StartNew();
 			var progress = new Progress<BenchmarkProgress>(p =>
 			{
-				_window.DispatcherQueue.TryEnqueue(() =>
+				DispatcherQueue.TryEnqueue(() =>
 				{
 					_statusText.Text = $"{p.Phase} · {p.SubPhase}  {p.Detail}  (可随时点击停止)";
 					_globalProgress.Value = p.Progress * 100.0;
@@ -709,7 +708,7 @@ public sealed class PerformanceBenchmarkPage : Page
 			{
 				result.Cpu = await Task.Run(() => PerformanceBenchmarkService.RunCpuBenchmark(60, progress, _cts.Token), _cts.Token);
 				_cts.Token.ThrowIfCancellationRequested();
-				_window.DispatcherQueue.TryEnqueue(() => UpdateCpuUI(result));
+				DispatcherQueue.TryEnqueue(() => UpdateCpuUI(result));
 				string coreToCoreExe = PerformanceBenchmarkService.FindCoreToCoreLatencyExe();
 				if (coreToCoreExe != null)
 				{
@@ -720,7 +719,7 @@ public sealed class PerformanceBenchmarkPage : Page
 						var matrix = PerformanceBenchmarkService.ParseCoreToCoreCsv(csv, maxCores);
 						PerformanceBenchmarkService.ApplyLatencyResult(result.Cpu, matrix);
 						_latencyHeatmapPath = PerformanceBenchmarkService.GenerateLatencyHeatmap(matrix);
-						_window.DispatcherQueue.TryEnqueue(() =>
+						DispatcherQueue.TryEnqueue(() =>
 						{
 							ShowLatencyHeatmap(_latencyHeatmapPath);
 							UpdateScoreRow(_cpuLatencyScoreText, result.Cpu.LatencyScore);
@@ -732,19 +731,19 @@ public sealed class PerformanceBenchmarkPage : Page
 			{
 				result.Memory = await Task.Run(() => PerformanceBenchmarkService.RunMemoryBenchmark(1, progress, _cts.Token), _cts.Token);
 				_cts.Token.ThrowIfCancellationRequested();
-				_window.DispatcherQueue.TryEnqueue(() => UpdateMemoryUI(result));
+				DispatcherQueue.TryEnqueue(() => UpdateMemoryUI(result));
 			}
 			if (runDisk)
 			{
 				result.Disk = await Task.Run(() => PerformanceBenchmarkService.RunDiskBenchmark(20, progress, _cts.Token), _cts.Token);
 				_cts.Token.ThrowIfCancellationRequested();
-				_window.DispatcherQueue.TryEnqueue(() => UpdateDiskUI(result));
+				DispatcherQueue.TryEnqueue(() => UpdateDiskUI(result));
 			}
 			if (runGpu)
 			{
 				result.Gpu = await Task.Run(() => PerformanceBenchmarkService.RunGpuBenchmarkFurMark(60, progress, _cts.Token), _cts.Token);
 				_cts.Token.ThrowIfCancellationRequested();
-				_window.DispatcherQueue.TryEnqueue(() => UpdateGpuUI(result));
+				DispatcherQueue.TryEnqueue(() => UpdateGpuUI(result));
 			}
 			if (runBrowser)
 			{
@@ -758,7 +757,7 @@ public sealed class PerformanceBenchmarkPage : Page
 			result.OfficeGrade = PerformanceBenchmarkService.ComputeGrade(result.OfficeScore);
 			sw.Stop();
 			result.TotalDuration = sw.Elapsed;
-			_window.DispatcherQueue.TryEnqueue(() =>
+			DispatcherQueue.TryEnqueue(() =>
 			{
 				UpdateTopCard(_gamingScoreText, _gamingGradeText, _gamingBar, result.GamingScore, result.GamingGrade);
 				UpdateTopCard(_officeScoreText, _officeGradeText, _officeBar, result.OfficeScore, result.OfficeGrade);
@@ -822,7 +821,7 @@ public sealed class PerformanceBenchmarkPage : Page
 			Title = "核间延迟测试 — core-to-core-latency",
 			Content = scroll,
 			CloseButtonText = "取消",
-			XamlRoot = _window.Content.XamlRoot,
+			XamlRoot = XamlRoot,
 			RequestedTheme = ThemeService.CurrentElementTheme
 		};
 		var csvBuilder = new StringBuilder();
@@ -859,7 +858,7 @@ public sealed class PerformanceBenchmarkPage : Page
 				{
 					stderrBuilder.AppendLine(e.Data);
 					string captured = e.Data;
-					_window.DispatcherQueue.TryEnqueue(() =>
+					DispatcherQueue.TryEnqueue(() =>
 					{
 						TextBlock textBlock = outputText;
 						textBlock.Text = textBlock.Text + captured + "\n";
@@ -873,7 +872,7 @@ public sealed class PerformanceBenchmarkPage : Page
 			proc.Exited += (_, _) =>
 			{
 				procExited = true;
-				_window.DispatcherQueue.TryEnqueue(() =>
+				DispatcherQueue.TryEnqueue(() =>
 				{
 					outputText.Text += "\n--- 测试完成 ---\n";
 					scroll.ChangeView(null, scroll.ScrollableHeight, null);
@@ -896,7 +895,7 @@ public sealed class PerformanceBenchmarkPage : Page
 			{
 				try { if (!proc.HasExited) proc.Kill(); } catch { }
 			}
-			_window.DispatcherQueue.TryEnqueue(() =>
+			DispatcherQueue.TryEnqueue(() =>
 			{
 				if (!tcs.Task.IsCompleted)
 				{
@@ -925,7 +924,7 @@ public sealed class PerformanceBenchmarkPage : Page
 			Title = "浏览器性能测试",
 			Content = stackPanel,
 			CloseButtonText = "取消",
-			XamlRoot = _window.Content.XamlRoot,
+			XamlRoot = XamlRoot,
 			RequestedTheme = ThemeService.CurrentElementTheme
 		};
 		await webView.EnsureCoreWebView2Async();
@@ -956,7 +955,7 @@ public sealed class PerformanceBenchmarkPage : Page
 		};
 		dialog.ShowAsync().AsTask().ContinueWith(_ =>
 		{
-			_window.DispatcherQueue.TryEnqueue(() =>
+			DispatcherQueue.TryEnqueue(() =>
 			{
 				if (!tcs.Task.IsCompleted) tcs.TrySetCanceled();
 			});
@@ -969,7 +968,7 @@ public sealed class PerformanceBenchmarkPage : Page
 			{
 				BrowserBenchmarkResult br = await tcs.Task;
 				result.Browser = br;
-				_window.DispatcherQueue.TryEnqueue(() =>
+				DispatcherQueue.TryEnqueue(() =>
 				{
 					UpdateDetailRow(_brJsScoreText, _brJsDetailText, br.JsScore, br.JsDetail);
 					UpdateDetailRow(_brDomScoreText, _brDomDetailText, br.DomScore, br.DomDetail);
@@ -1121,7 +1120,7 @@ public sealed class PerformanceBenchmarkPage : Page
 			Window obj = new() { Title = "性能测试报告" };
 			AppWindow appWindow = obj.AppWindow;
 			appWindow.Resize(new SizeInt32(900, 900));
-			appWindow.Move(new PointInt32(_window.AppWindow.Position.X + 100, _window.AppWindow.Position.Y + 50));
+			appWindow.Move(new PointInt32(100, 50));
 			WebView2 pdfWv = new();
 			Button button = new()
 			{
@@ -1209,7 +1208,7 @@ public sealed class PerformanceBenchmarkPage : Page
 				Title = "历史对比",
 				Content = new TextBlock { Text = "暂无历史测试记录", Margin = new Thickness(16.0) },
 				CloseButtonText = "关闭",
-				XamlRoot = _window.Content.XamlRoot,
+				XamlRoot = XamlRoot,
 				RequestedTheme = ThemeService.CurrentElementTheme
 			}.ShowAsync();
 			return;
@@ -1218,7 +1217,7 @@ public sealed class PerformanceBenchmarkPage : Page
 		{
 			Title = "历史对比",
 			CloseButtonText = "关闭",
-			XamlRoot = _window.Content.XamlRoot,
+			XamlRoot = XamlRoot,
 			RequestedTheme = ThemeService.CurrentElementTheme
 		};
 		StackPanel stackPanel = new()
@@ -1320,7 +1319,7 @@ public sealed class PerformanceBenchmarkPage : Page
 				Title = "无测试报告",
 				Content = "请先运行一次性能测试，再上传报告。",
 				CloseButtonText = "确定",
-				XamlRoot = _window.Content.XamlRoot,
+				XamlRoot = XamlRoot,
 				RequestedTheme = ThemeService.CurrentElementTheme
 			}.ShowAsync();
 			return;
@@ -1329,7 +1328,7 @@ public sealed class PerformanceBenchmarkPage : Page
 		{
 			try
 			{
-				await GitHubAuthService.EnsureAuthenticatedAsync(_window.Content.XamlRoot, CancellationToken.None);
+				await GitHubAuthService.EnsureAuthenticatedAsync(XamlRoot, CancellationToken.None);
 			}
 			catch
 			{
@@ -1338,7 +1337,7 @@ public sealed class PerformanceBenchmarkPage : Page
 					Title = "需要登录",
 					Content = "上传报告需要 GitHub 账号，请先在设置中登录。",
 					CloseButtonText = "确定",
-					XamlRoot = _window.Content.XamlRoot,
+					XamlRoot = XamlRoot,
 					RequestedTheme = ThemeService.CurrentElementTheme
 				}.ShowAsync();
 				return;
@@ -1350,7 +1349,7 @@ public sealed class PerformanceBenchmarkPage : Page
 			Content = $"将上传当前测试报告：\n\nCPU: {_result.CpuName}\nGPU: {_result.GpuName}\n游戏: {_result.GamingScore} ({_result.GamingGrade})\n办公: {_result.OfficeScore} ({_result.OfficeGrade})\n\n报告将通过 PR 提交到社区仓库，合并后出现在排行榜。",
 			PrimaryButtonText = "上传",
 			CloseButtonText = "取消",
-			XamlRoot = _window.Content.XamlRoot,
+			XamlRoot = XamlRoot,
 			RequestedTheme = ThemeService.CurrentElementTheme
 		}.ShowAsync() != ContentDialogResult.Primary)
 		{
@@ -1360,7 +1359,7 @@ public sealed class PerformanceBenchmarkPage : Page
 		{
 			Title = "正在上传",
 			Content = new ProgressBar { IsIndeterminate = true },
-			XamlRoot = _window.Content.XamlRoot,
+			XamlRoot = XamlRoot,
 			RequestedTheme = ThemeService.CurrentElementTheme
 		};
 		progressDlg.ShowAsync();
@@ -1368,7 +1367,7 @@ public sealed class PerformanceBenchmarkPage : Page
 		{
 			var progress = new Progress<string>(msg =>
 			{
-				_window.DispatcherQueue.TryEnqueue(() =>
+				DispatcherQueue.TryEnqueue(() =>
 				{
 					progressDlg.Content = new StackPanel
 					{
@@ -1389,7 +1388,7 @@ public sealed class PerformanceBenchmarkPage : Page
 				Content = "报告已通过 PR 提交，合并后将出现在排行榜。\n\nPR 链接：" + prUrl,
 				PrimaryButtonText = "打开 PR",
 				CloseButtonText = "关闭",
-				XamlRoot = _window.Content.XamlRoot,
+				XamlRoot = XamlRoot,
 				RequestedTheme = ThemeService.CurrentElementTheme
 			}.ShowAsync() == ContentDialogResult.Primary)
 			{
@@ -1404,7 +1403,7 @@ public sealed class PerformanceBenchmarkPage : Page
 				Title = "上传失败",
 				Content = ex.Message,
 				CloseButtonText = "确定",
-				XamlRoot = _window.Content.XamlRoot,
+				XamlRoot = XamlRoot,
 				RequestedTheme = ThemeService.CurrentElementTheme
 			}.ShowAsync();
 		}
@@ -1413,7 +1412,7 @@ public sealed class PerformanceBenchmarkPage : Page
 	private void OnRankingClick(object sender, RoutedEventArgs e)
 	{
 		var tool = new BenchmarkCloudTool();
-		var context = new BuiltinToolContext { XamlRoot = _window.Content.XamlRoot };
+		var context = new BuiltinToolContext { XamlRoot = XamlRoot };
 		tool.ExecuteAsync(context);
 	}
 }

@@ -225,6 +225,9 @@ public partial class App : Application
 
     private void OnWinUIUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
     {
+        System.IO.File.WriteAllText(
+            System.IO.Path.Combine(System.IO.Path.GetTempPath(), "app_crash.log"),
+            $"WinUI Unhandled Exception:\n{e.Exception}\n\nMessage: {e.Message}");
         _pendingException = e.Exception ?? new Exception(e.Message);
         NavigateToErrorPage();
         e.Handled = true;

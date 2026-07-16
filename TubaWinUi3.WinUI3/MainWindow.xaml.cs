@@ -750,14 +750,13 @@ public sealed partial class MainWindow : Window
 
     private async Task ExecuteBenchmarkToolAsync()
     {
-        var tool = BuiltinToolRegistry.GetById("performance-benchmark");
-        if (tool is null) return;
-        var context = new BuiltinToolContext
-        {
-            XamlRoot = Content.XamlRoot,
-            CancellationToken = CancellationToken.None
-        };
-        try { await tool.ExecuteAsync(context); } catch { }
+        NavigateToBenchmark();
+    }
+
+    public void NavigateToBenchmark()
+    {
+        var frame = _isTabMode ? TabNavFrame : NavFrame;
+        frame.Navigate(typeof(PerformanceBenchmarkPage));
     }
 
     private void PopulateSearchSuggestions()

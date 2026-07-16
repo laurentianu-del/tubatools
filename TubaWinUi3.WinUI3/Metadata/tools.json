@@ -437,6 +437,7 @@
       "publisher": "REALiX",
       "tags": [ "综合检测", "传感器" ],
       "downloadUrl": "gc:Tools/综合检测/hwinfo",
+      "launchTarget": "HWiNFO64.exe",
       "archVariants": [
         { "file": "HWiNFO32.exe", "arch": "x86" },
         { "file": "HWiNFO64.exe", "arch": "x64" },
