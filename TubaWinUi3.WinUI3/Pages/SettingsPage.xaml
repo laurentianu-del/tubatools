@@ -290,6 +290,87 @@
                                     </Grid>
                                 </Border>
 
+                                <Border x:Name="SettingsProxyCard" Style="{StaticResource SettingsCardStyle}">
+                                    <Grid RowSpacing="12">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <Grid ColumnSpacing="16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource IconBorderStyle}">
+                                                <FontIcon FontSize="18" Glyph="&#xE774;" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                                <TextBlock FontWeight="SemiBold" Text="代理设置" />
+                                                <TextBlock x:Name="ProxyStatusText" Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="配置 HTTP/HTTPS 代理，所有网络请求将使用代理" />
+                                            </StackPanel>
+                                            <ToggleSwitch x:Name="ProxyToggle" Grid.Column="2" VerticalAlignment="Center" Toggled="ProxyToggle_Toggled" />
+                                        </Grid>
+                                        <Border Grid.Row="1" Padding="0,1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" x:Name="ProxyDivider" Visibility="Collapsed" />
+                                        <Grid Grid.Row="2" ColumnSpacing="16" x:Name="ProxyAddressPanel" Visibility="Collapsed">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource IconBorderStyle}">
+                                                <FontIcon FontSize="18" Glyph="&#xE71B;" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                                <TextBlock FontWeight="SemiBold" Text="代理地址" />
+                                                <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="格式：http://host:port 或 socks5://host:port" />
+                                            </StackPanel>
+                                            <TextBox x:Name="ProxyAddressTextBox" Grid.Column="2" MinWidth="280" MaxWidth="360" PlaceholderText="http://127.0.0.1:7890" TextChanged="ProxyAddressTextBox_TextChanged" />
+                                        </Grid>
+                                        <Grid Grid.Row="3" ColumnSpacing="16" x:Name="ProxyAuthPanel" Visibility="Collapsed">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource IconBorderStyle}">
+                                                <FontIcon FontSize="18" Glyph="&#xE72E;" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                                <TextBlock FontWeight="SemiBold" Text="代理认证（可选）" />
+                                                <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="如需认证，输入用户名和密码" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                                                <TextBox x:Name="ProxyUsernameTextBox" Width="100" PlaceholderText="用户名" TextChanged="ProxyUsernameTextBox_TextChanged" />
+                                                <PasswordBox x:Name="ProxyPasswordBox" Width="140" PlaceholderText="密码" PasswordChanged="ProxyPasswordBox_PasswordChanged" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <Grid Grid.Row="4" ColumnSpacing="16" x:Name="ProxyTestPanel" Visibility="Collapsed">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource IconBorderStyle}">
+                                                <FontIcon FontSize="18" Glyph="&#xE73E;" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                                <TextBlock FontWeight="SemiBold" Text="测试代理连接" />
+                                                <TextBlock x:Name="ProxyTestStatusText" Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="验证代理是否可用" />
+                                            </StackPanel>
+                                            <Button x:Name="ProxyTestButton" Grid.Column="2" Padding="14,6" Click="ProxyTestButton_Click">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <FontIcon x:Name="ProxyTestIcon" FontSize="12" Glyph="&#xE73E;" />
+                                                    <TextBlock x:Name="ProxyTestButtonText" Text="测试连接" />
+                                                </StackPanel>
+                                            </Button>
+                                        </Grid>
+                                    </Grid>
+                                </Border>
+
                             </StackPanel>
                             </ScrollViewer>
                         </Expander.Content>
@@ -545,12 +626,7 @@
                                                 <TextBlock FontWeight="SemiBold" Text="界面字体" />
                                                 <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="自定义应用界面显示的字体（重启后生效）" />
                                             </StackPanel>
-                                            <Button x:Name="ResetFontButton" Grid.Column="2" VerticalAlignment="Center" Padding="10,6" Click="ResetFontButton_Click">
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <FontIcon FontSize="12" Glyph="&#xE72C;" />
-                                                    <TextBlock Text="恢复默认" />
-                                                </StackPanel>
-                                            </Button>
+                                            <ComboBox x:Name="FontComboBox" Grid.Column="2" MinWidth="160" SelectionChanged="FontComboBox_SelectionChanged" />
                                         </Grid>
                                         <Border Grid.Row="1" Padding="0,1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
                                         <Grid Grid.Row="2" ColumnSpacing="16">
@@ -560,28 +636,18 @@
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource IconBorderStyle}">
-                                                <FontIcon FontSize="18" Glyph="&#xE8D2;" />
+                                                <FontIcon FontSize="18" Glyph="&#xE72C;" />
                                             </Border>
                                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                                <TextBlock FontWeight="SemiBold" Text="中文字体" />
-                                                <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="用于显示中文文本" />
+                                                <TextBlock FontWeight="SemiBold" Text="恢复默认字体" />
+                                                <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="将字体重置为 MiSans Semibold" />
                                             </StackPanel>
-                                            <ComboBox x:Name="ChineseFontComboBox" Grid.Column="2" MinWidth="160" SelectionChanged="ChineseFontComboBox_SelectionChanged" />
-                                        </Grid>
-                                        <Grid Grid.Row="3" ColumnSpacing="16">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <Border Style="{StaticResource IconBorderStyle}">
-                                                <FontIcon FontSize="18" Glyph="&#xE8D2;" />
-                                            </Border>
-                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                                <TextBlock FontWeight="SemiBold" Text="西文字体" />
-                                                <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="用于显示英文、数字等西文字符" />
-                                            </StackPanel>
-                                            <ComboBox x:Name="WesternFontComboBox" Grid.Column="2" MinWidth="160" SelectionChanged="WesternFontComboBox_SelectionChanged" />
+                                            <Button x:Name="ResetFontButton" Grid.Column="2" VerticalAlignment="Center" Padding="10,6" Click="ResetFontButton_Click">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <FontIcon FontSize="12" Glyph="&#xE72C;" />
+                                                    <TextBlock Text="恢复默认" />
+                                                </StackPanel>
+                                            </Button>
                                         </Grid>
                                     </Grid>
                                 </Border>

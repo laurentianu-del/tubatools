@@ -28,21 +28,71 @@
 
 ---
 
-### 交流用 QQ 群：485079194
+## 目录
 
-## 为什么选择 TubaWinUi3？
+- [交流群聊](#交流群聊)
+- [系统兼容性](#系统兼容性)
+- [许可证](#许可证)
+- [安装方式](#安装方式)
+- [功能亮点](#功能亮点)
+- [内置工具](#内置工具)
+- [收录工具](#收录工具)
+- [从源码构建](#从源码构建)
+- [贡献者](#贡献者)
 
-> 图吧工具箱的经典工具收录 + 全新的现代体验
+---
 
-| 对比项 | 图吧工具箱原版 |   TubaWinUi3   |
-|:------:|:-------:|:--------------:|
-| UI 框架 |   易语言   | WinUI 3 原生现代界面 |
-| 界面动画 |   基本无   |  流畅过渡动画与交互反馈   |
-| ARM 平台 |   不支持   |   原生支持 ARM64   |
-| 自动更新 |  手动下载   |  启动时自动检查，一键更新  |
-| 开源 | 闭源 | 界面开源 (GPL-3.0 + [附加条款](LICENSE-ADDITIONAL)) |
-| 工具更新 | 跟随大版本发布 |  持续更新，工具版本更及时  |
-| 主题 |  单一主题   | 亮色 / 暗色 / 跟随系统 |
+## 交流群聊
+
+欢迎加入 QQ 群交流讨论：**485079194**
+
+---
+
+## 系统兼容性
+
+| 平台 | 支持状态 |
+|:----:|:--------:|
+| x64 (Intel/AMD 64位) | ✅ 完全支持 |
+| x86 (Intel/AMD 32位) | ✅ 完全支持 |
+| ARM64 (高通骁龙等) | ✅ 原生支持 |
+
+| Windows 版本 | 支持状态 |
+|:------------:|:--------:|
+| Windows 11 | ✅ 完全支持 |
+| Windows 10 21H2+ | ✅ 完全支持 |
+| Windows 10 1809+ | ✅ 最低支持 |
+
+---
+
+## 许可证
+
+本项目采用 **GPL-3.0 + 附加条款** 开源协议。
+
+- 源代码可自由使用、修改和分发
+- 衍生作品必须以相同协议开源
+- 详见 [LICENSE](LICENSE) 和 [LICENSE-ADDITIONAL](LICENSE-ADDITIONAL)
+
+---
+
+## 安装方式
+
+### GitHub Releases（推荐）
+
+前往 [Releases](https://github.com/luolangaga/tubatool/releases) 下载最新版本。
+
+提供两种形式：
+- **便携版 (ZIP)** -- 解压即用，无需安装
+- **安装版 (Inno Setup)** -- 传统安装程序
+
+### GitCode Releases（国内镜像）
+
+国内用户可从 [GitCode 镜像](https://gitcode.com/luolangaga/tubatool/releases) 下载，速度更快。
+
+### Winget（Windows 包管理器）
+
+```powershell
+winget install luolangaga.tubatools
+```
 
 ---
 
@@ -168,117 +218,6 @@ WMI 读取 CPU、内存、显卡、硬盘、显示器等
 
 </details>
 
-### 社区贡献
-
-欢迎贡献新的内置工具！提交 PR 即可。内置工具采用统一的 Fluent Design 界面风格，确保与整体应用一致的用户体验。
-
-<details>
-<summary>VibeCoding 定制内置工具指南</summary>
-
-> 让 AI帮你写一个专属工具 —— 只需描述需求，代码自动生成
-
-#### 什么是 VibeCoding？
-
-VibeCoding 是一种「描述需求 → AI 生成代码」的开发方式。你只需告诉 AI 想要什么功能，它会自动生成符合项目规范的内置工具代码。
-
-#### 快速上手
-
-**前提条件：**
-- 安装 [Claude Code CLI](https://claude.ai/code) 或类似 AI 编程工具
-- 克隆本仓库并确保 `dotnet build` 可通过
-
-**步骤：**
-
-1. **描述你的工具需求**
-
-   向 AI 发送类似这样的指令：
-
-   ```
-   我想为 TubaWinUi3 添加一个内置工具，功能是：
-   - 显示当前系统所有环境变量
-   - 可以搜索/筛选环境变量
-   - 支持一键复制变量值
-   - 弹窗式界面，Fluent Design 风格
-   
-   请按照项目的 IBuiltinTool 接口规范生成代码。
-   ```
-
-2. **AI 会自动生成**
-
-   - 在 `Services/BuiltinTools/` 创建新类文件
-   - 实现 `IBuiltinTool` 接口
-   - 自动适配主题（调用 `context.CreateDialog()`）
-   - 在 `BuiltinToolRegistry.RegisterDefaults()` 注册
-
-3. **验证并提交**
-
-   ```bash
-   dotnet build && dotnet run
-   ```
-
-   测试通过后提交 PR。
-
-#### 工具类型选择指南
-
-| 类型 | 适用场景 | AI 提示词示例 |
-|------|----------|---------------|
-| `Dialog` | 弹窗交互 UI | "需要一个带搜索框和列表的弹窗界面" |
-| `ProgressTask` | 带进度的长时间任务 | "需要扫描文件并显示进度条" |
-| `BackgroundTask` | 后台静默执行 | "需要静默执行并返回结果" |
-| `InstantAction` | 即时操作无 UI | "直接打开某个系统设置页面" |
-
-#### 示例：让 AI 生成「环境变量查看器」
-
-**给 AI 的完整指令：**
-
-```
-为 TubaWinUi3（WinUI 3 项目）创建内置工具：
-
-工具名称：环境变量查看器
-功能描述：
-1. 获取所有系统环境变量并显示在列表中
-2. 搜索框实时筛选变量名
-3. 点击变量可复制值到剪贴板
-4. Fluent Design 风格，支持亮色/暗色主题
-
-技术要求：
-- 实现 IBuiltinTool 接口（Id/Name/Description/Glyph/Category/Kind/ExecuteAsync）
-- Kind 使用 BuiltinToolKind.Dialog
-- Glyph 使用 "\uE88E"（设置图标）
-- Category 为 "系统工具"
-- 使用 context.CreateDialog(title) 创建主题适配的 ContentDialog
-- 使用 ListView + TextBox 构建 UI
-
-输出：
-1. Services/BuiltinTools/EnvironmentVariableTool.cs
-2. 在 BuiltinToolRegistry.RegisterDefaults() 添加注册代码
-```
-
-#### 进阶技巧
-
-- **复杂 UI**：让 AI 参考 `KeyboardTestTool.cs` 或 `HostsEditorTool.cs` 的实现
-- **异步任务**：使用 `ProgressTask` + `context.OnProgress` 回调
-- **系统调用**：AI 知道如何安全使用 P/Invoke、WMI、Registry 等
-- **错误处理**：AI 会自动添加 try-catch 和用户友好的错误提示
-
-#### 常见问题
-
-**Q：生成的代码风格不一致？**
-A：AI 会自动阅读项目现有代码并模仿风格。你也可以在指令中强调「参考现有工具代码风格」。
-
-**Q：需要修改现有文件（如注册表）？**
-A：AI 会自动读取 `BuiltinToolRegistry.cs` 并生成正确的注册代码片段。
-
-**Q：测试失败怎么办？**
-A：让 AI 读取错误信息并修复：「dotnet build 报错 XXX，请修复」。
-
-#### 示例 PR
-
-- [添加键盘测试工具](https://github.com/luolangaga/tubatool/pull/xxx)
-- [添加网速测试工具](https://github.com/luolangaga/tubatool/pull/xxx)
-
-</details>
-
 ---
 
 ## 收录工具
@@ -301,19 +240,7 @@ A：让 AI 读取错误信息并修复：「dotnet build 报错 XXX，请修复�
 
 ---
 
-## 快速开始
-
-### 下载安装
-
-前往 [Releases](https://github.com/luolangaga/tubatool/releases) 下载最新版本，支持以下平台：
-
-- **x64** -- 64 位 Intel / AMD
-- **x86** -- 32 位 Intel / AMD
-- **ARM64** -- 高通骁龙 等 ARM 设备
-
-提供便携版 (ZIP) 和安装版 (Inno Setup) 两种形式。
-
-### 从源码构建
+## 从源码构建
 
 ```bash
 git clone https://github.com/luolangaga/tubatool.git
@@ -332,25 +259,11 @@ dotnet run          # 运行（Unpackaged 模式）
 
 </details>
 
-### 技术栈
-
-![Tech Stack](https://skillicons.dev/icons?i=dotnet,cs,windows,visualstudio,git&theme=dark)
-
-| 技术 | 用途 |
-|:----:|:----:|
-| .NET 10 + WinUI 3 | UI 框架（Windows App SDK 1.8） |
-| System.Management | WMI 硬件信息查询 |
-| System.Drawing.Common | 图标提取 |
-
 ---
 
-## 致谢
+## 贡献者
 
-- [Windows App SDK (WinUI 3)](https://github.com/microsoft/WindowsAppSDK)
-- [Win2D](https://github.com/microsoft/Win2D)
-- 所有收录工具的开发者
-
-### 贡献者
+感谢所有为本项目做出贡献的开发者！
 
 <a href="https://github.com/luolangaga/tubatool/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=luolangaga/tubatool&max=30&columns=10" alt="Contributors" />

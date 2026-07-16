@@ -21,8 +21,6 @@ public sealed partial class PcSetupPage : Page
     private List<PcSetupAction> _optimizeActions = [];
     private int _burnDurationMinutes = 10;
     private CancellationTokenSource? _burnCts;
-    private CancellationTokenSource? _executeCts;
-    private bool _executing;
 
     private static readonly Color ColorTemp = Color.FromArgb(255, 248, 113, 113);
     private static readonly Color ColorPower = Color.FromArgb(255, 251, 191, 36);
@@ -47,7 +45,7 @@ public sealed partial class PcSetupPage : Page
         BuildVisualPresets();
         BuildOptimizeItems();
         BuildBurnStatCards();
-        await CheckInstalledStatus();
+        _ = CheckInstalledStatusAsync();
     }
 
     #region Step Navigation
@@ -303,24 +301,20 @@ public sealed partial class PcSetupPage : Page
         return list;
     }
 
-    private async Task CheckInstalledStatus()
+    private async Task CheckInstalledStatusAsync()
     {
         var allPkgs = GetAllPackages();
         if (allPkgs.Count == 0) return;
 
-        LoadingOverlay.Visibility = Visibility.Visible;
-        LoadingProgress.Value = 0;
-        LoadingProgress.Maximum = allPkgs.Count;
-        LoadingTitle.Text = "正在检测已安装软件...";
-        LoadingDetail.Text = $"0 / {allPkgs.Count}";
-        LoadingRing.IsActive = true;
+        UpdateDetectionUI("正在检测已安装软件...", 0, true);
+
+        var total = allPkgs.Count;
 
         var progress = new Progress<(int Done, int Total, string Name)>(p =>
         {
             DispatcherQueue.TryEnqueue(() =>
             {
-                LoadingProgress.Value = p.Done;
-                LoadingDetail.Text = $"{p.Done} / {p.Total}  {p.Name}";
+                UpdateDetectionUI($"正在检测: {p.Name}", p.Done, true, p.Total);
             });
         });
 
@@ -329,11 +323,23 @@ public sealed partial class PcSetupPage : Page
             await PcSetupCatalogService.CheckInstalledStatusAsync(_categories, progress);
             BuildPackageList();
             RefreshStats();
+            UpdateDetectionUI($"检测完成: {allPkgs.Count(p => p.State == WingetInstallState.Installed)} 个已安装", total, false);
         }
-        finally
+        catch (Exception ex)
         {
-            LoadingOverlay.Visibility = Visibility.Collapsed;
-            LoadingRing.IsActive = false;
+            UpdateDetectionUI($"检测失败: {ex.Message}", 0, false);
+        }
+    }
+
+    private void UpdateDetectionUI(string text, int done, bool running, int total = 0)
+    {
+        DetectionText.Text = text;
+        DetectionRing.IsActive = running;
+        DetectionProgress.Visibility = running ? Visibility.Visible : Visibility.Collapsed;
+        if (total > 0)
+        {
+            DetectionProgress.Value = done;
+            DetectionProgress.Maximum = total;
         }
     }
 
@@ -824,20 +830,8 @@ public sealed partial class PcSetupPage : Page
 
     private async void Execute_Click(object sender, RoutedEventArgs e)
     {
-        if (_executing) return;
-        _executing = true;
-        ExecuteBtn.IsEnabled = false;
-        ExportBtn.IsEnabled = false;
-        ExecuteProgressPanel.Visibility = Visibility.Visible;
-        ExecuteLogBorder.Visibility = Visibility.Visible;
-        ExecuteLogText.Text = "";
-        _executeCts = new CancellationTokenSource();
-
         var actions = GetAllSelectedActions();
-        var total = actions.Count;
-        var completed = 0;
-        var succeeded = 0;
-        var failed = 0;
+        if (actions.Count == 0) return;
 
         var needsAdmin = actions.Any(a => a.RequiresAdmin);
         var isAdmin = IsRunningAsAdmin();
@@ -847,93 +841,78 @@ public sealed partial class PcSetupPage : Page
             var adminDialog = new ContentDialog
             {
                 Title = "需要管理员权限",
-                Content = "部分操作需要管理员权限，但当前未以管理员身份运行。\n\n" +
-                          "建议：\n" +
-                          "1. 关闭本工具，右键以管理员身份重新运行\n" +
-                          "2. 或继续执行，需要管理员权限的操作会弹出 UAC 确认框（逐一确认）\n\n" +
-                          "继续执行？（需要管理员权限的操作将逐一请求 UAC 提权）",
+                Content = "部分操作需要管理员权限。\n\n" +
+                          "脚本执行器将以管理员模式运行，需要 UAC 确认。",
                 PrimaryButtonText = "继续执行",
                 CloseButtonText = "取消",
                 XamlRoot = XamlRoot,
                 RequestedTheme = ThemeService.CurrentElementTheme
             };
             var r = await adminDialog.ShowAsync();
-            if (r != ContentDialogResult.Primary)
-            {
-                _executing = false;
-                ExecuteBtn.IsEnabled = true;
-                ExportBtn.IsEnabled = true;
-                ExecuteProgressPanel.Visibility = Visibility.Collapsed;
-                return;
-            }
-        }
-        else if (needsAdmin && isAdmin)
-        {
-            var adminDialog = new ContentDialog
-            {
-                Title = "管理员模式",
-                Content = "当前已以管理员身份运行，所有操作将直接执行，无需额外确认。",
-                CloseButtonText = "开始执行",
-                XamlRoot = XamlRoot,
-                RequestedTheme = ThemeService.CurrentElementTheme
-            };
-            await adminDialog.ShowAsync();
+            if (r != ContentDialogResult.Primary) return;
         }
 
-        var progress = new Progress<string>(msg =>
+        var customScript = "";
+        var customDialog = new ContentDialog
         {
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                ExecuteLogText.Text += msg + "\n";
-                ExecuteProgressBar.Value = (double)completed / total * 100;
-                ExecuteProgressText.Text = $"{completed}/{total} 已完成 | 成功: {succeeded} 失败: {failed}";
-            });
+            Title = "自定义脚本（可选）",
+            PrimaryButtonText = "生成并执行",
+            CloseButtonText = "取消",
+            XamlRoot = XamlRoot,
+            RequestedTheme = ThemeService.CurrentElementTheme
+        };
+
+        var dialogStack = new StackPanel { Spacing = 8 };
+        dialogStack.Children.Add(new TextBlock
+        {
+            Text = "可在生成的脚本中插入自定义 PowerShell 代码，留空则不插入。",
+            FontSize = 13,
+            Foreground = new SolidColorBrush(ThemeColors.DimText),
+            TextWrapping = TextWrapping.Wrap
         });
 
-        foreach (var action in actions)
+        var positionCombo = new ComboBox
         {
-            if (_executeCts.Token.IsCancellationRequested) break;
-            ((progress as IProgress<string>)!).Report($"[{completed + 1}/{total}] {action.Name}...");
-            var result = await action.ExecuteAsync(progress, _executeCts.Token);
-            completed++;
-            if (result.Success) succeeded++; else failed++;
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            SelectedIndex = 0
+        };
+        positionCombo.Items.Add(new ComboBoxItem { Content = "在软件安装之前执行", Tag = "before-install" });
+        positionCombo.Items.Add(new ComboBoxItem { Content = "在软件安装与系统优化之间执行", Tag = "between" });
+        positionCombo.Items.Add(new ComboBoxItem { Content = "在全部操作完成后执行", Tag = "after-all" });
+        dialogStack.Children.Add(new TextBlock
+        {
+            Text = "插入位置：",
+            FontSize = 13,
+            Foreground = new SolidColorBrush(ThemeColors.PrimaryText)
+        });
+        dialogStack.Children.Add(positionCombo);
 
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                var row = ExecuteActionList.Children.OfType<Border>()
-                    .FirstOrDefault(b => (string?)b.Tag == action.Id);
-                if (row?.Child is Grid grid)
-                {
-                    var statusBlock = grid.Children.OfType<TextBlock>()
-                        .FirstOrDefault(t => (string?)t.Tag == $"exec-status-{action.Id}");
-                    if (statusBlock is not null)
-                    {
-                        statusBlock.Text = action.State switch
-                        {
-                            PcSetupActionState.Succeeded => "✓ 成功",
-                            PcSetupActionState.Failed => "✗ 失败",
-                            PcSetupActionState.Skipped => "- 跳过",
-                            _ => action.StatusText ?? ""
-                        };
-                        statusBlock.Foreground = action.State == PcSetupActionState.Succeeded
-                            ? new SolidColorBrush(ThemeColors.AccentGreen)
-                            : action.State == PcSetupActionState.Failed
-                                ? new SolidColorBrush(ThemeColors.AccentRed)
-                                : new SolidColorBrush(ThemeColors.DimText);
-                    }
-                }
-                ExecuteProgressBar.Value = (double)completed / total * 100;
-                ExecuteProgressText.Text = $"{completed}/{total} 已完成 | 成功: {succeeded} 失败: {failed}";
-            });
-        }
+        var scriptBox = new TextBox
+        {
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            MinHeight = 120,
+            MaxHeight = 200,
+            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+            FontSize = 13,
+            PlaceholderText = "# 输入自定义 PowerShell 脚本（可选）"
+        };
+        dialogStack.Children.Add(scriptBox);
 
-        ((progress as IProgress<string>)!).Report($"\n========== 执行完毕 ==========");
-        ((progress as IProgress<string>)!).Report($"成功: {succeeded} | 失败: {failed} | 跳过: {total - completed}");
+        customDialog.Content = dialogStack;
 
-        _executing = false;
-        ExecuteBtn.IsEnabled = true;
-        ExportBtn.IsEnabled = true;
-        ExecuteBtn.Content = "重新执行";
+        var dlgResult = await customDialog.ShowAsync();
+        if (dlgResult != ContentDialogResult.Primary) return;
+
+        customScript = scriptBox.Text.Trim();
+        var position = (positionCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "before-install";
+
+        var script = PcSetupCatalogService.GeneratePowerShellScript(actions, customScript, position);
+        var tempPath = Path.Combine(Path.GetTempPath(), $"TubaWinUi3_PcSetup_{DateTime.Now:yyyyMMdd_HHmmss}.ps1");
+        await File.WriteAllTextAsync(tempPath, script, System.Text.Encoding.UTF8);
+
+        var command = $"powershell -NoProfile -ExecutionPolicy Bypass -File \"{tempPath}\"";
+        ScriptRunnerWindow.ShowAndRun(command, null, "新机开荒 - 执行脚本", needsAdmin);
     }
 
     private async void Export_Click(object sender, RoutedEventArgs e)

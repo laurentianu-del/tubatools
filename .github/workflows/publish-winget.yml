@@ -1,0 +1,164 @@
+name: Publish to WinGet
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g. 1.0.3)'
+        required: true
+        type: string
+      release_tag:
+        description: 'Release tag (e.g. v1.0.3)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - name: Get release info
+        id: release-info
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $VERSION = '${{ inputs.version }}'
+          $TAG = '${{ inputs.release_tag }}'
+          
+          Write-Host "Version: $VERSION"
+          Write-Host "Tag: $TAG"
+          
+          echo "version=$VERSION" >> $env:GITHUB_OUTPUT
+          echo "tag=$TAG" >> $env:GITHUB_OUTPUT
+
+      - name: Download x64 installer
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $TAG = '${{ steps.release-info.outputs.tag }}'
+          $VERSION = '${{ steps.release-info.outputs.version }}'
+          
+          gh release download $TAG --repo ${{ github.repository }} `
+            --pattern "TubaWinUi3_Setup_${VERSION}_x64.exe" `
+            --dir .
+          
+          if (-not (Test-Path "TubaWinUi3_Setup_${VERSION}_x64.exe")) {
+            Write-Error "Failed to download x64 installer"
+            exit 1
+          }
+          
+          $InstallerHash = (Get-FileHash -Path "TubaWinUi3_Setup_${VERSION}_x64.exe" -Algorithm SHA256).Hash.ToLower()
+          Write-Host "Installer SHA256: $InstallerHash"
+          echo "installer_hash=$InstallerHash" >> $env:GITHUB_OUTPUT
+
+      - name: Create winget manifest directory
+        run: |
+          New-Item -ItemType Directory -Path winget_manifest -Force | Out-Null
+
+      - name: Generate winget manifest files
+        run: |
+          $VERSION = '${{ steps.release-info.outputs.version }}'
+          $INSTALLER_HASH = '${{ steps.download-installer.outputs.installer_hash }}'
+          
+          @'
+PackageIdentifier: luolangaga.tubatools
+PackageVersion: {VERSION}
+PackageName: 图吧工具箱WinUI3
+PackageLocale: zh-CN
+Publisher: 罗澜嘎嘎
+PublisherUrl: https://github.com/luolangaga/tubatool
+PublisherSupportUrl: https://github.com/luolangaga/tubatool/issues
+Author: 罗澜嘎嘎
+PackageName: 图吧工具箱WinUI3
+PackageUrl: https://github.com/luolangaga/tubatool
+License: MIT
+LicenseUrl: https://github.com/luolangaga/tubatool/blob/master/LICENSE
+Copyright: Copyright (C) 2025 罗澜嘎嘎
+ShortDescription: PC hardware toolbox for diagnostics and stress testing
+Description: 图吧工具箱WinUI3是一款基于WinUI 3开发的PC硬件工具箱，提供硬件信息查看、实时监控、系统优化、内置工具等丰富功能。
+Tags:
+  - hardware
+  - diagnostic
+  - stress-test
+  - system-info
+  - benchmark
+  - chinese
+Moniker: tubawinui3
+ReleaseNotes: https://github.com/luolangaga/tubatool/releases/tag/v{VERSION}
+ReleaseNotesUrl: https://github.com/luolangaga/tubatool/releases/tag/v{VERSION}
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0
+'@ -replace '\{VERSION\}', $VERSION | Set-Content -Path 'winget_manifest\luolangaga.tubatools.locale.zh-CN.yaml' -Encoding UTF8
+
+          @'
+PackageIdentifier: luolangaga.tubatools
+PackageVersion: {VERSION}
+DefaultLocale: zh-CN
+ManifestType: version
+ManifestVersion: 1.6.0
+'@ -replace '\{VERSION\}', $VERSION | Set-Content -Path 'winget_manifest\luolangaga.tubatools.yaml' -Encoding UTF8
+
+          @'
+PackageIdentifier: luolangaga.tubatools
+PackageVersion: {VERSION}
+InstallerType: inno
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/luolangaga/tubatool/releases/download/v{VERSION}/TubaWinUi3_Setup_{VERSION}_x64.exe
+    InstallerSha256: {INSTALLER_HASH}
+    InstallerSwitches:
+      Silent: /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-
+      SilentWithProgress: /SILENT /SUPPRESSMSGBOXES /NORESTART /SP-
+      InstallLocation: /DIR=""<INSTALLPATH>""
+    ProductCode: '{DA3D64F4-winui3-Tuba-2025}'
+    Scope: machine
+    AppsAndFeaturesEntries:
+      - DisplayName: 图吧工具箱winui3
+        Publisher: 罗澜嘎嘎
+        DisplayVersion: {VERSION}
+        ProductCode: '{DA3D64F4-winui3-Tuba-2025}'
+ManifestType: installer
+ManifestVersion: 1.6.0
+'@ -replace '\{VERSION\}', $VERSION -replace '\{INSTALLER_HASH\}', $INSTALLER_HASH | Set-Content -Path 'winget_manifest\luolangaga.tubatools.installer.yaml' -Encoding UTF8
+        id: generate-manifests
+
+      - name: Install wingetcreate
+        run: |
+          winget install Microsoft.WingetCreate --accept-source-agreements --accept-package-agreements --disable-interactivity || true
+
+      - name: Submit to WinGet
+        env:
+          WINGET_GITHUB_TOKEN: ${{ secrets.WINGET_GITHUB_TOKEN }}
+        run: |
+          $VERSION = '${{ steps.release-info.outputs.version }}'
+          
+          if (-not $env:WINGET_GITHUB_TOKEN) {
+            Write-Host "WINGET_GITHUB_TOKEN not set, skipping winget submission"
+            Write-Host "To enable automatic winget submission:"
+            Write-Host "1. Create a GitHub Personal Access Token with 'public_repo' scope"
+            Write-Host "2. Add it as a repository secret named 'WINGET_GITHUB_TOKEN'"
+            Write-Host ""
+            Write-Host "You can manually submit by:"
+            Write-Host "1. Fork https://github.com/microsoft/winget-pkgs"
+            Write-Host "2. Copy winget_manifest/*.yaml to manifests/l/luolangaga/tubatools/$VERSION/"
+            Write-Host "3. Submit a PR to winget-pkgs"
+            exit 0
+          }
+          
+          wingetcreate update luolangaga.tubatools `
+            --version $VERSION `
+            --urls "https://github.com/luolangaga/tubatool/releases/download/v${VERSION}/TubaWinUi3_Setup_${VERSION}_x64.exe" `
+            --submit `
+            --token $env:WINGET_GITHUB_TOKEN
+
+      - name: Upload manifests
+        uses: actions/upload-artifact@v4
+        with:
+          name: winget-manifests
+          path: winget_manifest/

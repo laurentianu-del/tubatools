@@ -283,8 +283,12 @@ public sealed class LiteMonitorService : IDisposable
     {
         if (name.Contains("NVIDIA", StringComparison.OrdinalIgnoreCase)) return 0;
         if (name.Contains("AMD Radeon(TM) Graphics", StringComparison.OrdinalIgnoreCase)) return 2;
+        if (name.Contains("Radeon(TM) Graphics", StringComparison.OrdinalIgnoreCase)) return 2;
         if (name.Contains("AMD", StringComparison.OrdinalIgnoreCase)) return 0;
         if (name.Contains("Arc", StringComparison.OrdinalIgnoreCase)) return 1;
+        if (name.Contains("Intel(R) UHD", StringComparison.OrdinalIgnoreCase)) return 3;
+        if (name.Contains("Intel(R) Iris", StringComparison.OrdinalIgnoreCase)) return 3;
+        if (name.Contains("Intel", StringComparison.OrdinalIgnoreCase)) return 3;
         return 4;
     }
 

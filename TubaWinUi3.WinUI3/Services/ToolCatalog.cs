@@ -406,7 +406,7 @@ public static class ToolCatalog
     private static ToolItem CreateToolItemWithVariants(string category, string categoryRoot, string path, string toolDir)
     {
         var extension = Path.GetExtension(path);
-        var name = GetDisplayName(path);
+        var rawFileName = GetDisplayName(path);
         var relativePath = Path.GetRelativePath(categoryRoot, path);
         var metadata = ToolMetadataService.GetMetadata(category, path);
         var isPlaceholder = !File.Exists(path) && (!string.IsNullOrWhiteSpace(metadata.DownloadUrl) || !string.IsNullOrWhiteSpace(metadata.WingetId));
@@ -416,10 +416,13 @@ public static class ToolCatalog
 
         var alternates = FindAllArchVariants(toolDir, path);
 
+        var dirName = Path.GetFileName(toolDir);
+        var hasArchVariants = alternates.Count > 0 || primaryArch is not null;
+        var name = hasArchVariants ? dirName : rawFileName;
+
         var categoryRootDir = Path.Combine(ToolsRoot, category);
         if (Directory.Exists(categoryRootDir))
         {
-            var dirName = Path.GetFileName(toolDir);
             var strippedDir = StripArchSuffix(dirName);
             foreach (var otherDir in Directory.GetDirectories(categoryRootDir))
             {
@@ -490,8 +493,8 @@ public static class ToolCatalog
         }
 
         var cleanName = CleanupName(StripArchSuffix(name));
-        if (string.IsNullOrWhiteSpace(cleanName))
-            cleanName = CleanupName(name);
+        if (string.IsNullOrWhiteSpace(cleanName) || cleanName.Length < 3)
+            cleanName = CleanupName(dirName);
 
         var remoteUrl = DetectRemoteUrl(path);
 
@@ -524,14 +527,24 @@ public static class ToolCatalog
     private static ToolItem CreateToolItem(string category, string categoryRoot, string path)
     {
         var extension = Path.GetExtension(path);
-        var name = GetDisplayName(path);
+        var rawFileName = GetDisplayName(path);
         var relativePath = Path.GetRelativePath(categoryRoot, path);
         var metadata = ToolMetadataService.GetMetadata(category, path);
         var isPlaceholder = !File.Exists(path) && (!string.IsNullOrWhiteSpace(metadata.DownloadUrl) || !string.IsNullOrWhiteSpace(metadata.WingetId));
 
+        var primaryArch = DetectArch(Path.GetFileNameWithoutExtension(path));
+        var toolDir = Path.GetDirectoryName(path);
+        var dirName = toolDir is not null ? Path.GetFileName(toolDir) : rawFileName;
+        var hasArchVariants = primaryArch is not null;
+        var name = hasArchVariants ? dirName : rawFileName;
+
+        var cleanName = CleanupName(StripArchSuffix(name));
+        if (string.IsNullOrWhiteSpace(cleanName) || cleanName.Length < 3)
+            cleanName = CleanupName(dirName);
+
         var item = new ToolItem
         {
-            Name = CleanupName(StripArchSuffix(name)),
+            Name = cleanName,
             Category = category,
             Path = path,
             RelativePath = relativePath,

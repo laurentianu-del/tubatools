@@ -10,11 +10,8 @@
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
                 <ResourceDictionary Source="ms-appx:///Styles/SettingsStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
-
-            <FontFamily x:Key="HarmonySansFont">ms-appx:///Fonts/HarmonyOS_Sans_SC_Bold.otf#HarmonyOS Sans SC</FontFamily>
-            <FontFamily x:Key="JetBrainsMonoFont">ms-appx:///Fonts/JetBrainsMono.ttf#JetBrains Mono</FontFamily>
-            <FontFamily x:Key="AppFontFamily">ms-appx:///Fonts/JetBrainsMono.ttf#JetBrains Mono, ms-appx:///Fonts/HarmonyOS_Sans_SC_Bold.otf#HarmonyOS Sans SC</FontFamily>
-
+            <FontFamily x:Key="MiSansFont">ms-appx:///Fonts/MiSans-Medium.otf#MiSans</FontFamily>
+            <FontFamily x:Key="AppFontFamily">ms-appx:///Fonts/MiSans-Medium.otf#MiSans</FontFamily>
             <Style TargetType="TextBlock">
                 <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
                 <Setter Property="Opacity" Value="1.0" />
@@ -27,7 +24,6 @@
 
             <Style TargetType="NavigationViewItem">
                 <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
-                <Setter Property="FontWeight" Value="Bold" />
                 <Setter Property="Opacity" Value="1.0" />
             </Style>
         </ResourceDictionary>

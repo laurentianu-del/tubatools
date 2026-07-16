@@ -1040,7 +1040,7 @@ public static class PerformanceBenchmarkService
 			}
 			if (string.IsNullOrWhiteSpace(result.GpuName) && detail.Gpus.Count > 0)
 			{
-				result.GpuName = detail.Gpus[0].Name ?? "";
+				result.GpuName = PickBestGpuName(detail.Gpus);
 			}
 		}
 		catch { }
@@ -1135,5 +1135,33 @@ public static class PerformanceBenchmarkService
 			filename = "性能测试报告_" + result.TestTime.ToString("yyyyMMdd_HHmmss") + ".pdf",
 			appVersion = "1.0.2"
 		});
+	}
+
+	private static int GpuNamePriority(string? name)
+	{
+		if (string.IsNullOrWhiteSpace(name)) return 4;
+		if (name.Contains("NVIDIA", StringComparison.OrdinalIgnoreCase)) return 0;
+		if (name.Contains("Radeon(TM) Graphics", StringComparison.OrdinalIgnoreCase)) return 2;
+		if (name.Contains("AMD", StringComparison.OrdinalIgnoreCase)) return 0;
+		if (name.Contains("Arc", StringComparison.OrdinalIgnoreCase)) return 1;
+		if (name.Contains("Intel", StringComparison.OrdinalIgnoreCase)) return 3;
+		return 4;
+	}
+
+	private static string PickBestGpuName(List<GpuDetail> gpus)
+	{
+		if (gpus.Count == 0) return "";
+		var best = gpus[0];
+		int bestPri = GpuNamePriority(best.Name);
+		foreach (var gpu in gpus)
+		{
+			int pri = GpuNamePriority(gpu.Name);
+			if (pri < bestPri)
+			{
+				bestPri = pri;
+				best = gpu;
+			}
+		}
+		return best.Name ?? "";
 	}
 }

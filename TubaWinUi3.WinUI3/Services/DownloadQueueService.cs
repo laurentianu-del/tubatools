@@ -14,7 +14,6 @@ public static class DownloadQueueService
     private const string PartialSuffix = ".tubadl";
     private static readonly JsonSerializerOptions _jsonOpts = new() { WriteIndented = true };
 
-    private static readonly HttpClient _downloadClient;
     private static readonly SemaphoreSlim _semaphore = new(MaxConcurrentDownloads);
     private static readonly ObservableCollection<DownloadItem> _queue = [];
     private static readonly Dictionary<string, Task> _activeTasks = [];
@@ -23,10 +22,12 @@ public static class DownloadQueueService
     private static bool _dirty;
     private static readonly object _saveLock = new();
 
-    static DownloadQueueService()
+    private static HttpClient CreateHttpClient(TimeSpan? timeout = null)
     {
-        _downloadClient = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-        _downloadClient.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-DownloadQueue");
+        var client = ProxyService.CreateClient(timeout ?? TimeSpan.FromMinutes(30));
+        if (!client.DefaultRequestHeaders.Contains("User-Agent"))
+            client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-DownloadQueue");
+        return client;
     }
 
     public static void Initialize(DispatcherQueue dq)
@@ -474,11 +475,13 @@ public static class DownloadQueueService
         if (File.Exists(finalPath) && existingBytes == 0)
             File.Delete(finalPath);
 
+        using var downloadClient = CreateHttpClient();
+
         if (existingBytes > 0)
         {
             var rangeRequest = new HttpRequestMessage(HttpMethod.Get, url);
             rangeRequest.Headers.Range = new RangeHeaderValue(existingBytes, null);
-            var rangeResponse = await _downloadClient.SendAsync(rangeRequest, HttpCompletionOption.ResponseHeadersRead, ct);
+            var rangeResponse = await downloadClient.SendAsync(rangeRequest, HttpCompletionOption.ResponseHeadersRead, ct);
 
             if (rangeResponse.StatusCode == System.Net.HttpStatusCode.PartialContent)
             {
@@ -501,7 +504,7 @@ public static class DownloadQueueService
         }
 
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        var response = await _downloadClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        var response = await downloadClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
         response.EnsureSuccessStatusCode();
         var file = await WriteDownloadStreamAsync(item, response, partialPath, finalPath, 0, item.ResolvedSize, ct);
         response.Dispose();

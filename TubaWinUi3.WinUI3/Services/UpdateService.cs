@@ -16,11 +16,6 @@ public static class UpdateService
     private const string GitCodeRepo = "tubatool";
     private const string GitCodeReleaseApiBase = $"https://api.gitcode.com/api/v5/repos/{GitCodeOwner}/{GitCodeRepo}/releases";
 
-    private static readonly HttpClient _httpClient = new()
-    {
-        Timeout = TimeSpan.FromSeconds(30)
-    };
-
     private static string? _cachedEtag;
     private static string? _cachedJson;
     private static DateTime _lastCheckTime = DateTime.MinValue;
@@ -33,9 +28,12 @@ public static class UpdateService
         _ => "x64"
     };
 
-    static UpdateService()
+    private static HttpClient CreateHttpClient(TimeSpan? timeout = null)
     {
-        _httpClient.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-UpdateChecker");
+        var client = ProxyService.CreateClient(timeout ?? TimeSpan.FromSeconds(30));
+        if (!client.DefaultRequestHeaders.Contains("User-Agent"))
+            client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-UpdateChecker");
+        return client;
     }
 
     public static Version CurrentVersion
@@ -86,8 +84,7 @@ public static class UpdateService
         string? gitCodeJson = null;
         try
         {
-            using var gitCodeClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            gitCodeClient.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-UpdateChecker");
+            using var gitCodeClient = CreateHttpClient(TimeSpan.FromSeconds(15));
             var gitCodeUrl = $"{GitCodeReleaseApiBase}/latest";
             var gitCodeResponse = await gitCodeClient.GetAsync(gitCodeUrl, ct);
             if (gitCodeResponse.IsSuccessStatusCode)
@@ -100,11 +97,12 @@ public static class UpdateService
 
         try
         {
+            using var httpClient = CreateHttpClient(TimeSpan.FromSeconds(30));
             var request = new HttpRequestMessage(HttpMethod.Get, GitHubReleaseApi);
             if (_cachedEtag is not null)
                 request.Headers.Add("If-None-Match", _cachedEtag);
 
-            var response = await _httpClient.SendAsync(request, ct);
+            var response = await httpClient.SendAsync(request, ct);
 
             if (response.StatusCode == System.Net.HttpStatusCode.NotModified)
                 return _cachedJson;
@@ -124,8 +122,7 @@ public static class UpdateService
     {
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-UpdateChecker");
+            using var client = CreateHttpClient(TimeSpan.FromSeconds(15));
 
             var url = $"{GitCodeReleaseApiBase}/tags/{Uri.EscapeDataString(tagName)}";
             var response = await client.GetAsync(url, ct);
@@ -299,8 +296,7 @@ public static class UpdateService
                         {
                             try
                             {
-                                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-                                client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-UpdateChecker");
+                                using var client = CreateHttpClient(TimeSpan.FromSeconds(15));
                                 using var resp = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
                                 resp.EnsureSuccessStatusCode();
                                 var size = resp.Content.Headers.ContentLength ?? asset.Size;
@@ -379,7 +375,7 @@ public static class UpdateService
         if (File.Exists(filePath))
             File.Delete(filePath);
 
-        using var client = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
+        using var client = CreateHttpClient(TimeSpan.FromMinutes(30));
         var sw = Stopwatch.StartNew();
 
         using var response = await client.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, ct);
@@ -524,8 +520,7 @@ public static class UpdateService
                     {
                         try
                         {
-                            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-                            client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-UpdateChecker");
+                            using var client = CreateHttpClient(TimeSpan.FromSeconds(15));
                             using var resp = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
                             resp.EnsureSuccessStatusCode();
                             var size = resp.Content.Headers.ContentLength ?? asset.Size;

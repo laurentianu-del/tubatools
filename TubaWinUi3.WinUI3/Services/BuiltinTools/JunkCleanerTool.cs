@@ -431,32 +431,15 @@ public sealed class JunkCleanerTool : IBuiltinTool
 
         if (!AiService.IsConfigured)
         {
-            var tipDialog = new ContentDialog
-            {
-                Title = "AI 服务未配置",
-                Content = new StackPanel
-                {
-                    Spacing = 8,
-                    Children =
-                    {
-                        new TextBlock
-                        {
-                            Text = "请先在设置中配置 AI 服务（API 地址、模型名和 API Key），才能使用 AI 智能扫描功能。",
-                            TextWrapping = TextWrapping.Wrap
-                        },
-                        new TextBlock
-                        {
-                            Text = "设置路径：设置 → AI 服务",
-                            Opacity = 0.68,
-                            FontSize = 13
-                        }
-                    }
-                },
-                CloseButtonText = "关闭",
-                XamlRoot = root.XamlRoot,
-                RequestedTheme = ThemeService.CurrentElementTheme
-            };
-            await tipDialog.ShowAsync();
+            state.AiLogScroll.Visibility = Visibility.Visible;
+            state.AiLogList.Children.Clear();
+            state.ListScroll.Visibility = Visibility.Collapsed;
+            state.CategoryList.Children.Clear();
+            state.ResultText.Visibility = Visibility.Collapsed;
+            state.LoadingPanel.Visibility = Visibility.Collapsed;
+            state.LoadingRing.IsActive = false;
+            AppendAiLog(state, "错误", "AI 服务未配置，请先在设置中配置 AI 服务（API 地址、模型名和 API Key）。", AccentRed);
+            AppendAiLog(state, "提示", "设置路径：设置 → AI 服务", AccentYellow);
             return;
         }
 

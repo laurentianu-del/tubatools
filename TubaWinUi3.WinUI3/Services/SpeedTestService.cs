@@ -5,21 +5,16 @@ namespace TubaWinUi3.Services;
 
 public static class SpeedTestService
 {
-    private static readonly HttpClient _downloadClient = new()
-    {
-        Timeout = TimeSpan.FromMinutes(5)
-    };
-
-    private static readonly HttpClient _uploadClient = new()
-    {
-        Timeout = TimeSpan.FromMinutes(5)
-    };
-
     private static readonly TimeSpan MinTestDuration = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan MaxTestDuration = TimeSpan.FromSeconds(45);
 
     private static readonly string CfDownloadUrl = "https://speed.cloudflare.com/__down?bytes=25000000";
     private static readonly string CfUploadUrl = "https://speed.cloudflare.com/__up";
+
+    private static HttpClient CreateHttpClient(TimeSpan? timeout = null)
+    {
+        return ProxyService.CreateClient(timeout ?? TimeSpan.FromMinutes(5));
+    }
 
     public static async Task<SpeedTestResult> RunDownloadTestAsync(IProgress<SpeedTestProgress>? progress, CancellationToken ct)
     {
@@ -32,6 +27,7 @@ public static class SpeedTestService
 
         try
         {
+            using var downloadClient = CreateHttpClient(TimeSpan.FromMinutes(5));
             while (sw.Elapsed < MinTestDuration)
             {
                 ct.ThrowIfCancellationRequested();
@@ -40,7 +36,7 @@ public static class SpeedTestService
                 var url = rounds < 2 ? CfDownloadUrl : (CfDownloadUrl + "&r=" + Guid.NewGuid());
                 rounds++;
 
-                using var response = await _downloadClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
+                using var response = await downloadClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
                 response.EnsureSuccessStatusCode();
 
                 using var stream = await response.Content.ReadAsStreamAsync(ct);
@@ -105,6 +101,7 @@ public static class SpeedTestService
 
         try
         {
+            using var uploadClient = CreateHttpClient(TimeSpan.FromMinutes(5));
             while (sw.Elapsed < MinTestDuration)
             {
                 ct.ThrowIfCancellationRequested();
@@ -118,7 +115,7 @@ public static class SpeedTestService
                 content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
 
                 var chunkStart = sw.Elapsed;
-                using var response = await _uploadClient.PostAsync(CfUploadUrl, content, ct);
+                using var response = await uploadClient.PostAsync(CfUploadUrl, content, ct);
                 totalBytes += chunkSize;
                 rounds++;
 

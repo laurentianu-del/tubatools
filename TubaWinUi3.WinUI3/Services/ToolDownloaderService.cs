@@ -55,14 +55,15 @@ public static class ToolDownloaderService
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         Gb2312 = Encoding.GetEncoding("GB2312");
-        _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-        _downloadClient = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
-        _httpClient.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ToolDownloader");
-        _downloadClient.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ToolDownloader");
     }
 
-    private static readonly HttpClient _httpClient;
-    private static readonly HttpClient _downloadClient;
+    private static HttpClient CreateHttpClient(TimeSpan? timeout = null)
+    {
+        var client = ProxyService.CreateClient(timeout ?? TimeSpan.FromSeconds(30));
+        if (!client.DefaultRequestHeaders.Contains("User-Agent"))
+            client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ToolDownloader");
+        return client;
+    }
 
     public static bool IsGitCodeDir(string? downloadUrl)
         => downloadUrl?.StartsWith("gc:", StringComparison.OrdinalIgnoreCase) == true;
@@ -179,7 +180,8 @@ public static class ToolDownloaderService
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(TimeSpan.FromSeconds(15));
-        var bytes = await _httpClient.GetByteArrayAsync(url, cts.Token);
+        using var client = CreateHttpClient(TimeSpan.FromSeconds(15));
+        var bytes = await client.GetByteArrayAsync(url, cts.Token);
         return Gb2312.GetString(bytes);
     }
 
@@ -268,7 +270,8 @@ public static class ToolDownloaderService
     {
         try
         {
-            var bytes = await _downloadClient.GetByteArrayAsync(
+            using var client = CreateHttpClient(TimeSpan.FromMinutes(5));
+            var bytes = await client.GetByteArrayAsync(
                 $"https://api.gitcode.com/api/v5/repos/{GitCodeOwner}/{GitCodeRepo}/git/blobs/{blobSha}", ct);
             var json = Gb2312.GetString(bytes);
             var doc = JsonDocument.Parse(json);
@@ -323,9 +326,9 @@ public static class ToolDownloaderService
     {
         try
         {
+            using var client = CreateHttpClient(TimeSpan.FromSeconds(30));
             using var request = new HttpRequestMessage(HttpMethod.Head, url);
-            request.Headers.Add("User-Agent", "TubaWinUi3-ToolDownloader");
-            using var response = await _httpClient.SendAsync(request, ct);
+            using var response = await client.SendAsync(request, ct);
 
             var fileName = Path.GetFileName(new Uri(url).AbsolutePath);
             if (string.IsNullOrWhiteSpace(fileName))
@@ -368,8 +371,7 @@ public static class ToolDownloaderService
     {
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ToolDownloader");
+            using var client = CreateHttpClient(TimeSpan.FromSeconds(15));
 
             var parts = repo.Split('/', 2);
             var owner = parts.Length > 0 ? parts[0] : "";
@@ -440,8 +442,7 @@ public static class ToolDownloaderService
     {
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ToolDownloader");
+            using var client = CreateHttpClient(TimeSpan.FromSeconds(15));
 
             var apiUrl = $"https://api.github.com/repos/{repo}/releases/latest";
             var json = await client.GetStringAsync(apiUrl, ct);
@@ -507,7 +508,8 @@ public static class ToolDownloaderService
     {
         try
         {
-            var html = await _httpClient.GetStringAsync(BlenderListingUrl, ct);
+            using var client = CreateHttpClient(TimeSpan.FromSeconds(30));
+            var html = await client.GetStringAsync(BlenderListingUrl, ct);
 
             var bestHref = "";
             var bestVersion = "";
@@ -558,8 +560,7 @@ public static class ToolDownloaderService
         var filePath = Path.Combine(destinationDir, fileName);
         if (File.Exists(filePath)) File.Delete(filePath);
 
-        using var client = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-        client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ToolDownloader");
+        using var client = CreateHttpClient(TimeSpan.FromMinutes(30));
         var sw = Stopwatch.StartNew();
 
         using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
@@ -659,8 +660,7 @@ public static class ToolDownloaderService
     {
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ToolDownloader");
+            using var client = CreateHttpClient(TimeSpan.FromSeconds(15));
 
             var parts = repo.Split('/', 2);
             var owner = parts.Length > 0 ? parts[0] : "";
@@ -731,8 +731,7 @@ public static class ToolDownloaderService
     {
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ToolDownloader");
+            using var client = CreateHttpClient(TimeSpan.FromSeconds(15));
 
             var apiUrl = $"https://api.github.com/repos/{repo}/releases/latest";
             var json = await client.GetStringAsync(apiUrl, ct);

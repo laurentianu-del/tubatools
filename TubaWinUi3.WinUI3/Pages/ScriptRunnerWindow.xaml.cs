@@ -101,11 +101,24 @@ public sealed partial class ScriptRunnerWindow : Window
         return window;
     }
 
-    public static ScriptRunnerWindow ShowAndRun(string command, string? workingDir = null, string? title = null)
+    public static ScriptRunnerWindow ShowAndRun(string command, string? workingDir = null, string? title = null, bool runAsAdmin = false)
     {
         var window = Show(command, workingDir, title);
+        if (runAsAdmin)
+            window.AdminCheck.IsChecked = true;
         _ = window.ExecuteCommandAsync(command);
         return window;
+    }
+
+    public void SetTitle(string title)
+    {
+        TitleText.Text = title;
+        AppWindow.Title = title;
+    }
+
+    public void SetSubtitle(string subtitle)
+    {
+        SubtitleText.Text = subtitle;
     }
 
     public async Task<ScriptRunResult> RunScriptAsync(

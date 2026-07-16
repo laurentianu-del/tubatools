@@ -50,8 +50,7 @@ public static class KmsActivationService
 
     public static async Task<List<KmsServerInfo>> FetchKmsServersAsync(CancellationToken ct = default)
     {
-        using var http = new HttpClient();
-        http.Timeout = TimeSpan.FromSeconds(15);
+        using var http = ProxyService.CreateClient(TimeSpan.FromSeconds(15));
         var json = await http.GetStringAsync(ApiUrl, ct);
         var rawList = JsonSerializer.Deserialize<List<KmsRawItem>>(json, new JsonSerializerOptions
         {

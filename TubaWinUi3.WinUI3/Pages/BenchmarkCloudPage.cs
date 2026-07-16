@@ -62,6 +62,12 @@ public sealed class BenchmarkCloudPage : Page
 
 	private WebView2 CompareRadarChart;
 
+	private WebView2 CompareBarChart;
+
+	private Grid CompareTableGrid;
+
+	private StackPanel CompareViewTogglePanel;
+
 	private List<ComboBox> CompareCombos = new List<ComboBox>();
 
 	private StackPanel CompareComboPanel;
@@ -85,6 +91,8 @@ public sealed class BenchmarkCloudPage : Page
 	private Button RefreshButton;
 
 	private Button UploadButton;
+
+	private ComboBox SourceCombo;
 
 	private TextBlock ReportCountText;
 
@@ -152,6 +160,15 @@ public sealed class BenchmarkCloudPage : Page
 		};
 		RefreshButton.Click += RefreshButton_Click;
 		toolbar.Children.Add(RefreshButton);
+
+		SourceCombo = new ComboBox
+		{
+			ItemsSource = new List<string> { "GitHub", "GitCode" },
+			SelectedIndex = BenchmarkCloudService.CurrentSource == LeaderboardSource.GitCode ? 1 : 0,
+			MinWidth = 100.0
+		};
+		SourceCombo.SelectionChanged += SourceCombo_SelectionChanged;
+		toolbar.Children.Add(SourceCombo);
 
 		UploadButton = new Button
 		{
@@ -287,7 +304,6 @@ public sealed class BenchmarkCloudPage : Page
 						<ColumnDefinition Width='48'/>
 						<ColumnDefinition Width='*'/>
 						<ColumnDefinition Width='Auto'/>
-						<ColumnDefinition Width='Auto'/>
 					</Grid.ColumnDefinitions>
 					<TextBlock Text='{Binding Rank}' FontSize='18' FontWeight='SemiBold' VerticalAlignment='Center'
 							   Foreground='{ThemeResource AccentTextFillColorPrimaryBrush}'/>
@@ -296,14 +312,34 @@ public sealed class BenchmarkCloudPage : Page
 						<TextBlock FontSize='12' Foreground='{ThemeResource TextFillColorSecondaryBrush}'>
 							<Run Text='{Binding Report.CpuName}'/><Run Text=' | '/><Run Text='{Binding Report.GpuName}'/>
 						</TextBlock>
+						<StackPanel Orientation='Horizontal' Spacing='8' Margin='0,2,0,0'>
+							<StackPanel Orientation='Horizontal'>
+								<TextBlock Text='CPU' FontSize='10' Foreground='{ThemeResource TextFillColorTertiaryBrush}' VerticalAlignment='Center' Margin='0,0,2,0'/>
+								<TextBlock Text='{Binding Report.CpuMultiCoreScore}' FontSize='10' Foreground='{ThemeResource TextFillColorSecondaryBrush}' VerticalAlignment='Center'/>
+							</StackPanel>
+							<StackPanel Orientation='Horizontal'>
+								<TextBlock Text='GPU' FontSize='10' Foreground='{ThemeResource TextFillColorTertiaryBrush}' VerticalAlignment='Center' Margin='0,0,2,0'/>
+								<TextBlock Text='{Binding Report.GpuRenderScore}' FontSize='10' Foreground='{ThemeResource TextFillColorSecondaryBrush}' VerticalAlignment='Center'/>
+							</StackPanel>
+							<StackPanel Orientation='Horizontal'>
+								<TextBlock Text='内存' FontSize='10' Foreground='{ThemeResource TextFillColorTertiaryBrush}' VerticalAlignment='Center' Margin='0,0,2,0'/>
+								<TextBlock Text='{Binding Report.MemoryCapacityScore}' FontSize='10' Foreground='{ThemeResource TextFillColorSecondaryBrush}' VerticalAlignment='Center'/>
+							</StackPanel>
+							<StackPanel Orientation='Horizontal'>
+								<TextBlock Text='硬盘' FontSize='10' Foreground='{ThemeResource TextFillColorTertiaryBrush}' VerticalAlignment='Center' Margin='0,0,2,0'/>
+								<TextBlock Text='{Binding Report.DiskSeqReadScore}' FontSize='10' Foreground='{ThemeResource TextFillColorSecondaryBrush}' VerticalAlignment='Center'/>
+							</StackPanel>
+						</StackPanel>
 					</StackPanel>
-					<StackPanel Grid.Column='2' Spacing='2' HorizontalAlignment='Right'>
-						<TextBlock Text='{Binding Report.GamingScore}' FontSize='14' FontWeight='SemiBold' HorizontalAlignment='Right'/>
-						<TextBlock Text='游戏' FontSize='10' Foreground='{ThemeResource TextFillColorTertiaryBrush}' HorizontalAlignment='Right'/>
-					</StackPanel>
-					<StackPanel Grid.Column='3' Spacing='2' HorizontalAlignment='Right' Margin='12,0,0,0'>
-						<TextBlock Text='{Binding Report.OfficeScore}' FontSize='14' FontWeight='SemiBold' HorizontalAlignment='Right'/>
-						<TextBlock Text='办公' FontSize='10' Foreground='{ThemeResource TextFillColorTertiaryBrush}' HorizontalAlignment='Right'/>
+					<StackPanel Grid.Column='2' Orientation='Horizontal' Spacing='16' VerticalAlignment='Center'>
+						<StackPanel Spacing='0' HorizontalAlignment='Right'>
+							<TextBlock Text='{Binding Report.GamingScore}' FontSize='15' FontWeight='SemiBold' HorizontalAlignment='Right'/>
+							<TextBlock Text='游戏' FontSize='9' Foreground='{ThemeResource TextFillColorTertiaryBrush}' HorizontalAlignment='Right'/>
+						</StackPanel>
+						<StackPanel Spacing='0' HorizontalAlignment='Right'>
+							<TextBlock Text='{Binding Report.OfficeScore}' FontSize='15' FontWeight='SemiBold' HorizontalAlignment='Right'/>
+							<TextBlock Text='办公' FontSize='9' Foreground='{ThemeResource TextFillColorTertiaryBrush}' HorizontalAlignment='Right'/>
+						</StackPanel>
 					</StackPanel>
 				</Grid>
 			</DataTemplate>");
@@ -432,6 +468,24 @@ public sealed class BenchmarkCloudPage : Page
 		btnRow.Children.Add(CompareButton);
 		stack.Children.Add(btnRow);
 
+		CompareViewTogglePanel = new StackPanel
+		{
+			Orientation = Orientation.Horizontal,
+			Spacing = 12,
+			Visibility = Visibility.Collapsed,
+			Margin = new Thickness(0, 8, 0, 0)
+		};
+		var radarRadio = new RadioButton { Content = "雷达图", IsChecked = true, Tag = "radar" };
+		var barRadio = new RadioButton { Content = "柱状图", Tag = "bar" };
+		var tableRadio = new RadioButton { Content = "数据表", Tag = "table" };
+		radarRadio.Checked += CompareViewRadio_Checked;
+		barRadio.Checked += CompareViewRadio_Checked;
+		tableRadio.Checked += CompareViewRadio_Checked;
+		CompareViewTogglePanel.Children.Add(radarRadio);
+		CompareViewTogglePanel.Children.Add(barRadio);
+		CompareViewTogglePanel.Children.Add(tableRadio);
+		stack.Children.Add(CompareViewTogglePanel);
+
 		CompareProgress = new ProgressBar
 		{
 			Visibility = Visibility.Collapsed,
@@ -439,13 +493,18 @@ public sealed class BenchmarkCloudPage : Page
 		};
 		stack.Children.Add(CompareProgress);
 
-		CompareRadarChart = new WebView2
-		{
-			Height = 460.0
-		};
+		CompareRadarChart = new WebView2 { Height = 460.0 };
+		CompareBarChart = new WebView2 { Height = 420.0, Visibility = Visibility.Collapsed };
+		CompareTableGrid = new Grid { Visibility = Visibility.Collapsed };
+
+		var resultStack = new StackPanel { Spacing = 8.0 };
+		resultStack.Children.Add(CompareRadarChart);
+		resultStack.Children.Add(CompareBarChart);
+		resultStack.Children.Add(CompareTableGrid);
+
 		CompareResultArea = new ScrollViewer
 		{
-			Content = CompareRadarChart,
+			Content = resultStack,
 			Visibility = Visibility.Collapsed,
 			VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
 			HorizontalScrollMode = ScrollMode.Disabled
@@ -688,24 +747,39 @@ public sealed class BenchmarkCloudPage : Page
 		await LoadDataAsync();
 	}
 
+	private void SourceCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+	{
+		var newSource = SourceCombo.SelectedIndex == 1 ? LeaderboardSource.GitCode : LeaderboardSource.GitHub;
+		if (BenchmarkCloudService.CurrentSource != newSource)
+		{
+			BenchmarkCloudService.CurrentSource = newSource;
+			_ = LoadDataAsync();
+		}
+	}
+
 	private async Task LoadDataAsync()
 	{
 		LeaderboardProgress.Visibility = Visibility.Visible;
 		LeaderboardEmpty.Visibility = Visibility.Collapsed;
-		LeaderboardList.Visibility = Visibility.Collapsed;
 		try
 		{
 			_allReports = await BenchmarkCloudService.GetAllReportsAsync(CancellationToken.None);
-			ReportCountText.Text = $"{_allReports.Count} 份报告";
+			BenchmarkCloudService.SaveToCache(_allReports);
+			ReportCountText.Text = $"{_allReports.Count} 份报告 · {BenchmarkCloudService.CurrentSourceName}";
 			await RefreshLeaderboardAsync();
 			await LoadCompareCombos();
 			await LoadSameHardware();
 			await LoadMyHistory();
+			LeaderboardList.Visibility = _allReports.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
 		}
 		catch (Exception ex)
 		{
+			LeaderboardList.Visibility = Visibility.Collapsed;
 			LeaderboardEmpty.Visibility = Visibility.Visible;
-			LeaderboardEmptyText.Text = ex.Message;
+			var errorDetails = ex.Message;
+			if (ex.InnerException != null)
+				errorDetails += "\n" + ex.InnerException.Message;
+			LeaderboardEmptyText.Text = errorDetails;
 		}
 		finally
 		{
@@ -738,10 +812,22 @@ public sealed class BenchmarkCloudPage : Page
 			_ => "gaming", 
 		};
 		string text = CpuFilterBox.Text;
-		_leaderboard = await BenchmarkCloudService.GetLeaderboardAsync(sortBy, text, null, CancellationToken.None);
-		LeaderboardList.ItemsSource = _leaderboard;
-		LeaderboardList.Visibility = ((_leaderboard.Count <= 0) ? Visibility.Collapsed : Visibility.Visible);
-		LeaderboardEmpty.Visibility = ((_leaderboard.Count != 0) ? Visibility.Collapsed : Visibility.Visible);
+		try
+		{
+			_leaderboard = await BenchmarkCloudService.GetLeaderboardAsync(sortBy, text, null, CancellationToken.None);
+			LeaderboardList.ItemsSource = _leaderboard;
+			LeaderboardList.Visibility = ((_leaderboard.Count <= 0) ? Visibility.Collapsed : Visibility.Visible);
+			LeaderboardEmpty.Visibility = ((_leaderboard.Count != 0) ? Visibility.Collapsed : Visibility.Visible);
+		}
+		catch (Exception ex)
+		{
+			LeaderboardList.Visibility = Visibility.Collapsed;
+			LeaderboardEmpty.Visibility = Visibility.Visible;
+			var errorDetails = ex.Message;
+			if (ex.InnerException != null)
+				errorDetails += "\n" + ex.InnerException.Message;
+			LeaderboardEmptyText.Text = errorDetails;
+		}
 	}
 
 	private void LeaderboardList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -790,8 +876,29 @@ public sealed class BenchmarkCloudPage : Page
 		{
 			CompareEmpty.Visibility = Visibility.Collapsed;
 			CompareResultArea.Visibility = Visibility.Visible;
-			await RenderRadarChart(selected);
+			CompareViewTogglePanel.Visibility = Visibility.Visible;
+			await RenderCompareViews(selected);
 		}
+	}
+
+	private void CompareViewRadio_Checked(object sender, RoutedEventArgs e)
+	{
+		if (sender is RadioButton rb && rb.Tag is string tag)
+		{
+			CompareRadarChart.Visibility = tag == "radar" ? Visibility.Visible : Visibility.Collapsed;
+			CompareBarChart.Visibility = tag == "bar" ? Visibility.Visible : Visibility.Collapsed;
+			CompareTableGrid.Visibility = tag == "table" ? Visibility.Visible : Visibility.Collapsed;
+		}
+	}
+
+	private List<BenchmarkReportEntry>? _lastCompareReports;
+
+	private async Task RenderCompareViews(List<BenchmarkReportEntry> reports)
+	{
+		_lastCompareReports = reports;
+		await RenderRadarChart(reports);
+		await RenderBarChart(reports);
+		RenderCompareTable(reports);
 	}
 
 	private async Task RenderRadarChart(List<BenchmarkReportEntry> reports)
@@ -799,6 +906,132 @@ public sealed class BenchmarkCloudPage : Page
 		await CompareRadarChart.EnsureCoreWebView2Async();
 		string htmlContent = BuildRadarChartHtml(reports);
 		CompareRadarChart.NavigateToString(htmlContent);
+	}
+
+	private async Task RenderBarChart(List<BenchmarkReportEntry> reports)
+	{
+		await CompareBarChart.EnsureCoreWebView2Async();
+		string htmlContent = BuildBarChartHtml(reports);
+		CompareBarChart.NavigateToString(htmlContent);
+	}
+
+	private void RenderCompareTable(List<BenchmarkReportEntry> reports)
+	{
+		CompareTableGrid.Children.Clear();
+		CompareTableGrid.ColumnDefinitions.Clear();
+		CompareTableGrid.RowDefinitions.Clear();
+
+		string[] labels = ["CPU单核", "CPU多核", "GPU渲染", "内存", "硬盘读", "硬盘写", "4K读", "4K写", "浏览器", "游戏总分", "办公总分"];
+		Func<BenchmarkReportEntry, int>[] getters = [
+			r => r.CpuSingleCoreScore, r => r.CpuMultiCoreScore, r => r.GpuRenderScore,
+			r => r.MemoryCapacityScore, r => r.DiskSeqReadScore, r => r.DiskSeqWriteScore,
+			r => r.Disk4KReadScore, r => r.Disk4KWriteScore, r => r.BrowserTotalScore,
+			r => r.GamingScore, r => r.OfficeScore
+		];
+
+		CompareTableGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100) });
+		foreach (var _ in reports)
+			CompareTableGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+		for (int row = 0; row <= labels.Length; row++)
+		{
+			CompareTableGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+		}
+
+		var headerBg = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(40, 0, 120, 212));
+		var cellBg = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+		var altBg = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(20, 0, 0, 0));
+
+		var headerRow = new Border { Background = headerBg, Padding = new Thickness(8, 6, 8, 6) };
+		headerRow.Child = new TextBlock { Text = "项目", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+		CompareTableGrid.Children.Add(headerRow);
+		Grid.SetRow(headerRow, 0);
+		Grid.SetColumn(headerRow, 0);
+
+		for (int i = 0; i < reports.Count; i++)
+		{
+			var header = new Border { Background = headerBg, Padding = new Thickness(8, 6, 8, 6) };
+			var txt = new TextBlock { Text = GetCompareShortName(reports[i]), FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+			ToolTipService.SetToolTip(txt, reports[i].CpuName + " | " + reports[i].GpuName);
+			header.Child = txt;
+			CompareTableGrid.Children.Add(header);
+			Grid.SetRow(header, 0);
+			Grid.SetColumn(header, i + 1);
+		}
+
+		for (int row = 0; row < labels.Length; row++)
+		{
+			var labelBg = row % 2 == 0 ? cellBg : altBg;
+			var labelBorder = new Border { Background = labelBg, Padding = new Thickness(8, 4, 8, 4) };
+			labelBorder.Child = new TextBlock { Text = labels[row], VerticalAlignment = VerticalAlignment.Center };
+			CompareTableGrid.Children.Add(labelBorder);
+			Grid.SetRow(labelBorder, row + 1);
+			Grid.SetColumn(labelBorder, 0);
+
+			int[] scores = reports.Select(getters[row]).ToArray();
+			int maxScore = scores.Max();
+
+			for (int col = 0; col < reports.Count; col++)
+			{
+				var cellBorder = new Border { Background = row % 2 == 0 ? cellBg : altBg, Padding = new Thickness(8, 4, 8, 4) };
+				var score = scores[col];
+				var txt = new TextBlock { Text = score.ToString(), VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+				if (score == maxScore && maxScore > 0)
+				{
+					txt.Foreground = new SolidColorBrush(Microsoft.UI.Colors.Green);
+					txt.FontWeight = Microsoft.UI.Text.FontWeights.Bold;
+				}
+				cellBorder.Child = txt;
+				CompareTableGrid.Children.Add(cellBorder);
+				Grid.SetRow(cellBorder, row + 1);
+				Grid.SetColumn(cellBorder, col + 1);
+			}
+		}
+	}
+
+	private static string GetCompareShortName(BenchmarkReportEntry rep)
+	{
+		return rep.Author + " · " + rep.CpuName.Split(' ').FirstOrDefault();
+	}
+
+	private static string BuildBarChartHtml(List<BenchmarkReportEntry> reports)
+	{
+		string[] labels = ["CPU单核", "CPU多核", "GPU渲染", "内存", "硬盘读", "硬盘写", "4K读", "4K写", "浏览器"];
+		Func<BenchmarkReportEntry, int>[] getters = [
+			r => r.CpuSingleCoreScore, r => r.CpuMultiCoreScore, r => r.GpuRenderScore,
+			r => r.MemoryCapacityScore, r => r.DiskSeqReadScore, r => r.DiskSeqWriteScore,
+			r => r.Disk4KReadScore, r => r.Disk4KWriteScore, r => r.BrowserTotalScore
+		];
+		string[] colors = ["#3b7dd8", "#e07b39", "#50b450", "#b450b4", "#dcb432", "#32b4b4"];
+		int barHeight = 24;
+		int groupSpacing = 8;
+		int barSpacing = 4;
+		int labelWidth = 70;
+		int chartWidth = 500;
+		int totalHeight = labels.Length * (reports.Count * (barHeight + barSpacing) + groupSpacing) + 40;
+
+		var sb = new StringBuilder();
+		sb.Append($"<!DOCTYPE html><html><head><meta charset=\"utf-8\"><style>body{{font-family:'Segoe UI',sans-serif;margin:16px;background:#fff}}\n.label{{display:inline-block;width:{labelWidth}px;font-size:11px;color:#666;vertical-align:top;padding-top:4px}}\n.bar-group{{display:inline-block;vertical-align:top}}\n.bar{{display:inline-block;height:{barHeight}px;margin:2px;border-radius:3px}}\n.bar-label{{font-size:10px;color:#fff;padding:0 6px;line-height:{barHeight}px}}\n.legend{{margin-bottom:12px;font-size:11px}}\n.legend-item{{display:inline-block;margin-right:16px}}\n.legend-dot{{width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:4px}}</style></head><body>");
+
+		sb.Append("<div class='legend'>");
+		for (int r = 0; r < reports.Count; r++)
+			sb.Append($"<span class='legend-item'><span class='legend-dot' style='background:{colors[r]}'></span>{GetCompareShortName(reports[r])}</span>");
+		sb.Append("</div>");
+
+		for (int i = 0; i < labels.Length; i++)
+		{
+			sb.Append($"<div style='margin-bottom:{groupSpacing}px'><span class='label'>{labels[i]}</span><span class='bar-group'>");
+			int maxVal = Math.Max(1, reports.Select(getters[i]).Max());
+			for (int r = 0; r < reports.Count; r++)
+			{
+				int score = getters[i](reports[r]);
+				int width = Math.Max(20, (int)((double)score / maxVal * chartWidth));
+				sb.Append($"<div class='bar' style='width:{width}px;background:{colors[r]}'><span class='bar-label'>{score}</span></div>");
+			}
+			sb.Append("</span></div>");
+		}
+		sb.Append("</body></html>");
+		return sb.ToString();
 	}
 
 	private static readonly (string fill, string stroke)[] ChartColors = new[]

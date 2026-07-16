@@ -12,6 +12,12 @@ using TubaWinUi3.Models;
 
 namespace TubaWinUi3.Services;
 
+public enum LeaderboardSource
+{
+	GitHub,
+	GitCode
+}
+
 public static class BenchmarkCloudService
 {
 	private const string UpstreamOwner = "luolangaga";
@@ -19,7 +25,29 @@ public static class BenchmarkCloudService
 	private const string ReportsPath = "reports";
 	private const string GitHubApiBase = "https://api.github.com/repos/luolangaga/tubatoolsPlugin";
 	private const string GitCodeRawBase = "https://raw.githubusercontent.com/luolangaga/tubatoolsPlugin/main/reports";
-	private const string LeaderboardRawUrl = "https://raw.githubusercontent.com/luolangaga/tubatoolsPlugin/main/leaderboard.json";
+	
+	private static readonly string GitHubLeaderboardUrl = "https://raw.githubusercontent.com/luolangaga/tubatoolsPlugin/main/leaderboard.json";
+	private static readonly string GitCodeApiUrl = "https://api.gitcode.com/api/v5/repos/gcw_uDDNaqJw/tubatoolsPlugin/contents/leaderboard.json";
+	
+	private static LeaderboardSource _currentSource = LeaderboardSource.GitCode;
+	public static LeaderboardSource CurrentSource
+	{
+		get => _currentSource;
+		set
+		{
+			if (_currentSource != value)
+			{
+				_currentSource = value;
+				InvalidateCache();
+			}
+		}
+	}
+	
+	public static string CurrentSourceName => _currentSource switch
+	{
+		LeaderboardSource.GitCode => "GitCode",
+		_ => "GitHub"
+	};
 
 	private static readonly HttpClient _apiClient;
 	private static List<BenchmarkReportEntry>? _cache;
@@ -32,9 +60,9 @@ public static class BenchmarkCloudService
 	{
 		_apiClient = new HttpClient
 		{
-			Timeout = TimeSpan.FromSeconds(30)
+			Timeout = TimeSpan.FromSeconds(60)
 		};
-		CacheDuration = TimeSpan.FromMinutes(10);
+		CacheDuration = TimeSpan.FromMinutes(60);
 		_apiClient.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-Benchmark");
 	}
 
@@ -44,6 +72,18 @@ public static class BenchmarkCloudService
 		_cacheTime = DateTimeOffset.MinValue;
 		_leaderboardCache = null;
 		_leaderboardCacheTime = DateTimeOffset.MinValue;
+	}
+
+	public static List<BenchmarkReportEntry> LoadLocalCacheOnly()
+	{
+		return LoadLocalCache();
+	}
+
+	public static void SaveToCache(List<BenchmarkReportEntry> reports)
+	{
+		_cache = reports.OrderByDescending(r => r.GamingScore).ToList();
+		_cacheTime = DateTimeOffset.UtcNow;
+		SaveLocalCache(reports);
 	}
 
 	public static async Task<string> UploadReportAsync(PerformanceBenchmarkResult result, IProgress<string>? progress, CancellationToken ct)
@@ -151,6 +191,7 @@ public static class BenchmarkCloudService
 		{
 			return _cache;
 		}
+		Exception? lastError = null;
 		try
 		{
 			var leaderboardData = await GetLeaderboardDataAsync(ct);
@@ -163,10 +204,20 @@ public static class BenchmarkCloudService
 				return _cache;
 			}
 		}
-		catch
+		catch (Exception ex)
 		{
+			lastError = ex;
 		}
-		return await GetAllReportsFallbackAsync(ct);
+		try
+		{
+			return await GetAllReportsFallbackAsync(ct);
+		}
+		catch (Exception ex)
+		{
+			if (lastError != null)
+				throw new AggregateException(lastError, ex);
+			throw;
+		}
 	}
 
 	public static async Task<BenchmarkLeaderboardData?> GetLeaderboardDataAsync(CancellationToken ct)
@@ -175,28 +226,39 @@ public static class BenchmarkCloudService
 		{
 			return _leaderboardCache;
 		}
-		try
+		using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+		client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-Benchmark");
+		
+		string json;
+		if (_currentSource == LeaderboardSource.GitCode)
 		{
-			using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-			client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-Benchmark");
-			var resp = await client.GetAsync(LeaderboardRawUrl, ct);
-			if (!resp.IsSuccessStatusCode) return null;
-			string json = await resp.Content.ReadAsStringAsync(ct);
-			var data = JsonSerializer.Deserialize<BenchmarkLeaderboardData>(json, new JsonSerializerOptions
-			{
-				PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-			});
-			if (data != null)
-			{
-				_leaderboardCache = data;
-				_leaderboardCacheTime = DateTimeOffset.UtcNow;
-			}
-			return data;
+			var apiResp = await client.GetAsync(GitCodeApiUrl, ct);
+			if (!apiResp.IsSuccessStatusCode)
+				throw new HttpRequestException($"GitCode API 请求失败: HTTP {(int)apiResp.StatusCode} {apiResp.StatusCode}");
+			var apiJson = await apiResp.Content.ReadAsStringAsync(ct);
+			using var apiDoc = JsonDocument.Parse(apiJson);
+			var downloadUrl = apiDoc.RootElement.GetProperty("download_url").GetString();
+			if (string.IsNullOrEmpty(downloadUrl))
+				throw new Exception("GitCode API 未返回 download_url");
+			json = await client.GetStringAsync(downloadUrl, ct);
 		}
-		catch
+		else
 		{
-			return null;
+			var resp = await client.GetAsync(GitHubLeaderboardUrl, ct);
+			if (!resp.IsSuccessStatusCode)
+				throw new HttpRequestException($"GitHub 数据加载失败: HTTP {(int)resp.StatusCode} {resp.StatusCode}");
+			json = await resp.Content.ReadAsStringAsync(ct);
 		}
+		
+		var data = JsonSerializer.Deserialize<BenchmarkLeaderboardData>(json, new JsonSerializerOptions
+		{
+			PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+		});
+		if (data == null)
+			throw new JsonException("排行榜数据解析失败");
+		_leaderboardCache = data;
+		_leaderboardCacheTime = DateTimeOffset.UtcNow;
+		return data;
 	}
 
 	public static async Task<List<BenchmarkLeaderboardEntry>> GetLeaderboardAsync(string sortBy, string? cpuFilter = null, string? gpuFilter = null, CancellationToken ct = default)
@@ -230,79 +292,87 @@ public static class BenchmarkCloudService
 	private static async Task<List<BenchmarkReportEntry>> GetAllReportsFallbackAsync(CancellationToken ct)
 	{
 		var reports = new ConcurrentBag<BenchmarkReportEntry>();
+		var localCache = LoadLocalCache();
+		string? treeSha = null;
 		try
 		{
-			var localCache = LoadLocalCache();
-			string treeSha = await GetLatestTreeShaAsync(ct);
-			if (treeSha == null)
+			treeSha = await GetLatestTreeShaAsync(ct);
+		}
+		catch (Exception ex)
+		{
+			if (localCache.Count > 0)
 			{
-				if (localCache.Count > 0)
-				{
-					_cache = localCache.OrderByDescending(r => r.GamingScore).ToList();
-					_cacheTime = DateTimeOffset.UtcNow;
-					return _cache;
-				}
-				return [];
+				_cache = localCache.OrderByDescending(r => r.GamingScore).ToList();
+				_cacheTime = DateTimeOffset.UtcNow;
+				return _cache;
 			}
-			var allFiles = await GetRecursiveTreeBlobsAsync(treeSha, "reports", ct);
-			if (allFiles.Count == 0)
+			throw new Exception("无法获取仓库信息: " + ex.Message, ex);
+		}
+		if (treeSha == null)
+		{
+			if (localCache.Count > 0)
 			{
-				if (localCache.Count > 0)
-				{
-					_cache = localCache.OrderByDescending(r => r.GamingScore).ToList();
-					_cacheTime = DateTimeOffset.UtcNow;
-					return _cache;
-				}
-				return [];
+				_cache = localCache.OrderByDescending(r => r.GamingScore).ToList();
+				_cacheTime = DateTimeOffset.UtcNow;
+				return _cache;
 			}
-			var toDownload = new List<(string Path, string Sha)>();
-			var cachedSet = new HashSet<string>(localCache.Select(r => r.RepoPath));
-			foreach (var (path, sha) in allFiles)
+			throw new Exception("无法获取仓库树信息");
+		}
+		var allFiles = await GetRecursiveTreeBlobsAsync(treeSha, "reports", ct);
+		if (allFiles.Count == 0)
+		{
+			if (localCache.Count > 0)
 			{
-				if (cachedSet.Contains(path))
-				{
-					var cached = localCache.FirstOrDefault(r => r.RepoPath == path);
-					if (cached != null) reports.Add(cached);
-				}
-				else
-				{
-					toDownload.Add((path, sha));
-				}
+				_cache = localCache.OrderByDescending(r => r.GamingScore).ToList();
+				_cacheTime = DateTimeOffset.UtcNow;
+				return _cache;
 			}
-			if (toDownload.Count > 0)
+			throw new Exception("仓库中暂无报告数据");
+		}
+		var toDownload = new List<(string Path, string Sha)>();
+		var cachedSet = new HashSet<string>(localCache.Select(r => r.RepoPath));
+		foreach (var (path, sha) in allFiles)
+		{
+			if (cachedSet.Contains(path))
 			{
-				await Parallel.ForEachAsync(toDownload, new ParallelOptions
+				var cached = localCache.FirstOrDefault(r => r.RepoPath == path);
+				if (cached != null) reports.Add(cached);
+			}
+			else
+			{
+				toDownload.Add((path, sha));
+			}
+		}
+		if (toDownload.Count > 0)
+		{
+			await Parallel.ForEachAsync(toDownload, new ParallelOptions
+			{
+				MaxDegreeOfParallelism = 6,
+				CancellationToken = ct
+			}, async (item, token) =>
+			{
+				try
 				{
-					MaxDegreeOfParallelism = 6,
-					CancellationToken = ct
-				}, async (item, token) =>
-				{
-					try
+					string content = await DownloadBlobAsync(item.Sha, token);
+					if (content != null)
 					{
-						string content = await DownloadBlobAsync(item.Sha, token);
-						if (content != null)
+						var entry = JsonSerializer.Deserialize<BenchmarkReportEntry>(content, new JsonSerializerOptions
 						{
-							var entry = JsonSerializer.Deserialize<BenchmarkReportEntry>(content, new JsonSerializerOptions
-							{
-								PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-							});
-							if (entry != null)
-							{
-								entry.RepoPath = item.Path;
-								reports.Add(entry);
-							}
+							PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+						});
+						if (entry != null)
+						{
+							entry.RepoPath = item.Path;
+							reports.Add(entry);
 						}
 					}
-					catch
-					{
-					}
-				});
-			}
-			SaveLocalCache(reports.ToList());
+				}
+				catch
+				{
+				}
+			});
 		}
-		catch
-		{
-		}
+		SaveLocalCache(reports.ToList());
 		_cache = reports.OrderByDescending(r => r.GamingScore).ToList();
 		_cacheTime = DateTimeOffset.UtcNow;
 		return _cache;
@@ -350,7 +420,7 @@ public static class BenchmarkCloudService
 	private static async Task<List<(string Path, string Sha)>> GetRecursiveTreeBlobsAsync(string treeSha, string prefix, CancellationToken ct)
 	{
 		var result = new List<(string, string)>();
-		using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+		using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
 		client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-Benchmark");
 		string url = $"https://api.github.com/repos/luolangaga/tubatoolsPlugin/git/trees/{treeSha}?recursive=1";
 		string json = await client.GetStringAsync(url, ct);
@@ -504,7 +574,7 @@ public static class BenchmarkCloudService
 	{
 		using var client = new HttpClient
 		{
-			Timeout = TimeSpan.FromSeconds(30)
+			Timeout = TimeSpan.FromSeconds(60)
 		};
 		client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-Benchmark");
 		return JsonDocument.Parse(await client.GetStringAsync("https://api.github.com/repos/luolangaga/tubatoolsPlugin/git/ref/heads/main", ct)).RootElement.GetProperty("object").GetProperty("sha").GetString();
@@ -514,7 +584,7 @@ public static class BenchmarkCloudService
 	{
 		using var client = new HttpClient
 		{
-			Timeout = TimeSpan.FromSeconds(30)
+			Timeout = TimeSpan.FromSeconds(60)
 		};
 		client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-Benchmark");
 		if (JsonDocument.Parse(await client.GetStringAsync("https://api.github.com/repos/luolangaga/tubatoolsPlugin/git/blobs/" + sha, ct)).RootElement.TryGetProperty("content", out var content))

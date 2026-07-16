@@ -30,8 +30,7 @@ public sealed partial class SettingsPage : Page
     private bool _watermarkInitializing;
     private bool _watermarkTextInitializing;
     private bool _watermarkFontInitializing;
-    private bool _chineseFontInitializing;
-    private bool _westernFontInitializing;
+    private bool _fontInitializing;
     private bool _fontChangePending;
     private Border[] _backdropOptions = [];
     private bool _hardwareFitScreenInitializing;
@@ -39,6 +38,8 @@ public sealed partial class SettingsPage : Page
     private bool _cpuzBusy;
     private bool _aiSettingsInitializing;
     private bool _aiTesting;
+    private bool _proxySettingsInitializing;
+    private bool _proxyTesting;
 
     private FrameworkElement? _generalExpanderContent;
     private FrameworkElement? _appearanceExpanderContent;
@@ -118,6 +119,8 @@ public sealed partial class SettingsPage : Page
         ["AiModelName"] = "HardwareAiExpander",
         ["AiApiKey"] = "HardwareAiExpander",
         ["SearchApiKey"] = "HardwareAiExpander",
+        ["ProxyEnabled"] = "GeneralExpander",
+        ["ProxyAddress"] = "GeneralExpander",
         ["ConfigManager"] = "ToolsCommunityExpander",
         ["CustomToolManager"] = "ToolsCommunityExpander",
         ["ExportApp"] = "ToolsCommunityExpander",
@@ -146,6 +149,8 @@ public sealed partial class SettingsPage : Page
         ["AiModelName"] = "SettingsAiEndpointCard",
         ["AiApiKey"] = "SettingsAiEndpointCard",
         ["SearchApiKey"] = "SettingsAiEndpointCard",
+        ["ProxyEnabled"] = "SettingsProxyCard",
+        ["ProxyAddress"] = "SettingsProxyCard",
         ["ConfigManager"] = "SettingsConfigManagerCard",
         ["CustomToolManager"] = "SettingsCustomToolCard",
         ["ExportApp"] = "SettingsExportAppCard",
@@ -184,6 +189,7 @@ public sealed partial class SettingsPage : Page
         InitHardwareMultiDeviceNewLineToggle();
         InitCpuzDataSourceStatus();
         InitAiSettings();
+        InitProxySettings();
         InitGitHubLoginStatus();
         LoadCreditsAvatar();
 
@@ -941,26 +947,22 @@ public sealed partial class SettingsPage : Page
 
     private void InitInterfaceFontSettings()
     {
-        _chineseFontInitializing = true;
-        InitChineseFontComboBox();
-        _chineseFontInitializing = false;
-
-        _westernFontInitializing = true;
-        InitWesternFontComboBox();
-        _westernFontInitializing = false;
+        _fontInitializing = true;
+        InitFontComboBox();
+        _fontInitializing = false;
     }
 
-    private void InitChineseFontComboBox()
+    private void InitFontComboBox()
     {
-        ChineseFontComboBox.Items.Clear();
-        var savedFont = FontService.GetCurrentChineseFont();
-        var isDefault = savedFont == FontService.DefaultChineseFont;
-        var fonts = FontService.GetInstalledChineseFonts();
+        FontComboBox.Items.Clear();
+        var savedFont = FontService.GetCurrentFont();
+        var isDefault = savedFont == FontService.DefaultFont;
+        var fonts = FontService.GetInstalledFonts();
 
         var selectedIndex = 0;
         for (var i = 0; i < fonts.Count; i++)
         {
-            ChineseFontComboBox.Items.Add(fonts[i]);
+            FontComboBox.Items.Add(fonts[i]);
             if (isDefault && fonts[i].Contains("（默认）"))
             {
                 selectedIndex = i;
@@ -973,68 +975,27 @@ public sealed partial class SettingsPage : Page
             }
         }
 
-        ChineseFontComboBox.SelectedIndex = selectedIndex;
+        FontComboBox.SelectedIndex = selectedIndex;
     }
 
-    private void InitWesternFontComboBox()
+    private void FontComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        WesternFontComboBox.Items.Clear();
-        var savedFont = FontService.GetCurrentWesternFont();
-        var isDefault = savedFont == FontService.DefaultWesternFont;
-        var fonts = FontService.GetInstalledWesternFonts();
-
-        var selectedIndex = 0;
-        for (var i = 0; i < fonts.Count; i++)
-        {
-            WesternFontComboBox.Items.Add(fonts[i]);
-            if (isDefault && fonts[i].Contains("（默认）"))
-            {
-                selectedIndex = i;
-            }
-            else if (!isDefault)
-            {
-                var actualFont = fonts[i].Replace("（默认）", "");
-                if (actualFont == savedFont)
-                    selectedIndex = i;
-            }
-        }
-
-        WesternFontComboBox.SelectedIndex = selectedIndex;
-    }
-
-    private void ChineseFontComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_chineseFontInitializing) return;
-        if (ChineseFontComboBox.SelectedItem is string font)
+        if (_fontInitializing) return;
+        if (FontComboBox.SelectedItem is string font)
         {
             var actualFont = font.Replace("（默认）", "");
-            FontService.SetChineseFont(actualFont);
-            ShowRestartHint();
-        }
-    }
-
-    private void WesternFontComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_westernFontInitializing) return;
-        if (WesternFontComboBox.SelectedItem is string font)
-        {
-            var actualFont = font.Replace("（默认）", "");
-            FontService.SetWesternFont(actualFont);
+            FontService.SetFont(actualFont);
             ShowRestartHint();
         }
     }
 
     private void ResetFontButton_Click(object sender, RoutedEventArgs e)
     {
-        FontService.SetChineseFont(FontService.DefaultChineseFont);
-        FontService.SetWesternFont(FontService.DefaultWesternFont);
+        FontService.SetFont(FontService.DefaultFont);
 
-        _chineseFontInitializing = true;
-        _westernFontInitializing = true;
-        InitChineseFontComboBox();
-        InitWesternFontComboBox();
-        _chineseFontInitializing = false;
-        _westernFontInitializing = false;
+        _fontInitializing = true;
+        InitFontComboBox();
+        _fontInitializing = false;
 
         ShowRestartHint();
     }
@@ -1421,6 +1382,161 @@ public sealed partial class SettingsPage : Page
             {
                 AiTestIcon.Glyph = "\uE73E";
                 AiTestButtonText.Text = "测试连接";
+            }
+        }
+    }
+
+    private void InitProxySettings()
+    {
+        _proxySettingsInitializing = true;
+        
+        var proxyEnabled = ProxyService.IsProxyEnabled;
+        ProxyToggle.IsOn = proxyEnabled;
+        
+        ProxyAddressTextBox.Text = ProxyService.ProxyAddress ?? "";
+        ProxyUsernameTextBox.Text = ProxyService.ProxyUsername ?? "";
+        ProxyPasswordBox.Password = ProxyService.ProxyPassword ?? "";
+        
+        UpdateProxyPanelVisibility(proxyEnabled);
+        
+        _proxySettingsInitializing = false;
+    }
+
+    private void UpdateProxyPanelVisibility(bool enabled)
+    {
+        ProxyDivider.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
+        ProxyAddressPanel.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
+        ProxyAuthPanel.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
+        ProxyTestPanel.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
+        
+        UpdateProxyStatus();
+    }
+
+    private void UpdateProxyStatus()
+    {
+        if (!ProxyService.IsProxyEnabled)
+        {
+            ProxyStatusText.Text = "配置 HTTP/HTTPS 代理，所有网络请求将使用代理";
+            return;
+        }
+        
+        var address = ProxyService.ProxyAddress;
+        if (string.IsNullOrWhiteSpace(address))
+        {
+            ProxyStatusText.Text = "代理已启用，但未配置地址";
+            return;
+        }
+        
+        var hasAuth = !string.IsNullOrWhiteSpace(ProxyService.ProxyUsername);
+        ProxyStatusText.Text = hasAuth
+            ? $"代理已启用：{address}（已配置认证）"
+            : $"代理已启用：{address}";
+    }
+
+    private void ProxyToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_proxySettingsInitializing) return;
+        
+        var enabled = ProxyToggle.IsOn;
+        AppSettings.Set("ProxyEnabled", enabled);
+        UpdateProxyPanelVisibility(enabled);
+    }
+
+    private void ProxyAddressTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_proxySettingsInitializing) return;
+        AppSettings.Set("ProxyAddress", ProxyAddressTextBox.Text.Trim());
+        UpdateProxyStatus();
+    }
+
+    private void ProxyUsernameTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_proxySettingsInitializing) return;
+        AppSettings.Set("ProxyUsername", ProxyUsernameTextBox.Text.Trim());
+        UpdateProxyStatus();
+    }
+
+    private void ProxyPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
+    {
+        if (_proxySettingsInitializing) return;
+        AppSettings.Set("ProxyPassword", ProxyPasswordBox.Password);
+        UpdateProxyStatus();
+    }
+
+    private async void ProxyTestButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_proxyTesting) return;
+        
+        var address = ProxyAddressTextBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(address))
+        {
+            await ShowMessageAsync("无法测试", "请先输入代理地址");
+            return;
+        }
+        
+        _proxyTesting = true;
+        ProxyTestButton.IsEnabled = false;
+        ProxyTestIcon.Glyph = "\uE950";
+        ProxyTestButtonText.Text = "测试中...";
+        ProxyTestStatusText.Text = "正在测试代理连接...";
+        
+        try
+        {
+            using var client = ProxyService.CreateClient(TimeSpan.FromSeconds(15));
+            client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ProxyTest");
+            
+            var testUrls = new[]
+            {
+                "https://www.google.com/favicon.ico",
+                "https://github.com/favicon.ico",
+                "https://api.github.com"
+            };
+            
+            Exception? lastError = null;
+            foreach (var url in testUrls)
+            {
+                try
+                {
+                    using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+                    if (response.IsSuccessStatusCode || response.StatusCode == System.Net.HttpStatusCode.Redirect)
+                    {
+                        ProxyTestIcon.Glyph = "\uE73E";
+                        ProxyTestButtonText.Text = "连接成功";
+                        ProxyTestStatusText.Text = $"代理连接成功（{response.StatusCode}）";
+                        ProxyTestStatusText.Foreground = new SolidColorBrush(Microsoft.UI.Colors.Green);
+                        return;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    lastError = ex;
+                }
+            }
+            
+            ProxyTestIcon.Glyph = "\uE783";
+            ProxyTestButtonText.Text = "连接失败";
+            ProxyTestStatusText.Text = lastError?.Message ?? "无法连接代理服务器";
+            ProxyTestStatusText.Foreground = new SolidColorBrush(Microsoft.UI.Colors.Red);
+        }
+        catch (Exception ex)
+        {
+            ProxyTestIcon.Glyph = "\uE783";
+            ProxyTestButtonText.Text = "连接失败";
+            ProxyTestStatusText.Text = ex.Message;
+            ProxyTestStatusText.Foreground = new SolidColorBrush(Microsoft.UI.Colors.Red);
+        }
+        finally
+        {
+            _proxyTesting = false;
+            ProxyTestButton.IsEnabled = true;
+            
+            await Task.Delay(3000);
+            
+            if (!_proxyTesting)
+            {
+                ProxyTestIcon.Glyph = "\uE73E";
+                ProxyTestButtonText.Text = "测试连接";
+                ProxyTestStatusText.Foreground = (Brush)App.Current.Resources["TextFillColorSecondaryBrush"];
             }
         }
     }
