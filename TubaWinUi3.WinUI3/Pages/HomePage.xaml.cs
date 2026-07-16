@@ -399,6 +399,11 @@ public sealed partial class HomePage : Page
         }
     }
 
+    protected override void OnNavigatingFrom(NavigatingCancelEventArgs e)
+    {
+        base.OnNavigatingFrom(e);
+    }
+
     private void CompactGrid_ItemClick(object sender, ItemClickEventArgs e)
     {
         if (e.ClickedItem is ToolItem tool)

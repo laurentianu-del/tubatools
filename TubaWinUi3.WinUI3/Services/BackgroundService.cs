@@ -9,6 +9,7 @@ public static class BackgroundService
 
     private static BitmapImage? _cachedImage;
     private static string? _cachedPath;
+    private static bool _brandInitialized;
 
     public static string? GetBackgroundPath() => AppSettings.Get(PathKey);
 
@@ -26,8 +27,28 @@ public static class BackgroundService
 
     public static void SetBackgroundOpacity(double opacity) => AppSettings.Set(OpacityKey, opacity);
 
+    public static void EnsureBrandBackgroundInitialized()
+    {
+        if (_brandInitialized) return;
+        _brandInitialized = true;
+
+        BrandEasterEggService.ApplyBrandBackgroundIfDetected();
+        BrandEasterEggService.StartBackgroundDownload();
+        BrandEasterEggService.BrandBackgroundLoaded += OnBrandBackgroundLoaded;
+    }
+
+    private static void OnBrandBackgroundLoaded(object? sender, BrandEasterEggLoadedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(GetBackgroundPath()))
+        {
+            SetBackgroundPath(e.ImagePath);
+        }
+    }
+
     public static BitmapImage? LoadBackgroundImage()
     {
+        EnsureBrandBackgroundInitialized();
+
         var path = GetBackgroundPath();
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
         {
@@ -59,7 +80,7 @@ public static class BackgroundService
         if (!Directory.Exists(dir))
             return [];
 
-        var extensions = new[] { ".jpg", ".jpeg", ".png", ".bmp" };
+        var extensions = new[] { ".jpg", ".jpeg", ".png", ".bmp", ".webp" };
         var currentPath = GetBackgroundPath();
 
         return Directory.GetFiles(dir)
