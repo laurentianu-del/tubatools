@@ -86,7 +86,7 @@
 
 ### GitCode Releases（国内镜像）
 
-国内用户可从 [GitCode 镜像](https://gitcode.com/luolangaga/tubatool/releases) 下载，速度更快。
+国内用户可从 [GitCode 镜像](https://gitcode.com/gcw_uDDNaqJw/tubatool) 下载，速度更快。
 
 ### Winget（Windows 包管理器）
 
