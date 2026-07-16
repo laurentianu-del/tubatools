@@ -822,9 +822,9 @@ public sealed partial class HomePage : Page
             catch { }
         }
 
+        string? localVersion = null;
         var checkTask = Task.Run(async () =>
         {
-            string? localVersion = null;
             if (File.Exists(localFile))
             {
                 try
@@ -859,7 +859,7 @@ public sealed partial class HomePage : Page
             await new ContentDialog
             {
                 Title = tool.Name,
-                Content = "当前已是最新版本，无需更新。",
+                Content = "无法获取远程版本信息，请检查网络连接。",
                 CloseButtonText = "确定",
                 XamlRoot = XamlRoot,
                 RequestedTheme = ThemeService.CurrentElementTheme
@@ -868,8 +868,10 @@ public sealed partial class HomePage : Page
         }
 
         var infoLines = new List<string>();
+        if (!string.IsNullOrWhiteSpace(localVersion))
+            infoLines.Add($"本地版本：{localVersion}");
         if (!string.IsNullOrWhiteSpace(updateInfo.VersionTag))
-            infoLines.Add($"远程版本：{updateInfo.VersionTag}");
+            infoLines.Add($"云端版本：{updateInfo.VersionTag}");
         if (updateInfo.PublishedDate.HasValue)
             infoLines.Add($"发布日期：{updateInfo.PublishedDate.Value.LocalDateTime:yyyy-MM-dd HH:mm}");
         if (localModifiedTime.HasValue)
@@ -877,7 +879,39 @@ public sealed partial class HomePage : Page
         if (updateInfo.Size > 0)
             infoLines.Add($"文件大小：{ToolDownloaderService.FormatSize(updateInfo.Size)}");
 
-        var infoText = infoLines.Count > 0 ? string.Join("\n", infoLines) : "发现新版本。";
+        var infoText = infoLines.Count > 0 ? string.Join("\n", infoLines) : "版本信息未知";
+
+        if (!updateInfo.HasUpdate)
+        {
+            var statusText = string.IsNullOrWhiteSpace(localVersion) || string.IsNullOrWhiteSpace(updateInfo.VersionTag)
+                ? "版本信息匹配，当前已是最新版本。"
+                : (localVersion == updateInfo.VersionTag
+                    ? $"本地版本 ({localVersion}) 与云端版本一致，无需更新。"
+                    : $"本地版本 ({localVersion}) 不低于云端版本 ({updateInfo.VersionTag})，无需更新。");
+
+            await new ContentDialog
+            {
+                Title = $"检查更新 — {tool.Name}",
+                Content = new StackPanel
+                {
+                    Spacing = 8,
+                    Children =
+                    {
+                        new TextBlock { Text = infoText, TextWrapping = TextWrapping.Wrap },
+                        new TextBlock
+                        {
+                            Text = statusText,
+                            TextWrapping = TextWrapping.Wrap,
+                            Opacity = 0.72
+                        }
+                    }
+                },
+                CloseButtonText = "确定",
+                XamlRoot = XamlRoot,
+                RequestedTheme = ThemeService.CurrentElementTheme
+            }.ShowAsync();
+            return;
+        }
 
         var confirmDialog = new ContentDialog
         {

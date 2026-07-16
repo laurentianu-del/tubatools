@@ -12,6 +12,7 @@ public partial class App : Application
 {
     private Window? _window;
     public static Window? MainWindow => ((App)Current)?._window;
+    public static bool IsLiteMode { get; set; } = false;
 
     public App()
     {

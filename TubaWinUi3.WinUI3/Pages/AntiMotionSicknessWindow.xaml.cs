@@ -14,6 +14,7 @@ public sealed partial class AntiMotionSicknessWindow : Page
     private AntiMotionSicknessConfig _cfg;
     private bool _suppressEvents = true;
     private List<MonitorInfo> _monitors = new();
+    private bool _liteMode = false;
 
     public AntiMotionSicknessWindow(Window window)
     {
@@ -27,11 +28,16 @@ public sealed partial class AntiMotionSicknessWindow : Page
 
         _suppressEvents = false;
 
-        _window.Closed += (_, _) =>
+        _window.Closed += OnWindowClosed;
+    }
+
+    private void OnWindowClosed(object sender, WindowEventArgs args)
+    {
+        if (!_liteMode)
         {
             AntiMotionSicknessOverlay.CloseOverlay();
-            SaveConfigFromUI();
-        };
+        }
+        SaveConfigFromUI();
     }
 
     private void LoadMonitors()
@@ -281,6 +287,25 @@ public sealed partial class AntiMotionSicknessWindow : Page
         {
             AntiMotionSicknessOverlay.CloseOverlay();
             AntiMotionSicknessOverlay.ShowOverlay();
+        }
+    }
+
+    private void LiteModeButton_Click(object sender, RoutedEventArgs e)
+    {
+        _liteMode = true;
+        App.IsLiteMode = true;
+
+        if (!AntiMotionSicknessOverlay.IsRunning)
+        {
+            StartOverlay();
+        }
+
+        if (AntiMotionSicknessOverlay.IsRunning)
+        {
+            SaveConfigFromUI();
+            TrayIconService.Show();
+            _window.Close();
+            App.MainWindow?.Close();
         }
     }
 }

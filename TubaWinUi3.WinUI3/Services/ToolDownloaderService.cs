@@ -27,7 +27,8 @@ public sealed record ToolUpdateInfo(
     string FileName,
     long Size,
     bool IsArchive,
-    bool IsInstaller);
+    bool IsInstaller,
+    bool HasUpdate = true);
 
 public sealed record GitCodeDirProgress(
     int CurrentFile,
@@ -676,15 +677,6 @@ public static class ToolDownloaderService
                 && pubEl.ValueKind == JsonValueKind.String
                 ? pubEl.GetDateTimeOffset() : null;
 
-            if (!string.IsNullOrWhiteSpace(localVersion) && !string.IsNullOrWhiteSpace(tag))
-            {
-                var remoteVer = NormalizeVersion(tag);
-                var localVer = NormalizeVersion(localVersion);
-                if (!string.IsNullOrEmpty(remoteVer) && !string.IsNullOrEmpty(localVer)
-                    && string.Compare(remoteVer, localVer, StringComparison.OrdinalIgnoreCase) <= 0)
-                    return null;
-            }
-
             if (!root.TryGetProperty("assets", out var assetsEl)) return null;
 
             JsonElement bestAsset = default;
@@ -721,7 +713,17 @@ public static class ToolDownloaderService
             var isInstaller = assetName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
                               assetName.EndsWith(".msi", StringComparison.OrdinalIgnoreCase);
 
-            return new ToolUpdateInfo(tag, published, assetUrl, assetName, assetSize, isArchive, isInstaller);
+            var hasUpdate = true;
+            if (!string.IsNullOrWhiteSpace(localVersion) && !string.IsNullOrWhiteSpace(tag))
+            {
+                var remoteVer = NormalizeVersion(tag);
+                var localVer = NormalizeVersion(localVersion);
+                if (!string.IsNullOrEmpty(remoteVer) && !string.IsNullOrEmpty(localVer)
+                    && string.Compare(remoteVer, localVer, StringComparison.OrdinalIgnoreCase) <= 0)
+                    hasUpdate = false;
+            }
+
+            return new ToolUpdateInfo(tag, published, assetUrl, assetName, assetSize, isArchive, isInstaller, hasUpdate);
         }
         catch { return null; }
     }
@@ -743,15 +745,6 @@ public static class ToolDownloaderService
                 && pubEl.ValueKind == JsonValueKind.String
                 ? pubEl.GetDateTimeOffset() : null;
 
-            if (!string.IsNullOrWhiteSpace(localVersion) && !string.IsNullOrWhiteSpace(tag))
-            {
-                var remoteVer = NormalizeVersion(tag);
-                var localVer = NormalizeVersion(localVersion);
-                if (!string.IsNullOrEmpty(remoteVer) && !string.IsNullOrEmpty(localVer)
-                    && string.Compare(remoteVer, localVer, StringComparison.OrdinalIgnoreCase) <= 0)
-                    return null;
-            }
-
             if (!root.TryGetProperty("assets", out var assetsEl)) return null;
 
             JsonElement bestAsset = default;
@@ -788,7 +781,17 @@ public static class ToolDownloaderService
             var isInstaller = assetName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
                               assetName.EndsWith(".msi", StringComparison.OrdinalIgnoreCase);
 
-            return new ToolUpdateInfo(tag, published, assetUrl, assetName, assetSize, isArchive, isInstaller);
+            var hasUpdate = true;
+            if (!string.IsNullOrWhiteSpace(localVersion) && !string.IsNullOrWhiteSpace(tag))
+            {
+                var remoteVer = NormalizeVersion(tag);
+                var localVer = NormalizeVersion(localVersion);
+                if (!string.IsNullOrEmpty(remoteVer) && !string.IsNullOrEmpty(localVer)
+                    && string.Compare(remoteVer, localVer, StringComparison.OrdinalIgnoreCase) <= 0)
+                    hasUpdate = false;
+            }
+
+            return new ToolUpdateInfo(tag, published, assetUrl, assetName, assetSize, isArchive, isInstaller, hasUpdate);
         }
         catch { return null; }
     }

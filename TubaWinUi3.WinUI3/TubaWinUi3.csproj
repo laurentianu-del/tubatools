@@ -77,6 +77,7 @@
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.2.0" />
     <PackageReference Include="System.Diagnostics.EventLog" Version="10.0.2" />
     <PackageReference Include="System.Drawing.Common" Version="10.0.0" />
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
     <PackageReference Include="System.Management" Version="10.0.8" />
     <PackageReference Include="SIPSorcery" Version="10.0.11" />
 

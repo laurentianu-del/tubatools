@@ -276,6 +276,12 @@ public sealed partial class MainWindow : Window
 
     private void MainWindow_Closed(object sender, WindowEventArgs args)
     {
+        if (App.IsLiteMode)
+        {
+            args.Handled = true;
+            AppWindow.Hide();
+            return;
+        }
         BackdropService.BackdropChanged -= OnBackdropChanged;
         AppWindow.Changed -= AppWindow_Changed;
         WindowSizeService.SaveWindowSize(this);
