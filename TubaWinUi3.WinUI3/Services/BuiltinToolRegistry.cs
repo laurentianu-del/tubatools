@@ -43,7 +43,6 @@ public static class BuiltinToolRegistry
         Register(new AntiMotionSicknessTool());
         if (!RuntimeHelper.IsMsixPackaged)
             Register(new CommunityToolBuiltinTool());
-        Register(new FileTransferTool());
         Register(new ScreenTestTool());
         Register(new ServiceCenterTool());
 }
