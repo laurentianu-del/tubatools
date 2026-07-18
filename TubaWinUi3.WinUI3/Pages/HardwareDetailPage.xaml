@@ -43,14 +43,6 @@
     </Page.Resources>
 
     <Grid Background="Transparent">
-        <Image
-            x:Name="BackgroundImg"
-            Stretch="UniformToFill"
-            Opacity="0.15"
-            HorizontalAlignment="Stretch"
-            VerticalAlignment="Stretch"
-            IsHitTestVisible="False" />
-
         <ScrollViewer Padding="28,12,28,12" VerticalScrollBarVisibility="Auto">
             <StackPanel
                 x:Name="LayoutRoot"

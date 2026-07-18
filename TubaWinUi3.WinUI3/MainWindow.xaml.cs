@@ -32,6 +32,8 @@ public sealed partial class MainWindow : Window
 
     public bool IsTabMode => _isTabMode;
 
+    public Image? GetBackgroundImage() => BackgroundImg;
+
     public void ShowUpdateBanner(Models.UpdateInfo update, bool autoDownload)
     {
         if (autoDownload)
@@ -108,6 +110,8 @@ public sealed partial class MainWindow : Window
         NavFrame.Navigated += NavFrame_Navigated;
         TabNavFrame.Navigated += TabNavFrame_Navigated;
 
+        ApplyBackground();
+
         if (RuntimeHelper.IsMsixPackaged)
         {
             NavView.MenuItems.Remove(CommunityNavItem);
@@ -151,6 +155,29 @@ public sealed partial class MainWindow : Window
         UpdateDownloadBadge();
 
         BrandEasterEggService.BrandBackgroundLoaded += OnBrandBackgroundLoaded;
+        AppSettings.SettingChanged += OnBackgroundSettingChanged;
+    }
+
+    private void OnBackgroundSettingChanged(string key)
+    {
+        if (key == "BackgroundImagePath" || key == "BackgroundOpacity")
+            DispatcherQueue.TryEnqueue(ApplyBackground);
+    }
+
+    private void ApplyBackground()
+    {
+        var bmp = BackgroundService.LoadBackgroundImage();
+        if (bmp is not null)
+        {
+            BackgroundImg.Source = bmp;
+            BackgroundImg.Opacity = BackgroundService.GetBackgroundOpacity();
+            BackgroundImg.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            BackgroundImg.Source = null;
+            BackgroundImg.Visibility = Visibility.Collapsed;
+        }
     }
 
     private void UpdateSplashStatus(string text)
@@ -289,6 +316,7 @@ public sealed partial class MainWindow : Window
         WindowSizeService.SaveWindowSize(this);
         DownloadQueueService.QueueChanged -= OnDownloadQueueChanged;
         BrandEasterEggService.BrandBackgroundLoaded -= OnBrandBackgroundLoaded;
+        AppSettings.SettingChanged -= OnBackgroundSettingChanged;
         NavLayoutModeService.NavLayoutModeChanged -= OnNavLayoutModeChanged;
     }
 
@@ -301,6 +329,7 @@ public sealed partial class MainWindow : Window
     {
         DispatcherQueue.TryEnqueue(() =>
         {
+            ApplyBackground();
             BrandBgBanner.Show(e.BrandName);
         });
     }

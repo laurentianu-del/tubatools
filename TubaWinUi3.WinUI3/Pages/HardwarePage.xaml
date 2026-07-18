@@ -192,14 +192,6 @@
     </Page.Resources>
 
     <Grid Background="Transparent">
-        <Image
-            x:Name="BackgroundImg"
-            Stretch="UniformToFill"
-            Opacity="0.15"
-            HorizontalAlignment="Stretch"
-            VerticalAlignment="Stretch"
-            IsHitTestVisible="False" />
-
         <Border x:Name="RootHost">
             <Grid
                 x:Name="LayoutRoot"

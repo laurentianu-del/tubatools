@@ -233,12 +233,27 @@ public sealed partial class ErrorWindow : Window
     private async void ReportButton_Click(object sender, RoutedEventArgs e)
     {
         var reproSteps = ReproStepsBox.Text.Trim();
-        var reproSection = string.IsNullOrEmpty(reproSteps)
-            ? "_请在此描述复现步骤_\n"
-            : $"{reproSteps}\n";
+
+        if (string.IsNullOrEmpty(reproSteps))
+        {
+            ReproStepsBox.Header = "⚠️ 复现步骤为必填项";
+            var dialog = new ContentDialog
+            {
+                Title = "请填写复现步骤",
+                Content = "提交 Issue 前请描述你遇到此错误时的操作步骤，这能帮助我们快速定位和修复问题。",
+                CloseButtonText = "知道了",
+                XamlRoot = Content.XamlRoot,
+                RequestedTheme = ThemeService.CurrentElementTheme,
+            };
+            await dialog.ShowAsync();
+            ReproStepsBox.Focus(FocusState.Programmatic);
+            return;
+        }
+
+        ReproStepsBox.Header = null;
 
         var body = Uri.EscapeDataString(
-            "## 复现步骤\n\n" + reproSection + "\n" +
+            "## 复现步骤\n\n" + reproSteps + "\n\n" +
             "## 异常信息\n\n```\n" + _errorDetail + "\n```\n\n" +
             "## 系统信息\n\n```\n" + _systemInfo + "\n```\n");
         var url = $"{RepoIssuesUrl}?title=[Bug]+未处理异常&body={body}";

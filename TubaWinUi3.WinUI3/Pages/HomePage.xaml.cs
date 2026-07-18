@@ -139,7 +139,6 @@ public sealed partial class HomePage : Page
 
         _searchQuery = string.Empty;
         _selectedTag = null;
-        ApplyBackground();
         UpdateTitle();
 
         var needsReload = _category != _lastLoadedCategory ||
@@ -381,22 +380,6 @@ public sealed partial class HomePage : Page
             if (result is not null) return result;
         }
         return null;
-    }
-
-    private void ApplyBackground()
-    {
-        var bmp = BackgroundService.LoadBackgroundImage();
-        if (bmp is not null)
-        {
-            BackgroundImg.Source = bmp;
-            BackgroundImg.Opacity = BackgroundService.GetBackgroundOpacity();
-            BackgroundImg.Visibility = Visibility.Visible;
-        }
-        else
-        {
-            BackgroundImg.Source = null;
-            BackgroundImg.Visibility = Visibility.Collapsed;
-        }
     }
 
     protected override void OnNavigatingFrom(NavigatingCancelEventArgs e)

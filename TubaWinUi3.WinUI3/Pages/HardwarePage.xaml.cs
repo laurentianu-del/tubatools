@@ -81,7 +81,6 @@ public sealed partial class HardwarePage : Page
 
     private void HardwarePage_Loaded(object sender, RoutedEventArgs e)
     {
-        ApplyBackground();
         StartUptimeTimer();
     }
 
@@ -96,7 +95,6 @@ public sealed partial class HardwarePage : Page
     protected override void OnNavigatedTo(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
-        ApplyBackground();
         StartUptimeTimer();
         _ = LoadHardwareInfoAsync();
     }
@@ -106,22 +104,6 @@ public sealed partial class HardwarePage : Page
         base.OnNavigatedFrom(e);
         _uptimeTimer?.Stop();
         _uptimeTimer = null;
-    }
-
-    private void ApplyBackground()
-    {
-        var bmp = BackgroundService.LoadBackgroundImage();
-        if (bmp is not null)
-        {
-            BackgroundImg.Source = bmp;
-            BackgroundImg.Opacity = BackgroundService.GetBackgroundOpacity();
-            BackgroundImg.Visibility = Visibility.Visible;
-        }
-        else
-        {
-            BackgroundImg.Source = null;
-            BackgroundImg.Visibility = Visibility.Collapsed;
-        }
     }
 
     private void HardwarePage_Unloaded(object sender, RoutedEventArgs e)
@@ -439,10 +421,13 @@ public sealed partial class HardwarePage : Page
             contentBmp.UnlockBits(bmpData);
 
             Bitmap? bgBmp = null;
-            if (BackgroundImg.Visibility == Visibility.Visible && BackgroundImg.Source is not null)
+            float bgOpacity = 0.15f;
+            var mainWindowBg = (App.MainWindow as MainWindow)?.GetBackgroundImage();
+            if (mainWindowBg is { Visibility: Visibility.Visible } && mainWindowBg.Source is not null)
             {
+                bgOpacity = (float)mainWindowBg.Opacity;
                 var bgRtb = new RenderTargetBitmap();
-                await bgRtb.RenderAsync(BackgroundImg);
+                await bgRtb.RenderAsync(mainWindowBg);
                 var bgPixels = await GetPixelsAsync(bgRtb);
                 bgBmp = new Bitmap(bgRtb.PixelWidth, bgRtb.PixelHeight, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
                 var bgBmpData = bgBmp.LockBits(new System.Drawing.Rectangle(0, 0, bgRtb.PixelWidth, bgRtb.PixelHeight), ImageLockMode.WriteOnly, bgBmp.PixelFormat);
@@ -486,7 +471,6 @@ public sealed partial class HardwarePage : Page
 
             if (bgBmp is not null)
             {
-                float bgOpacity = (float)BackgroundImg.Opacity;
                 var bgColorMatrix = new System.Drawing.Imaging.ColorMatrix(new float[][]
                 {
                     new float[] {1, 0, 0, 0, 0},

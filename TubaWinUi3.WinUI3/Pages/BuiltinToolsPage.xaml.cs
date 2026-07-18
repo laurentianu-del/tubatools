@@ -27,8 +27,6 @@ public sealed partial class BuiltinToolsPage : Page
     {
         base.OnNavigatedTo(e);
 
-        ApplyBackground();
-
         if (e.Parameter is SearchNavigationTarget target && target.HighlightBuiltinId is not null)
         {
             _pendingHighlightId = target.HighlightBuiltinId;
@@ -38,22 +36,6 @@ public sealed partial class BuiltinToolsPage : Page
         {
             StartHighlight(_pendingHighlightId);
             _pendingHighlightId = null;
-        }
-    }
-
-    private void ApplyBackground()
-    {
-        var bmp = BackgroundService.LoadBackgroundImage();
-        if (bmp is not null)
-        {
-            BackgroundImg.Source = bmp;
-            BackgroundImg.Opacity = BackgroundService.GetBackgroundOpacity();
-            BackgroundImg.Visibility = Visibility.Visible;
-        }
-        else
-        {
-            BackgroundImg.Source = null;
-            BackgroundImg.Visibility = Visibility.Collapsed;
         }
     }
 

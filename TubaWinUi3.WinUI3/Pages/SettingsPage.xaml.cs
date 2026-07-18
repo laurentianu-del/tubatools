@@ -1683,11 +1683,74 @@ public sealed partial class SettingsPage : Page
     private async void FeedbackButton_Click(object sender, RoutedEventArgs e)
     {
         const string repoIssuesUrl = "https://github.com/luolangaga/tubatool/issues/new";
-        var body = Uri.EscapeDataString(
-            "## 描述\n\n请描述您的问题或建议...\n\n" +
-            "## 系统信息\n\n```\n" + GetSystemInfoForFeedback() + "\n```\n");
-        var url = $"{repoIssuesUrl}?title=[反馈]+&body={body}";
-        await global::Windows.System.Launcher.LaunchUriAsync(new Uri(url));
+
+        var descriptionBox = new TextBox
+        {
+            PlaceholderText = "请描述您的问题或建议...",
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            MinHeight = 80,
+            MaxHeight = 160,
+            FontSize = 13,
+        };
+
+        var stepsBox = new TextBox
+        {
+            PlaceholderText = "1. 打开xxx页面\n2. 点击xxx按钮\n3. 出现xxx问题",
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            MinHeight = 80,
+            MaxHeight = 160,
+            FontSize = 13,
+        };
+
+        var panel = new StackPanel { Spacing = 12 };
+        panel.Children.Add(new TextBlock { Text = "问题描述", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, FontSize = 14 });
+        panel.Children.Add(descriptionBox);
+        panel.Children.Add(new TextBlock { Text = "复现步骤 *必填", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, FontSize = 14 });
+        panel.Children.Add(stepsBox);
+
+        while (true)
+        {
+            var dialog = new ContentDialog
+            {
+                Title = "提交反馈",
+                Content = panel,
+                PrimaryButtonText = "提交",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = XamlRoot,
+                RequestedTheme = ThemeService.CurrentElementTheme,
+            };
+
+            var result = await dialog.ShowAsync();
+            if (result != ContentDialogResult.Primary) return;
+
+            var steps = stepsBox.Text.Trim();
+            if (string.IsNullOrEmpty(steps))
+            {
+                var warn = new ContentDialog
+                {
+                    Title = "请填写复现步骤",
+                    Content = "提交反馈前请描述复现步骤，这能帮助我们快速定位和修复问题。",
+                    CloseButtonText = "返回填写",
+                    XamlRoot = XamlRoot,
+                    RequestedTheme = ThemeService.CurrentElementTheme,
+                };
+                await warn.ShowAsync();
+                continue;
+            }
+
+            var description = descriptionBox.Text.Trim();
+            var descSection = string.IsNullOrEmpty(description) ? "" : $"## 描述\n\n{description}\n\n";
+            var body = Uri.EscapeDataString(
+                descSection +
+                "## 复现步骤\n\n" + steps + "\n\n" +
+                "## 系统信息\n\n```\n" + GetSystemInfoForFeedback() + "\n```\n");
+            var url = $"{repoIssuesUrl}?title=[反馈]+&body={body}";
+            await global::Windows.System.Launcher.LaunchUriAsync(new Uri(url));
+            return;
+        }
     }
 
     private static string GetSystemInfoForFeedback()

@@ -4,6 +4,7 @@ using Windows.System;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
+using TubaWinUi3.Services;
 
 namespace TubaWinUi3.Pages;
 
@@ -70,7 +71,28 @@ public sealed partial class ErrorPage : Page
 
     private async void ReportButton_Click(object sender, RoutedEventArgs e)
     {
+        var reproSteps = ReproStepsBox.Text.Trim();
+
+        if (string.IsNullOrEmpty(reproSteps))
+        {
+            ReproStepsBox.Header = "⚠️ 复现步骤为必填项";
+            var dialog = new ContentDialog
+            {
+                Title = "请填写复现步骤",
+                Content = "提交 Issue 前请描述你遇到此错误时的操作步骤，这能帮助我们快速定位和修复问题。",
+                CloseButtonText = "知道了",
+                XamlRoot = XamlRoot,
+                RequestedTheme = ThemeService.CurrentElementTheme,
+            };
+            await dialog.ShowAsync();
+            ReproStepsBox.Focus(FocusState.Programmatic);
+            return;
+        }
+
+        ReproStepsBox.Header = null;
+
         var body = Uri.EscapeDataString(
+            "## 复现步骤\n\n" + reproSteps + "\n\n" +
             "## 异常信息\n\n```\n" + _errorDetail + "\n```\n\n" +
             "## 环境\n\n- OS: Windows\n- 应用版本: " + GetAppVersion() + "\n");
         var url = $"{RepoIssuesUrl}?title=[Bug]+未处理异常&body={body}";

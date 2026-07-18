@@ -19,24 +19,7 @@ public sealed partial class HardwareDetailPage : Page
 
     private void HardwareDetailPage_Loaded(object sender, RoutedEventArgs e)
     {
-        ApplyBackground();
         _ = LoadDetailAsync();
-    }
-
-    private void ApplyBackground()
-    {
-        var bmp = BackgroundService.LoadBackgroundImage();
-        if (bmp is not null)
-        {
-            BackgroundImg.Source = bmp;
-            BackgroundImg.Opacity = BackgroundService.GetBackgroundOpacity();
-            BackgroundImg.Visibility = Visibility.Visible;
-        }
-        else
-        {
-            BackgroundImg.Source = null;
-            BackgroundImg.Visibility = Visibility.Collapsed;
-        }
     }
 
     private void RefreshButton_Click(object sender, RoutedEventArgs e)

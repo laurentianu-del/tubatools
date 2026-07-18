@@ -216,14 +216,13 @@ public sealed class ToolItem : INotifyPropertyChanged
         var handler = PropertyChanged;
         if (handler is null) return;
 
-        var dq = DispatcherQueue.GetForCurrentThread();
-        if (dq is not null)
-        {
-            handler.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
-        else if (_uiDispatcher is not null)
+        if (_uiDispatcher is not null && !_uiDispatcher.HasThreadAccess)
         {
             _uiDispatcher.TryEnqueue(() => handler.Invoke(this, new PropertyChangedEventArgs(propertyName)));
+        }
+        else
+        {
+            handler.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
     }
 

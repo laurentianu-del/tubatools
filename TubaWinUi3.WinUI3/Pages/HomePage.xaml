@@ -75,14 +75,6 @@
     </Page.Resources>
 
     <Grid>
-        <Image
-            x:Name="BackgroundImg"
-            Stretch="UniformToFill"
-            Opacity="0.15"
-            HorizontalAlignment="Stretch"
-            VerticalAlignment="Stretch"
-            IsHitTestVisible="False" />
-
         <Grid Padding="28,18,28,24" RowSpacing="18">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
