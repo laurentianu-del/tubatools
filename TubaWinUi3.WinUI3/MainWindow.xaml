@@ -230,7 +230,10 @@
             </TitleBar.Content>
         </TitleBar>
 
-        <controls:UpdateBanner x:Name="UpdateBanner" Grid.Row="1" />
+        <StackPanel Grid.Row="1">
+            <controls:UpdateBanner x:Name="UpdateBanner" />
+            <controls:BrandBackgroundBanner x:Name="BrandBgBanner" />
+        </StackPanel>
 
         <Grid Grid.Row="2">
             <NavigationView

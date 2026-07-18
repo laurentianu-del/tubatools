@@ -45,6 +45,7 @@ public static class BuiltinToolRegistry
             Register(new CommunityToolBuiltinTool());
         Register(new ScreenTestTool());
         Register(new ServiceCenterTool());
+
 }
 
     public static IReadOnlyList<string> GetCategories()

@@ -149,6 +149,8 @@ public sealed partial class MainWindow : Window
         DownloadQueueService.Initialize(DispatcherQueue);
         DownloadQueueService.QueueChanged += OnDownloadQueueChanged;
         UpdateDownloadBadge();
+
+        BrandEasterEggService.BrandBackgroundLoaded += OnBrandBackgroundLoaded;
     }
 
     private void UpdateSplashStatus(string text)
@@ -286,12 +288,21 @@ public sealed partial class MainWindow : Window
         AppWindow.Changed -= AppWindow_Changed;
         WindowSizeService.SaveWindowSize(this);
         DownloadQueueService.QueueChanged -= OnDownloadQueueChanged;
+        BrandEasterEggService.BrandBackgroundLoaded -= OnBrandBackgroundLoaded;
         NavLayoutModeService.NavLayoutModeChanged -= OnNavLayoutModeChanged;
     }
 
     private void OnDownloadQueueChanged()
     {
         DispatcherQueue.TryEnqueue(UpdateDownloadBadge);
+    }
+
+    private void OnBrandBackgroundLoaded(object? sender, BrandEasterEggLoadedEventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            BrandBgBanner.Show(e.BrandName);
+        });
     }
 
     private void UpdateDownloadBadge()
