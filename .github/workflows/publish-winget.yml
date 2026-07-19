@@ -3,14 +3,11 @@ name: Publish to WinGet
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version to publish (e.g. 1.0.3)'
-        required: true
-        type: string
       release_tag:
-        description: 'Release tag (e.g. v1.0.3)'
+        description: 'Release tag to publish (e.g. v1.0.3)'
         required: true
-        type: string
+        type: choice
+        options: []
 
 permissions:
   contents: read
@@ -20,39 +17,64 @@ env:
   DOTNET_NOLOGO: '1'
 
 jobs:
+  list-releases:
+    runs-on: ubuntu-latest
+    outputs:
+      releases: ${{ steps.list.outputs.releases }}
+    steps:
+      - name: List releases
+        id: list
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASES=$(gh release list --repo ${{ github.repository }} --limit 20 --json tagName,isLatest,isDraft --jq '.')
+          echo "releases=$RELEASES" >> $GITHUB_OUTPUT
+
   publish:
+    needs: list-releases
     runs-on: windows-latest
     steps:
-      - name: Get release info
+      - name: Resolve release info
         id: release-info
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $VERSION = '${{ inputs.version }}'
           $TAG = '${{ inputs.release_tag }}'
-          
-          Write-Host "Version: $VERSION"
+          if (-not $TAG) {
+            Write-Error "Release tag is required"
+            exit 1
+          }
+
+          $VERSION = $TAG -replace '^v',''
           Write-Host "Tag: $TAG"
-          
+          Write-Host "Version: $VERSION"
+
+          $RELEASE = gh release view $TAG --repo ${{ github.repository }} --json tagName,name,body | ConvertFrom-Json
+          if (-not $RELEASE) {
+            Write-Error "Release not found: $TAG"
+            exit 1
+          }
+
           echo "version=$VERSION" >> $env:GITHUB_OUTPUT
           echo "tag=$TAG" >> $env:GITHUB_OUTPUT
 
       - name: Download x64 installer
+        id: download-installer
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $TAG = '${{ steps.release-info.outputs.tag }}'
           $VERSION = '${{ steps.release-info.outputs.version }}'
-          
+
           gh release download $TAG --repo ${{ github.repository }} `
             --pattern "TubaWinUi3_Setup_${VERSION}_x64.exe" `
             --dir .
-          
+
           if (-not (Test-Path "TubaWinUi3_Setup_${VERSION}_x64.exe")) {
             Write-Error "Failed to download x64 installer"
             exit 1
           }
-          
+
           $InstallerHash = (Get-FileHash -Path "TubaWinUi3_Setup_${VERSION}_x64.exe" -Algorithm SHA256).Hash.ToLower()
           Write-Host "Installer SHA256: $InstallerHash"
           echo "installer_hash=$InstallerHash" >> $env:GITHUB_OUTPUT
@@ -65,17 +87,16 @@ jobs:
         run: |
           $VERSION = '${{ steps.release-info.outputs.version }}'
           $INSTALLER_HASH = '${{ steps.download-installer.outputs.installer_hash }}'
-          
-          @'
+
+          $localeContent = @"
 PackageIdentifier: luolangaga.tubatools
-PackageVersion: {VERSION}
+PackageVersion: $VERSION
 PackageName: 图吧工具箱WinUI3
 PackageLocale: zh-CN
 Publisher: 罗澜嘎嘎
 PublisherUrl: https://github.com/luolangaga/tubatool
 PublisherSupportUrl: https://github.com/luolangaga/tubatool/issues
 Author: 罗澜嘎嘎
-PackageName: 图吧工具箱WinUI3
 PackageUrl: https://github.com/luolangaga/tubatool
 License: MIT
 LicenseUrl: https://github.com/luolangaga/tubatool/blob/master/LICENSE
@@ -90,28 +111,30 @@ Tags:
   - benchmark
   - chinese
 Moniker: tubawinui3
-ReleaseNotes: https://github.com/luolangaga/tubatool/releases/tag/v{VERSION}
-ReleaseNotesUrl: https://github.com/luolangaga/tubatool/releases/tag/v{VERSION}
+ReleaseNotes: https://github.com/luolangaga/tubatool/releases/tag/v$VERSION
+ReleaseNotesUrl: https://github.com/luolangaga/tubatool/releases/tag/v$VERSION
 ManifestType: defaultLocale
 ManifestVersion: 1.6.0
-'@ -replace '\{VERSION\}', $VERSION | Set-Content -Path 'winget_manifest\luolangaga.tubatools.locale.zh-CN.yaml' -Encoding UTF8
+"@
+          $localeContent | Set-Content -Path 'winget_manifest\luolangaga.tubatools.locale.zh-CN.yaml' -Encoding UTF8
 
-          @'
+          $versionContent = @"
 PackageIdentifier: luolangaga.tubatools
-PackageVersion: {VERSION}
+PackageVersion: $VERSION
 DefaultLocale: zh-CN
 ManifestType: version
 ManifestVersion: 1.6.0
-'@ -replace '\{VERSION\}', $VERSION | Set-Content -Path 'winget_manifest\luolangaga.tubatools.yaml' -Encoding UTF8
+"@
+          $versionContent | Set-Content -Path 'winget_manifest\luolangaga.tubatools.yaml' -Encoding UTF8
 
-          @'
+          $installerContent = @"
 PackageIdentifier: luolangaga.tubatools
-PackageVersion: {VERSION}
+PackageVersion: $VERSION
 InstallerType: inno
 Installers:
   - Architecture: x64
-    InstallerUrl: https://github.com/luolangaga/tubatool/releases/download/v{VERSION}/TubaWinUi3_Setup_{VERSION}_x64.exe
-    InstallerSha256: {INSTALLER_HASH}
+    InstallerUrl: https://github.com/luolangaga/tubatool/releases/download/v$VERSION/TubaWinUi3_Setup_${VERSION}_x64.exe
+    InstallerSha256: $INSTALLER_HASH
     InstallerSwitches:
       Silent: /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-
       SilentWithProgress: /SILENT /SUPPRESSMSGBOXES /NORESTART /SP-
@@ -121,12 +144,12 @@ Installers:
     AppsAndFeaturesEntries:
       - DisplayName: 图吧工具箱winui3
         Publisher: 罗澜嘎嘎
-        DisplayVersion: {VERSION}
+        DisplayVersion: $VERSION
         ProductCode: '{DA3D64F4-winui3-Tuba-2025}'
 ManifestType: installer
 ManifestVersion: 1.6.0
-'@ -replace '\{VERSION\}', $VERSION -replace '\{INSTALLER_HASH\}', $INSTALLER_HASH | Set-Content -Path 'winget_manifest\luolangaga.tubatools.installer.yaml' -Encoding UTF8
-        id: generate-manifests
+"@
+          $installerContent | Set-Content -Path 'winget_manifest\luolangaga.tubatools.installer.yaml' -Encoding UTF8
 
       - name: Install wingetcreate
         run: |
@@ -137,7 +160,7 @@ ManifestVersion: 1.6.0
           WINGET_GITHUB_TOKEN: ${{ secrets.WINGET_GITHUB_TOKEN }}
         run: |
           $VERSION = '${{ steps.release-info.outputs.version }}'
-          
+
           if (-not $env:WINGET_GITHUB_TOKEN) {
             Write-Host "WINGET_GITHUB_TOKEN not set, skipping winget submission"
             Write-Host "To enable automatic winget submission:"
@@ -150,7 +173,7 @@ ManifestVersion: 1.6.0
             Write-Host "3. Submit a PR to winget-pkgs"
             exit 0
           }
-          
+
           wingetcreate update luolangaga.tubatools `
             --version $VERSION `
             --urls "https://github.com/luolangaga/tubatool/releases/download/v${VERSION}/TubaWinUi3_Setup_${VERSION}_x64.exe" `
