@@ -159,13 +159,24 @@ jobs:
           Write-Host "Manifests generated:"
           Get-ChildItem winget_manifest | ForEach-Object { Write-Host "  $($_.Name)" }
 
-      - name: Validate manifests
+      - name: Install wingetcreate
         shell: pwsh
         run: |
           winget install Microsoft.WingetCreate --accept-source-agreements --accept-package-agreements --disable-interactivity 2>$null || true
-          wingetcreate validate winget_manifest 2>$null
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "::warning::wingetcreate validation reported issues (non-blocking)"
+
+      - name: Validate manifests
+        shell: pwsh
+        run: |
+          $manifestDir = (Resolve-Path winget_manifest).Path
+          $hasErrors = $false
+          foreach ($file in Get-ChildItem $manifestDir -Filter '*.yaml') {
+            winget validate $file.FullName 2>$null
+            if ($LASTEXITCODE -ne 0) {
+              $hasErrors = $true
+            }
+          }
+          if ($hasErrors) {
+            Write-Host "::warning::winget validation reported issues (non-blocking)"
           } else {
             Write-Host "Manifest validation passed"
           }
