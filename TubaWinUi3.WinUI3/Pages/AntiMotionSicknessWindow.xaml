@@ -73,24 +73,7 @@
                     </Grid>
                 </Border>
 
-                <!-- Monitor Selection Card -->
-                <Border Padding="14,10,14,10" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
-                    <Grid ColumnSpacing="12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <FontIcon FontSize="18" Glyph="&#xE7F4;" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                            <TextBlock FontWeight="SemiBold" Text="目标显示器" />
-                            <TextBlock x:Name="MonitorInfoText" FontSize="12" Opacity="1.0" Text="选择要在哪个显示器上显示准星" />
-                        </StackPanel>
-                        <ComboBox x:Name="MonitorCombo" Grid.Column="2" MinWidth="150" SelectionChanged="MonitorCombo_SelectionChanged" />
-                    </Grid>
-                </Border>
-
-                <!-- Force Topmost Mode -->
+<!-- Force Topmost Mode -->
                 <Border Padding="14,10,14,10" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
                     <Grid ColumnSpacing="12">
                         <Grid.ColumnDefinitions>
