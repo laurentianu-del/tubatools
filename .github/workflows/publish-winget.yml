@@ -168,14 +168,9 @@ jobs:
         shell: pwsh
         run: |
           $manifestDir = (Resolve-Path winget_manifest).Path
-          $hasErrors = $false
-          foreach ($file in Get-ChildItem $manifestDir -Filter '*.yaml') {
-            winget validate $file.FullName 2>$null
-            if ($LASTEXITCODE -ne 0) {
-              $hasErrors = $true
-            }
-          }
-          if ($hasErrors) {
+          $allYamls = (Get-ChildItem $manifestDir -Filter '*.yaml' | ForEach-Object { $_.FullName }) -join ','
+          winget validate --manifest $manifestDir 2>$null
+          if ($LASTEXITCODE -ne 0) {
             Write-Host "::warning::winget validation reported issues (non-blocking)"
           } else {
             Write-Host "Manifest validation passed"
