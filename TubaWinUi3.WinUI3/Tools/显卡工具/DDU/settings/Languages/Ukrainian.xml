@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <DisplayDriverUninstaller ISO="uk-UA" Text="Ukrainian">
 	<!--
 		See file ' \Settings\Languages\_For translators - ReadMe.txt ' 	
@@ -116,13 +116,27 @@
 		<VisitGuru3DNvidiaMenuItem>
 			<Text>Відвідайте тему NVIDIA на Guru3d</Text>
 		</VisitGuru3DNvidiaMenuItem>
+		        <VisitDDUShopMenuItem>
+            <Text>Відвідайте офіційний магазин мерчу DDU</Text>
+        </VisitDDUShopMenuItem>
+		<VisitDiscord>
+			<Text>Приєднуйтесь до нашого Discord</Text>
+		</VisitDiscord>
 		<VisitGuru3DAMDMenuItem>
 			<Text>Відвідайте тему AMD Guru3d</Text>
 		</VisitGuru3DAMDMenuItem>
 		<VisitGeforceMenuItem>
 			<Text>Відвідайте тему Geforce</Text>
 		</VisitGeforceMenuItem>
-
+        <DownloadNvidiaMenuItem>
+			<Text>Завантажити драйвери NVIDIA</Text>
+		</DownloadNvidiaMenuItem>
+        <DownloadAmdMenuItem>
+			<Text>Завантажити драйвери AMD</Text>
+		</DownloadAmdMenuItem>
+        <DownloadIntelMenuItem>
+			<Text>Завантажити драйвери Intel</Text>
+		</DownloadIntelMenuItem>
 		<Messages>
 			<Text1>Доступні оновлення! Бажаєте відвідати веб-сайт DDU зараз?</Text1>
 			<Text2>Для версій, старіших ніж найостанніша, підтримку обмежено. Перевірте нову версію, перш ніж повідомляти про помилки.</Text2>
@@ -218,6 +232,13 @@
 	</frmMain>
 
 	<frmOptions Text="Параметри">
+		<btnResetDefaults>
+			<Text>Скинути до рекомендованих</Text>
+			<Tooltip>Скинути всі параметри до рекомендованих значень за замовчуванням.</Tooltip>
+		</btnResetDefaults>
+		<Messages>
+			<Text1>Скинути всі параметри до рекомендованих значень за замовчуванням?</Text1>
+		</Messages>
 		<btnClose>
 			<Text>Закрити</Text>
 		</btnClose>
@@ -288,6 +309,10 @@
 		<lblRemNVCP>
 			<Text>Видалити панель керування NVIDIA, інстальовану з Microsoft Store (драйвер DCH)</Text>
 		</lblRemNVCP>
+        <lblRemoveNvidiaCache>
+            <Text>Видалити кеш шейдерів NVIDIA (Зніміть позначку, якщо використовується ASC / автокомпіляція шейдерів NVIDIA App)
+            </Text>
+        </lblRemoveNvidiaCache>
 		<lblKeepNVCPopt>
 			<Text>Зберегти глобальні налаштування панелі керування NVIDIA та налаштування програми.</Text>
 			<Tooltip>
@@ -319,6 +344,9 @@
 				 Примітка 2. НАСТІЙНО рекомендовано відновити цю зміну після завершення використання DDU і повторної інсталяції драйвера ГП, 
 				 інакше у вас можуть виникнути проблеми з інсталяцією іншого пристрою.</Tooltip>
  		</lblPreventWinUpdate>
+				<lblUseDarkTheme>
+			<Text>Використовувати темну тему</Text>
+		</lblUseDarkTheme>
 	</frmOptions>
 
 	<frmLaunch Text="Варіанти запуску">
@@ -502,6 +530,11 @@
 			<Details>yuripet@gmail.com</Details>
 			<LastUpdate>02/04/2023</LastUpdate>
 		</Translator>
+			<Translator2>
+			<User>Mats/Onyx</User>
+			<Details>Twitter:onyxwz1</Details>
+			<LastUpdate>17/02/2026</LastUpdate>
+		</Translator2>
 	</LanguageTranslators>
 
 </DisplayDriverUninstaller>

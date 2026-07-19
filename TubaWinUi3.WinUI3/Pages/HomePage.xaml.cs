@@ -440,6 +440,12 @@ public sealed partial class HomePage : Page
             OpenToolDirectory(tool);
     }
 
+    private void CompactMenu_OpenTutorial(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuFlyoutItem { DataContext: ToolItem tool } && tool.HasTutorial)
+            BrowserWindow.Open(tool.TutorialUrl!, $"{tool.Name} - 使用教程");
+    }
+
     private void NormalItem_RightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         if (sender is FrameworkElement fe && fe.DataContext is ToolItem tool)
@@ -478,6 +484,12 @@ public sealed partial class HomePage : Page
     {
         if (sender is MenuFlyoutItem { DataContext: ToolItem tool })
             OpenToolDirectory(tool);
+    }
+
+    private void NormalMenu_OpenTutorial(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuFlyoutItem { DataContext: ToolItem tool } && tool.HasTutorial)
+            BrowserWindow.Open(tool.TutorialUrl!, $"{tool.Name} - 使用教程");
     }
 
     private void NormalMenu_DeleteTool(object sender, RoutedEventArgs e)
@@ -553,6 +565,11 @@ public sealed partial class HomePage : Page
             .FirstOrDefault(i => i.Text.Contains("所在目录"));
         if (openDir is not null)
             openDir.Visibility = isBuiltin ? Visibility.Collapsed : Visibility.Visible;
+
+        var tutorialItem = flyout.Items.OfType<MenuFlyoutItem>()
+            .FirstOrDefault(i => i.Text.Contains("教程"));
+        if (tutorialItem is not null)
+            tutorialItem.Visibility = tool.HasTutorial ? Visibility.Visible : Visibility.Collapsed;
 
         var deleteItem = flyout.Items.OfType<MenuFlyoutItem>()
             .FirstOrDefault(i => i.Text.Contains("删除工具"));

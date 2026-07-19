@@ -18,6 +18,10 @@ public sealed partial class HardwarePage : Page
     private DispatcherTimer? _uptimeTimer;
     private bool _dataLoaded;
     private bool _animatingDetails;
+    private bool _nicknameMode;
+    private bool _isAnimatingNickname;
+    private IReadOnlyList<HardwareInfoSection>? _currentSections;
+    private readonly Dictionary<HardwareInfoItem, string> _originalValues = [];
 
     private static SvgImageSource? IntelLogo;
     private static SvgImageSource? AmdLogo;
@@ -129,6 +133,116 @@ public sealed partial class HardwarePage : Page
         Frame.Navigate(typeof(HardwareDetailPage));
     }
 
+    private void TitleText_Tapped(object sender, TappedRoutedEventArgs e)
+    {
+        _ = ToggleNicknameWithAnimationAsync();
+    }
+
+    private async Task ToggleNicknameWithAnimationAsync()
+    {
+        if (_currentSections is null || _isAnimatingNickname) return;
+        _isAnimatingNickname = true;
+        _nicknameMode = !_nicknameMode;
+
+        var details = _currentSections[2].Items;
+
+        foreach (var item in details)
+        {
+            if (!_originalValues.ContainsKey(item))
+                _originalValues[item] = item.Value;
+            if (item.NicknameValue is null)
+                item.NicknameValue = BrandEasterEggService.ApplyNickname(_originalValues[item]);
+        }
+
+        var summary = _currentSections[0].Items;
+        var modelItem = summary.FirstOrDefault(i => i.Label == "设备型号");
+        if (modelItem is not null)
+        {
+            if (!_originalValues.ContainsKey(modelItem))
+                _originalValues[modelItem] = modelItem.Value;
+            if (modelItem.NicknameValue is null)
+                modelItem.NicknameValue = BrandEasterEggService.ApplyNickname(_originalValues[modelItem]);
+        }
+
+        var valueTexts = new List<TextBlock>();
+        for (int i = 0; i < DetailsRepeater.ItemsSourceView.Count; i++)
+        {
+            if (DetailsRepeater.TryGetElement(i) is Grid row)
+            {
+                var vt = FindChildByName<TextBlock>(row, "ValueText");
+                if (vt is not null)
+                    valueTexts.Add(vt);
+            }
+        }
+
+        var eraseDuration = 180;
+        var writeDuration = 250;
+        var stagger = 40;
+
+        foreach (var vt in valueTexts)
+        {
+            var sb = new Storyboard();
+            var anim = new DoubleAnimation
+            {
+                To = 0,
+                Duration = TimeSpan.FromMilliseconds(eraseDuration),
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
+            };
+            Storyboard.SetTarget(anim, vt);
+            Storyboard.SetTargetProperty(anim, "(UIElement.RenderTransform).(ScaleTransform.ScaleY)");
+            sb.Children.Add(anim);
+            sb.Begin();
+        }
+
+        if (valueTexts.Count > 0)
+            await Task.Delay(eraseDuration + 20);
+
+        for (int i = 0; i < valueTexts.Count && i < details.Count; i++)
+        {
+            var newText = _nicknameMode ? details[i].NicknameValue! : _originalValues[details[i]];
+            valueTexts[i].Text = newText;
+            details[i].Value = newText;
+        }
+
+        if (modelItem is not null)
+            ModelText.Text = _nicknameMode ? modelItem.NicknameValue! : _originalValues[modelItem];
+
+        for (int i = 0; i < valueTexts.Count; i++)
+        {
+            var vt = valueTexts[i];
+            var delay = TimeSpan.FromMilliseconds(i * stagger);
+
+            var timer = new DispatcherTimer { Interval = delay };
+            timer.Tick += (_, _) =>
+            {
+                timer.Stop();
+                var sb = new Storyboard();
+                var anim = new DoubleAnimation
+                {
+                    From = 0,
+                    To = 1,
+                    Duration = TimeSpan.FromMilliseconds(writeDuration),
+                    EasingFunction = new BackEase { Amplitude = 0.3, EasingMode = EasingMode.EaseOut }
+                };
+                Storyboard.SetTarget(anim, vt);
+                Storyboard.SetTargetProperty(anim, "(UIElement.RenderTransform).(ScaleTransform.ScaleY)");
+                sb.Children.Add(anim);
+                sb.Begin();
+            };
+            timer.Start();
+        }
+
+        var totalWriteTime = valueTexts.Count * stagger + writeDuration;
+        await Task.Delay(totalWriteTime);
+
+        _isAnimatingNickname = false;
+
+        StatusBar.Title = _nicknameMode ? "彩蛋模式" : "正常模式";
+        StatusBar.Message = _nicknameMode ? "品牌戏称已开启，点击标题恢复" : "品牌戏称已关闭";
+        StatusBar.Severity = _nicknameMode ? InfoBarSeverity.Informational : InfoBarSeverity.Success;
+        StatusBar.IsOpen = true;
+    }
+
     private void Card_PointerEntered(object sender, PointerRoutedEventArgs e)
     {
         if (FastModeService.IsFastModeEnabled()) return;
@@ -225,6 +339,9 @@ public sealed partial class HardwarePage : Page
     {
         UpdateLayoutStructure();
 
+        _currentSections = sections;
+        _nicknameMode = false;
+        _originalValues.Clear();
 
         var summary = sections[0].Items;
         var system = sections[1].Items;

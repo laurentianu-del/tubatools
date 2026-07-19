@@ -217,8 +217,17 @@ public sealed partial class FavoritesPage : Page
         {
             var flyout = (MenuFlyout)Resources["FavItemFlyout"];
             PopulateArchSubmenu(flyout, tool);
+            UpdateTutorialVisibility(flyout, tool);
             flyout.ShowAt(fe, e.GetPosition(fe));
         }
+    }
+
+    private static void UpdateTutorialVisibility(MenuFlyout flyout, ToolItem tool)
+    {
+        var tutorialItem = flyout.Items.OfType<MenuFlyoutItem>()
+            .FirstOrDefault(i => i.Text.Contains("教程"));
+        if (tutorialItem is not null)
+            tutorialItem.Visibility = tool.HasTutorial ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void FavMenu_SendToDesktop(object sender, RoutedEventArgs e)
@@ -247,6 +256,12 @@ public sealed partial class FavoritesPage : Page
     {
         if (sender is MenuFlyoutItem { DataContext: ToolItem tool })
             OpenToolDirectory(tool);
+    }
+
+    private void FavMenu_OpenTutorial(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuFlyoutItem { DataContext: ToolItem tool } && tool.HasTutorial)
+            BrowserWindow.Open(tool.TutorialUrl!, $"{tool.Name} - 使用教程");
     }
 
     private static void OpenToolDirectory(ToolItem tool)

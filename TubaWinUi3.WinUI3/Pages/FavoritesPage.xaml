@@ -19,6 +19,11 @@
             <MenuFlyoutItem Text="发送到桌面快捷方式" Click="FavMenu_SendToDesktop" Icon="Link" />
             <MenuFlyoutItem Text="以管理员身份运行" Click="FavMenu_RunAsAdmin" Icon="Admin" />
             <MenuFlyoutItem Text="打开工具所在目录" Click="FavMenu_OpenDirectory" Icon="Folder" />
+            <MenuFlyoutItem x:Name="FavMenuOpenTutorial" Text="打开教程" Click="FavMenu_OpenTutorial" Visibility="Collapsed">
+                <MenuFlyoutItem.Icon>
+                    <FontIcon Glyph="&#xE8A1;" />
+                </MenuFlyoutItem.Icon>
+            </MenuFlyoutItem>
             <MenuFlyoutSubItem x:Name="FavArchSubmenu" Text="选择架构" Visibility="Collapsed">
                 <MenuFlyoutSubItem.Icon>
                     <FontIcon Glyph="&#xE912;" />

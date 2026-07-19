@@ -112,26 +112,26 @@
 			<Text>Patrons</Text>
 		</PatronMenuItem>
 		<VisitDDUHomeMenuItem>
-			<Text>Visit Official DDU Website</Text>
+			<Text>DDU Website</Text>
 		</VisitDDUHomeMenuItem>
         <VisitDDUShopMenuItem>
-            <Text>Visit Official DDU Merch Shop</Text>
+            <Text>DDU Merch Shop</Text>
         </VisitDDUShopMenuItem>
 		<VisitDiscord>
-			<Text>Join Our Discord</Text>
+			<Text>Discord Server</Text>
 		</VisitDiscord>
 		<VisitSVNMenuItem>
-			<Text>Visit GitHub Website</Text>
+			<Text>GitHub Repository</Text>
 		</VisitSVNMenuItem>
-		<VisitGuru3DNvidiaMenuItem>
-			<Text>Visit Guru3d NVIDIA thread</Text>
-		</VisitGuru3DNvidiaMenuItem>
-		<VisitGuru3DAMDMenuItem>
-			<Text>Visit Guru3d AMD thread</Text>
-		</VisitGuru3DAMDMenuItem>
-		<VisitGeforceMenuItem>
-			<Text>Visit GeForce thread</Text>
-		</VisitGeforceMenuItem>
+        <DownloadNvidiaMenuItem>
+			<Text>NVIDIA Driver Downloads</Text>
+		</DownloadNvidiaMenuItem>
+        <DownloadAmdMenuItem>
+			<Text>AMD Driver Downloads</Text>
+		</DownloadAmdMenuItem>
+        <DownloadIntelMenuItem>
+			<Text>Intel Driver Downloads</Text>
+		</DownloadIntelMenuItem>
 
 		<Messages>
 			<Text1>Updates are available! Visit DDU website now?</Text1>
@@ -170,7 +170,8 @@
 			<Options2>NVIDIA</Options2>
 			<Options3>AMD</Options3>
 			<Options4>Intel®</Options4>
-			<Options5>All GPUs</Options5>
+			<Options5>LISUAN</Options5>
+			<Options6>All GPUs</Options6>
 		</Options_GPU>
 		<Options_AUDIO>
 			<Options1>---Select device---</Options1>
@@ -227,6 +228,13 @@
 		<btnClose>
 			<Text>Close</Text>
 		</btnClose>
+		<btnResetDefaults>
+			<Text>Reset to recommended</Text>
+			<Tooltip>Reset all options to their recommended default values.</Tooltip>
+		</btnResetDefaults>
+		<Messages>
+			<Text1>Reset all options to their recommended default values?</Text1>
+		</Messages>
 		<lblOffer>
 			<Text>Show offers from our partners</Text>
 		</lblOffer>
@@ -291,6 +299,10 @@
 		<lblRemNVCP>
 			<Text>(DCH driver) Remove the NVIDIA Control Panel installed from the Microsoft Store</Text>
 		</lblRemNVCP>
+        <lblRemoveNvidiaCache>
+            <Text>Remove NVIDIA Shader Cache (Untick if using ASC / NVIDIA App Auto Shader Compilation)
+            </Text>
+        </lblRemoveNvidiaCache>
 		<lblKeepNVCPopt>
 			<Text>Keep NVIDIA Control Panel Global / Program Settings.</Text>
 			<Tooltip>
@@ -336,6 +348,9 @@
 		<lblRememberLastChoice>
 			<Text>Remember last selected GPU</Text>	
 		</lblRememberLastChoice>
+		<lblUseDarkTheme>
+			<Text>Use dark theme</Text>
+		</lblUseDarkTheme>
   </frmOptions>
 
 	<frmLaunch Text="Launch option">
@@ -436,31 +451,32 @@
 		</lblTranslators>
 		<lblPatron>
 			<Text>
-				Big thanks to the following Patrons and also those who aren't listed!
+                Big thanks to the following Patrons and also those who aren't listed!
 
-				-Alberto Bursi
-				-honnmaguro
-				-ZaoDaDong
-				-Kaseb
-				-Frank Brown
-				-Sergey Bolshakow
-				-James Tiller
-				-Paulo Henrique
-				-Graeme Small
-				-SMiThaYe
-				-Chris Ross
-				-Fabio
-				-Matti Metsikko
-				-mikalonia - mika
-				-ChaosDMNS
-				-Eduardo Macias
-				-Peter Le
-				-Kater Willschie
-				-Duke Hanson
-				-Sam Gooding
-				-Zero Chung
-				-Remy Starshade
-			</Text>
+                -Alberto Bursi
+                -honnmaguro
+                -ZaoDaDong
+                -Kaseb
+                -Frank Brown
+                -Sergey Bolshakow
+                -James Tiller
+                -Paulo Henrique
+                -Graeme Small
+                -SMiThaYe
+                -Chris Ross
+                -Fabio
+                -Matti Metsikko
+                -mikalonia - mika
+                -ChaosDMNS
+                -Eduardo Macias
+                -Peter Le
+                -Kater Willschie
+                -Duke Hanson
+                -Sam Gooding
+                -Zero Chung
+                -Remy Starshade
+                -Lion-man
+            </Text>
 		</lblPatron>
 	</frmAbout>
 
@@ -499,7 +515,7 @@
 
 				Coders: Wagnard, Devmltk, Shady7557
 
-				Tester: Dellon132, Onyx
+				Tester: Dellon132, Mats/Onyx
 
 				Logos: juanchacin
 
@@ -536,7 +552,7 @@
 		<Translator>
 			<User>Wagnard</User>
 			<Details>Owner</Details>
-			<LastUpdate>03/04/2021</LastUpdate>
+			<LastUpdate>17/03/2026</LastUpdate>
 		</Translator>
 
 		<Translator2>

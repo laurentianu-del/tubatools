@@ -117,6 +117,9 @@
 		<VisitDDUShopMenuItem>
             <Text>访问DDU官方周边商店</Text>
         </VisitDDUShopMenuItem>
+			<VisitDiscord>
+			<Text>Discord 伺服器</Text>
+		</VisitDiscord>
 		<VisitSVNMenuItem>
 			<Text>DDU GitHub 仓库</Text>
 		</VisitSVNMenuItem>
@@ -129,6 +132,15 @@
 		<VisitGeforceMenuItem>
 			<Text>NVIDIA 论坛 DDU 讨论帖</Text>
 		</VisitGeforceMenuItem>
+        <DownloadNvidiaMenuItem>
+			<Text>NVIDIA 驱动程序下载</Text>
+		</DownloadNvidiaMenuItem>
+        <DownloadAmdMenuItem>
+			<Text>AMD 驱动程序下载</Text>
+		</DownloadAmdMenuItem>
+        <DownloadIntelMenuItem>
+			<Text>Intel 驱动程序下载</Text>
+		</DownloadIntelMenuItem>
 
 		<Messages>
 			<Text1>新版 DDU 已发布。是否立刻前往 DDU 官方网站下载更新?</Text1>
@@ -158,7 +170,8 @@
 			<Options2>NVIDIA</Options2>
 			<Options3>AMD</Options3>
 			<Options4>Intel</Options4>
-			<Options5>所有 GPU</Options5>
+			<Options5>LISUAN</Options5>
+			<Options6>所有 GPU</Options6>
 		</Options_GPU>
 		<Options_AUDIO>
 			<Options1>--- 设备供应商 ---</Options1>
@@ -212,6 +225,13 @@
 	</frmMain>
 
 	<frmOptions Text="选项">
+		<btnResetDefaults>
+			<Text>重置为推荐值</Text>
+			<Tooltip>将所有选项重置为推荐的默认值。</Tooltip>
+		</btnResetDefaults>
+		<Messages>
+			<Text1>将所有选项重置为推荐的默认值吗？</Text1>
+		</Messages>
 		<btnclose>
 			<Text>关闭</Text>
 		</btnclose>
@@ -276,6 +296,10 @@
 		<lblRemNVCP>
 			<Text>(仅适用于 DCH 驱动程序) 卸载从 Microsoft Store 安装的 NVIDIA 控制面板</Text>
 		</lblRemNVCP>
+        <lblRemoveNvidiaCache>
+            <Text>卸载 NVIDIA 着色器缓存 (如使用 ASC / NVIDIA App 自动着色器编译，请取消勾选)
+            </Text>
+        </lblRemoveNvidiaCache>
 		<lblRemINTELCP>
 			<Text>(DCH 驱动程序) 移除通过 Microsoft Store 安装的 Intel® 控制面板</Text>
 		</lblRemINTELCP>
@@ -315,6 +339,9 @@
 		<lblRememberLastChoice>
 			<Text>记住上次选择的GPU</Text>	
 		</lblRememberLastChoice>
+						<lblUseDarkTheme>
+			<Text>使用深色主题</Text>
+		</lblUseDarkTheme>
 	</frmOptions>
 
 	<frmLaunch Text="启动选项">
@@ -497,5 +524,12 @@
 			<Details>プリンにしてやるの！</Details>
 			<LastUpdate>26/03/2021</LastUpdate>
 		</Translator2>
+
+		<Translator3>
+			<User>Mats/Onyx</User>
+			<Details>Twitter:onyxwz1</Details>
+			<LastUpdate>17/02/2026</LastUpdate>
+		</Translator3>
 	</LanguageTranslators>
+
 </DisplayDriverUninstaller>

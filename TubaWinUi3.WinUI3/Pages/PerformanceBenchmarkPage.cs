@@ -27,6 +27,8 @@ public sealed partial class PerformanceBenchmarkPage : Page
 	private CancellationTokenSource _cts;
 	private PerformanceBenchmarkResult? _result;
 	private bool _isRunning;
+	private Brush cardBg;
+	private Brush cardBorderBrush;
 	private TextBlock _gamingScoreText;
 	private TextBlock _gamingGradeText;
 	private ProgressBar _gamingBar;
@@ -97,26 +99,8 @@ public sealed partial class PerformanceBenchmarkPage : Page
 
 	private ScrollViewer BuildUI()
 	{
-		bool isDark;
-		SolidColorBrush solidColorBrush;
-		if (ThemeService.CurrentTheme == AppTheme.Dark)
-		{
-			isDark = true;
-		}
-		else if (ThemeService.CurrentTheme == AppTheme.Default)
-		{
-			isDark = Application.Current.RequestedTheme == ApplicationTheme.Dark;
-		}
-		else
-		{
-			isDark = false;
-		}
-
-		solidColorBrush = isDark
-			? new SolidColorBrush(Color.FromArgb(byte.MaxValue, 45, 45, 45))
-			: new SolidColorBrush(Color.FromArgb(byte.MaxValue, 249, 249, 249));
-		SolidColorBrush cardBg = solidColorBrush;
-		Color borderColor = isDark ? Color.FromArgb(byte.MaxValue, 60, 60, 60) : Color.FromArgb(byte.MaxValue, 229, 229, 229);
+		Brush cardBg = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"];
+		Brush cardBorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"];
 		Grid grid = new()
 		{
 			RowSpacing = 0.0,
@@ -125,7 +109,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 		grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1.0, GridUnitType.Star) });
 		grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-		Grid grid2 = BuildTopCards(cardBg, borderColor);
+		Grid grid2 = BuildTopCards();
 		grid.Children.Add(grid2);
 		Grid.SetRow(grid2, 0);
 		Grid grid3 = new()
@@ -139,23 +123,23 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		grid3.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1.0, GridUnitType.Star) });
 		grid3.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1.0, GridUnitType.Star) });
 		grid3.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1.0, GridUnitType.Star) });
-		Border border = BuildSection("CPU 性能", "\ueea1", BuildCpuContent(cardBg, borderColor), cardBg, borderColor);
+		Border border = BuildSection("CPU 性能", "\ueea1", BuildCpuContent());
 		grid3.Children.Add(border);
 		Grid.SetRow(border, 0);
 		Grid.SetColumn(border, 0);
-		Border border2 = BuildSection("GPU 性能", "\ue950", BuildGpuContent(cardBg, borderColor), cardBg, borderColor);
+		Border border2 = BuildSection("GPU 性能", "\ue950", BuildGpuContent());
 		grid3.Children.Add(border2);
 		Grid.SetRow(border2, 0);
 		Grid.SetColumn(border2, 1);
-		Border border3 = BuildSection("内存性能", "\ue90f", BuildMemoryContent(cardBg, borderColor), cardBg, borderColor);
+		Border border3 = BuildSection("内存性能", "\ue90f", BuildMemoryContent());
 		grid3.Children.Add(border3);
 		Grid.SetRow(border3, 1);
 		Grid.SetColumn(border3, 0);
-		Border border4 = BuildSection("硬盘性能", "\ueda2", BuildDiskContent(cardBg, borderColor), cardBg, borderColor);
+		Border border4 = BuildSection("硬盘性能", "\ueda2", BuildDiskContent());
 		grid3.Children.Add(border4);
 		Grid.SetRow(border4, 1);
 		Grid.SetColumn(border4, 1);
-		Border border5 = BuildSection("浏览器流畅度", "\ue774", BuildBrowserContent(cardBg, borderColor), cardBg, borderColor);
+		Border border5 = BuildSection("浏览器流畅度", "\ue774", BuildBrowserContent());
 		grid3.Children.Add(border5);
 		Grid.SetRow(border5, 2);
 		Grid.SetColumn(border5, 0);
@@ -179,7 +163,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		};
 	}
 
-	private Grid BuildTopCards(Brush cardBg, Color borderColor)
+	private Grid BuildTopCards()
 	{
 		Grid obj = new()
 		{
@@ -193,7 +177,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		Border border = new()
 		{
 			Background = cardBg,
-			BorderBrush = new SolidColorBrush(borderColor),
+			BorderBrush = cardBorderBrush,
 			BorderThickness = new Thickness(1.0),
 			CornerRadius = new CornerRadius(8.0),
 			Padding = new Thickness(20.0, 16.0, 20.0, 16.0),
@@ -204,7 +188,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		Border border2 = new()
 		{
 			Background = cardBg,
-			BorderBrush = new SolidColorBrush(borderColor),
+			BorderBrush = cardBorderBrush,
 			BorderThickness = new Thickness(1.0),
 			CornerRadius = new CornerRadius(8.0),
 			Padding = new Thickness(20.0, 16.0, 20.0, 16.0),
@@ -264,7 +248,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		};
 	}
 
-	private Border BuildSection(string title, string glyph, Panel content, Brush cardBg, Color borderColor)
+	private Border BuildSection(string title, string glyph, Panel content)
 	{
 		StackPanel stackPanel = new()
 		{
@@ -289,7 +273,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		return new Border
 		{
 			Background = cardBg,
-			BorderBrush = new SolidColorBrush(borderColor),
+			BorderBrush = cardBorderBrush,
 			BorderThickness = new Thickness(1.0),
 			CornerRadius = new CornerRadius(8.0),
 			Padding = new Thickness(16.0, 12.0, 16.0, 12.0),
@@ -331,7 +315,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		return obj;
 	}
 
-	private StackPanel BuildCpuContent(Brush cardBg, Color borderColor)
+	private StackPanel BuildCpuContent()
 	{
 		StackPanel obj = new()
 		{
@@ -362,7 +346,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		return obj;
 	}
 
-	private StackPanel BuildGpuContent(Brush cardBg, Color borderColor)
+	private StackPanel BuildGpuContent()
 	{
 		return new StackPanel
 		{
@@ -376,7 +360,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		};
 	}
 
-	private StackPanel BuildMemoryContent(Brush cardBg, Color borderColor)
+	private StackPanel BuildMemoryContent()
 	{
 		StackPanel obj = new() { Spacing = 6.0 };
 		Grid grid = new() { ColumnSpacing = 8.0 };
@@ -447,7 +431,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		return obj;
 	}
 
-	private StackPanel BuildDiskContent(Brush cardBg, Color borderColor)
+	private StackPanel BuildDiskContent()
 	{
 		StackPanel obj = new()
 		{
@@ -485,7 +469,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		return obj;
 	}
 
-	private StackPanel BuildBrowserContent(Brush cardBg, Color borderColor)
+	private StackPanel BuildBrowserContent()
 	{
 		StackPanel stackPanel = new() { Spacing = 6.0 };
 		stackPanel.Children.Add(BuildDetailRow("JS 引擎", out _brJsScoreText, out _brJsDetailText));

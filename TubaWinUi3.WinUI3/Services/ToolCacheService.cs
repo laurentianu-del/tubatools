@@ -96,4 +96,5 @@ public sealed record ToolCacheEntry
     public bool IsBuiltinLink { get; init; }
     public string? BuiltinToolId { get; init; }
     public string? BuiltinKindText { get; init; }
+    public string? TutorialUrl { get; init; }
 }

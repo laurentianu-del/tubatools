@@ -13,6 +13,7 @@ public sealed record ToolMetadata(
     string? DownloadFilter,
     string? WingetId,
     string? LaunchTarget,
+    string? TutorialUrl,
     IReadOnlyList<string>? Tags);
 
 public sealed record JsonArchVariantResult(string? File, string? Dir, string? Arch);
@@ -109,6 +110,7 @@ public static class ToolMetadataService
             jsonMetadata?.DownloadFilter,
             jsonMetadata?.WingetId,
             jsonMetadata?.LaunchTarget,
+            jsonMetadata?.TutorialUrl,
             jsonMetadata?.Tags);
     }
 
@@ -318,6 +320,8 @@ public static class ToolMetadataService
         public string? WingetId { get; set; }
 
         public string? LaunchTarget { get; set; }
+
+        public string? TutorialUrl { get; set; }
 
         public List<string>? Tags { get; set; }
 

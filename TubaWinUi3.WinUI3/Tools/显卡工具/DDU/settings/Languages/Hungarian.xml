@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <DisplayDriverUninstaller ISO="hu-HU" Text="Hungarian">
 	<!--
 		See file ' \Settings\Languages\_For translators - ReadMe.txt ' 	
@@ -114,6 +114,9 @@
 		<VisitDDUHomeMenuItem>
 			<Text>A DDU weboldalának meglátogatása</Text>
 		</VisitDDUHomeMenuItem>
+		<VisitDDUShopMenuItem>
+			<Text>A hivatalos DDU Merch Shop meglátogatása</Text>
+		</VisitDDUShopMenuItem>
 		<VisitDiscord>
 			<Text>Csatlakozz a Discord szerverünkhöz</Text>
 		</VisitDiscord>
@@ -129,7 +132,15 @@
 		<VisitGeforceMenuItem>
 			<Text>A GeForce fórumok meglátogatása</Text>
 		</VisitGeforceMenuItem>
-
+        <DownloadNvidiaMenuItem>
+			<Text>NVIDIA illesztőprogram letöltések</Text>
+		</DownloadNvidiaMenuItem>
+        <DownloadAmdMenuItem>
+			<Text>AMD illesztőprogram letöltések</Text>
+		</DownloadAmdMenuItem>
+        <DownloadIntelMenuItem>
+			<Text>Intel illesztőprogram letöltések</Text>
+		</DownloadIntelMenuItem>
 		<Messages>
 			<Text1>Új frissítés érhető el! Meglátogatod most a DDU honlapját?</Text1>
 			<Text2>A program régebbi verzióin korlátozott támogatásra számíthatsz. Kérlek először próbáld ki az újabb verziókat, mielőtt hibát jelentenél!</Text2>
@@ -167,7 +178,8 @@
 			<Options2>NVIDIA</Options2>
 			<Options3>AMD</Options3>
 			<Options4>Intel®</Options4>
-			<Options5>Összes GPU</Options5>
+			<Options5>LISUAN</Options5>
+			<Options6>Összes GPU</Options6>
 		</Options_GPU>
 		<Options_AUDIO>
 			<Options1>---Válaszd ki az eszközt---</Options1>
@@ -221,6 +233,13 @@
 	</frmMain>
 
 	<frmOptions Text="Beállítások">
+		<btnResetDefaults>
+			<Text>Ajánlott visszaállítása</Text>
+			<Tooltip>Minden beállítás visszaállítása az ajánlott alapértelmezett értékekre.</Tooltip>
+		</btnResetDefaults>
+		<Messages>
+			<Text1>Visszaállítja az összes beállítást az ajánlott alapértelmezett értékekre?</Text1>
+		</Messages>
 		<btnClose>
 			<Text>Bezár</Text>
 		</btnClose>
@@ -288,6 +307,10 @@
 		<lblRemNVCP>
 			<Text>(DCH illesztőprogram) A Microsoft Store-ból telepített NVIDIA Vezérlőpult eltávolítása</Text>
 		</lblRemNVCP>
+        <lblRemoveNvidiaCache>
+            <Text>NVIDIA Shader Cache eltávolítása (Vedd ki a pipát, ha ASC / NVIDIA App Auto Shader Compilation-t használsz)
+            </Text>
+        </lblRemoveNvidiaCache>
 		<lblKeepNVCPopt>
 			<Text>Az NVIDIA Vezérlőpult globális / programbeli beállítások megtartása.</Text>
 			<Tooltip>
@@ -333,6 +356,9 @@
 			<lblRememberLastChoice>
 			<Text>Utolsó kiválasztott GPU megjegyzése</Text>	
 		</lblRememberLastChoice>
+				<lblUseDarkTheme>
+			<Text>Sötét téma használata</Text>
+		</lblUseDarkTheme>
 	</frmOptions>
 
 	<frmLaunch Text="Indítás beállításai">
@@ -496,7 +522,7 @@
 
 				Programozók: Wagnard, Devmltk és Shady7557
 
-				Tesztelő: Dellon132
+				Tesztelők: Dellon132 és Mats/Onyx
 
 				Logók: juanchacin
 
@@ -533,7 +559,7 @@
 		<Translator>
 			<User>istvanszabo890629</User>
 			<Details>istvanszabo890629@gmail.com</Details>
-			<LastUpdate>14/07/2025</LastUpdate>
+			<LastUpdate>27/01/2026</LastUpdate>
 		</Translator>
 
 		<Translator2>
@@ -546,6 +572,11 @@
 			<User>DevMltk</User>
 			<LastUpdate>31/05/2016</LastUpdate>
 		</Translator3>
-	</LanguageTranslators>
 
+		<Translator4>
+			<User>Mats/Onyx</User>
+			<Details>Twitter:onyxwz1</Details>
+			<LastUpdate>17/02/2026</LastUpdate>
+		</Translator4>
+	</LanguageTranslators> 
 </DisplayDriverUninstaller>

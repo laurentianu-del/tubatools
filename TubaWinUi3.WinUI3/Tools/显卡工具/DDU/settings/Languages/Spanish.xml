@@ -114,9 +114,24 @@
 		<VisitGuru3DAMDMenuItem>
 			<Text>Visita el hilo de AMD en Guru3D</Text>
 		</VisitGuru3DAMDMenuItem>
+		        <VisitDDUShopMenuItem>
+            <Text>Visita la tienda oficial de mercancía DDU</Text>
+        </VisitDDUShopMenuItem>
+		<VisitDiscord>
+			<Text>Únete a nuestro Discord</Text>
+		</VisitDiscord>
 		<VisitGeforceMenuItem>
 			<Text>Visita el hilo de GeForce</Text>
 		</VisitGeforceMenuItem>
+		        <DownloadNvidiaMenuItem>
+			<Text>Descarga de controladores NVIDIA</Text>
+		</DownloadNvidiaMenuItem>
+        <DownloadAmdMenuItem>
+			<Text>Descarga de controladores AMD</Text>
+		</DownloadAmdMenuItem>
+        <DownloadIntelMenuItem>
+			<Text>Descarga de controladores Intel</Text>
+		</DownloadIntelMenuItem>
 		<Messages>
 			<Text1>¡Actualizaciones disponibles! ¿Ir al sitio web de DDU?</Text1>
 			<Text2>La compatibilidad con versiones anteriores a la más reciente es limitada. Compruebe la versión más reciente antes de informar de errores.</Text2>
@@ -206,6 +221,13 @@
 		</UpdateLog>
 	</frmMain>
 	<frmOptions Text="Opciones">
+		<btnResetDefaults>
+			<Text>Restablecer recomendados</Text>
+			<Tooltip>Restablecer todas las opciones a sus valores predeterminados recomendados.</Tooltip>
+		</btnResetDefaults>
+		<Messages>
+			<Text1>¿Restablecer todas las opciones a sus valores predeterminados recomendados?</Text1>
+		</Messages>
 		<btnClose>
 			<Text>Cerrar</Text>
 		</btnClose>
@@ -273,6 +295,10 @@
 		<lblRemNVCP>
 			<Text>(Controlador DCH) Elimina el Panel de Control NVIDIA instalado desde Microsoft Store</Text>
 		</lblRemNVCP>
+        <lblRemoveNvidiaCache>
+            <Text>Eliminar caché de shaders NVIDIA (Desmarcar si usas ASC / compilación automática de shaders de NVIDIA App)
+            </Text>
+        </lblRemoveNvidiaCache>
 		<lblKeepNVCPopt>
 			<Text>Mantener la Configuración Global/Perfiles de Programas del Panel de Control NVIDIA.</Text>
 			<Tooltip>
@@ -303,6 +329,9 @@
                Nota: Esto no impide que "Windows Update" descargue/instale nuevos controladores. 
                Nota2: También es *ALTAMENTE* recomendable revertir este cambio después de haber terminado de usar DDU y reinstalado el controlador de tu GPU o podrías tener problemas con la instalación de otros dispositivos.</Tooltip>
 		</lblPreventWinUpdate>
+				<lblUseDarkTheme>
+			<Text>Usar tema oscuro</Text>
+		</lblUseDarkTheme>
 	</frmOptions>
 	<frmLaunch Text="Opciones de arranque">
 		<btnAccept>
@@ -491,5 +520,10 @@
 			<Details>Traductor</Details>
 			<LastUpdate>07/07/2023</LastUpdate>
 		</Translator2>
+		<Translator3>
+			<User>Mats/Onyx</User>
+			<Details>Twitter:onyxwz1</Details>
+			<LastUpdate>17/02/2026</LastUpdate>
+		</Translator3>
 	</LanguageTranslators>
 </DisplayDriverUninstaller>

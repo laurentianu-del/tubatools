@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <DisplayDriverUninstaller ISO="it-IT" Text="Italian">
 	<!--
 		See file ' \Settings\Languages\_For translators - ReadMe.txt ' 	
@@ -112,13 +112,27 @@
 		<VisitGuru3DNvidiaMenuItem>
 			<Text>Visita forum Guru3d NVIDIA</Text>
 		</VisitGuru3DNvidiaMenuItem>
+		        <VisitDDUShopMenuItem>
+            <Text>Visita il negozio ufficiale DDU Merch Shop</Text>
+        </VisitDDUShopMenuItem>
+		<VisitDiscord>
+			<Text>Unisciti al nostro Discord</Text>
+		</VisitDiscord>
 		<VisitGuru3DAMDMenuItem>
 			<Text>Visita forum Guru3d AMD</Text>
 		</VisitGuru3DAMDMenuItem>
 		<VisitGeforceMenuItem>
 			<Text>Visita forum GeForce</Text>
 		</VisitGeforceMenuItem>
-
+        <DownloadNvidiaMenuItem>
+			<Text>Download driver NVIDIA</Text>
+		</DownloadNvidiaMenuItem>
+        <DownloadAmdMenuItem>
+			<Text>Download driver AMD</Text>
+		</DownloadAmdMenuItem>
+        <DownloadIntelMenuItem>
+			<Text>Download driver Intel</Text>
+		</DownloadIntelMenuItem>
 		<Messages>
 			<Text1>Aggiornamento disponibile! Vuoi visitare il sito di DDU?</Text1>
 			<Text2>Supporto limitato per le vecchie versioni del programma. Prima di segnalare bugverifica se sono disponibili nuove versioni .</Text2>
@@ -209,6 +223,13 @@
 	</frmMain>
 
 	<frmOptions Text="Opzioni">
+		<btnResetDefaults>
+			<Text>Ripristina consigliati</Text>
+			<Tooltip>Ripristina tutte le opzioni ai valori predefiniti consigliati.</Tooltip>
+		</btnResetDefaults>
+		<Messages>
+			<Text1>Ripristinare tutte le opzioni ai valori predefiniti consigliati?</Text1>
+		</Messages>
 		<btnClose>
 			<Text>Chiudi</Text>
 		</btnClose>
@@ -276,6 +297,10 @@
 		<lblRemNVCP>
 			<Text>Rimuovi pannello di controllo NVIDIA installato da Microsoft Store (driver DCH)</Text>
 		</lblRemNVCP>
+        <lblRemoveNvidiaCache>
+            <Text>Rimuovi la cache shader NVIDIA (Deseleziona se usi ASC / NVIDIA App compilazione shader automatica)
+            </Text>
+        </lblRemoveNvidiaCache>
 		<lblKeepNVCPopt>
 			<Text>Mantieni pannello di controllo NVIDIA/impostazioni programma</Text>
 			<Tooltip>
@@ -309,6 +334,9 @@
 	<lblRememberLastChoice>
 			<Text>Ricorda l'ultimo GPU selezionato</Text>	
 	</lblRememberLastChoice>
+			<lblUseDarkTheme>
+			<Text>Usa tema scuro</Text>
+		</lblUseDarkTheme>
 	</frmOptions>
 
 	<frmLaunch Text="Display Driver Uninstaller (DDU)">
@@ -499,12 +527,15 @@
 			<Details>feat. ChefTanoMerda</Details>
 			<LastUpdate>19/08/2023</LastUpdate>
 		</Translator>
-
 		<Translator2>
 			<User>bovirus</User>
 			<LastUpdate>04/10/2024</LastUpdate>
 		</Translator2>
 
+		<Translator3>
+			<User>Mats/Onyx</User>
+			<Details>Twitter:onyxwz1</Details>
+			<LastUpdate>17/02/2026</LastUpdate>
+		</Translator3>
 	</LanguageTranslators>
-
 </DisplayDriverUninstaller>

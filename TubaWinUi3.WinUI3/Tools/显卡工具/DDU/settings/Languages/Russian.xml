@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <DisplayDriverUninstaller ISO="ru-RU" Text="Russian">
 	<!--
 		See file ' \Settings\Languages\_For translators - ReadMe.txt '
@@ -114,6 +114,9 @@
 		<VisitDDUHomeMenuItem>
 			<Text>Посетить официальный сайт DDU</Text>
 		</VisitDDUHomeMenuItem>
+		<VisitDDUShopMenuItem>
+      <Text>Посетите официальный магазин мерча DDU</Text>
+    </VisitDDUShopMenuItem>
 		<VisitDiscord>
 			<Text>Присоединяйтесь к нашему Discord</Text>
 		</VisitDiscord>
@@ -129,7 +132,15 @@
 		<VisitGeforceMenuItem>
 			<Text>Посетить тему DDU на GeForce</Text>
 		</VisitGeforceMenuItem>
-
+        <DownloadNvidiaMenuItem>
+			<Text>Загрузки драйверов NVIDIA</Text>
+		</DownloadNvidiaMenuItem>
+        <DownloadAmdMenuItem>
+			<Text>Загрузки драйверов AMD</Text>
+		</DownloadAmdMenuItem>
+        <DownloadIntelMenuItem>
+			<Text>Загрузки драйверов Intel</Text>
+		</DownloadIntelMenuItem>
 		<Messages>
 			<Text1>Доступны обновления! Открыть сайт DDU?</Text1>
 			<Text2>Для старых версий техподдержка ограниченная. Прежде чем сообщать об ошибке, установите новейшую версию и проверьте.</Text2>
@@ -167,7 +178,8 @@
 			<Options2>NVIDIA</Options2>
 			<Options3>AMD</Options3>
 			<Options4>Intel</Options4>
-			<Options5>Все графические процессоры</Options5>
+			<Options5>LISUAN</Options5>
+			<Options6>Все графические процессоры</Options6>
 		</Options_GPU>
 		<Options_AUDIO>
 			<Options1>---Выберите устройство---</Options1>
@@ -221,6 +233,13 @@
 	</frmMain>
 
 	<frmOptions Text="Параметры">
+		<btnResetDefaults>
+			<Text>Сбросить к рекомендуемым</Text>
+			<Tooltip>Сбросить все параметры к рекомендуемым значениям по умолчанию.</Tooltip>
+		</btnResetDefaults>
+		<Messages>
+			<Text1>Сбросить все параметры к рекомендуемым значениям по умолчанию?</Text1>
+		</Messages>
 		<btnClose>
 			<Text>Закрыть</Text>
 		</btnClose>
@@ -288,6 +307,10 @@
 		<lblRemNVCP>
 			<Text>(DCH-драйвер) Удалить Панель управления NVIDIA, установленную из Microsoft Store</Text>
 		</lblRemNVCP>
+        <lblRemoveNvidiaCache>
+            <Text>Удалить кэш шейдеров NVIDIA (Снимите флажок при использовании ASC / автокомпиляции шейдеров NVIDIA App)
+            </Text>
+        </lblRemoveNvidiaCache>
 		<lblKeepNVCPopt>
 			<Text>Сохранить глобальную Панель управления NVIDIA / Настройки программы.</Text>
 			<Tooltip>
@@ -333,6 +356,9 @@
      <lblRememberLastChoice>
          <Text>Запомнить последний выбранный графический процессор</Text>
      </lblRememberLastChoice>
+	 		<lblUseDarkTheme>
+			<Text>Использовать темную тему</Text>
+		</lblUseDarkTheme>
   </frmOptions>
 
     <frmLaunch Text="Настройка запуска программы">
@@ -488,7 +514,7 @@
 
 				Программисты: Wagnard, Devmltk, Shady7557.
 
-				Тестирование: Dellon132
+				Тестирование: Dellon132, Mats/Onyx
 
 				Логотипы: juanchacin
 
@@ -527,12 +553,17 @@
 
 		<Translator2>
 			<User>Danis Miryasov (miryasov.danis@yandex.ru)</User>
-			<LastUpdate>28.08.2025</LastUpdate>
+			<LastUpdate>26.12.2025</LastUpdate>
 		</Translator2>
 		<Translator3>
 			<User>Dmitry Yerokhin (erodim@mail.ru)</User>
 			<LastUpdate>02.10.2020</LastUpdate>
 		</Translator3>
-	</LanguageTranslators>
 
+		<Translator4>
+			<User>Mats/Onyx</User>
+			<Details>Twitter:onyxwz1</Details>
+			<LastUpdate>17/02/2026</LastUpdate>
+		</Translator4>
+	</LanguageTranslators>
 </DisplayDriverUninstaller>

@@ -117,6 +117,9 @@
 		<VisitDDUShopMenuItem>
             <Text>造訪DDU官方周邊商店</Text>
         </VisitDDUShopMenuItem>
+		<VisitDiscord>
+			<Text>Discord 伺服器</Text>
+		</VisitDiscord>
 		<VisitSVNMenuItem>
 			<Text>造訪 GitHub</Text>
 		</VisitSVNMenuItem>
@@ -129,6 +132,15 @@
 		<VisitGeforceMenuItem>
 			<Text>造訪 GeForce 論壇上的討論串</Text>
 		</VisitGeforceMenuItem>
+        <DownloadNvidiaMenuItem>
+			<Text>NVIDIA 驅動程式下載</Text>
+		</DownloadNvidiaMenuItem>
+        <DownloadAmdMenuItem>
+			<Text>AMD 驅動程式下載</Text>
+		</DownloadAmdMenuItem>
+        <DownloadIntelMenuItem>
+			<Text>Intel 驅動程式下載</Text>
+		</DownloadIntelMenuItem>
 
 		<Messages>
 			<Text1>有可用更新！是否造訪 DDU 網站？</Text1>
@@ -167,7 +179,8 @@
 			<Options2>NVIDIA</Options2>
 			<Options3>AMD</Options3>
 			<Options4>INTEL</Options4>
-			<Options5>所有 GPU</Options5>
+			<Options5>LISUAN</Options5>
+			<Options6>所有 GPU</Options6>
 		</Options_GPU>
 		<Options_AUDIO>
 			<Options1>---選擇裝置---</Options1>
@@ -222,6 +235,13 @@
 	</frmMain>
 
 	<frmOptions Text="選項">
+		<btnResetDefaults>
+			<Text>重設為建議值</Text>
+			<Tooltip>將所有選項重設為建議的預設值。</Tooltip>
+		</btnResetDefaults>
+		<Messages>
+			<Text1>將所有選項重設為建議的預設值嗎？</Text1>
+		</Messages>
 		<btnClose>
 			<Text>關閉</Text>
 		</btnClose>
@@ -292,6 +312,10 @@
 		<lblRemNVCP>
 			<Text>(DCH 驅動程式) 移除從 Microsoft Store 安裝的 NVIDIA 控制台</Text>
 		</lblRemNVCP>
+        <lblRemoveNvidiaCache>
+            <Text>移除 NVIDIA 著色器快取 (若使用 ASC / NVIDIA App 自動著色器編譯，請取消勾選)
+            </Text>
+        </lblRemoveNvidiaCache>
 		<lblKeepNVCPopt>
 			<Text>保留 NVIDIA 控制台的全局/程式設定。</Text>
 			<Tooltip>
@@ -337,6 +361,9 @@
 	 	<lblRememberLastChoice>
 			<Text>記住上次選擇的GPU</Text>	
 		</lblRememberLastChoice>
+						<lblUseDarkTheme>
+			<Text>使用深色主題</Text>
+		</lblUseDarkTheme>
   </frmOptions>
 
 	<frmLaunch Text="啟動選項">
@@ -552,6 +579,11 @@
 			<LastUpdate>30/01/2019</LastUpdate>
 		</Translator2>
 				
+		<Translator3>
+			<User>Mats/Onyx</User>
+			<Details>Twitter:onyxwz1</Details>
+			<LastUpdate>17/02/2026</LastUpdate>
+		</Translator3>
 	</LanguageTranslators>
 
 </DisplayDriverUninstaller>

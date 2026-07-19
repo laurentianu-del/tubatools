@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <DisplayDriverUninstaller ISO="lv-LV" Text="Latvian" >
 	<!--
 		See file ' \Settings\Languages\_For translators - ReadMe.txt ' 	
@@ -119,9 +119,24 @@
 		<VisitGuru3DAMDMenuItem>
 			<Text>Apmeklējiet Guru3d AMD pavedienu</Text>
 		</VisitGuru3DAMDMenuItem>
+		  <VisitDDUShopMenuItem>
+            <Text>DDU Preču veikals</Text>
+        </VisitDDUShopMenuItem>
+			<VisitDiscord>
+			<Text>Discord Serveris</Text>
+		</VisitDiscord>
 		<VisitGeforceMenuItem>
 			<Text>Apmeklējiet GeForce pavedienu</Text>
 		</VisitGeforceMenuItem>
+        <DownloadNvidiaMenuItem>
+			<Text>NVIDIA draiveru lejupielādes</Text>
+		</DownloadNvidiaMenuItem>
+        <DownloadAmdMenuItem>
+			<Text>AMD draiveru lejupielādes</Text>
+		</DownloadAmdMenuItem>
+        <DownloadIntelMenuItem>
+			<Text>Intel Driver Downloads</Text>
+		</DownloadIntelMenuItem>
 
 		<Messages>
 			<Text1>Ir pieejami atjauninājumi! Apmeklējiet DDU vietni tūlīt?</Text1>
@@ -280,6 +295,10 @@
 		<lblRemNVCP>
 			<Text>(DCH draiveris) Noņemiet no Microsoft veikala instalēto NVIDIA vadības paneli</Text>
 		</lblRemNVCP>
+        <lblRemoveNvidiaCache>
+            <Text>Noņemt NVIDIA Shader kēšatmiņu (Noņemiet atzīmi, ja izmantojat ASC / NVIDIA App Auto Shader Compilation)
+            </Text>
+        </lblRemoveNvidiaCache>
 		<lblKeepNVCPopt>
 			<Text>Saglabājiet NVIDIA vadības paneļa vispārējos / programmas iestatījumus.</Text>
 			<Tooltip>
@@ -310,6 +329,9 @@
                Piezīme. Tas neliedz programmai Windows Update lejupielādēt/instalēt jaunus draiverus.
                2. piezīme. Ir arī *ĻOTI* ieteicams atsaukt šīs izmaiņas pēc tam, kad esat pabeidzis lietot DDU un atkārtoti instalējis GPU draiveri, pretējā gadījumā var rasties problēmas ar citas ierīces instalēšanu.</Tooltip>
      </lblPreventWinUpdate>
+	 		<lblUseDarkTheme>
+			<Text>Izmantot tumšo motīvu</Text>
+		</lblUseDarkTheme>
   </frmOptions>
 
 	<frmLaunch Text="Launch option">
@@ -503,6 +525,11 @@
 			<Details>raivopleika12@gmail.com</Details>
 			<LastUpdate>04/09/2025</LastUpdate>
 		</Translator>
+		<Translator2>
+			<User>Mats/Onyx</User>
+			<Details>Twitter:onyxwz1</Details>
+			<LastUpdate>17/02/2026</LastUpdate>
+		</Translator2>
 	</LanguageTranslators>
 
 </DisplayDriverUninstaller>

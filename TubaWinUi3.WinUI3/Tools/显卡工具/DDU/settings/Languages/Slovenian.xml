@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <DisplayDriverUninstaller ISO="si" Text="Slovenian" >
 	<!--
 		See file ' \Settings\Languages\_For translators - ReadMe.txt ' 	
@@ -115,10 +115,24 @@
 		<VisitGuru3DAMDMenuItem>
 			<Text>Obisk niti Guru3d AMD</Text>
 		</VisitGuru3DAMDMenuItem>
+		       <VisitDDUShopMenuItem>
+            <Text>Obiščite uradno trgovino DDU Merch Shop</Text>
+        </VisitDDUShopMenuItem>
+		<VisitDiscord>
+			<Text>Pridruži se našemu Discordu</Text>
+		</VisitDiscord>
 		<VisitGeforceMenuItem>
 			<Text>Obisk niti GeForce</Text>
 		</VisitGeforceMenuItem>
-
+        <DownloadNvidiaMenuItem>
+			<Text>Prenos gonilnikov NVIDIA</Text>
+		</DownloadNvidiaMenuItem>
+        <DownloadAmdMenuItem>
+			<Text>Prenos gonilnikov AMD</Text>
+		</DownloadAmdMenuItem>
+        <DownloadIntelMenuItem>
+			<Text>Prenos gonilnikov Intel</Text>
+		</DownloadIntelMenuItem>
 		<Messages>
 			<Text1>Na voljo so posodobitve! Želite zdaj obiskati spletno stran DDU?</Text1>
 			<Text2>Pričakujte omejeno podporo pri starejših različicah od zadnje. Pred prijavo napak posodobite na novejšo različico.</Text2>
@@ -276,6 +290,10 @@
 		<lblRemNVCP>
 			<Text>(DCH gonilnik) Odstrani nameščeno nadzorno ploščo NVIDIA iz Microsoft trgovine</Text>
 		</lblRemNVCP>
+        <lblRemoveNvidiaCache>
+            <Text>Odstrani predpomnilnik senčilnikov NVIDIA (Odznači, če uporabljaš ASC / samodejno prevajanje senčilnikov v NVIDIA App)
+            </Text>
+        </lblRemoveNvidiaCache>
 		<lblKeepNVCPopt>
 			<Text>Obdrži nadzorno ploščo 'NVIDIA Globalno' / Nastavitve programa.</Text>
 			<Tooltip>
@@ -306,6 +324,9 @@
                Opomba: To ne preprečuje 'Windows Update' prenos/namestitev novih gonilnikov. 
                Opomba2: Prav tako je *ZELO* priporočeno, da povrnete to spremembo, ko končate z uporabo programa DDU in ponovno namestite gonilnik vašega grafičnega procesorja (GPE) ali imate težave z namestitvijo druge naprave.</Tooltip>
      </lblPreventWinUpdate>
+	 		<lblUseDarkTheme>
+			<Text>Uporabi temno temo</Text>
+		</lblUseDarkTheme>
   </frmOptions>
 
 	<frmLaunch Text="Možnost zagona">
@@ -507,6 +528,11 @@
 			<User></User>
 			<LastUpdate></LastUpdate>
 		</Translator2>
-	</LanguageTranslators>
 
+		<Translator3>
+			<User>Mats/Onyx</User>
+			<Details>Twitter:onyxwz1</Details>
+			<LastUpdate>17/02/2026</LastUpdate>
+		</Translator3>
+	</LanguageTranslators>
 </DisplayDriverUninstaller>

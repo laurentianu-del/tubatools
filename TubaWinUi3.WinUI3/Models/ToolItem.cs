@@ -70,6 +70,10 @@ public sealed class ToolItem : INotifyPropertyChanged
 
     public string? RemoteUrl { get; init; }
 
+    public string? TutorialUrl { get; init; }
+
+    public bool HasTutorial => !string.IsNullOrWhiteSpace(TutorialUrl);
+
     public IReadOnlyList<string> Tags { get; init; } = [];
 
     public string TagsText => Tags.Count > 0 ? string.Join("  ", Tags) : "";

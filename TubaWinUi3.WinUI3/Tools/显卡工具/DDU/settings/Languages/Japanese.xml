@@ -132,6 +132,15 @@
 		<VisitGeforceMenuItem>
 			<Text>GeForce のフォーラムを開く</Text>
 		</VisitGeforceMenuItem>
+       <DownloadNvidiaMenuItem>
+			<Text>NVIDIAドライバーダウンロード</Text>
+		</DownloadNvidiaMenuItem>
+        <DownloadAmdMenuItem>
+			<Text>AMDドライバーダウンロード</Text>
+		</DownloadAmdMenuItem>
+        <DownloadIntelMenuItem>
+			<Text>インテルドライバーダウンロード</Text>
+		</DownloadIntelMenuItem>
 
 		<Messages>
 			<Text1>アップデートがあります！ DDU のウェブサイトを開きますか？</Text1>
@@ -170,7 +179,8 @@
 			<Options2>NVIDIA</Options2>
 			<Options3>AMD</Options3>
 			<Options4>Intel®</Options4>
-			<Options5>すべての GPU</Options5>
+			<Options5>LISUAN</Options5>
+			<Options6>すべての GPU</Options6>
 		</Options_GPU>
 		<Options_AUDIO>
 			<Options1>---デバイスを選択---</Options1>
@@ -224,6 +234,13 @@
 	</frmMain>
 
 	<frmOptions Text="オプション">
+		<btnResetDefaults>
+			<Text>推奨設定に戻す</Text>
+			<Tooltip>すべてのオプションを推奨される既定値に戻します。</Tooltip>
+		</btnResetDefaults>
+		<Messages>
+			<Text1>すべてのオプションを推奨される既定値に戻しますか？</Text1>
+		</Messages>
 		<btnClose>
 			<Text>閉じる</Text>
 		</btnClose>
@@ -291,6 +308,10 @@
 		<lblRemNVCP>
 			<Text>(DCH ドライバー) Microsoft Store からインストールされた NVIDIA コントロールパネルを削除する</Text>
 		</lblRemNVCP>
+        <lblRemoveNvidiaCache>
+            <Text>NVIDIA シェーダーキャッシュを削除する (ASC / NVIDIA App 自動シェーダーコンパイルを使用している場合はチェックを外してください)
+            </Text>
+        </lblRemoveNvidiaCache>
 		<lblKeepNVCPopt>
 			<Text>NVIDIA コントロールパネルのグローバル / プログラム設定を維持する</Text>
 			<Tooltip>
@@ -336,6 +357,9 @@
 		<lblRememberLastChoice>
 			<Text>最後に選択した GPU を記憶する</Text>	
 		</lblRememberLastChoice>
+				<lblUseDarkTheme>
+			<Text>ダークテーマを使用する</Text>
+		</lblUseDarkTheme>
   </frmOptions>
 
 	<frmLaunch Text="起動オプション">
@@ -544,6 +568,11 @@
 			<Details>https://reindex-ot.github.io/</Details>
 			<LastUpdate>07/12/2025</LastUpdate>
 		</Translator2>
-	</LanguageTranslators>
 
+		<Translator3>
+			<User>Mats/Onyx</User>
+			<Details>Twitter:onyxwz1</Details>
+			<LastUpdate>17/02/2026</LastUpdate>
+		</Translator3>
+	</LanguageTranslators>
 </DisplayDriverUninstaller>

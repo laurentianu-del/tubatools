@@ -9,4 +9,6 @@ public sealed class HardwareInfoItem
     public string? BrandKey { get; set; }
 
     public bool IsVerified { get; set; }
+
+    public string? NicknameValue { get; set; }
 }

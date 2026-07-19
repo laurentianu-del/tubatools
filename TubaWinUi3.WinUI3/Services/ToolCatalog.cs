@@ -299,7 +299,8 @@ public static class ToolCatalog
                 IsFavorite = e.IsFavorite,
                 IsBuiltinLink = e.IsBuiltinLink,
                 BuiltinToolId = e.BuiltinToolId,
-                BuiltinKindText = e.BuiltinKindText
+                BuiltinKindText = e.BuiltinKindText,
+                TutorialUrl = e.TutorialUrl
             }).ToList();
 
             _cachedAllTools = cachedTools;
@@ -337,7 +338,8 @@ public static class ToolCatalog
                 IsFavorite = t.IsFavorite,
                 IsBuiltinLink = t.IsBuiltinLink,
                 BuiltinToolId = t.BuiltinToolId,
-                BuiltinKindText = t.BuiltinKindText
+                BuiltinKindText = t.BuiltinKindText,
+                TutorialUrl = t.TutorialUrl
             }).ToList();
 
             ToolCacheService.SaveCache(entries);
@@ -515,6 +517,7 @@ public static class ToolCatalog
             DownloadFilter = metadata.DownloadFilter,
             WingetId = metadata.WingetId,
             RemoteUrl = remoteUrl,
+            TutorialUrl = metadata.TutorialUrl,
             Tags = metadata.Tags ?? [],
             IsFavorite = isPlaceholder ? false : FavoritesService.IsFavorite(path),
             PrimaryArch = archDisplay.Length > 0 ? archDisplay : null,
@@ -558,6 +561,7 @@ public static class ToolCatalog
             DownloadUrl = metadata.DownloadUrl,
             DownloadFilter = metadata.DownloadFilter,
             WingetId = metadata.WingetId,
+            TutorialUrl = metadata.TutorialUrl,
             Tags = metadata.Tags ?? [],
             IsFavorite = isPlaceholder ? false : FavoritesService.IsFavorite(path)
         };
@@ -1016,6 +1020,7 @@ public static class ToolCatalog
             DownloadFilter = baseItem.DownloadFilter,
             WingetId = baseItem.WingetId,
             RemoteUrl = baseItem.RemoteUrl,
+            TutorialUrl = baseItem.TutorialUrl,
             Tags = baseItem.Tags,
             IsFavorite = baseItem.IsFavorite,
             PrimaryArch = baseItem.PrimaryArch,

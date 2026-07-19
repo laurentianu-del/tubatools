@@ -112,26 +112,26 @@
 			<Text>Patrons</Text>
 		</PatronMenuItem>
 		<VisitDDUHomeMenuItem>
-			<Text>Offizielle DDU-Website besuchen</Text>
+			<Text>DDU-Website</Text>
 		</VisitDDUHomeMenuItem>
-		<VisitDiscord>
-			<Text>Unserem Discord beitreten</Text>
-		</VisitDiscord>
         <VisitDDUShopMenuItem>
-            <Text>Besuchen Sie den offiziellen DDU Merch Shop</Text>
+            <Text>DDU Merch-Shop</Text>
         </VisitDDUShopMenuItem>
+		<VisitDiscord>
+			<Text>Discord-Server</Text>
+		</VisitDiscord>
 		<VisitSVNMenuItem>
-			<Text>GitHub-Website besuchen</Text>
+			<Text>GitHub-Repository</Text>
 		</VisitSVNMenuItem>
-		<VisitGuru3DNvidiaMenuItem>
-			<Text>Guru3d NVIDIA-Thread besuchen</Text>
-		</VisitGuru3DNvidiaMenuItem>
-		<VisitGuru3DAMDMenuItem>
-			<Text>Guru3d AMD-Thread besuchen</Text>
-		</VisitGuru3DAMDMenuItem>
-		<VisitGeforceMenuItem>
-			<Text>Geforce-Thread besuchen</Text>
-		</VisitGeforceMenuItem>
+        <DownloadNvidiaMenuItem>
+			<Text>NVIDIA Treiber-Downloads</Text>
+		</DownloadNvidiaMenuItem>
+        <DownloadAmdMenuItem>
+			<Text>AMD Treiber-Downloads</Text>
+		</DownloadAmdMenuItem>
+        <DownloadIntelMenuItem>
+			<Text>Intel Treiber-Downloads</Text>
+		</DownloadIntelMenuItem>
 
 		<Messages>
 			<Text1>Updates sind verfügbar! Jetzt die DDU-Website besuchen?</Text1>
@@ -170,7 +170,8 @@
 			<Options2>NVIDIA</Options2>
 			<Options3>AMD</Options3>
 			<Options4>Intel®</Options4>
-			<Options5>Alle GPUs</Options5>
+			<Options5>LISUAN</Options5>
+			<Options6>Alle GPUs</Options6>
 		</Options_GPU>
 		<Options_AUDIO>
 			<Options1>---Gerät auswählen---</Options1>
@@ -224,6 +225,13 @@
 	</frmMain>
 
 	<frmOptions Text="Optionen">
+		<btnResetDefaults>
+			<Text>Auf empfohlene zurücksetzen</Text>
+			<Tooltip>Alle Optionen auf ihre empfohlenen Standardwerte zurücksetzen.</Tooltip>
+		</btnResetDefaults>
+		<Messages>
+			<Text1>Alle Optionen auf ihre empfohlenen Standardwerte zurücksetzen?</Text1>
+		</Messages>
 		<btnClose>
 			<Text>Schließen</Text>
 		</btnClose>
@@ -291,6 +299,10 @@
 		<lblRemNVCP>
 			<Text>(DCH Driver) Entfernen des aus dem Microsoft Store installierten NVIDIA Control Panel</Text>
 		</lblRemNVCP>
+        <lblRemoveNvidiaCache>
+            <Text>NVIDIA Shader-Cache entfernen (Deaktivieren wenn ASC / NVIDIA App Auto Shader Compilation verwendet wird)
+            </Text>
+        </lblRemoveNvidiaCache>
 		<lblKeepNVCPopt>
 			<Text>NVIDIA Control Panel Global / Programmeinstellungen beibehalten</Text>
 			<Tooltip>
@@ -336,6 +348,9 @@
 		<lblRememberLastChoice>
 			<Text>Zuletzt ausgewählte GPU merken</Text>	
 		</lblRememberLastChoice>
+		<lblUseDarkTheme>
+			<Text>Dunkles Design verwenden</Text>
+		</lblUseDarkTheme>
   </frmOptions>
 
 	<frmLaunch Text="Startoption">
@@ -460,6 +475,7 @@
 				-Sam Gooding
 				-Zero Chung
 				-Remy Starshade
+				-Lion-man
 			</Text>
 		</lblPatron>
 	</frmAbout>
@@ -499,7 +515,7 @@
 
 				Coders: Wagnard, Devmltk, Shady7557
 
-				Tester: Dellon132 Mats/Onyx
+				Tester: Dellon132, Mats/Onyx
 
 				Logos: juanchacin
 
@@ -541,12 +557,12 @@
 
 		<Translator2>
 			<User>_rk_</User>
-			<LastUpdate>04/12/2025</LastUpdate>
+			<LastUpdate>22/03/2026</LastUpdate>			
 		</Translator2>
 		
 		<Translator3>
 			<User>Mats/Onyx</User>
-			<LastUpdate>03/12/2025</LastUpdate>
+			<LastUpdate>17/02/2026</LastUpdate>
 		</Translator3>
 	</LanguageTranslators>
 

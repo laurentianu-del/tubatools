@@ -115,9 +115,24 @@
 		<VisitGuru3DAMDMenuItem>
 			<Text>Guru3d AMD Thread زيارة</Text>
 		</VisitGuru3DAMDMenuItem>
+		        <VisitDDUShopMenuItem>
+            <Text>زر متجر DDU الرسمي للمنتجات</Text>
+        </VisitDDUShopMenuItem>
+		<VisitDiscord>
+			<Text>انضم إلى ديسكوردنا</Text>
+		</VisitDiscord>
 		<VisitGeforceMenuItem>
 			<Text>Geforce Thread زيارة</Text>
 		</VisitGeforceMenuItem>
+        <DownloadNvidiaMenuItem>
+			<Text>تنزيل برامج تشغيل NVIDIA</Text>
+		</DownloadNvidiaMenuItem>
+        <DownloadAmdMenuItem>
+			<Text>تنزيل برامج تشغيل AMD</Text>
+		</DownloadAmdMenuItem>
+        <DownloadIntelMenuItem>
+			<Text>تنزيل برامج تشغيل إنتل</Text>
+		</DownloadIntelMenuItem>
 
 		<Messages>
 			<Text1>تتوفر تحديثات جديدة! هل ترغب في زيارة موقع البرنامج؟</Text1>
@@ -274,7 +289,10 @@
       <Tooltip>هذا الخيار سيمنع "مدير الأجهزة في ويندوز" من البحث عن تحديثات جديدة لتعاريف الأجهزة عند "تحديث ويندوز". 
                ملاحظة: هذا الخيار لا يمنع ويندوز من تنزيل/تثبيت تعاريف جديدة. 
                ملاحظة 2: يُنصح *بشدة* بعكس هذا الخيار عند الانتهاء من استخدام البرنامج وإعادة تنصيب تعريف بطاقة الفيديو وإلا ستواجه مشكلة مع تنصيب تعاريف لأجهزة أخرى.</Tooltip>
-     </lblPreventWinUpdate>
+	</lblPreventWinUpdate>
+	<lblUseDarkTheme>
+			<Text>استخدام المظهر الداكن</Text>
+	</lblUseDarkTheme>
   </frmOptions>
 
 	<frmLaunch Text="خيارات التشغيل">
@@ -474,7 +492,12 @@
 			</Details>
 			<LastUpdate>18/12/2024</LastUpdate>
 		</Translator3>
-	</LanguageTranslators>
 
+		<Translator4>
+			<User>Mats/Onyx</User>
+			<Details>Twitter:onyxwz1</Details>
+			<LastUpdate>17/02/2026</LastUpdate>
+		</Translator4>
+	</LanguageTranslators>
 
 </DisplayDriverUninstaller>

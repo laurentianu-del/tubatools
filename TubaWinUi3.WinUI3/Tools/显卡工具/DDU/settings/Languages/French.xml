@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <DisplayDriverUninstaller ISO="fr-FR" Text="French" >
 	<!--
 		Voir le fichier ' \Settings\Languages\_For translators - ReadMe.txt ' 	
@@ -132,7 +132,15 @@
 		<VisitGeforceMenuItem>
 			<Text>Visiter le forum GeForce</Text>
 		</VisitGeforceMenuItem>
-
+        <DownloadNvidiaMenuItem>
+			<Text>Téléchargements des pilotes NVIDIA</Text>
+		</DownloadNvidiaMenuItem>
+        <DownloadAmdMenuItem>
+			<Text>Téléchargements des pilotes AMD</Text>
+		</DownloadAmdMenuItem>
+        <DownloadIntelMenuItem>
+			<Text>Téléchargements des pilotes Intel</Text>
+		</DownloadIntelMenuItem>
 		<Messages>
 			<Text1>Mises à jour disponibles ! Visiter le site web de DDU maintenant ?</Text1>
 			<Text2>Prévoyez un soutien limité pour les versions plus anciennes que la plus récente. Vérifiez la version la plus récente avant de signaler les bogues.</Text2>
@@ -170,7 +178,8 @@
 			<Options2>NVIDIA</Options2>
 			<Options3>AMD</Options3>
 			<Options4>INTEL</Options4>
-			<Options5>Tout les GPUs</Options5>
+			<Options5>LISUAN</Options5>
+			<Options6>Tout les GPUs</Options6>
 		</Options_GPU>
 		<Options_AUDIO>
 			<Options1>---Choisir le matériel---</Options1>
@@ -227,6 +236,13 @@
 		<btnClose>
 			<Text>Fermer</Text>
 		</btnClose>
+		<btnResetDefaults>
+			<Text>Valeurs recommandées</Text>
+			<Tooltip>Réinitialiser toutes les options à leurs valeurs par défaut recommandées.</Tooltip>
+		</btnResetDefaults>
+		<Messages>
+			<Text1>Réinitialiser toutes les options à leurs valeurs par défaut recommandées ?</Text1>
+		</Messages>
 		<lblOffer>
 			<Text>Afficher les offres de nos partenaires</Text>
 		</lblOffer>
@@ -291,6 +307,10 @@
 		<lblRemNVCP>
 			<Text>Supprimer NVIDIA (Pilote DCH) du Panneau de Configuration du Microsoft Store</Text>
 		</lblRemNVCP>
+        <lblRemoveNvidiaCache>
+            <Text>Supprimer le cache de shaders NVIDIA (Décocher si vous utilisez ASC / NVIDIA App Compilation automatique de shaders)
+            </Text>
+        </lblRemoveNvidiaCache>
 		<lblKeepNVCPopt>
 			<Text>Conserver le Panneau de Contrôle Global NVIDIA / Paramètres du Programme.</Text>
 			<Tooltip>
@@ -336,6 +356,9 @@
 		<lblRememberLastChoice>
 			<Text>Se souvenir du dernier GPU sélectionné</Text>	
 		</lblRememberLastChoice>
+				<lblUseDarkTheme>
+			<Text>Utiliser le thème sombre</Text>
+		</lblUseDarkTheme>
   </frmOptions>
 
 	<frmLaunch Text="Option de démarrage">
@@ -545,6 +568,12 @@ Votre " MOT DE PASSE " Windows *peut* être requis ! (Le PIN *pourrait* NE PAS f
 			<User>Talex v18.0.7.7</User>
 			<LastUpdate>22/06/2024</LastUpdate>
 		</Translator3>
+
+		<Translator4>
+			<User>Mats/Onyx</User>
+			<Details>Twitter:onyxwz1</Details>
+			<LastUpdate>17/02/2026</LastUpdate>
+		</Translator4>
 	</LanguageTranslators>
 
 </DisplayDriverUninstaller>

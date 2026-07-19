@@ -114,6 +114,12 @@
 		<VisitDDUHomeMenuItem>
 			<Text>Navštívit oficiální web DDU</Text>
 		</VisitDDUHomeMenuItem>
+		        <VisitDDUShopMenuItem>
+            <Text>Navštivte oficiální DDU merch shop</Text>
+        </VisitDDUShopMenuItem>
+		<VisitDiscord>
+			<Text>Přidejte se k našemu Discordu</Text>
+		</VisitDiscord>
 		<VisitSVNMenuItem>
 			<Text>Navštívit web SVN</Text>
 		</VisitSVNMenuItem>
@@ -126,6 +132,15 @@
 		<VisitGeforceMenuItem>
 			<Text>Navštívit GeForce vlánko</Text>
 		</VisitGeforceMenuItem>
+        <DownloadNvidiaMenuItem>
+			<Text>Stažení ovladačů NVIDIA</Text>
+		</DownloadNvidiaMenuItem>
+        <DownloadAmdMenuItem>
+			<Text>Stažení ovladačů AMD</Text>
+		</DownloadAmdMenuItem>
+        <DownloadIntelMenuItem>
+			<Text>Stažení ovladačů Intel</Text>
+		</DownloadIntelMenuItem>
 
 		<Messages>
 			<Text1>Jsou k dispozici aktualizace! Navštívit web DDU nyní?</Text1>
@@ -164,7 +179,8 @@
 			<Options2>NVIDIA</Options2>
 			<Options3>AMD</Options3>
 			<Options4>INTEL</Options4>
-			<Options5>Všechny GPU</Options5>
+			<Options5>LISUAN</Options5>
+			<Options6>Všechny GPU</Options6>
 		</Options_GPU>
 		<Options_AUDIO>
 			<Options1>---Vyberte zařízení---</Options1>
@@ -218,6 +234,13 @@
 	</frmMain>
 
 	<frmOptions Text="Možnosti">
+		<btnResetDefaults>
+			<Text>Obnovit doporučené</Text>
+			<Tooltip>Obnovit všechny možnosti na jejich doporučené výchozí hodnoty.</Tooltip>
+		</btnResetDefaults>
+		<Messages>
+			<Text1>Obnovit všechny možnosti na jejich doporučené výchozí hodnoty?</Text1>
+		</Messages>
 		<btnClose>
 			<Text>Zavřít</Text>
 		</btnClose>
@@ -285,6 +308,10 @@
 		<lblRemNVCP>
 			<Text>(DCH ovladač) Odstranit NVIDIA Control Panel nainstalovaný z obchodu Microsoft Store</Text>
 		</lblRemNVCP>
+        <lblRemoveNvidiaCache>
+            <Text>Odebrat mezipaměť shaderů NVIDIA (Odškrtněte při použití ASC / NVIDIA App Auto Shader Compilation)
+            </Text>
+        </lblRemoveNvidiaCache>
 		<lblKeepNVCPopt>
 			<Text>Zachovat globální / programová nastavení NVIDIA Control Panel.</Text>
 			<Tooltip>
@@ -315,6 +342,9 @@
                Poznámka: Tato možnost nezabrání službě "Windows Update" stažení/instalaci nových ovladačů. 
                Poznámka 2: Zároveň je *VYSOCE* doporučeno vrácení této změny po tom, co dokončíte používání DDU a reinstalujete ovladač grafické karty, jinak můžete mít problém s instalací jiných zařízení.</Tooltip>
      </lblPreventWinUpdate>
+	 		<lblUseDarkTheme>
+			<Text>Použít tmavý motiv</Text>
+		</lblUseDarkTheme>
 	</frmOptions>
 
 	<frmLaunch Text="Možnosti spuštění">
@@ -511,6 +541,12 @@
 			<Details>thatjohns.eu</Details>
 			<LastUpdate>30.09.2023</LastUpdate>
 		</Translator>
+
+		<Translator2>
+			<User>Mats/Onyx</User>
+			<Details>Twitter:onyxwz1</Details>
+			<LastUpdate>17/02/2026</LastUpdate>
+		</Translator2>
 	</LanguageTranslators>
 
 

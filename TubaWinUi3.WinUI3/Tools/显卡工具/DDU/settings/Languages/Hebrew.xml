@@ -112,13 +112,27 @@
 		<VisitGuru3DNvidiaMenuItem>
 			<Text>בקר בשרשור NVIDIA של Guru3d</Text>
 		</VisitGuru3DNvidiaMenuItem>
+		        <VisitDDUShopMenuItem>
+            <Text>בקר בחנות המרצ'נדייז הרשמית של DDU</Text>
+        </VisitDDUShopMenuItem>
+		<VisitDiscord>
+			<Text>הצטרף לדיסקורד שלנו</Text>
+		</VisitDiscord>
 		<VisitGuru3DAMDMenuItem>
 			<Text>בקר בשרשור AMD של Guru3d</Text>
 		</VisitGuru3DAMDMenuItem>
 		<VisitGeforceMenuItem>
 			<Text>בקר בשרשור GeForce</Text>
 		</VisitGeforceMenuItem>
-
+        <DownloadNvidiaMenuItem>
+			<Text>הורדות דרייברים של NVIDIA</Text>
+		</DownloadNvidiaMenuItem>
+        <DownloadAmdMenuItem>
+			<Text>הורדות דרייברים של AMD</Text>
+		</DownloadAmdMenuItem>
+        <DownloadIntelMenuItem>
+			<Text>הורדות דרייברים של Intel</Text>
+		</DownloadIntelMenuItem>
 		<Messages>
 			<Text1>עדכונים זמינים! האם לבקר באתר DDU עכשיו?</Text1>
 			<Text2>צפה לתמיכה מוגבלת בגרסאות ישנות יותר מאשר בגרסה העדכנית ביותר. אנא בדוק אם קיימת גרסה חדשה יותר לפני דיווח על באגים.</Text2>
@@ -276,6 +290,10 @@
 		<lblRemNVCP>
 			<Text>(דרייבר DCH) הסר את לוח הבקרה של NVIDIA שהותקן מחנות Microsoft</Text>
 		</lblRemNVCP>
+        <lblRemoveNvidiaCache>
+            <Text>הסר מטמון שיידר של NVIDIA (בטל סימון אם משתמש ב-ASC / NVIDIA App קומפילציה אוטומטית של שיידר)
+            </Text>
+        </lblRemoveNvidiaCache>
 		<lblKeepNVCPopt>
 			<Text>שמור את ההגדרות הגלובליות או הגדרות התוכנית של לוח הבקרה של NVIDIA.</Text>
 			<Tooltip>
@@ -306,6 +324,9 @@
                שים לב: זה לא מונע מ"Windows Update" להוריד/להתקין דרייברים חדשים. 
                שים לב2: מומלץ *מאוד* להחזיר שינוי זה לאחר שסיימת להשתמש ב-DDU והתקנת מחדש את דרייבר ה-GPU שלך אחרת תיתקל בבעיות בהתקנת התקנים אחרים.</Tooltip>
      </lblPreventWinUpdate>
+	 		<lblUseDarkTheme>
+			<Text>השתמש בערכת נושא כהה</Text>
+		</lblUseDarkTheme>
   </frmOptions>
 
 	<frmLaunch Text="אפשרות הפעלה">
@@ -505,6 +526,12 @@
 			<User>DevMltk</User>
 			<LastUpdate>31/05/2016</LastUpdate>
 		</Translator2>
+
+		<Translator3>
+			<User>Mats/Onyx</User>
+			<Details>Twitter:onyxwz1</Details>
+			<LastUpdate>17/02/2026</LastUpdate>
+		</Translator3>
 	</LanguageTranslators>
 
 </DisplayDriverUninstaller>

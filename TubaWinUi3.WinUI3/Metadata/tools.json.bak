@@ -4,7 +4,7 @@
     {
       "match": "CPU-Z",
       "description": "处理器、主板、内存和显卡基础信息查看工具。",
-      "tutorialUrl": "https://tubawinui3.cn/tutorials/cpu-z",
+      "tutorialUrl": "https://www.tubatool.com/tutorials/cpu-z-complete-guide/",
       "publisher": "CPUID",
       "tags": [ "CPU", "主板", "硬件检测" ],
       "downloadUrl": "gc:Tools/处理器工具/CPUZ",
@@ -46,7 +46,7 @@
     {
       "match": "Prime95",
       "description": "GIMPS 项目分布式计算客户端，广泛用于 CPU 稳定性测试和烤机。",
-      "tutorialUrl": "https://tubawinui3.cn/tutorials/prime95",
+      "tutorialUrl": "https://blog.csdn.net/xitongzhijianet/article/details/125893155",
       "publisher": "GIMPS",
       "tags": [ "CPU", "烤机", "稳定性测试" ],
       "downloadUrl": "gc:Tools/处理器工具/Prime95"
@@ -61,7 +61,7 @@
     {
       "match": "ThrottleStop",
       "description": "CPU 降频监控和功耗控制工具，可解除笔记本 CPU 功耗限制。",
-      "tutorialUrl": "https://tubawinui3.cn/tutorials/throttlestop",
+      "tutorialUrl": "https://zhuanlan.zhihu.com/p/402806880",
       "publisher": "uWebb Software",
       "tags": [ "CPU", "降频", "功耗控制" ],
       "downloadUrl": "gc:Tools/处理器工具/ThrottleStop"
@@ -83,7 +83,7 @@
     {
       "match": "GPU-Z",
       "description": "显卡型号、核心参数、显存、传感器和 BIOS 信息查看工具。",
-      "tutorialUrl": "https://tubawinui3.cn/tutorials/gpu-z",
+      "tutorialUrl": "https://www.tubatool.com/tutorials/gpu-z-complete-guide/",
       "publisher": "TechPowerUp",
       "tags": [ "显卡", "硬件检测" ],
       "downloadUrl": "gc:Tools/显卡工具/GPUZ"
@@ -91,7 +91,7 @@
     {
       "match": "DDU",
       "description": "显卡驱动彻底卸载工具，安全清除 AMD/NVIDIA/Intel 显卡驱动残留。",
-      "tutorialUrl": "https://tubawinui3.cn/tutorials/ddu",
+      "tutorialUrl": "https://displaydriveruninstaller.app/cn/guides.html",
       "publisher": "Wagnardsoft",
       "tags": [ "显卡", "驱动卸载" ],
       "downloadUrl": "gc:Tools/显卡工具/DDU"
@@ -144,7 +144,7 @@
     {
       "match": "FurMark",
       "description": "GPU 压力测试和烤机工具（OpenGL），俗称显卡杀手，用于检测显卡稳定性。",
-      "tutorialUrl": "https://tubawinui3.cn/tutorials/furmark",
+      "tutorialUrl": "https://www.fur-mark.cn/docs.html",
       "publisher": "Geeks3D",
       "tags": [ "烤机", "显卡", "稳定性测试" ],
       "downloadUrl": "gc:Tools/烤鸡工具/FurMark"
@@ -152,7 +152,7 @@
     {
       "match": "FurMark_win64",
       "description": "FurMark 2（64 位）GPU 压力测试和烤机工具，支持 Vulkan 和 OpenGL，用于检测显卡稳定性。",
-      "tutorialUrl": "https://tubawinui3.cn/tutorials/furmark",
+      "tutorialUrl": "https://www.fur-mark.cn/docs.html",
       "publisher": "Geeks3D",
       "launchTarget": "FurMark_GUI.exe",
       "tags": [ "烤机", "显卡", "稳定性测试", "x64" ],
@@ -161,7 +161,7 @@
     {
       "match": "CrystalDiskInfo",
       "description": "硬盘 SMART、健康状态、温度和通电时间查看工具。",
-      "tutorialUrl": "https://tubawinui3.cn/tutorials/crystaldiskinfo",
+      "tutorialUrl": "https://crystaldiskinfo.org/crystaldiskinfo%E5%A6%82%E4%BD%95%E4%BD%BF%E7%94%A8.html",
       "publisher": "Crystal Dew World",
       "tags": [ "硬盘", "SMART", "健康检测" ],
       "downloadUrl": "gc:Tools/硬盘工具/CrystalDiskInfo",
@@ -174,7 +174,7 @@
     {
       "match": "CrystalDiskMark",
       "description": "硬盘读写速度基准测试工具，测量顺序和随机读写性能。",
-      "tutorialUrl": "https://tubawinui3.cn/tutorials/crystaldiskmark",
+      "tutorialUrl": "https://www.crystaldiskmarks.cn/tutorial.html",
       "publisher": "Crystal Dew World",
       "tags": [ "硬盘", "速度测试" ],
       "downloadUrl": "gc:Tools/硬盘工具/CrystalDiskMark",
@@ -201,7 +201,6 @@
     {
       "match": "DiskGenius",
       "description": "磁盘分区、数据恢复、坏道检测和分区表维护工具。",
-      "tutorialUrl": "https://tubawinui3.cn/tutorials/diskgenius",
       "publisher": "Eassos",
       "tags": [ "硬盘", "分区", "数据恢复" ],
       "downloadUrl": "gc:Tools/硬盘工具/DiskGenius"
@@ -345,7 +344,7 @@
     {
       "match": "TestMem5",
       "description": "第五代内存稳定性测试工具（TM5），支持多种测试配置和极限压力测试。",
-      "tutorialUrl": "https://tubawinui3.cn/tutorials/testmem5",
+      "tutorialUrl": "https://blog.csdn.net/weixin_44149170/article/details/150525248",
       "publisher": "",
       "tags": [ "内存", "稳定性测试" ],
       "downloadUrl": "gc:Tools/内存工具/tm5"
@@ -438,7 +437,7 @@
     {
       "match": "AIDA64",
       "description": "系统硬件信息、传感器监控和稳定性测试工具。",
-      "tutorialUrl": "https://tubawinui3.cn/tutorials/aida64",
+      "tutorialUrl": "https://www.aida64cn.com/jiqiao/aida-ddjdcp.html",
       "publisher": "FinalWire",
       "tags": [ "综合检测", "传感器" ],
       "downloadUrl": "gc:Tools/综合检测/AIDA64"
@@ -446,7 +445,7 @@
     {
       "match": "HWiNFO",
       "description": "专业硬件信息读取、传感器监控和日志记录工具。",
-      "tutorialUrl": "https://tubawinui3.cn/tutorials/hwinfo",
+      "tutorialUrl": "https://www.tubatool.com/tutorials/hwinfo-tutorial/",
       "publisher": "REALiX",
       "tags": [ "综合检测", "传感器" ],
       "downloadUrl": "gc:Tools/综合检测/hwinfo",
@@ -504,7 +503,7 @@
     {
       "match": "BlueScreenView",
       "description": "蓝屏崩溃转储分析工具，查看 BSOD 错误代码和导致崩溃的驱动。",
-      "tutorialUrl": "https://tubawinui3.cn/tutorials/bluescreenview",
+      "tutorialUrl": "https://lihui.blog.csdn.net/article/details/153187356",
       "publisher": "NirSoft",
       "tags": [ "系统", "蓝屏分析" ],
       "downloadUrl": "gc:Tools/其他工具/bluescreenview",
@@ -530,7 +529,7 @@
     {
       "match": "Dism++",
       "description": "Windows 系统精简和优化工具，基于 DISM 的图形化系统管理工具。",
-      "tutorialUrl": "https://tubawinui3.cn/tutorials/dism-plus-plus",
+      "tutorialUrl": "https://blog.csdn.net/gitblog_00857/article/details/161312671",
       "publisher": "Chuyu Team",
       "tags": [ "系统", "系统优化", "精简" ],
       "downloadUrl": "gc:Tools/其他工具/Dism++",
@@ -543,7 +542,6 @@
     {
       "match": "Everything",
       "description": "超快文件搜索工具，基于 NTFS USN 日志实现瞬间文件名搜索。",
-      "tutorialUrl": "https://tubawinui3.cn/tutorials/everything",
       "publisher": "voidtools",
       "tags": [ "系统", "文件搜索" ],
       "downloadUrl": "gc:Tools/其他工具/Everything"
@@ -565,7 +563,7 @@
     {
       "match": "MSIAfterburner",
       "description": "MSI Afterburner 显卡超频监控工具下载入口，支持所有品牌显卡。",
-      "tutorialUrl": "https://tubawinui3.cn/tutorials/msi-afterburner",
+      "tutorialUrl": "https://www.tubatool.com/tutorials/msi-afterburner-complete-guide/",
       "publisher": "MSI",
       "tags": [ "显卡", "超频", "监控" ],
       "downloadUrl": "gc:Tools/其他工具/MSIAfterburnerSetup"
@@ -580,7 +578,6 @@
     {
       "match": "Process Explorer",
       "description": "高级进程管理工具，以树状结构显示进程关系和详细系统资源占用。",
-      "tutorialUrl": "https://tubawinui3.cn/tutorials/process-explorer",
       "publisher": "Sysinternals",
       "tags": [ "系统", "进程管理" ],
       "downloadUrl": "gc:Tools/其他工具/procexp"
@@ -588,7 +585,7 @@
     {
       "match": "Rufus",
       "description": "U盘启动盘制作工具，快速创建可引导 USB 安装盘。",
-      "tutorialUrl": "https://tubawinui3.cn/tutorials/u-disk-boot",
+      "tutorialUrl": "http://cpuranklist.com/84.php",
       "publisher": "Akeo Consulting",
       "tags": [ "系统", "U盘启动" ],
       "downloadUrl": "gc:Tools/其他工具/rufus"
@@ -603,7 +600,7 @@
     {
       "match": "Ventoy",
       "description": "多系统 U盘启动制作工具，直接拷贝 ISO 文件即可启动，无需反复格式化。",
-      "tutorialUrl": "https://tubawinui3.cn/tutorials/u-disk-boot",
+      "tutorialUrl": "http://cpuranklist.com/84.php",
       "publisher": "",
       "tags": [ "系统", "U盘启动" ],
       "downloadUrl": "gc:Tools/其他工具/ventoy",
@@ -655,7 +652,6 @@
     {
       "match": "USBDeview",
       "description": "USB 设备历史记录查看和管理工具，可查看所有曾连接的 USB 设备详情和供电信息。",
-      "tutorialUrl": "https://tubawinui3.cn/tutorials/usbdeview",
       "publisher": "NirSoft",
       "tags": [ "USB", "设备管理", "硬件检测" ],
       "downloadUrl": "gc:Tools/其他工具/USBDeview"
@@ -677,7 +673,6 @@
     {
       "match": "Autoruns",
       "description": "开机启动项和自注册管理工具，可管理所有自启动位置包括驱动、服务和计划任务。",
-      "tutorialUrl": "https://tubawinui3.cn/tutorials/autoruns",
       "publisher": "Sysinternals",
       "tags": [ "系统", "启动项", "系统优化" ],
       "downloadUrl": "gc:Tools/其他工具/Autoruns"

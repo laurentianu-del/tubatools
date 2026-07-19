@@ -114,6 +114,12 @@
 		<VisitDDUHomeMenuItem>
 			<Text>Odwiedź oficjalną stronę DDU</Text>
 		</VisitDDUHomeMenuItem>
+		      <VisitDDUShopMenuItem>
+            <Text>Odwiedź oficjalny sklep z gadżetami DDU</Text>
+        </VisitDDUShopMenuItem>
+		<VisitDiscord>
+			<Text>Dołącz do naszego Discorda</Text>
+		</VisitDiscord>
 		<VisitSVNMenuItem>
 			<Text>Odwiedź stronę SVN</Text>
 		</VisitSVNMenuItem>
@@ -126,7 +132,15 @@
 		<VisitGeforceMenuItem>
 			<Text>Odwiedź forum Geforce </Text>
 		</VisitGeforceMenuItem>
-
+        <DownloadNvidiaMenuItem>
+			<Text>Pobranie sterowników NVIDIA</Text>
+		</DownloadNvidiaMenuItem>
+        <DownloadAmdMenuItem>
+			<Text>Pobranie sterowników AMD</Text>
+		</DownloadAmdMenuItem>
+        <DownloadIntelMenuItem>
+			<Text>Pobranie sterowników Intel</Text>
+		</DownloadIntelMenuItem>
 		<Messages>
 			<Text1>Dostępna aktualizacja! Chcesz teraz odwiedzić stronę DDU?</Text1>
 			<Text2>Ograniczone wsparcie dla starszych wersji. Zaktualizuj do nowszej wersji, zanim zgłosisz błędy.</Text2>
@@ -164,7 +178,8 @@
 			<Options2>NVIDIA</Options2>
 			<Options3>AMD</Options3>
 			<Options4>INTEL</Options4>
-			<Options5>Wszystkie GPU</Options5>
+			<Options5>LISUAN</Options5>
+			<Options6>Wszystkie GPU</Options6>
 		</Options_GPU>
 		<Options_AUDIO>
 			<Options1>---Wybierz urządzenie---</Options1>
@@ -218,6 +233,13 @@
 	</frmMain>
 
 	<frmOptions Text="Opcje">
+		<btnResetDefaults>
+			<Text>Przywróć zalecane</Text>
+			<Tooltip>Przywróć wszystkie opcje do zalecanych wartości domyślnych.</Tooltip>
+		</btnResetDefaults>
+		<Messages>
+			<Text1>Przywrócić wszystkie opcje do zalecanych wartości domyślnych?</Text1>
+		</Messages>
 		<btnClose>
 			<Text>Zamknij</Text>
 		</btnClose>
@@ -285,6 +307,10 @@
 		<lblRemNVCP>
 			<Text>(Sterownik DCH) Usuń Panel Sterowania NVIDIA zainstalowany z Microsoft Store</Text>
 		</lblRemNVCP>
+        <lblRemoveNvidiaCache>
+            <Text>Usuń pamięć podręczną shaderów NVIDIA (Odznacz przy użyciu ASC / automatycznej kompilacji shaderów NVIDIA App)
+            </Text>
+        </lblRemoveNvidiaCache>
 		<lblKeepNVCPopt>
 			<Text>Zachowaj globalne ustawienia oraz ustawienia programu Panel Sterowania NVIDIA</Text>
 			<Tooltip>
@@ -327,6 +353,9 @@
 		<lblRememberLastChoice>
 			<Text>Pamiętaj ostatnio wybraną kartę graficzną</Text>	
 		</lblRememberLastChoice>
+				<lblUseDarkTheme>
+			<Text>Użyj ciemnego motywu</Text>
+		</lblUseDarkTheme>
   </frmOptions>
 
 	<frmLaunch Text="Opcja uruchamiania">
@@ -533,6 +562,11 @@
 			<Details>Oficjalny tłumacz</Details>
 			<LastUpdate>04.04.2025</LastUpdate>
 		</Translator2>
-	</LanguageTranslators>
 
+		<Translator3>
+			<User>Mats/Onyx</User>
+			<Details>Twitter:onyxwz1</Details>
+			<LastUpdate>17/02/2026</LastUpdate>
+		</Translator3>
+	</LanguageTranslators>
 </DisplayDriverUninstaller>
