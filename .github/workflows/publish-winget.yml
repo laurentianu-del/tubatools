@@ -185,27 +185,24 @@ jobs:
           $VERSION = '${{ steps.release-info.outputs.version }}'
 
           if (-not $env:WINGET_GITHUB_TOKEN) {
-            Write-Host "WINGET_GITHUB_TOKEN not set - skipping automatic submission."
-            Write-Host ""
-            Write-Host "To submit manually:"
-            Write-Host "  1. Fork https://github.com/microsoft/winget-pkgs"
-            Write-Host "  2. Copy winget_manifest/*.yaml to manifests/l/luolangaga/tubatools/$VERSION/"
-            Write-Host "  3. Submit a PR to winget-pkgs"
+            Write-Host "::error::WINGET_GITHUB_TOKEN secret is not set. Cannot submit to WinGet."
             echo "submitted=false" >> $env:GITHUB_OUTPUT
-            exit 0
+            exit 1
           }
 
-          wingetcreate update luolangaga.tubatools `
-            --version $VERSION `
-            --submit `
-            --token $env:WINGET_GITHUB_TOKEN
+          $manifestDir = (Resolve-Path winget_manifest).Path
 
+          Write-Host "Submitting update for luolangaga.tubatools v$VERSION"
+          Get-ChildItem $manifestDir | ForEach-Object { Write-Host "  $($_.Name)" }
+
+          wingetcreate update luolangaga.tubatools --version $VERSION --submit --token $env:WINGET_GITHUB_TOKEN
           if ($LASTEXITCODE -eq 0) {
             Write-Host "Submitted to WinGet successfully"
             echo "submitted=true" >> $env:GITHUB_OUTPUT
           } else {
-            Write-Host "::warning::wingetcreate update failed - package may not exist yet. Try 'wingetcreate new' for first submission."
+            Write-Host "::error::wingetcreate update failed (exit code $LASTEXITCODE)"
             echo "submitted=false" >> $env:GITHUB_OUTPUT
+            exit 1
           }
 
       - name: Upload manifests
