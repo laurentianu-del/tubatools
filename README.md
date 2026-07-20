@@ -1,5 +1,7 @@
 <div align="center">
 
+[English](README_EN.md) | 中文
+
 <img src=".github/social-preview.png" alt="TubaWinUi3 Banner" width="100%"/>
 
 ## 近期有许多非官方下载渠道，请注意甄别风险！
