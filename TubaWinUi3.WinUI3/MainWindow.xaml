@@ -233,6 +233,10 @@
         <StackPanel Grid.Row="1">
             <controls:UpdateBanner x:Name="UpdateBanner" />
             <controls:BrandBackgroundBanner x:Name="BrandBgBanner" />
+            <InfoBar
+                x:Name="ToolUpdateToast"
+                IsClosable="True"
+                IsOpen="False" />
         </StackPanel>
 
         <Grid Grid.Row="2">

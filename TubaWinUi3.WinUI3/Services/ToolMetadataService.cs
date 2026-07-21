@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -14,9 +15,12 @@ public sealed record ToolMetadata(
     string? WingetId,
     string? LaunchTarget,
     string? TutorialUrl,
-    IReadOnlyList<string>? Tags);
+    IReadOnlyList<string>? Tags,
+    int? ToolVersion);
 
 public sealed record JsonArchVariantResult(string? File, string? Dir, string? Arch);
+
+public sealed record RemoteToolVersion(string Match, int Version, string? DownloadUrl);
 
 public static class ToolMetadataService
 {
@@ -111,7 +115,8 @@ public static class ToolMetadataService
             jsonMetadata?.WingetId,
             jsonMetadata?.LaunchTarget,
             jsonMetadata?.TutorialUrl,
-            jsonMetadata?.Tags);
+            jsonMetadata?.Tags,
+            jsonMetadata?.ToolVersion);
     }
 
     public static IReadOnlyList<JsonArchVariantResult> GetArchVariants(string toolPath, string? toolDir = null)
@@ -149,6 +154,113 @@ public static class ToolMetadataService
     {
         var jsonMetadata = FindJsonMetadataByDir(toolDir);
         return jsonMetadata?.LaunchTarget;
+    }
+
+    public static int? GetToolVersion(string toolPath)
+    {
+        var jsonMetadata = FindJsonMetadata(toolPath);
+        return jsonMetadata?.ToolVersion;
+    }
+
+    public static int? GetToolVersionByDir(string toolDir)
+    {
+        var jsonMetadata = FindJsonMetadataByDir(toolDir);
+        return jsonMetadata?.ToolVersion;
+    }
+
+    public static string? GetDownloadUrlByDir(string toolDir)
+    {
+        var jsonMetadata = FindJsonMetadataByDir(toolDir);
+        return jsonMetadata?.DownloadUrl;
+    }
+
+    public static async Task<IReadOnlyList<RemoteToolVersion>?> FetchRemoteToolsJsonAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            var result = await TryFetchGitCodeToolsJsonAsync(ct);
+            if (result is not null) return result;
+        }
+        catch { }
+
+        try
+        {
+            var result = await TryFetchGitHubToolsJsonAsync(ct);
+            if (result is not null) return result;
+        }
+        catch { }
+
+        return null;
+    }
+
+    private static async Task<IReadOnlyList<RemoteToolVersion>?> TryFetchGitCodeToolsJsonAsync(CancellationToken ct)
+    {
+        const string owner = "gcw_uDDNaqJw";
+        const string repo = "tubatool";
+        var url = $"https://api.gitcode.com/api/v5/repos/{owner}/{repo}/contents/Metadata/tools.json?ref=master";
+
+        using var client = ProxyService.CreateClient(TimeSpan.FromSeconds(15));
+        if (!client.DefaultRequestHeaders.Contains("User-Agent"))
+            client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ToolUpdate");
+
+        var json = await client.GetStringAsync(url, ct);
+        var doc = JsonDocument.Parse(json);
+        var content = doc.RootElement.TryGetProperty("content", out var contentEl)
+            ? contentEl.GetString() ?? "" : "";
+        var encoding = doc.RootElement.TryGetProperty("encoding", out var encEl)
+            ? encEl.GetString() ?? "" : "";
+
+        string toolsJsonText;
+        if (encoding == "base64")
+            toolsJsonText = Encoding.UTF8.GetString(Convert.FromBase64String(content));
+        else
+            toolsJsonText = content;
+
+        return ParseRemoteToolsJson(toolsJsonText);
+    }
+
+    private static async Task<IReadOnlyList<RemoteToolVersion>?> TryFetchGitHubToolsJsonAsync(CancellationToken ct)
+    {
+        const string owner = "luolangaga";
+        const string repo = "tubatool";
+        var url = $"https://api.github.com/repos/{owner}/{repo}/contents/Metadata/tools.json";
+
+        using var client = ProxyService.CreateClient(TimeSpan.FromSeconds(15));
+        if (!client.DefaultRequestHeaders.Contains("User-Agent"))
+            client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ToolUpdate");
+
+        var json = await client.GetStringAsync(url, ct);
+        var doc = JsonDocument.Parse(json);
+        var content = doc.RootElement.TryGetProperty("content", out var contentEl)
+            ? contentEl.GetString() ?? "" : "";
+        var encoding = doc.RootElement.TryGetProperty("encoding", out var encEl)
+            ? encEl.GetString() ?? "" : "";
+
+        string toolsJsonText;
+        if (encoding == "base64")
+            toolsJsonText = Encoding.UTF8.GetString(Convert.FromBase64String(content.Replace("\n", "", StringComparison.Ordinal)));
+        else
+            toolsJsonText = content;
+
+        return ParseRemoteToolsJson(toolsJsonText);
+    }
+
+    private static IReadOnlyList<RemoteToolVersion>? ParseRemoteToolsJson(string jsonText)
+    {
+        try
+        {
+            var database = JsonSerializer.Deserialize<JsonToolDatabase>(jsonText, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+            if (database?.Tools is null) return null;
+
+            return database.Tools
+                .Where(t => !string.IsNullOrWhiteSpace(t.Match) && t.ToolVersion.HasValue)
+                .Select(t => new RemoteToolVersion(t.Match!, t.ToolVersion!.Value, t.DownloadUrl))
+                .ToList();
+        }
+        catch { return null; }
     }
 
     private static JsonToolMetadata? FindJsonMetadataByDir(string toolDir)
@@ -308,24 +420,16 @@ public static class ToolMetadataService
     private sealed class JsonToolMetadata
     {
         public string? Match { get; set; }
-
         public string? Description { get; set; }
-
         public string? Publisher { get; set; }
-
         public string? DownloadUrl { get; set; }
-
         public string? DownloadFilter { get; set; }
-
         public string? WingetId { get; set; }
-
         public string? LaunchTarget { get; set; }
-
         public string? TutorialUrl { get; set; }
-
         public List<string>? Tags { get; set; }
-
         public List<JsonArchVariant>? ArchVariants { get; set; }
+        public int? ToolVersion { get; set; }
     }
 
     private sealed class JsonArchVariant

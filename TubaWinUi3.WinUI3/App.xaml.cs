@@ -112,7 +112,15 @@ public partial class App : Application
 
         if (!RuntimeHelper.IsMsixPackaged)
         {
-            _ = CheckForUpdateSilentAsync();
+            var hasAppUpdate = await CheckForUpdateSilentAsync();
+            if (!hasAppUpdate)
+            {
+                _ = CheckForToolUpdatesSilentAsync();
+            }
+        }
+        else
+        {
+            _ = CheckForToolUpdatesSilentAsync();
         }
     }
 
@@ -171,17 +179,17 @@ public partial class App : Application
         }
     }
 
-    private static async Task CheckForUpdateSilentAsync()
+    private static async Task<bool> CheckForUpdateSilentAsync()
     {
         try
         {
             var update = await UpdateService.CheckForUpdateAsync();
-            if (update is null) return;
+            if (update is null) return false;
 
             var skipped = UpdateService.GetSkippedVersion();
-            if (skipped == update.Version) return;
+            if (skipped == update.Version) return false;
 
-            if (MainWindow?.DispatcherQueue is null) return;
+            if (MainWindow?.DispatcherQueue is null) return false;
 
             if (UpdateService.IsUpdateAlreadyDownloaded(update))
             {
@@ -190,7 +198,7 @@ public partial class App : Application
                     if (MainWindow is MainWindow mw)
                         mw.ShowUpdateAlreadyDownloaded(update);
                 });
-                return;
+                return true;
             }
 
             var isMetered = NetworkHelper.IsMeteredConnection();
@@ -201,10 +209,70 @@ public partial class App : Application
                 if (MainWindow is MainWindow mw)
                     mw.ShowUpdateBanner(update, autoDownload);
             });
+
+            return true;
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[Update] Silent check failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    private static async Task CheckForToolUpdatesSilentAsync()
+    {
+        try
+        {
+            var updates = await ToolUpdateService.CheckForToolUpdatesAsync();
+            if (updates is null || updates.Count == 0) return;
+
+            if (MainWindow?.DispatcherQueue is null) return;
+
+            MainWindow.DispatcherQueue.TryEnqueue(async () =>
+            {
+                if (MainWindow?.Content is not FrameworkElement root) return;
+
+                var countText = updates.Count == 1
+                    ? $"「{updates[0].ToolName}」有新版本 (v{updates[0].RemoteVersion})"
+                    : $"发现 {updates.Count} 个工具有新版本";
+
+                var dialog = new ContentDialog
+                {
+                    Title = "工具更新",
+                    Content = new StackPanel
+                    {
+                        Spacing = 8,
+                        Children =
+                        {
+                            new TextBlock
+                            {
+                                Text = countText,
+                                TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap
+                            },
+                            new TextBlock
+                            {
+                                Text = "是否立即更新？更新将自动下载并替换本地文件。",
+                                TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap,
+                                Opacity = 0.72
+                            }
+                        }
+                    },
+                    PrimaryButtonText = "全部更新",
+                    CloseButtonText = "稍后",
+                    DefaultButton = ContentDialogButton.Primary,
+                    XamlRoot = root.XamlRoot,
+                    RequestedTheme = ThemeService.CurrentElementTheme
+                };
+
+                var result = await dialog.ShowAsync();
+                if (result != Microsoft.UI.Xaml.Controls.ContentDialogResult.Primary) return;
+
+                ToolUpdateService.EnqueueToolUpdates(updates);
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ToolUpdate] Silent check failed: {ex.Message}");
         }
     }
 

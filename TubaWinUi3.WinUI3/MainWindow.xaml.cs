@@ -80,6 +80,30 @@ public sealed partial class MainWindow : Window
         UpdateBanner.ShowDownloadComplete();
     }
 
+    public void ShowToolUpdateToast(string toolName)
+    {
+        ToolUpdateToast.Title = "工具更新完成";
+        ToolUpdateToast.Message = $"「{toolName}」已更新到最新版本";
+        ToolUpdateToast.Severity = Microsoft.UI.Xaml.Controls.InfoBarSeverity.Success;
+        ToolUpdateToast.IsOpen = true;
+    }
+
+    public void ShowToolUpdateProgressToast(string toolName)
+    {
+        ToolUpdateToast.Title = "正在更新工具";
+        ToolUpdateToast.Message = $"「{toolName}」正在同步更新...";
+        ToolUpdateToast.Severity = Microsoft.UI.Xaml.Controls.InfoBarSeverity.Informational;
+        ToolUpdateToast.IsOpen = true;
+    }
+
+    public void ShowToolUpdateFailedToast(string toolName, string error)
+    {
+        ToolUpdateToast.Title = "工具更新失败";
+        ToolUpdateToast.Message = $"「{toolName}」更新失败：{error}";
+        ToolUpdateToast.Severity = Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error;
+        ToolUpdateToast.IsOpen = true;
+    }
+
     private bool _initialized;
 
     public MainWindow()
@@ -152,6 +176,7 @@ public sealed partial class MainWindow : Window
 
         DownloadQueueService.Initialize(DispatcherQueue);
         DownloadQueueService.QueueChanged += OnDownloadQueueChanged;
+        ToolUpdateService.Initialize(DispatcherQueue);
         UpdateDownloadBadge();
 
         BrandEasterEggService.BrandBackgroundLoaded += OnBrandBackgroundLoaded;
