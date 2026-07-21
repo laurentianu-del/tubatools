@@ -16,6 +16,7 @@ AppCopyright={#MyAppCopyright}
 DefaultDirName={sd}\TubaWinUi3
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
+LicenseFile=License.txt
 OutputDir=SetupOutput
 OutputBaseFilename=TubaWinUi3_Setup_{#MyAppVersion}_arm64
 SetupIconFile=TubaWinUi3.WinUI3\Assets\AppIcon.ico
@@ -40,6 +41,29 @@ AppendDefaultDirName=yes
 
 [Languages]
 Name: "chinesesimplified"; MessagesFile: "ChineseSimplified.isl"
+
+[Messages]
+SetupAppTitle=安装 - {#MyAppName}
+SetupWindowTitle=安装 - {#MyAppName}
+WelcomeLabel2=此向导将引导您完成 [name/ver] 的安装过程。%n%n建议在继续之前关闭所有其他应用程序，以便安装程序更新相关的系统文件，无需重新启动计算机。
+SelectDirBrowseLabel=如需安装到其他位置，请单击"浏览"选择目标文件夹。%n%n点击"安装"开始安装。
+DiskSpaceWarning=至少需要 %1 KB 的可用空间才能安装，但所选驱动器只有 %2 KB 可用。%n%n是否仍要继续？
+SelectStartMenuFolderBrowseLabel=如需选择其他文件夹，请单击"浏览"。%n%n点击"安装"开始安装。
+ReadyLabel2a=单击"安装"开始安装，或单击"上一步"修改设置。
+ReadyLabel2b=单击"安装"开始安装。
+FinishedLabel=[name] 已成功安装到您的计算机中。
+FinishedLabelNoIcons=[name] 已成功安装到您的计算机中。
+
+ButtonBack=< 上一步(&B)
+ButtonNext=下一步(&N) >
+ButtonInstall=安装(&I)
+ButtonFinish=完成(&F)
+ButtonBrowse=浏览(&R)...
+ButtonWizardBrowse=浏览(&R)...
+ButtonNewFolder=新建文件夹(&M)
+
+SelectLanguageTitle=选择安装语言
+SelectLanguageLabel=选择安装过程中使用的语言：
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: checkedonce
