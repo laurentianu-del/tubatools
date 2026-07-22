@@ -121,6 +121,9 @@ public sealed partial class SettingsPage : Page
         ["SearchApiKey"] = "HardwareAiExpander",
         ["ProxyEnabled"] = "GeneralExpander",
         ["ProxyAddress"] = "GeneralExpander",
+        ["HttpDownload"] = "ToolsCommunityExpander",
+        ["HttpDownloadPath"] = "ToolsCommunityExpander",
+        ["HttpDownloadAction"] = "ToolsCommunityExpander",
         ["ConfigManager"] = "ToolsCommunityExpander",
         ["CustomToolManager"] = "ToolsCommunityExpander",
         ["ExportApp"] = "ToolsCommunityExpander",
@@ -151,6 +154,9 @@ public sealed partial class SettingsPage : Page
         ["SearchApiKey"] = "SettingsAiEndpointCard",
         ["ProxyEnabled"] = "SettingsProxyCard",
         ["ProxyAddress"] = "SettingsProxyCard",
+        ["HttpDownload"] = "SettingsHttpDownloadCard",
+        ["HttpDownloadPath"] = "SettingsHttpDownloadCard",
+        ["HttpDownloadAction"] = "SettingsHttpDownloadCard",
         ["ConfigManager"] = "SettingsConfigManagerCard",
         ["CustomToolManager"] = "SettingsCustomToolCard",
         ["ExportApp"] = "SettingsExportAppCard",
@@ -193,6 +199,7 @@ public sealed partial class SettingsPage : Page
         InitProxySettings();
         InitGitHubLoginStatus();
         LoadCreditsAvatar();
+        InitHttpDownloadSettings();
 
         if (RuntimeHelper.IsMsixPackaged)
         {
@@ -1911,5 +1918,142 @@ public sealed partial class SettingsPage : Page
         };
 
         await dialog.ShowAsync();
+    }
+
+    private static string GetDefaultHttpDownloadPath()
+        => Path.Combine(ConfigManager.GetDataDir(), "download");
+
+    private static string GetHttpDownloadPath()
+        => AppSettings.Get("HttpDownloadPath") ?? GetDefaultHttpDownloadPath();
+
+    private void InitHttpDownloadSettings()
+    {
+        HttpDownloadPathText.Text = GetHttpDownloadPath();
+
+        HttpDownloadActionComboBox.ItemsSource = new[]
+        {
+            new { Key = "none", Label = "仅下载" },
+            new { Key = "extract", Label = "下载并解压" },
+            new { Key = "install", Label = "下载并运行" },
+        };
+        HttpDownloadActionComboBox.DisplayMemberPath = "Label";
+        HttpDownloadActionComboBox.SelectedValuePath = "Key";
+
+        var savedAction = AppSettings.Get("HttpDownloadAction") ?? "none";
+        HttpDownloadActionComboBox.SelectedValue = savedAction;
+        if (HttpDownloadActionComboBox.SelectedIndex < 0)
+            HttpDownloadActionComboBox.SelectedIndex = 0;
+
+        HttpDownloadActionComboBox.SelectionChanged += (_, _) =>
+        {
+            var selected = HttpDownloadActionComboBox.SelectedValue as string;
+            if (selected is not null)
+                AppSettings.Set("HttpDownloadAction", selected);
+        };
+
+        UpdateDownloadQueueStatus();
+        DownloadQueueService.QueueChanged += UpdateDownloadQueueStatus;
+    }
+
+    private void UpdateDownloadQueueStatus()
+    {
+        var pending = DownloadQueueService.PendingCount;
+        var total = DownloadQueueService.Queue.Count;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            HttpDownloadQueueStatusText.Text = pending > 0
+                ? $"队列中 {total} 项，{pending} 项待下载"
+                : total > 0
+                    ? $"队列中 {total} 项，全部完成"
+                    : "队列为空";
+        });
+    }
+
+    private void HttpDownloadBrowseButton_Click(object sender, RoutedEventArgs e)
+    {
+        var currentPath = GetHttpDownloadPath();
+        var ofn = new OPENFILENAME();
+        ofn.lStructSize = Marshal.SizeOf(ofn);
+        ofn.hwndOwner = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
+        ofn.lpstrFilter = "\0\0";
+        var pathBuffer = new string(new char[520]);
+        ofn.lpstrFile = currentPath.PadRight(520).Substring(0, 520);
+        ofn.nMaxFile = 520;
+        ofn.lpstrTitle = "选择下载保存文件夹";
+        ofn.Flags = OFN_NOCHANGEDIR;
+
+        if (GetSaveFileName(ref ofn))
+        {
+            var selected = ofn.lpstrFile.TrimEnd('\0');
+            if (!string.IsNullOrEmpty(selected))
+            {
+                var dir = Path.GetDirectoryName(selected) ?? selected;
+                AppSettings.Set("HttpDownloadPath", dir);
+                HttpDownloadPathText.Text = dir;
+            }
+        }
+    }
+
+    private void HttpDownloadResetPathButton_Click(object sender, RoutedEventArgs e)
+    {
+        AppSettings.Remove("HttpDownloadPath");
+        HttpDownloadPathText.Text = GetDefaultHttpDownloadPath();
+    }
+
+    private void HttpDownloadAddButton_Click(object sender, RoutedEventArgs e)
+    {
+        var url = HttpDownloadUrlTextBox.Text?.Trim();
+        if (string.IsNullOrEmpty(url))
+        {
+            _ = ShowMessageAsync("提示", "请输入下载链接");
+            return;
+        }
+
+        if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+            !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            _ = ShowMessageAsync("提示", "请输入有效的 HTTP/HTTPS 链接");
+            return;
+        }
+
+        var destPath = GetHttpDownloadPath();
+        Directory.CreateDirectory(destPath);
+
+        var action = AppSettings.Get("HttpDownloadAction") ?? "none";
+        IDownloadPostProcessor? postProcessor = action switch
+        {
+            "extract" => new ArchiveExtractProcessor(),
+            "install" => new InstallerLaunchProcessor(),
+            _ => null
+        };
+
+        var fileName = Path.GetFileName(new Uri(url).LocalPath);
+        if (string.IsNullOrWhiteSpace(fileName) || fileName.Contains('?') || fileName.Contains('='))
+            fileName = null;
+
+        var displayName = fileName ?? $"下载文件 {DateTime.Now:HH:mm:ss}";
+
+        DownloadQueueService.Enqueue(displayName, url, destPath, postProcessor,
+            description: url, glyph: "\uE896");
+
+        HttpDownloadUrlTextBox.Text = "";
+        UpdateDownloadQueueStatus();
+
+        _ = ShowMessageAsync("已加入下载", $"\"{displayName}\" 已加入下载队列\n保存至：{destPath}");
+    }
+
+    private Flyout? _downloadFlyout;
+
+    private void HttpDownloadViewQueueButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_downloadFlyout is null)
+        {
+            _downloadFlyout = new Flyout
+            {
+                Content = new DownloadQueueFlyout(),
+                Placement = FlyoutPlacementMode.BottomEdgeAlignedRight
+            };
+        }
+        _downloadFlyout.ShowAt(sender as FrameworkElement);
     }
 }

@@ -264,6 +264,7 @@ public sealed class DownloadItem : INotifyPropertyChanged
 
     internal string? DirectUrl { get; }
     internal Func<CancellationToken, Task<ResolvedDownloadUrl>>? UrlResolver { get; }
+    internal Func<CancellationToken, Task<List<ResolvedDownloadUrl>>>? MultiFileResolver { get; }
     internal IDownloadPostProcessor? PostProcessor { get; }
     internal CancellationTokenSource? Cts { get; set; }
 
@@ -276,12 +277,14 @@ public sealed class DownloadItem : INotifyPropertyChanged
     private DownloadItem(
         string displayName, string? directUrl,
         Func<CancellationToken, Task<ResolvedDownloadUrl>>? urlResolver,
+        Func<CancellationToken, Task<List<ResolvedDownloadUrl>>>? multiFileResolver,
         string destinationPath, IDownloadPostProcessor? postProcessor,
         string? description, string? glyph, object? tag)
     {
         DisplayName = displayName;
         DirectUrl = directUrl;
         UrlResolver = urlResolver;
+        MultiFileResolver = multiFileResolver;
         DestinationPath = destinationPath;
         PostProcessor = postProcessor;
         Description = description;
@@ -293,7 +296,7 @@ public sealed class DownloadItem : INotifyPropertyChanged
         string displayName, string downloadUrl, string destinationPath,
         IDownloadPostProcessor? postProcessor = null,
         string? description = null, string? glyph = null, object? tag = null)
-        => new(displayName, downloadUrl, null, destinationPath, postProcessor, description, glyph, tag);
+        => new(displayName, downloadUrl, null, null, destinationPath, postProcessor, description, glyph, tag);
 
     public static DownloadItem CreateWithResolver(
         string displayName,
@@ -301,7 +304,15 @@ public sealed class DownloadItem : INotifyPropertyChanged
         string destinationPath,
         IDownloadPostProcessor? postProcessor = null,
         string? description = null, string? glyph = null, object? tag = null)
-        => new(displayName, null, urlResolver, destinationPath, postProcessor, description, glyph, tag);
+        => new(displayName, null, urlResolver, null, destinationPath, postProcessor, description, glyph, tag);
+
+    public static DownloadItem CreateMultiFile(
+        string displayName,
+        Func<CancellationToken, Task<List<ResolvedDownloadUrl>>> multiFileResolver,
+        string destinationPath,
+        IDownloadPostProcessor? postProcessor = null,
+        string? description = null, string? glyph = null, object? tag = null)
+        => new(displayName, null, null, multiFileResolver, destinationPath, postProcessor, description, glyph, tag);
 
     internal void SetState(DownloadItemState state) => State = state;
     internal void SetProgress(DownloadQueueProgress? progress) => Progress = progress;

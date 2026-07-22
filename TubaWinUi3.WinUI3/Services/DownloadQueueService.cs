@@ -72,6 +72,21 @@ public static class DownloadQueueService
         return item;
     }
 
+    public static DownloadItem EnqueueMultiFile(
+        string displayName,
+        Func<CancellationToken, Task<List<ResolvedDownloadUrl>>> multiFileResolver,
+        string destinationPath,
+        IDownloadPostProcessor? postProcessor = null,
+        string? description = null,
+        string? glyph = null,
+        object? tag = null)
+    {
+        var item = DownloadItem.CreateMultiFile(displayName, multiFileResolver, destinationPath,
+            postProcessor, description, glyph, tag);
+        AddAndStart(item);
+        return item;
+    }
+
     public static void Pause(string itemId)
     {
         var item = FindItem(itemId);
@@ -345,31 +360,38 @@ public static class DownloadQueueService
         var ct = item.Cts?.Token ?? CancellationToken.None;
         try
         {
-            var needsResolve = item.ResolvedUrl is null;
-            if (needsResolve)
+            if (item.MultiFileResolver is not null)
             {
-                DispatchState(item, DownloadItemState.Resolving);
-                var resolved = await ResolveUrlAsync(item, ct);
-                item.ResolvedUrl = resolved.Url;
-                item.ResolvedFileName = resolved.FileName;
-                item.ResolvedSize = resolved.Size;
-                MarkDirty();
+                await ProcessMultiFileAsync(item, ct);
             }
-
-            ct.ThrowIfCancellationRequested();
-
-            if (item.State != DownloadItemState.Downloading)
-                DispatchState(item, DownloadItemState.Downloading);
-            var downloadedFile = await DownloadFileAsync(item, ct);
-
-            ct.ThrowIfCancellationRequested();
-
-            if (item.PostProcessor is not null)
+            else
             {
-                DispatchState(item, DownloadItemState.Processing);
-                DispatchProcessingStatus(item, item.PostProcessor.DisplayName);
-                var progress = new Progress<string>(status => DispatchProcessingStatus(item, status));
-                await item.PostProcessor.ExecuteAsync(downloadedFile, item.DestinationPath, progress, ct);
+                var needsResolve = item.ResolvedUrl is null;
+                if (needsResolve)
+                {
+                    DispatchState(item, DownloadItemState.Resolving);
+                    var resolved = await ResolveUrlAsync(item, ct);
+                    item.ResolvedUrl = resolved.Url;
+                    item.ResolvedFileName = resolved.FileName;
+                    item.ResolvedSize = resolved.Size;
+                    MarkDirty();
+                }
+
+                ct.ThrowIfCancellationRequested();
+
+                if (item.State != DownloadItemState.Downloading)
+                    DispatchState(item, DownloadItemState.Downloading);
+                var downloadedFile = await DownloadFileAsync(item, ct);
+
+                ct.ThrowIfCancellationRequested();
+
+                if (item.PostProcessor is not null)
+                {
+                    DispatchState(item, DownloadItemState.Processing);
+                    DispatchProcessingStatus(item, item.PostProcessor.DisplayName);
+                    var progress = new Progress<string>(status => DispatchProcessingStatus(item, status));
+                    await item.PostProcessor.ExecuteAsync(downloadedFile, item.DestinationPath, progress, ct);
+                }
             }
 
             DispatchCompleted(item);
@@ -391,6 +413,95 @@ public static class DownloadQueueService
             lock (_activeTasks)
                 _activeTasks.Remove(item.Id);
             QueueChanged?.Invoke();
+        }
+    }
+
+    private static async Task ProcessMultiFileAsync(DownloadItem item, CancellationToken ct)
+    {
+        DispatchState(item, DownloadItemState.Resolving);
+        var files = await item.MultiFileResolver!(ct);
+
+        if (files.Count == 0)
+        {
+            if (item.PostProcessor is not null)
+            {
+                DispatchState(item, DownloadItemState.Processing);
+                DispatchProcessingStatus(item, item.PostProcessor.DisplayName);
+                var progress = new Progress<string>(status => DispatchProcessingStatus(item, status));
+                await item.PostProcessor.ExecuteAsync(item.DestinationPath, item.DestinationPath, progress, ct);
+            }
+            return;
+        }
+
+        var totalFiles = files.Count;
+        var completedFiles = 0;
+        long totalBytes = 0;
+        long downloadedBytes = 0;
+
+        DispatchState(item, DownloadItemState.Downloading);
+
+        for (var i = 0; i < files.Count; i++)
+        {
+            ct.ThrowIfCancellationRequested();
+            var file = files[i];
+
+            Directory.CreateDirectory(item.DestinationPath);
+
+            var fileName = file.FileName;
+            var localPath = Path.Combine(item.DestinationPath, fileName);
+            var partialPath = localPath + PartialSuffix;
+            var localDir = Path.GetDirectoryName(localPath);
+            if (localDir is not null) Directory.CreateDirectory(localDir);
+
+            using var client = CreateHttpClient(TimeSpan.FromMinutes(5));
+            var response = await client.GetAsync(file.Url, HttpCompletionOption.ResponseHeadersRead, ct);
+            response.EnsureSuccessStatusCode();
+
+            var fileTotal = response.Content.Headers.ContentLength ?? file.Size;
+            totalBytes += fileTotal;
+
+            using var stream = await response.Content.ReadAsStreamAsync(ct);
+            using var fs = new FileStream(partialPath, FileMode.Create,
+                FileAccess.Write, FileShare.None, 81920, FileOptions.Asynchronous);
+
+            var buffer = new byte[81920];
+            long fileBytesRead = 0;
+
+            while (true)
+            {
+                ct.ThrowIfCancellationRequested();
+                var read = await stream.ReadAsync(buffer, ct);
+                if (read == 0) break;
+                await fs.WriteAsync(buffer.AsMemory(0, read), ct);
+                fileBytesRead += read;
+                downloadedBytes += read;
+
+                completedFiles = i;
+                var overallPct = totalBytes > 0 ? (double)downloadedBytes / totalBytes * 100 : 0;
+                DispatchProgress(item, new DownloadQueueProgress(downloadedBytes, totalBytes > 0 ? totalBytes : downloadedBytes, overallPct, 0, null));
+            }
+
+            await fs.FlushAsync(ct);
+            fs.Close();
+
+            if (File.Exists(localPath))
+                File.Delete(localPath);
+            File.Move(partialPath, localPath);
+
+            completedFiles = i + 1;
+            DispatchProgress(item, new DownloadQueueProgress(downloadedBytes, totalBytes > 0 ? totalBytes : downloadedBytes, completedFiles * 100.0 / totalFiles, 0, null));
+        }
+
+        DispatchProgress(item, new DownloadQueueProgress(downloadedBytes, downloadedBytes, 100, 0, TimeSpan.Zero));
+
+        ct.ThrowIfCancellationRequested();
+
+        if (item.PostProcessor is not null)
+        {
+            DispatchState(item, DownloadItemState.Processing);
+            DispatchProcessingStatus(item, item.PostProcessor.DisplayName);
+            var progress = new Progress<string>(status => DispatchProcessingStatus(item, status));
+            await item.PostProcessor.ExecuteAsync(item.DestinationPath, item.DestinationPath, progress, ct);
         }
     }
 

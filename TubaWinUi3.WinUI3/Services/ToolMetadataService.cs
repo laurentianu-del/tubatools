@@ -174,6 +174,32 @@ public static class ToolMetadataService
         return jsonMetadata?.DownloadUrl;
     }
 
+    public static void UpdateToolVersion(string match, int newVersion)
+    {
+        try
+        {
+            var metadataPath = Path.Combine(GetWritableMetadataDir(), "tools.json");
+            if (!File.Exists(metadataPath)) return;
+
+            var jsonText = File.ReadAllText(metadataPath);
+            var doc = JsonNode.Parse(jsonText);
+            if (doc?["tools"] is not JsonArray tools) return;
+
+            foreach (var tool in tools)
+            {
+                var m = tool?["match"]?.ToString();
+                if (m is not null && m.Equals(match, StringComparison.OrdinalIgnoreCase))
+                {
+                    tool!["version"] = newVersion;
+                }
+            }
+
+            File.WriteAllText(metadataPath, doc.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+            _metadata = null;
+        }
+        catch { }
+    }
+
     public static async Task<IReadOnlyList<RemoteToolVersion>?> FetchRemoteToolsJsonAsync(CancellationToken ct = default)
     {
         try
@@ -195,53 +221,25 @@ public static class ToolMetadataService
 
     private static async Task<IReadOnlyList<RemoteToolVersion>?> TryFetchGitCodeToolsJsonAsync(CancellationToken ct)
     {
-        const string owner = "gcw_uDDNaqJw";
-        const string repo = "tubatool";
-        var url = $"https://api.gitcode.com/api/v5/repos/{owner}/{repo}/contents/Metadata/tools.json?ref=master";
+        const string url = "https://raw.gitcode.com/gcw_uDDNaqJw/tubatool/raw/master/TubaWinUi3.WinUI3/Metadata/tools.json";
 
         using var client = ProxyService.CreateClient(TimeSpan.FromSeconds(15));
         if (!client.DefaultRequestHeaders.Contains("User-Agent"))
             client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ToolUpdate");
 
-        var json = await client.GetStringAsync(url, ct);
-        var doc = JsonDocument.Parse(json);
-        var content = doc.RootElement.TryGetProperty("content", out var contentEl)
-            ? contentEl.GetString() ?? "" : "";
-        var encoding = doc.RootElement.TryGetProperty("encoding", out var encEl)
-            ? encEl.GetString() ?? "" : "";
-
-        string toolsJsonText;
-        if (encoding == "base64")
-            toolsJsonText = Encoding.UTF8.GetString(Convert.FromBase64String(content));
-        else
-            toolsJsonText = content;
-
+        var toolsJsonText = await client.GetStringAsync(url, ct);
         return ParseRemoteToolsJson(toolsJsonText);
     }
 
     private static async Task<IReadOnlyList<RemoteToolVersion>?> TryFetchGitHubToolsJsonAsync(CancellationToken ct)
     {
-        const string owner = "luolangaga";
-        const string repo = "tubatool";
-        var url = $"https://api.github.com/repos/{owner}/{repo}/contents/Metadata/tools.json";
+        const string url = "https://raw.githubusercontent.com/luolangaga/tubatool/master/TubaWinUi3.WinUI3/Metadata/tools.json";
 
         using var client = ProxyService.CreateClient(TimeSpan.FromSeconds(15));
         if (!client.DefaultRequestHeaders.Contains("User-Agent"))
             client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ToolUpdate");
 
-        var json = await client.GetStringAsync(url, ct);
-        var doc = JsonDocument.Parse(json);
-        var content = doc.RootElement.TryGetProperty("content", out var contentEl)
-            ? contentEl.GetString() ?? "" : "";
-        var encoding = doc.RootElement.TryGetProperty("encoding", out var encEl)
-            ? encEl.GetString() ?? "" : "";
-
-        string toolsJsonText;
-        if (encoding == "base64")
-            toolsJsonText = Encoding.UTF8.GetString(Convert.FromBase64String(content.Replace("\n", "", StringComparison.Ordinal)));
-        else
-            toolsJsonText = content;
-
+        var toolsJsonText = await client.GetStringAsync(url, ct);
         return ParseRemoteToolsJson(toolsJsonText);
     }
 
@@ -429,6 +427,7 @@ public static class ToolMetadataService
         public string? TutorialUrl { get; set; }
         public List<string>? Tags { get; set; }
         public List<JsonArchVariant>? ArchVariants { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("version")]
         public int? ToolVersion { get; set; }
     }
 

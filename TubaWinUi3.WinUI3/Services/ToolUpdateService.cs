@@ -15,7 +15,6 @@ public sealed record ToolUpdateEntry(
 public static class ToolUpdateService
 {
     private static DispatcherQueue? _dispatcherQueue;
-    private static readonly SemaphoreSlim _syncSemaphore = new(2);
 
     public static void Initialize(DispatcherQueue dq)
     {
@@ -28,6 +27,7 @@ public static class ToolUpdateService
         if (remoteVersions is null) return null;
 
         var updates = new List<ToolUpdateEntry>();
+        var usedMatches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var categories = ToolCatalog.GetCategories();
 
         foreach (var category in categories)
@@ -37,21 +37,27 @@ public static class ToolUpdateService
             {
                 if (string.IsNullOrWhiteSpace(tool.DownloadUrl)) continue;
 
-                var toolDir = Path.Combine(ToolCatalog.ToolsRoot, category, tool.Folder ?? tool.Name);
+                var toolDir = Path.GetDirectoryName(tool.Path);
+                if (string.IsNullOrEmpty(toolDir) || !Directory.Exists(toolDir)) continue;
+
                 var localVersion = ToolMetadataService.GetToolVersionByDir(toolDir);
+                if (!localVersion.HasValue) continue;
 
                 var remoteMatch = FindRemoteMatch(remoteVersions, tool);
                 if (remoteMatch is null) continue;
 
-                if (!localVersion.HasValue || remoteMatch.Version > localVersion.Value)
+                if (usedMatches.Contains(remoteMatch.Match)) continue;
+
+                if (remoteMatch.Version > localVersion.Value)
                 {
                     var repoPath = ResolveRepoPath(tool.DownloadUrl);
                     if (repoPath is null) continue;
 
+                    usedMatches.Add(remoteMatch.Match);
                     updates.Add(new ToolUpdateEntry(
                         tool.Name,
                         remoteMatch.Match,
-                        localVersion ?? 0,
+                        localVersion.Value,
                         remoteMatch.Version,
                         repoPath,
                         category,
@@ -67,9 +73,9 @@ public static class ToolUpdateService
     {
         if (string.IsNullOrWhiteSpace(downloadUrl)) return null;
         if (downloadUrl.StartsWith("gc:", StringComparison.OrdinalIgnoreCase))
-            return downloadUrl[3..];
+            return "TubaWinUi3.WinUI3/" + downloadUrl[3..];
         if (downloadUrl.StartsWith("gh:", StringComparison.OrdinalIgnoreCase))
-            return null;
+            return "TubaWinUi3.WinUI3/" + downloadUrl[3..];
         return null;
     }
 
@@ -102,81 +108,66 @@ public static class ToolUpdateService
     {
         foreach (var update in updates)
         {
-            EnqueueSingleToolUpdate(update);
+            var updateCopy = update;
+            var processor = new ToolUpdatePostProcessor(updateCopy);
+
+            DownloadQueueService.EnqueueMultiFile(
+                displayName: $"更新 {update.ToolName} (v{update.RemoteVersion})",
+                multiFileResolver: ct => BuildFileListAsync(updateCopy, ct),
+                destinationPath: update.ToolDir,
+                postProcessor: processor,
+                description: $"v{update.LocalVersion} → v{update.RemoteVersion}",
+                glyph: "\uE895");
         }
     }
 
-    private static void EnqueueSingleToolUpdate(ToolUpdateEntry update)
+    private static async Task<List<ResolvedDownloadUrl>> BuildFileListAsync(ToolUpdateEntry update, CancellationToken ct)
     {
-        _ = Task.Run(async () =>
+        var remoteFiles = await ToolDownloaderService.ListGitCodeDirAsync(update.RepoPath, ct);
+        if (remoteFiles is null || remoteFiles.Count == 0)
         {
-            await _syncSemaphore.WaitAsync();
-            try
+            remoteFiles = await ToolDownloaderService.ListGitHubDirAsync(update.RepoPath, ct);
+            if (remoteFiles is null || remoteFiles.Count == 0)
+                throw new InvalidOperationException("无法获取远程文件列表");
+        }
+
+        var result = new List<ResolvedDownloadUrl>();
+        foreach (var (relPath, sha, fileName) in remoteFiles)
+        {
+            var localPath = Path.Combine(update.ToolDir, relPath);
+            if (File.Exists(localPath))
             {
-                NotifyToolUpdateStarted(update.ToolName);
-
-                var result = await ToolDownloaderService.SyncToolFromGitCodeDirAsync(
-                    update.RepoPath, update.ToolDir, null, null, CancellationToken.None);
-
-                if (result?.Success == true)
+                try
                 {
-                    ToolCatalog.InvalidateTagsCache();
-                    ToolMetadataService.InvalidateCache();
-                    NotifyToolUpdateComplete(update.ToolName);
+                    var localContent = await File.ReadAllBytesAsync(localPath, ct);
+                    if (ToolDownloaderService.ComputeBlobSha(localContent) == sha)
+                        continue;
                 }
-                else
-                {
-                    var ghResult = await ToolDownloaderService.SyncToolFromGitHubDirAsync(
-                        update.RepoPath, update.ToolDir, null, null, CancellationToken.None);
+                catch { }
+            }
 
-                    if (ghResult?.Success == true)
-                    {
-                        ToolCatalog.InvalidateTagsCache();
-                        ToolMetadataService.InvalidateCache();
-                        NotifyToolUpdateComplete(update.ToolName);
-                    }
-                    else
-                    {
-                        NotifyToolUpdateFailed(update.ToolName,
-                            result?.ErrorMessage ?? ghResult?.ErrorMessage ?? "同步失败");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                NotifyToolUpdateFailed(update.ToolName, ex.Message);
-            }
-            finally
-            {
-                _syncSemaphore.Release();
-            }
-        });
+            var blobUrl = $"https://raw.gitcode.com/gcw_uDDNaqJw/tubatool/blobs/{sha}/{Uri.EscapeDataString(fileName)}";
+            result.Add(new ResolvedDownloadUrl(blobUrl, relPath));
+        }
+
+        return result;
     }
 
-    private static void NotifyToolUpdateComplete(string toolName)
+    private sealed class ToolUpdatePostProcessor : IDownloadPostProcessor
     {
-        _dispatcherQueue?.TryEnqueue(() =>
-        {
-            if (App.MainWindow is MainWindow mw)
-                mw.ShowToolUpdateToast(toolName);
-        });
-    }
+        private readonly ToolUpdateEntry _update;
+        public string DisplayName => $"更新完成 {_update.ToolName}";
 
-    private static void NotifyToolUpdateStarted(string toolName)
-    {
-        _dispatcherQueue?.TryEnqueue(() =>
-        {
-            if (App.MainWindow is MainWindow mw)
-                mw.ShowToolUpdateProgressToast(toolName);
-        });
-    }
+        public ToolUpdatePostProcessor(ToolUpdateEntry update) => _update = update;
 
-    private static void NotifyToolUpdateFailed(string toolName, string error)
-    {
-        _dispatcherQueue?.TryEnqueue(() =>
+        public Task ExecuteAsync(string downloadedFilePath, string destinationPath,
+            IProgress<string>? statusProgress, CancellationToken ct)
         {
-            if (App.MainWindow is MainWindow mw)
-                mw.ShowToolUpdateFailedToast(toolName, error);
-        });
+            ToolMetadataService.UpdateToolVersion(_update.Match, _update.RemoteVersion);
+            ToolCatalog.InvalidateTagsCache();
+            ToolMetadataService.InvalidateCache();
+            statusProgress?.Report("更新完成");
+            return Task.CompletedTask;
+        }
     }
 }

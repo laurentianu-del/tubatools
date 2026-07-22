@@ -69,59 +69,40 @@ public static class ToolDownloaderService
     public static bool IsGitCodeDir(string? downloadUrl)
         => downloadUrl?.StartsWith("gc:", StringComparison.OrdinalIgnoreCase) == true;
 
+    private const string GitCodeApiBase = $"https://api.gitcode.com/api/v5/repos/{GitCodeOwner}/{GitCodeRepo}";
+    private const string GitCodeBlobsBase = $"https://raw.gitcode.com/{GitCodeOwner}/{GitCodeRepo}/blobs";
+
     public static async Task<GitCodeDirResult> SyncToolFromGitCodeDirAsync(
         string repoPath, string localDir, DateTime? localLastModified,
         IProgress<GitCodeDirProgress>? progress, CancellationToken ct = default)
     {
         try
         {
-            var commitDate = await GetPathLastCommitDateAsync(repoPath, ct);
-            if (commitDate.HasValue && localLastModified.HasValue
-                && localLastModified.Value >= commitDate.Value.UtcDateTime)
-            {
-                progress?.Report(new GitCodeDirProgress(0, 0, "已是最新", 100));
-                return new GitCodeDirResult(true, 0, 0, null);
-            }
-
-            var commitSha = await GetLatestCommitShaAsync(ct);
-            if (commitSha is null)
-                return new GitCodeDirResult(false, 0, 0, "无法获取仓库最新提交");
-
-            var toolTreeSha = await GetTreeShaForPathAsync(commitSha, repoPath, ct);
-            if (toolTreeSha is null)
+            var remoteFiles = await ListGitCodeDirAsync(repoPath, ct);
+            if (remoteFiles is null || remoteFiles.Count == 0)
                 return new GitCodeDirResult(false, 0, 0, $"仓库中未找到路径: {repoPath}");
-
-            var blobs = new List<(string RelativePath, string BlobSha, long Size)>();
-            await EnumerateTreeBlobsAsync(toolTreeSha, "", blobs, ct);
-
-            if (blobs.Count == 0)
-                return new GitCodeDirResult(false, 0, 0, "目录为空");
 
             var downloaded = 0;
             var skipped = 0;
 
-            for (var i = 0; i < blobs.Count; i++)
+            for (var i = 0; i < remoteFiles.Count; i++)
             {
                 ct.ThrowIfCancellationRequested();
-                var (relPath, blobSha, size) = blobs[i];
+                var (relPath, sha, fileName) = remoteFiles[i];
+
+                progress?.Report(new GitCodeDirProgress(i + 1, remoteFiles.Count, fileName,
+                    (double)(i + 1) / remoteFiles.Count * 100));
+
                 var localPath = Path.Combine(localDir, relPath);
-
-                progress?.Report(new GitCodeDirProgress(i + 1, blobs.Count, relPath,
-                    (double)(i + 1) / blobs.Count * 100));
-
                 if (File.Exists(localPath))
                 {
                     try
                     {
-                        var fi = new FileInfo(localPath);
-                        if (fi.Length == size)
+                        var localContent = await File.ReadAllBytesAsync(localPath, ct);
+                        if (ComputeBlobSha(localContent) == sha)
                         {
-                            var localContent = await File.ReadAllBytesAsync(localPath, ct);
-                            if (ComputeBlobSha(localContent) == blobSha)
-                            {
-                                skipped++;
-                                continue;
-                            }
+                            skipped++;
+                            continue;
                         }
                     }
                     catch { }
@@ -135,8 +116,10 @@ public static class ToolDownloaderService
                 {
                     try
                     {
-                        var content = await DownloadBlobAsync(blobSha, ct);
-                        if (content is null) continue;
+                        var blobUrl = $"{GitCodeBlobsBase}/{sha}/{Uri.EscapeDataString(fileName)}";
+                        using var client = CreateHttpClient(TimeSpan.FromMinutes(5));
+                        var content = await client.GetByteArrayAsync(blobUrl, ct);
+                        if (content is null || content.Length == 0) continue;
 
                         var tmpPath = localPath + ".tmp";
                         await File.WriteAllBytesAsync(tmpPath, content, ct);
@@ -150,6 +133,8 @@ public static class ToolDownloaderService
                         await Task.Delay(1000 * (attempt + 1), ct);
                     }
                 }
+
+                if (!success) skipped++;
             }
 
             return new GitCodeDirResult(true, downloaded, skipped, null);
@@ -160,6 +145,49 @@ public static class ToolDownloaderService
             return new GitCodeDirResult(false, 0, 0, ex.Message);
         }
     }
+
+    public static async Task<List<(string RelPath, string Sha, string FileName)>?> ListGitCodeDirAsync(
+        string repoPath, CancellationToken ct)
+    {
+        try
+        {
+            var encodedPath = Uri.EscapeDataString(repoPath);
+            var url = $"{GitCodeApiBase}/contents/{encodedPath}?ref=master";
+            using var client = CreateHttpClient(TimeSpan.FromSeconds(15));
+            if (!client.DefaultRequestHeaders.Contains("User-Agent"))
+                client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ToolDownloader");
+
+            var json = await client.GetStringAsync(url, ct);
+            var doc = JsonDocument.Parse(json);
+            var files = new List<(string, string, string)>();
+
+            foreach (var entry in doc.RootElement.EnumerateArray())
+            {
+                var type = entry.TryGetProperty("type", out var typeEl) ? typeEl.GetString() ?? "" : "";
+                var sha = entry.TryGetProperty("sha", out var shaEl) ? shaEl.GetString() ?? "" : "";
+                var name = entry.TryGetProperty("name", out var nameEl) ? nameEl.GetString() ?? "" : "";
+
+                if (type == "file" && !string.IsNullOrEmpty(sha))
+                    files.Add((name, sha, name));
+                else if (type == "dir" && !string.IsNullOrEmpty(name))
+                {
+                    var subPath = $"{repoPath}/{name}";
+                    var subFiles = await ListGitCodeDirAsync(subPath, ct);
+                    if (subFiles is not null)
+                    {
+                        foreach (var sf in subFiles)
+                            files.Add(($"{name}/{sf.RelPath}", sf.Sha, sf.FileName));
+                    }
+                }
+            }
+
+            return files;
+        }
+        catch { return null; }
+    }
+
+    private const string GitHubApiBase = $"https://api.github.com/repos/{GitHubOwner}/{GitHubRepo}";
+    private const string GitHubBlobsBase = $"https://raw.githubusercontent.com/{GitHubOwner}/{GitHubRepo}";
 
     public static async Task<GitCodeDirResult> SyncToolFromGitHubDirAsync(
         string repoPath, string localDir, DateTime? localLastModified,
@@ -167,47 +195,31 @@ public static class ToolDownloaderService
     {
         try
         {
-            var commitSha = await GetGitHubLatestCommitShaAsync(ct);
-            if (commitSha is null)
-                return new GitCodeDirResult(false, 0, 0, "无法获取 GitHub 仓库最新提交");
-
-            var toolTreeSha = await GetGitHubTreeShaForPathAsync(commitSha, repoPath, ct);
-            if (toolTreeSha is null)
+            var remoteFiles = await ListGitHubDirAsync(repoPath, ct);
+            if (remoteFiles is null || remoteFiles.Count == 0)
                 return new GitCodeDirResult(false, 0, 0, $"GitHub 仓库中未找到路径: {repoPath}");
-
-            var blobs = new List<(string RelativePath, string BlobSha, long Size)>();
-            await EnumerateGitHubTreeBlobsAsync(toolTreeSha, "", blobs, ct);
-
-            if (blobs.Count == 0)
-                return new GitCodeDirResult(false, 0, 0, "目录为空");
-
-            Directory.CreateDirectory(localDir);
 
             var downloaded = 0;
             var skipped = 0;
 
-            for (var i = 0; i < blobs.Count; i++)
+            for (var i = 0; i < remoteFiles.Count; i++)
             {
                 ct.ThrowIfCancellationRequested();
-                var (relPath, blobSha, size) = blobs[i];
+                var (relPath, sha, fileName) = remoteFiles[i];
+
+                progress?.Report(new GitCodeDirProgress(i + 1, remoteFiles.Count, fileName,
+                    (double)(i + 1) / remoteFiles.Count * 100));
+
                 var localPath = Path.Combine(localDir, relPath);
-
-                progress?.Report(new GitCodeDirProgress(i + 1, blobs.Count, relPath,
-                    (double)(i + 1) / blobs.Count * 100));
-
                 if (File.Exists(localPath))
                 {
                     try
                     {
-                        var fi = new FileInfo(localPath);
-                        if (fi.Length == size)
+                        var localContent = await File.ReadAllBytesAsync(localPath, ct);
+                        if (ComputeBlobSha(localContent) == sha)
                         {
-                            var localContent = await File.ReadAllBytesAsync(localPath, ct);
-                            if (ComputeBlobSha(localContent) == blobSha)
-                            {
-                                skipped++;
-                                continue;
-                            }
+                            skipped++;
+                            continue;
                         }
                     }
                     catch { }
@@ -221,8 +233,11 @@ public static class ToolDownloaderService
                 {
                     try
                     {
-                        var content = await DownloadGitHubBlobAsync(blobSha, ct);
-                        if (content is null) continue;
+                        var encodedRelPath = string.Join("/", relPath.Split('/').Select(Uri.EscapeDataString));
+                        var rawUrl = $"{GitHubBlobsBase}/master/{repoPath}/{encodedRelPath}";
+                        using var client = CreateHttpClient(TimeSpan.FromMinutes(5));
+                        var content = await client.GetByteArrayAsync(rawUrl, ct);
+                        if (content is null || content.Length == 0) continue;
 
                         var tmpPath = localPath + ".tmp";
                         await File.WriteAllBytesAsync(tmpPath, content, ct);
@@ -236,6 +251,8 @@ public static class ToolDownloaderService
                         await Task.Delay(1000 * (attempt + 1), ct);
                     }
                 }
+
+                if (!success) skipped++;
             }
 
             return new GitCodeDirResult(true, downloaded, skipped, null);
@@ -247,90 +264,42 @@ public static class ToolDownloaderService
         }
     }
 
-    private static async Task<string?> GetGitHubLatestCommitShaAsync(CancellationToken ct)
+    public static async Task<List<(string RelPath, string Sha, string FileName)>?> ListGitHubDirAsync(
+        string repoPath, CancellationToken ct)
     {
         try
         {
+            var encodedPath = Uri.EscapeDataString(repoPath);
+            var url = $"{GitHubApiBase}/contents/{encodedPath}?ref=master";
             using var client = CreateHttpClient(TimeSpan.FromSeconds(15));
-            var json = await client.GetStringAsync(
-                $"https://api.github.com/repos/{GitHubOwner}/{GitHubRepo}/branches/master", ct);
+            if (!client.DefaultRequestHeaders.Contains("User-Agent"))
+                client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ToolDownloader");
+
+            var json = await client.GetStringAsync(url, ct);
             var doc = JsonDocument.Parse(json);
-            return doc.RootElement.GetProperty("commit").GetProperty("sha").GetString();
-        }
-        catch { return null; }
-    }
+            var files = new List<(string, string, string)>();
 
-    private static async Task<string?> GetGitHubTreeShaForPathAsync(string commitSha, string repoPath, CancellationToken ct)
-    {
-        try
-        {
-            var currentSha = commitSha;
-            var parts = repoPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-
-            foreach (var part in parts)
+            foreach (var entry in doc.RootElement.EnumerateArray())
             {
-                using var client = CreateHttpClient(TimeSpan.FromSeconds(15));
-                var json = await client.GetStringAsync(
-                    $"https://api.github.com/repos/{GitHubOwner}/{GitHubRepo}/git/trees/{currentSha}", ct);
-                var doc = JsonDocument.Parse(json);
+                var type = entry.TryGetProperty("type", out var typeEl) ? typeEl.GetString() ?? "" : "";
+                var sha = entry.TryGetProperty("sha", out var shaEl) ? shaEl.GetString() ?? "" : "";
+                var name = entry.TryGetProperty("name", out var nameEl) ? nameEl.GetString() ?? "" : "";
 
-                var found = false;
-                foreach (var entry in doc.RootElement.GetProperty("tree").EnumerateArray())
+                if (type == "file" && !string.IsNullOrEmpty(sha))
+                    files.Add((name, sha, name));
+                else if (type == "dir" && !string.IsNullOrEmpty(name))
                 {
-                    var path = entry.GetProperty("path").GetString() ?? "";
-                    var type = entry.GetProperty("type").GetString() ?? "";
-                    if (path == part && type == "tree")
+                    var subPath = $"{repoPath}/{name}";
+                    var subFiles = await ListGitHubDirAsync(subPath, ct);
+                    if (subFiles is not null)
                     {
-                        currentSha = entry.GetProperty("sha").GetString()!;
-                        found = true;
-                        break;
+                        foreach (var sf in subFiles)
+                            files.Add(($"{name}/{sf.RelPath}", sf.Sha, sf.FileName));
                     }
                 }
-                if (!found) return null;
             }
-            return currentSha;
-        }
-        catch { return null; }
-    }
 
-    private static async Task EnumerateGitHubTreeBlobsAsync(
-        string treeSha, string prefix, List<(string, string, long)> blobs, CancellationToken ct)
-    {
-        using var client = CreateHttpClient(TimeSpan.FromSeconds(15));
-        var json = await client.GetStringAsync(
-            $"https://api.github.com/repos/{GitHubOwner}/{GitHubRepo}/git/trees/{treeSha}", ct);
-        var doc = JsonDocument.Parse(json);
-
-        foreach (var entry in doc.RootElement.GetProperty("tree").EnumerateArray())
-        {
-            var path = entry.GetProperty("path").GetString() ?? "";
-            var type = entry.GetProperty("type").GetString() ?? "";
-            var sha = entry.TryGetProperty("sha", out var shaEl) ? shaEl.GetString() ?? "" : "";
-            var size = entry.TryGetProperty("size", out var sizeEl) ? sizeEl.GetInt64() : 0L;
-            var full = string.IsNullOrEmpty(prefix) ? path : $"{prefix}/{path}";
-
-            if (type == "blob")
-                blobs.Add((full, sha, size));
-            else if (type == "tree")
-                await EnumerateGitHubTreeBlobsAsync(sha, full, blobs, ct);
-        }
-    }
-
-    private static async Task<byte[]?> DownloadGitHubBlobAsync(string blobSha, CancellationToken ct)
-    {
-        try
-        {
-            using var client = CreateHttpClient(TimeSpan.FromMinutes(5));
-            var json = await client.GetStringAsync(
-                $"https://api.github.com/repos/{GitHubOwner}/{GitHubRepo}/git/blobs/{blobSha}", ct);
-            var doc = JsonDocument.Parse(json);
-            var content = doc.RootElement.GetProperty("content").GetString() ?? "";
-            var encoding = doc.RootElement.TryGetProperty("encoding", out var encEl)
-                ? encEl.GetString() ?? "" : "";
-
-            if (encoding == "base64")
-                return Convert.FromBase64String(content.Replace("\n", "", StringComparison.Ordinal));
-            return System.Text.Encoding.UTF8.GetBytes(content);
+            return files;
         }
         catch { return null; }
     }
@@ -338,130 +307,10 @@ public static class ToolDownloaderService
     public static async Task<DateTimeOffset?> CheckGitCodeDirUpdateAsync(
         string repoPath, DateTime? localLastModified, CancellationToken ct = default)
     {
-        try
-        {
-            var commitDate = await GetPathLastCommitDateAsync(repoPath, ct);
-            if (commitDate is null) return null;
-
-            if (localLastModified.HasValue && localLastModified.Value >= commitDate.Value.UtcDateTime)
-                return null;
-
-            return commitDate;
-        }
-        catch { return null; }
+        return null;
     }
 
-    private static async Task<string> GitCodeGetStringAsync(string url, CancellationToken ct)
-    {
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        cts.CancelAfter(TimeSpan.FromSeconds(15));
-        using var client = CreateHttpClient(TimeSpan.FromSeconds(15));
-        var bytes = await client.GetByteArrayAsync(url, cts.Token);
-        return Gb2312.GetString(bytes);
-    }
-
-    private static async Task<DateTimeOffset?> GetPathLastCommitDateAsync(string repoPath, CancellationToken ct)
-    {
-        try
-        {
-            var encodedPath = Uri.EscapeDataString(repoPath);
-            var json = await GitCodeGetStringAsync(
-                $"https://api.gitcode.com/api/v5/repos/{GitCodeOwner}/{GitCodeRepo}/commits?path={encodedPath}&per_page=1", ct);
-            var doc = JsonDocument.Parse(json);
-            var arr = doc.RootElement.EnumerateArray();
-            if (!arr.MoveNext()) return null;
-            return arr.Current.GetProperty("commit").GetProperty("committer").GetProperty("date").GetDateTimeOffset();
-        }
-        catch { return null; }
-    }
-
-    private static async Task<string?> GetLatestCommitShaAsync(CancellationToken ct)
-    {
-        try
-        {
-            var json = await GitCodeGetStringAsync(
-                $"https://api.gitcode.com/api/v5/repos/{GitCodeOwner}/{GitCodeRepo}/branches/master", ct);
-            var doc = JsonDocument.Parse(json);
-            return doc.RootElement.GetProperty("commit").GetProperty("id").GetString();
-        }
-        catch { return null; }
-    }
-
-    private static async Task<string?> GetTreeShaForPathAsync(string commitSha, string repoPath, CancellationToken ct)
-    {
-        try
-        {
-            var currentSha = commitSha;
-            var parts = repoPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-
-            foreach (var part in parts)
-            {
-                var json = await GitCodeGetStringAsync(
-                    $"https://api.gitcode.com/api/v5/repos/{GitCodeOwner}/{GitCodeRepo}/git/trees/{currentSha}", ct);
-                var doc = JsonDocument.Parse(json);
-
-                var found = false;
-                foreach (var entry in doc.RootElement.GetProperty("tree").EnumerateArray())
-                {
-                    var path = entry.GetProperty("path").GetString() ?? "";
-                    var type = entry.GetProperty("type").GetString() ?? "";
-                    if (path == part && type == "tree")
-                    {
-                        currentSha = entry.GetProperty("sha").GetString()!;
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) return null;
-            }
-            return currentSha;
-        }
-        catch { return null; }
-    }
-
-    private static async Task EnumerateTreeBlobsAsync(
-        string treeSha, string prefix, List<(string, string, long)> blobs, CancellationToken ct)
-    {
-        var json = await GitCodeGetStringAsync(
-            $"https://api.gitcode.com/api/v5/repos/{GitCodeOwner}/{GitCodeRepo}/git/trees/{treeSha}", ct);
-        var doc = JsonDocument.Parse(json);
-
-        foreach (var entry in doc.RootElement.GetProperty("tree").EnumerateArray())
-        {
-            var path = entry.GetProperty("path").GetString() ?? "";
-            var type = entry.GetProperty("type").GetString() ?? "";
-            var sha = entry.TryGetProperty("sha", out var shaEl) ? shaEl.GetString() ?? "" : "";
-            var size = entry.TryGetProperty("size", out var sizeEl) ? sizeEl.GetInt64() : 0L;
-            var full = string.IsNullOrEmpty(prefix) ? path : $"{prefix}/{path}";
-
-            if (type == "blob")
-                blobs.Add((full, sha, size));
-            else if (type == "tree")
-                await EnumerateTreeBlobsAsync(sha, full, blobs, ct);
-        }
-    }
-
-    private static async Task<byte[]?> DownloadBlobAsync(string blobSha, CancellationToken ct)
-    {
-        try
-        {
-            using var client = CreateHttpClient(TimeSpan.FromMinutes(5));
-            var bytes = await client.GetByteArrayAsync(
-                $"https://api.gitcode.com/api/v5/repos/{GitCodeOwner}/{GitCodeRepo}/git/blobs/{blobSha}", ct);
-            var json = Gb2312.GetString(bytes);
-            var doc = JsonDocument.Parse(json);
-            var content = doc.RootElement.GetProperty("content").GetString() ?? "";
-            var encoding = doc.RootElement.TryGetProperty("encoding", out var encEl)
-                ? encEl.GetString() ?? "" : "";
-
-            if (encoding == "base64")
-                return Convert.FromBase64String(content);
-            return System.Text.Encoding.UTF8.GetBytes(content);
-        }
-        catch { return null; }
-    }
-
-    private static string ComputeBlobSha(byte[] content)
+    public static string ComputeBlobSha(byte[] content)
     {
         var header = System.Text.Encoding.ASCII.GetBytes($"blob {content.Length}\0");
         using var sha1 = SHA1.Create();

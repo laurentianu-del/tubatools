@@ -871,6 +871,114 @@
                             <ScrollViewer VerticalScrollBarVisibility="Disabled" HorizontalScrollMode="Disabled">
                             <StackPanel Spacing="2" Padding="0,4,0,0">
 
+                                <Border x:Name="SettingsHttpDownloadCard" Style="{StaticResource SettingsCardStyle}">
+                                    <Grid RowSpacing="12">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <Grid ColumnSpacing="16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource IconBorderStyle}">
+                                                <FontIcon FontSize="18" Glyph="&#xE896;" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                                <TextBlock FontWeight="SemiBold" Text="HTTP 下载" />
+                                                <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="输入链接加入下载队列，支持断点续传" />
+                                            </StackPanel>
+                                            <Button x:Name="HttpDownloadAddButton" Grid.Column="2" VerticalAlignment="Center" Padding="14,6" Click="HttpDownloadAddButton_Click" Style="{StaticResource AccentButtonStyle}">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <FontIcon FontSize="12" Glyph="&#xE896;" />
+                                                    <TextBlock Text="加入下载" />
+                                                </StackPanel>
+                                            </Button>
+                                        </Grid>
+                                        <Border Grid.Row="1" Padding="0,1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                                        <Grid Grid.Row="2" ColumnSpacing="16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource IconBorderStyle}">
+                                                <FontIcon FontSize="18" Glyph="&#xE71B;" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                                <TextBlock FontWeight="SemiBold" Text="下载链接" />
+                                                <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="输入 HTTP/HTTPS 直链地址" />
+                                            </StackPanel>
+                                            <TextBox x:Name="HttpDownloadUrlTextBox" Grid.Column="1" HorizontalAlignment="Right" MinWidth="280" MaxWidth="360" PlaceholderText="https://example.com/file.zip" />
+                                        </Grid>
+                                        <Grid Grid.Row="3" ColumnSpacing="16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource IconBorderStyle}">
+                                                <FontIcon FontSize="18" Glyph="&#xED25;" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                                <TextBlock FontWeight="SemiBold" Text="保存位置" />
+                                                <TextBlock x:Name="HttpDownloadPathText" Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                                <Button x:Name="HttpDownloadBrowseButton" Padding="10,6" Click="HttpDownloadBrowseButton_Click">
+                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                        <FontIcon FontSize="12" Glyph="&#xE8DA;" />
+                                                        <TextBlock Text="浏览" />
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button x:Name="HttpDownloadResetPathButton" Padding="10,6" Click="HttpDownloadResetPathButton_Click" ToolTipService.ToolTip="恢复默认路径">
+                                                    <FontIcon FontSize="12" Glyph="&#xE72C;" />
+                                                </Button>
+                                            </StackPanel>
+                                        </Grid>
+                                        <Grid Grid.Row="4" ColumnSpacing="16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource IconBorderStyle}">
+                                                <FontIcon FontSize="18" Glyph="&#xE898;" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                                <TextBlock FontWeight="SemiBold" Text="下载后操作" />
+                                                <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="选择下载完成后的处理方式" />
+                                            </StackPanel>
+                                            <ComboBox x:Name="HttpDownloadActionComboBox" Grid.Column="2" MinWidth="120" />
+                                        </Grid>
+                                        <Grid Grid.Row="5" ColumnSpacing="16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource IconBorderStyle}">
+                                                <FontIcon FontSize="18" Glyph="&#xE9D5;" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                                <TextBlock FontWeight="SemiBold" Text="下载队列" />
+                                                <TextBlock x:Name="HttpDownloadQueueStatusText" Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="查看当前下载队列状态" />
+                                            </StackPanel>
+                                            <Button x:Name="HttpDownloadViewQueueButton" Grid.Column="2" VerticalAlignment="Center" Padding="14,6" Click="HttpDownloadViewQueueButton_Click">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <FontIcon FontSize="12" Glyph="&#xE713;" />
+                                                    <TextBlock Text="管理队列" />
+                                                </StackPanel>
+                                            </Button>
+                                        </Grid>
+                                    </Grid>
+                                </Border>
+
                                 <Border x:Name="SettingsConfigManagerCard" Style="{StaticResource SettingsCardStyle}">
                                     <Grid ColumnSpacing="16">
                                         <Grid.ColumnDefinitions>
