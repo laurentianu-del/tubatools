@@ -19,6 +19,7 @@
 [![Stars](https://img.shields.io/github/stars/luolangaga/tubatool?style=flat-square&logo=github)](https://github.com/luolangaga/tubatool)
 [![Today Views](https://visitor-badge.laobi.icu/badge?page_id=luolangaga.tubatool&left_text=today+views&right_color=%230078D4)](https://github.com/luolangaga/tubatool)
 
+<a href="https://gitcode.com/gcw_uDDNaqJw/tubatool"><img alt="AtomGit G-Star" src="https://gitcode.com/gcw_uDDNaqJw/tubatool/star/new_badge.svg" height="55"/></a>
 <a href="https://trendshift.io/repositories/51042?utm_source=trendshift-badge&utm_medium=badge&utm_campaign=badge-trendshift-51042" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/51042/daily?language=C%23" alt="luolangaga%2Ftubatools | Trendshift" width="250" height="55"/></a>
 <a href="https://trendshift.io/repositories/51042?utm_source=trendshift-badge&utm_medium=badge&utm_campaign=badge-trendshift-51042" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/51042/weekly?language=C%23" alt="luolangaga%2Ftubatools | Trendshift" width="250" height="55"/></a>
 
