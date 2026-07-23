@@ -212,7 +212,7 @@ public static class UnifiedSearchService
         }
     }
 
-    private static double CalcScore(string query, string primary, IReadOnlyList<string>? secondary)
+    internal static double CalcScore(string query, string primary, IReadOnlyList<string>? secondary)
     {
         var score = 0.0;
 

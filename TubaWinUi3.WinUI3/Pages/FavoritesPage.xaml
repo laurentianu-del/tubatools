@@ -14,7 +14,6 @@
         <local:HasAlternatesToVisibilityConverter x:Key="HasAlternatesToVis" />
         <local:NoAlternatesToVisibilityConverter x:Key="NoAlternatesToVis" />
 
-        <local:HistoryCountToVisibilityConverter x:Key="HistoryCountToVis" />
         <MenuFlyout x:Key="FavItemFlyout">
             <MenuFlyoutItem Text="发送到桌面快捷方式" Click="FavMenu_SendToDesktop" Icon="Link" />
             <MenuFlyoutItem Text="以管理员身份运行" Click="FavMenu_RunAsAdmin" Icon="Admin" />
@@ -32,11 +31,6 @@
         </MenuFlyout>
         <Style x:Key="FavCardStyle" TargetType="GridViewItem">
             <Setter Property="Margin" Value="0,0,12,12" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="VerticalContentAlignment" Value="Stretch" />
-        </Style>
-        <Style x:Key="HistoryCardStyle" TargetType="GridViewItem">
-            <Setter Property="Margin" Value="0,0,10,10" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="VerticalContentAlignment" Value="Stretch" />
         </Style>
@@ -270,77 +264,6 @@
                     HorizontalAlignment="Center"
                     Opacity="1.0"
                     Text="在全部页面点击星标按钮即可收藏" />
-            </StackPanel>
-
-            <StackPanel
-                x:Name="HistorySection"
-                Spacing="10"
-                Visibility="Collapsed">
-                <StackPanel Spacing="2">
-                    <TextBlock
-                        FontSize="20"
-                        FontWeight="SemiBold"
-                        Text="最近使用" />
-                    <TextBlock
-                        Opacity="1.0"
-                        FontSize="13"
-                        Text="最近打开过的工具" />
-                </StackPanel>
-                <GridView
-                    x:Name="HistoryGrid"
-                    IsItemClickEnabled="True"
-                    ItemClick="HistoryGrid_ItemClick"
-                    ItemContainerStyle="{StaticResource HistoryCardStyle}"
-                    SelectionMode="None"
-                    SizeChanged="HistoryGrid_SizeChanged">
-                    <GridView.ItemTemplate>
-                        <DataTemplate>
-                            <Border
-                                Padding="8,10,8,6"
-                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8"
-                                HorizontalAlignment="Stretch"
-                                VerticalAlignment="Stretch"
-                                ToolTipService.ToolTip="{Binding Description}">
-                                <StackPanel HorizontalAlignment="Center" Spacing="6">
-                                    <Border
-                                        Width="48"
-                                        Height="48"
-                                        HorizontalAlignment="Center"
-                                        Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                                        CornerRadius="10">
-                                        <Grid>
-                                            <Image
-                                                Width="36"
-                                                Height="36"
-                                                Source="{Binding IconPath}"
-                                                Stretch="Uniform"
-                                                Visibility="{Binding IconPath, Converter={StaticResource NullToCollapse}}" />
-                                            <FontIcon
-                                                FontSize="24"
-                                                HorizontalAlignment="Center"
-                                                VerticalAlignment="Center"
-                                                Glyph="{Binding IconGlyph}"
-                                                Visibility="{Binding IconGlyph, Converter={StaticResource NullToCollapse}}" />
-                                        </Grid>
-                                    </Border>
-                                    <TextBlock
-                                        FontFamily="{StaticResource AppFontFamily}"
-                                        HorizontalAlignment="Center"
-                                        FontSize="12"
-                                        MaxLines="2"
-                                        Text="{Binding Name}"
-                                        TextAlignment="Center"
-                                        TextTrimming="CharacterEllipsis"
-                                        TextWrapping="Wrap"
-                                        Width="84" />
-                                </StackPanel>
-                            </Border>
-                        </DataTemplate>
-                    </GridView.ItemTemplate>
-                </GridView>
             </StackPanel>
 
             <TeachingTip

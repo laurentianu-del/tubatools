@@ -45,7 +45,8 @@ public static class BuiltinToolRegistry
             Register(new CommunityToolBuiltinTool());
         Register(new ScreenTestTool());
         Register(new ServiceCenterTool());
-
+        Register(new DotnetCompletionTool());
+        Register(new VideoProcessorTool());
     }
 
     public static IReadOnlyList<string> GetCategories()

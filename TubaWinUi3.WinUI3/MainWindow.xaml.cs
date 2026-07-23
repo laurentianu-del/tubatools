@@ -824,6 +824,12 @@ public sealed partial class MainWindow : Window
         frame.Navigate(typeof(PerformanceBenchmarkPage));
     }
 
+    public void NavigateToFavorites()
+    {
+        var frame = _isTabMode ? TabNavFrame : NavFrame;
+        frame.Navigate(typeof(FavoritesPage));
+    }
+
     private void PopulateSearchSuggestions()
     {
         var items = UnifiedSearchService.GetQuickPanelItems();

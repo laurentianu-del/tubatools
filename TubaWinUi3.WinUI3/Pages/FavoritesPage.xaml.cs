@@ -12,14 +12,12 @@ namespace TubaWinUi3.Pages;
 public sealed partial class FavoritesPage : Page
 {
     private readonly ObservableCollection<ToolItem> _tools = [];
-    private readonly ObservableCollection<ToolItem> _historyTools = [];
     private CancellationTokenSource? _iconLoadCts;
 
     public FavoritesPage()
     {
         InitializeComponent();
         ToolsGrid.ItemsSource = _tools;
-        HistoryGrid.ItemsSource = _historyTools;
     }
 
     private void ToolsGrid_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -38,27 +36,10 @@ public sealed partial class FavoritesPage : Page
         panel.ItemWidth = Math.Max(minItemWidth, itemWidth);
     }
 
-    private void HistoryGrid_SizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        var panel = HistoryGrid.ItemsPanelRoot as ItemsWrapGrid;
-        if (panel is null) return;
-
-        double minItemWidth = 100;
-        double spacing = 10;
-        double availableWidth = HistoryGrid.ActualWidth - HistoryGrid.Padding.Left - HistoryGrid.Padding.Right;
-
-        if (availableWidth <= 0) return;
-
-        int columns = Math.Max(1, (int)((availableWidth + spacing) / (minItemWidth + spacing)));
-        double itemWidth = (availableWidth - (columns - 1) * spacing) / columns;
-        panel.ItemWidth = Math.Max(minItemWidth, itemWidth);
-    }
-
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
         _ = LoadToolsAsync();
-        _ = LoadHistoryAsync();
     }
 
     private async Task LoadToolsAsync()
@@ -104,57 +85,6 @@ public sealed partial class FavoritesPage : Page
         {
             _iconLoadCts = new CancellationTokenSource();
             _ = ToolIconService.LoadIconsAsync(favTools, DispatcherQueue);
-        }
-    }
-
-    private async Task LoadHistoryAsync()
-    {
-        _historyTools.Clear();
-
-        var historyPaths = LaunchHistoryService.GetHistory();
-        if (historyPaths.Count == 0)
-        {
-            HistorySection.Visibility = Visibility.Collapsed;
-            return;
-        }
-
-        List<ToolItem> allTools;
-        try
-        {
-            allTools = await Task.Run(() => ToolCatalog.GetCategories()
-                .SelectMany(ToolCatalog.GetTools)
-                .ToList());
-        }
-        catch
-        {
-            HistorySection.Visibility = Visibility.Collapsed;
-            return;
-        }
-
-        var added = 0;
-        foreach (var path in historyPaths)
-        {
-            var tool = allTools.FirstOrDefault(t => t.Path.Equals(path, StringComparison.OrdinalIgnoreCase));
-            if (tool is not null)
-            {
-                _historyTools.Add(tool);
-                added++;
-            }
-        }
-
-        HistorySection.Visibility = added > 0 ? Visibility.Visible : Visibility.Collapsed;
-
-        if (added > 0)
-        {
-            _ = ToolIconService.LoadIconsAsync(_historyTools.ToList(), DispatcherQueue);
-        }
-    }
-
-    private void HistoryGrid_ItemClick(object sender, ItemClickEventArgs e)
-    {
-        if (e.ClickedItem is ToolItem tool)
-        {
-            LaunchTool(tool, runAsAdmin: false);
         }
     }
 
@@ -426,20 +356,5 @@ public sealed partial class FavoritesPage : Page
     private static string ValueOrUnknown(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? "未知" : value;
-    }
-}
-
-public sealed class HistoryCountToVisibilityConverter : Microsoft.UI.Xaml.Data.IValueConverter
-{
-    public object Convert(object value, Type targetType, object parameter, string language)
-    {
-        if (value is int count && count > 0)
-            return Visibility.Visible;
-        return Visibility.Collapsed;
-    }
-
-    public object ConvertBack(object value, Type targetType, object parameter, string language)
-    {
-        throw new NotImplementedException();
     }
 }

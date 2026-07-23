@@ -313,7 +313,7 @@ public static class HardwareInfoService
         return sections;
     }
 
-    private static string CoresThreadsLabel(CpuzInfo cpuz)
+    internal static string CoresThreadsLabel(CpuzInfo cpuz)
     {
         if (cpuz.CpuCores <= 0) return "";
         return cpuz.CpuThreads > cpuz.CpuCores
@@ -321,7 +321,7 @@ public static class HardwareInfoService
             : $"{cpuz.CpuCores}C";
     }
 
-    private static string BuildCpuzMemoryLabel(CpuzInfo cpuz)
+    internal static string BuildCpuzMemoryLabel(CpuzInfo cpuz)
     {
         var parts = new List<string>();
 
@@ -448,7 +448,7 @@ public static class HardwareInfoService
         section.Items.Add(Item("网卡", netTask.Result));
     }
 
-    private static string? DetectCpuBrand(string? cpuName)
+    internal static string? DetectCpuBrand(string? cpuName)
     {
         if (string.IsNullOrWhiteSpace(cpuName)) return null;
         var name = cpuName.ToUpperInvariant();
@@ -506,7 +506,7 @@ public static class HardwareInfoService
         return null;
     }
 
-    private static string? DetectGpuBrand(string? gpuName)
+    internal static string? DetectGpuBrand(string? gpuName)
     {
         if (string.IsNullOrWhiteSpace(gpuName)) return null;
         var name = gpuName.ToUpperInvariant();
@@ -594,7 +594,7 @@ public static class HardwareInfoService
         return string.Join(" ", parts);
     }
 
-    private static string GetMemoryTypeLabel(int smbiosMemoryType)
+    internal static string GetMemoryTypeLabel(int smbiosMemoryType)
     {
         return smbiosMemoryType switch
         {
@@ -620,7 +620,7 @@ public static class HardwareInfoService
         return ToInt(Get(item, "ConfiguredClockSpeed"));
     }
 
-    private static string? CleanMemManufacturer(string? raw)
+    internal static string? CleanMemManufacturer(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return null;
         var cleaned = raw.Trim();
@@ -657,7 +657,7 @@ public static class HardwareInfoService
         };
     }
 
-    private static string? DecodeJedecManufacturer(string raw)
+    internal static string? DecodeJedecManufacturer(string raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return null;
         var trimmed = raw.Trim();
@@ -707,7 +707,7 @@ public static class HardwareInfoService
         return s.All(c => char.IsAsciiHexDigit(c));
     }
 
-    private static string? JedecVendorFromCode(byte code)
+    internal static string? JedecVendorFromCode(byte code)
     {
         return code switch
         {
@@ -787,7 +787,7 @@ public static class HardwareInfoService
         };
     }
 
-    private static string? JedecVendorFromExtendedCode(int fullCode)
+    internal static string? JedecVendorFromExtendedCode(int fullCode)
     {
         return fullCode switch
         {
@@ -1088,7 +1088,7 @@ public static class HardwareInfoService
         return label.Trim();
     }
 
-    private static string ExtractMonitorPnpCode(string? deviceId)
+    internal static string ExtractMonitorPnpCode(string? deviceId)
     {
         if (string.IsNullOrWhiteSpace(deviceId)) return "";
 
@@ -1167,7 +1167,7 @@ public static class HardwareInfoService
         catch { return null; }
     }
 
-    private static string? ResolveManufacturer(string? code)
+    internal static string? ResolveManufacturer(string? code)
     {
         if (string.IsNullOrWhiteSpace(code)) return null;
         return code.Trim().ToUpperInvariant() switch
@@ -1309,7 +1309,7 @@ public static class HardwareInfoService
         return Join(mfr, product);
     }
 
-    private static string? CleanBoardManufacturer(string? raw)
+    internal static string? CleanBoardManufacturer(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return null;
         var cleaned = raw.Trim();
@@ -1395,7 +1395,7 @@ public static class HardwareInfoService
         return bool.TryParse(Get(item, propertyName), out var value) && value;
     }
 
-    private static bool ContainsAny(string? value, params string[] needles)
+    internal static bool ContainsAny(string? value, params string[] needles)
     {
         return !string.IsNullOrWhiteSpace(value) &&
                needles.Any(needle => value.Contains(needle, StringComparison.OrdinalIgnoreCase));
@@ -1561,7 +1561,7 @@ public static class HardwareInfoService
         return detail;
     }
 
-    private static string? FormatMhz(string? value)
+    internal static string? FormatMhz(string? value)
     {
         var mhz = ToInt(value);
         if (mhz <= 0) return null;
@@ -1569,7 +1569,7 @@ public static class HardwareInfoService
         return $"{mhz} MHz";
     }
 
-    private static string? FormatCacheSize(string? value)
+    internal static string? FormatCacheSize(string? value)
     {
         var kb = ToInt(value);
         if (kb <= 0) return null;
@@ -1577,7 +1577,7 @@ public static class HardwareInfoService
         return $"{kb} KB";
     }
 
-    private static string? MapCpuArchitecture(string? value)
+    internal static string? MapCpuArchitecture(string? value)
     {
         return ToInt(value) switch
         {
@@ -1609,7 +1609,7 @@ public static class HardwareInfoService
         };
     }
 
-    private static string? FormatBiosDate(string? value)
+    internal static string? FormatBiosDate(string? value)
     {
         if (string.IsNullOrWhiteSpace(value) || value.Length < 8) return value;
         try
@@ -1676,13 +1676,13 @@ public static class HardwareInfoService
         return detail;
     }
 
-    private static string? FormatCapacity(long bytes)
+    internal static string? FormatCapacity(long bytes)
     {
         if (bytes <= 0) return null;
         return $"{bytes / 1024d / 1024d / 1024d:0.#} GB";
     }
 
-    private static string? MapFormFactor(string? value)
+    internal static string? MapFormFactor(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
         return value.Trim().ToUpperInvariant() switch
@@ -1798,7 +1798,10 @@ public static class HardwareInfoService
             var size = ToLong(Get(item, "Size"));
             var interfaceType = Get(item, "InterfaceType");
             var mediaType = Get(item, "MediaType");
-            var diskMediaType = DetermineMediaType(mediaType, interfaceType);
+            var rotationRate = ToLong(Get(item, "NominalMediaRotationRate"));
+            if (rotationRate == 0)
+                rotationRate = ToLong(Get(item, "SpinRate"));
+            var diskMediaType = DetermineMediaType(mediaType, interfaceType, model, rotationRate);
 
             var disk = new DiskDetail
             {
@@ -1836,7 +1839,7 @@ public static class HardwareInfoService
             disks.Add(new DiskDetail
             {
                 Model = name,
-                MediaType = DetermineMediaType(null, interfaceType),
+                MediaType = DetermineMediaType(null, interfaceType, name, 0),
                 InterfaceType = MapInterfaceType(interfaceType),
                 Partitions = []
             });
@@ -1871,8 +1874,22 @@ public static class HardwareInfoService
         catch { }
     }
 
-    private static string? DetermineMediaType(string? mediaType, string? interfaceType)
+    internal static string? DetermineMediaType(string? mediaType, string? interfaceType, string? model, long rotationRate)
     {
+        if (!string.IsNullOrWhiteSpace(interfaceType)
+            && interfaceType.Contains("NVMe", StringComparison.OrdinalIgnoreCase))
+            return "SSD";
+
+        if (rotationRate > 0)
+            return rotationRate == 1 ? "SSD" : "HDD";
+
+        if (!string.IsNullOrWhiteSpace(model))
+        {
+            var m = model.ToUpperInvariant();
+            if (m.Contains("SSD") || m.Contains("NVME") || m.Contains("SOLID"))
+                return "SSD";
+        }
+
         if (!string.IsNullOrWhiteSpace(mediaType))
         {
             var mt = mediaType.Trim().ToUpperInvariant();
@@ -1880,19 +1897,14 @@ public static class HardwareInfoService
                 return "SSD";
             if (mt.Contains("HDD") || mt.Contains("HARD"))
                 return "HDD";
-            if (mt.Contains("FIXED") && !string.IsNullOrWhiteSpace(interfaceType)
-                && interfaceType.Contains("NVMe", StringComparison.OrdinalIgnoreCase))
-                return "SSD";
+            if (mt.Contains("FIXED"))
+                return null;
         }
-
-        if (!string.IsNullOrWhiteSpace(interfaceType)
-            && interfaceType.Contains("NVMe", StringComparison.OrdinalIgnoreCase))
-            return "SSD";
 
         return null;
     }
 
-    private static string? MapInterfaceType(string? value)
+    internal static string? MapInterfaceType(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
         return value.Trim().ToUpperInvariant() switch
@@ -1904,7 +1916,7 @@ public static class HardwareInfoService
         };
     }
 
-    private static string? InferDiskInterfaceFromPnpId(string? pnpDeviceId)
+    internal static string? InferDiskInterfaceFromPnpId(string? pnpDeviceId)
     {
         if (string.IsNullOrWhiteSpace(pnpDeviceId)) return null;
         var upper = pnpDeviceId.ToUpperInvariant();
@@ -2060,7 +2072,7 @@ public static class HardwareInfoService
         return adapters;
     }
 
-    private static string FormatNetworkSpeed(long bps)
+    internal static string FormatNetworkSpeed(long bps)
     {
         if (bps >= 1_000_000_000) return $"{bps / 1_000_000_000d:0.#} Gbps";
         if (bps >= 1_000_000) return $"{bps / 1_000_000d:0.#} Mbps";

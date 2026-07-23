@@ -1,14 +1,36 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace TubaWinUi3.Services;
 
+public class LaunchRecord
+{
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = "";
+
+    [JsonPropertyName("count")]
+    public int Count { get; set; }
+
+    [JsonPropertyName("lastLaunched")]
+    public DateTime LastLaunched { get; set; }
+
+    [JsonPropertyName("firstLaunched")]
+    public DateTime FirstLaunched { get; set; }
+}
+
 public static class LaunchHistoryService
 {
-    private const int MaxEntries = 5;
+    private const int MaxEntries = 100;
     private static string HistoryPath => ConfigManager.GetLaunchHistoryPath();
-    private static List<string>? _cache;
+    private static List<LaunchRecord>? _cache;
 
-    public static IReadOnlyList<string> GetHistory()
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        WriteIndented = false,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
+    public static IReadOnlyList<LaunchRecord> GetRecords()
     {
         if (_cache is not null)
             return _cache;
@@ -18,12 +40,17 @@ public static class LaunchHistoryService
             if (File.Exists(HistoryPath))
             {
                 var json = File.ReadAllText(HistoryPath);
-                _cache = JsonSerializer.Deserialize<List<string>>(json) ?? [];
+                var records = JsonSerializer.Deserialize<List<LaunchRecord>>(json, _jsonOptions);
+                if (records is not null)
+                {
+                    _cache = records;
+                    return _cache;
+                }
             }
-            else
-            {
-                _cache = [];
-            }
+
+            _cache = MigrateFromOldFormat();
+            if (_cache.Count > 0)
+                Save(_cache);
         }
         catch
         {
@@ -33,19 +60,64 @@ public static class LaunchHistoryService
         return _cache;
     }
 
-    public static void RecordLaunch(string toolPath)
+    public static IReadOnlyList<string> GetHistory()
     {
-        var list = GetHistory()
-            .Where(p => !p.Equals(toolPath, StringComparison.OrdinalIgnoreCase))
+        return GetRecords().Select(r => r.Path).ToList();
+    }
+
+    public static IReadOnlyList<LaunchRecord> GetFrequentTools(int maxCount = 12)
+    {
+        var records = GetRecords();
+        if (records.Count == 0)
+            return [];
+
+        var now = DateTime.UtcNow;
+        var scored = records
+            .Select(r =>
+            {
+                var daysSinceLast = (now - r.LastLaunched).TotalDays;
+                var recencyBonus = Math.Max(0, 7 - daysSinceLast) * 0.5;
+                var frequencyScore = r.Count * 1.0;
+                return (Record: r, Score: frequencyScore + recencyBonus);
+            })
+            .OrderByDescending(x => x.Score)
+            .Take(maxCount)
+            .Select(x => x.Record)
             .ToList();
 
-        list.Insert(0, toolPath);
+        return scored;
+    }
 
-        if (list.Count > MaxEntries)
-            list = list.Take(MaxEntries).ToList();
+    public static void RecordLaunch(string toolPath)
+    {
+        var records = GetRecords().ToList();
 
-        _cache = list;
-        Save(list);
+        var existing = records.FirstOrDefault(r =>
+            r.Path.Equals(toolPath, StringComparison.OrdinalIgnoreCase));
+
+        if (existing is not null)
+        {
+            existing.Count++;
+            existing.LastLaunched = DateTime.UtcNow;
+            records.Remove(existing);
+            records.Insert(0, existing);
+        }
+        else
+        {
+            records.Insert(0, new LaunchRecord
+            {
+                Path = toolPath,
+                Count = 1,
+                LastLaunched = DateTime.UtcNow,
+                FirstLaunched = DateTime.UtcNow
+            });
+        }
+
+        if (records.Count > MaxEntries)
+            records = records.Take(MaxEntries).ToList();
+
+        _cache = records;
+        Save(records);
     }
 
     public static void Clear()
@@ -59,13 +131,40 @@ public static class LaunchHistoryService
         _cache = null;
     }
 
-    private static void Save(List<string> history)
+    private static List<LaunchRecord> MigrateFromOldFormat()
+    {
+        try
+        {
+            if (!File.Exists(HistoryPath))
+                return [];
+
+            var json = File.ReadAllText(HistoryPath);
+            var oldList = JsonSerializer.Deserialize<List<string>>(json);
+            if (oldList is null || oldList.Count == 0)
+                return [];
+
+            var now = DateTime.UtcNow;
+            return oldList.Select((path, index) => new LaunchRecord
+            {
+                Path = path,
+                Count = 1,
+                LastLaunched = now.AddMinutes(-index),
+                FirstLaunched = now.AddHours(-index)
+            }).ToList();
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    private static void Save(List<LaunchRecord> records)
     {
         try
         {
             var dir = Path.GetDirectoryName(HistoryPath)!;
             Directory.CreateDirectory(dir);
-            var json = JsonSerializer.Serialize(history);
+            var json = JsonSerializer.Serialize(records, _jsonOptions);
             File.WriteAllText(HistoryPath, json);
         }
         catch { }

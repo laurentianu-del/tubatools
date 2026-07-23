@@ -635,7 +635,7 @@ public static class ToolCatalog
         return fallback ?? options[0];
     }
 
-    private static string? DetectArch(string name)
+    internal static string? DetectArch(string name)
     {
         foreach (var p in ArchArm64Patterns)
         {
@@ -655,7 +655,7 @@ public static class ToolCatalog
         return null;
     }
 
-    private static string FormatArchDisplay(string? arch)
+    internal static string FormatArchDisplay(string? arch)
     {
         return arch switch
         {
@@ -792,7 +792,7 @@ public static class ToolCatalog
         return candidates[0];
     }
 
-    private static string StripArchSuffix(string name)
+    internal static string StripArchSuffix(string name)
     {
         foreach (var suffix in ArchSuffixes)
         {
@@ -805,7 +805,7 @@ public static class ToolCatalog
         return name;
     }
 
-    private static string CleanupName(string name)
+    internal static string CleanupName(string name)
     {
         return name
             .Replace("_x64", " x64", StringComparison.OrdinalIgnoreCase)

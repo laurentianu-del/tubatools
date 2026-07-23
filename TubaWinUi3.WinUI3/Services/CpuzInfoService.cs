@@ -1,4 +1,4 @@
-﻿﻿using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace TubaWinUi3.Services;
@@ -189,7 +189,7 @@ public static class CpuzInfoService
         catch { }
     }
 
-    private static CpuzInfo ParseReport(string content)
+    internal static CpuzInfo ParseReport(string content)
     {
         var info = new CpuzInfo();
         var lines = content.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
@@ -366,7 +366,7 @@ public static class CpuzInfoService
         return next.StartsWith("---");
     }
 
-    private static (string Key, string Value)? ParseTabLine(string line)
+    internal static (string Key, string Value)? ParseTabLine(string line)
     {
         if (string.IsNullOrWhiteSpace(line)) return null;
 
