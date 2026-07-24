@@ -26,6 +26,14 @@ public sealed class BenchmarkCloudPage : Page
 
 	private bool _loaded;
 
+	private int _currentPage = -1;
+
+	private bool _isLoadingMore;
+
+	private bool _hasMorePages;
+
+	private string _currentSortBy = "gaming";
+
 	private Pivot MainPivot;
 
 	private ProgressBar MyHistoryProgress;
@@ -95,6 +103,10 @@ public sealed class BenchmarkCloudPage : Page
 	private ComboBox SourceCombo;
 
 	private TextBlock ReportCountText;
+
+	private ProgressBar LoadMoreProgress;
+
+	private TextBlock LoadMoreText;
 
 	private static readonly Color AccentBlue = Color.FromArgb(255, 0, 99, 177);
 
@@ -253,14 +265,47 @@ public sealed class BenchmarkCloudPage : Page
 		grid.Children.Add(LeaderboardProgress);
 		Grid.SetRow(LeaderboardProgress, 1);
 
+		var listScrollViewer = new ScrollViewer
+		{
+			VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+			HorizontalScrollMode = ScrollMode.Disabled,
+			VerticalScrollMode = ScrollMode.Auto
+		};
+		listScrollViewer.ViewChanged += LeaderboardScrollViewer_ViewChanged;
+
+		var listStackPanel = new StackPanel();
+
 		LeaderboardList = new ListView
 		{
 			Visibility = Visibility.Collapsed,
 			ItemTemplate = BuildLeaderboardItemTemplate()
 		};
 		LeaderboardList.SelectionChanged += LeaderboardList_SelectionChanged;
-		grid.Children.Add(LeaderboardList);
-		Grid.SetRow(LeaderboardList, 2);
+		listStackPanel.Children.Add(LeaderboardList);
+
+		LoadMoreProgress = new ProgressBar
+		{
+			Visibility = Visibility.Collapsed,
+			IsIndeterminate = true,
+			Margin = new Thickness(0.0, 4.0, 0.0, 4.0)
+		};
+		listStackPanel.Children.Add(LoadMoreProgress);
+
+		LoadMoreText = new TextBlock
+		{
+			Text = "",
+			FontSize = 12.0,
+			Foreground = dimText,
+			HorizontalAlignment = HorizontalAlignment.Center,
+			Margin = new Thickness(0.0, 4.0, 0.0, 8.0),
+			Visibility = Visibility.Collapsed
+		};
+		listStackPanel.Children.Add(LoadMoreText);
+
+		listScrollViewer.Content = listStackPanel;
+
+		grid.Children.Add(listScrollViewer);
+		Grid.SetRow(listScrollViewer, 2);
 
 		LeaderboardEmpty = new StackPanel
 		{
@@ -761,6 +806,8 @@ public sealed class BenchmarkCloudPage : Page
 	{
 		LeaderboardProgress.Visibility = Visibility.Visible;
 		LeaderboardEmpty.Visibility = Visibility.Collapsed;
+		LoadMoreProgress.Visibility = Visibility.Collapsed;
+		LoadMoreText.Visibility = Visibility.Collapsed;
 		try
 		{
 			_allReports = await BenchmarkCloudService.GetAllReportsAsync(CancellationToken.None);
@@ -811,13 +858,49 @@ public sealed class BenchmarkCloudPage : Page
 			5 => "browser", 
 			_ => "gaming", 
 		};
-		string text = CpuFilterBox.Text;
+		_currentSortBy = sortBy;
+		_currentPage = -1;
+		_hasMorePages = false;
+		_leaderboard.Clear();
+		LoadMoreProgress.Visibility = Visibility.Collapsed;
+		LoadMoreText.Visibility = Visibility.Collapsed;
+
+		string filterText = CpuFilterBox.Text;
+
 		try
 		{
-			_leaderboard = await BenchmarkCloudService.GetLeaderboardAsync(sortBy, text, null, CancellationToken.None);
+			var pageData = await BenchmarkCloudService.GetLeaderboardPageAsync(sortBy, 0, CancellationToken.None);
+			if (pageData != null)
+			{
+				_currentPage = 0;
+				_hasMorePages = BenchmarkCloudService.HasMorePages(sortBy, 0);
+				IEnumerable<BenchmarkLeaderboardRankEntry> source = pageData.Entries;
+				if (!string.IsNullOrWhiteSpace(filterText))
+					source = source.Where(e => e.CpuName.Contains(filterText, StringComparison.OrdinalIgnoreCase));
+				_leaderboard = source.Select((e, i) => new BenchmarkLeaderboardEntry
+				{
+					Rank = i + 1,
+					Report = e.ToReportEntry()
+				}).ToList();
+				LeaderboardList.ItemsSource = null;
+				LeaderboardList.ItemsSource = _leaderboard;
+				LeaderboardList.Visibility = _leaderboard.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+				LeaderboardEmpty.Visibility = _leaderboard.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+				UpdateLoadMoreUI(pageData.TotalEntries);
+				return;
+			}
+		}
+		catch
+		{
+		}
+
+		try
+		{
+			_leaderboard = await BenchmarkCloudService.GetLeaderboardAsync(sortBy, filterText, null, CancellationToken.None);
 			LeaderboardList.ItemsSource = _leaderboard;
 			LeaderboardList.Visibility = ((_leaderboard.Count <= 0) ? Visibility.Collapsed : Visibility.Visible);
 			LeaderboardEmpty.Visibility = ((_leaderboard.Count != 0) ? Visibility.Collapsed : Visibility.Visible);
+			LoadMoreText.Visibility = Visibility.Collapsed;
 		}
 		catch (Exception ex)
 		{
@@ -827,6 +910,78 @@ public sealed class BenchmarkCloudPage : Page
 			if (ex.InnerException != null)
 				errorDetails += "\n" + ex.InnerException.Message;
 			LeaderboardEmptyText.Text = errorDetails;
+		}
+	}
+
+	private async Task LoadMoreLeaderboardAsync()
+	{
+		if (_isLoadingMore || !_hasMorePages) return;
+		_isLoadingMore = true;
+		LoadMoreProgress.Visibility = Visibility.Visible;
+
+		try
+		{
+			int nextPage = _currentPage + 1;
+			var pageData = await BenchmarkCloudService.GetLeaderboardPageAsync(_currentSortBy, nextPage, CancellationToken.None);
+			if (pageData != null)
+			{
+				_currentPage = nextPage;
+				_hasMorePages = BenchmarkCloudService.HasMorePages(_currentSortBy, nextPage);
+
+				string filterText = CpuFilterBox.Text;
+				IEnumerable<BenchmarkLeaderboardRankEntry> source = pageData.Entries;
+				if (!string.IsNullOrWhiteSpace(filterText))
+					source = source.Where(e => e.CpuName.Contains(filterText, StringComparison.OrdinalIgnoreCase));
+
+				var newEntries = source.Select(e => new BenchmarkLeaderboardEntry
+				{
+					Rank = e.Rank,
+					Report = e.ToReportEntry()
+				}).ToList();
+
+				int baseRank = _leaderboard.Count;
+				_leaderboard.AddRange(newEntries);
+				LeaderboardList.ItemsSource = null;
+				LeaderboardList.ItemsSource = _leaderboard;
+				UpdateLoadMoreUI(pageData.TotalEntries);
+			}
+		}
+		catch
+		{
+		}
+		finally
+		{
+			_isLoadingMore = false;
+			LoadMoreProgress.Visibility = Visibility.Collapsed;
+		}
+	}
+
+	private void UpdateLoadMoreUI(int totalEntries)
+	{
+		int loaded = _leaderboard.Count;
+		if (_hasMorePages)
+		{
+			LoadMoreText.Text = $"已加载 {loaded} / {totalEntries} 条，继续滚动加载更多";
+			LoadMoreText.Visibility = Visibility.Visible;
+		}
+		else if (loaded > 0)
+		{
+			LoadMoreText.Text = $"已全部加载，共 {totalEntries} 条";
+			LoadMoreText.Visibility = Visibility.Visible;
+		}
+		else
+		{
+			LoadMoreText.Visibility = Visibility.Collapsed;
+		}
+	}
+
+	private async void LeaderboardScrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
+	{
+		if (!_hasMorePages || _isLoadingMore || _currentPage < 0) return;
+		var sv = (ScrollViewer)sender;
+		if (sv.VerticalOffset >= sv.ScrollableHeight - 200)
+		{
+			await LoadMoreLeaderboardAsync();
 		}
 	}
 

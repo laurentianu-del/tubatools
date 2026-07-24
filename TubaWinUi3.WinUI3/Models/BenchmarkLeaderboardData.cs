@@ -13,6 +13,21 @@ public sealed class BenchmarkLeaderboardData
     public Dictionary<string, List<BenchmarkLeaderboardRankEntry>> Leaderboards { get; set; } = new();
 }
 
+public sealed class BenchmarkLeaderboardPage
+{
+    public string SortBy { get; set; } = "";
+
+    public int Page { get; set; }
+
+    public int PageSize { get; set; }
+
+    public int TotalEntries { get; set; }
+
+    public int TotalPages { get; set; }
+
+    public List<BenchmarkLeaderboardRankEntry> Entries { get; set; } = new();
+}
+
 public sealed class BenchmarkLeaderboardRankEntry
 {
     public int Rank { get; set; }

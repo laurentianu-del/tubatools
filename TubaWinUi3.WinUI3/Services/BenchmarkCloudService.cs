@@ -28,6 +28,8 @@ public static class BenchmarkCloudService
 	
 	private static readonly string GitHubLeaderboardUrl = "https://raw.githubusercontent.com/luolangaga/tubatoolsPlugin/main/leaderboard.json";
 	private static readonly string GitCodeApiUrl = "https://api.gitcode.com/api/v5/repos/gcw_uDDNaqJw/tubatoolsPlugin/contents/leaderboard.json";
+	private static readonly string GitHubPagedBase = "https://raw.githubusercontent.com/luolangaga/tubatoolsPlugin/main/leaderboard";
+	private static readonly string GitCodePagedApiBase = "https://api.gitcode.com/api/v5/repos/gcw_uDDNaqJw/tubatoolsPlugin/contents/leaderboard";
 	
 	private static LeaderboardSource _currentSource = LeaderboardSource.GitCode;
 	public static LeaderboardSource CurrentSource
@@ -55,6 +57,8 @@ public static class BenchmarkCloudService
 	private static readonly TimeSpan CacheDuration;
 	private static BenchmarkLeaderboardData? _leaderboardCache;
 	private static DateTimeOffset _leaderboardCacheTime;
+	private static readonly Dictionary<string, int> _pagedTotalPages = new();
+	private static readonly Dictionary<string, int> _pagedTotalEntries = new();
 
 	static BenchmarkCloudService()
 	{
@@ -72,6 +76,8 @@ public static class BenchmarkCloudService
 		_cacheTime = DateTimeOffset.MinValue;
 		_leaderboardCache = null;
 		_leaderboardCacheTime = DateTimeOffset.MinValue;
+		_pagedTotalPages.Clear();
+		_pagedTotalEntries.Clear();
 	}
 
 	public static List<BenchmarkReportEntry> LoadLocalCacheOnly()
@@ -287,6 +293,67 @@ public static class BenchmarkCloudService
 			Rank = i + 1,
 			Report = e.ToReportEntry()
 		}).ToList();
+	}
+
+	public static async Task<BenchmarkLeaderboardPage?> GetLeaderboardPageAsync(string sortBy, int page, CancellationToken ct)
+	{
+		string relativePath = page == 0
+			? $"leaderboard/{sortBy}/{sortBy}.json"
+			: $"leaderboard/{sortBy}/{sortBy}_{page}.json";
+
+		using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+		client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-Benchmark");
+
+		string json;
+		if (_currentSource == LeaderboardSource.GitCode)
+		{
+			var apiResp = await client.GetAsync($"{GitCodePagedApiBase}/{sortBy}/{Path.GetFileName(relativePath)}", ct);
+			if (!apiResp.IsSuccessStatusCode)
+				throw new HttpRequestException($"GitCode API 请求失败: HTTP {(int)apiResp.StatusCode}");
+			var apiJson = await apiResp.Content.ReadAsStringAsync(ct);
+			using var apiDoc = JsonDocument.Parse(apiJson);
+			var downloadUrl = apiDoc.RootElement.GetProperty("download_url").GetString();
+			if (string.IsNullOrEmpty(downloadUrl))
+				throw new Exception("GitCode API 未返回 download_url");
+			json = await client.GetStringAsync(downloadUrl, ct);
+		}
+		else
+		{
+			var url = $"{GitHubPagedBase}/{sortBy}/{Path.GetFileName(relativePath)}";
+			var resp = await client.GetAsync(url, ct);
+			if (!resp.IsSuccessStatusCode)
+				throw new HttpRequestException($"GitHub 分页数据加载失败: HTTP {(int)resp.StatusCode}");
+			json = await resp.Content.ReadAsStringAsync(ct);
+		}
+
+		var data = JsonSerializer.Deserialize<BenchmarkLeaderboardPage>(json, new JsonSerializerOptions
+		{
+			PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+		});
+		if (data == null)
+			throw new JsonException("分页数据解析失败");
+
+		_pagedTotalPages[sortBy] = data.TotalPages;
+		_pagedTotalEntries[sortBy] = data.TotalEntries;
+
+		return data;
+	}
+
+	public static bool HasMorePages(string sortBy, int currentPage)
+	{
+		if (_pagedTotalPages.TryGetValue(sortBy, out var totalPages))
+			return currentPage < totalPages - 1;
+		return false;
+	}
+
+	public static int GetTotalPages(string sortBy)
+	{
+		return _pagedTotalPages.GetValueOrDefault(sortBy, 0);
+	}
+
+	public static int GetTotalEntries(string sortBy)
+	{
+		return _pagedTotalEntries.GetValueOrDefault(sortBy, 0);
 	}
 
 	private static async Task<List<BenchmarkReportEntry>> GetAllReportsFallbackAsync(CancellationToken ct)
