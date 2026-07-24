@@ -12,7 +12,7 @@ public static class UpdateService
     private const string Owner = "luolangaga";
     private const string Repo = "tubatool";
     private const string GitHubReleaseApi = $"https://api.github.com/repos/{Owner}/{Repo}/releases/latest";
-    private const string GitCodeOwner = "gcw_uDDNaqJw";
+    private const string GitCodeOwner = "luolangaga";
     private const string GitCodeRepo = "tubatool";
     private const string GitCodeReleaseApiBase = $"https://api.gitcode.com/api/v5/repos/{GitCodeOwner}/{GitCodeRepo}/releases";
 

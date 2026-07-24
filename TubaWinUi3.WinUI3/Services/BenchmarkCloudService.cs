@@ -27,9 +27,9 @@ public static class BenchmarkCloudService
 	private const string GitCodeRawBase = "https://raw.githubusercontent.com/luolangaga/tubatoolsPlugin/main/reports";
 	
 	private static readonly string GitHubLeaderboardUrl = "https://raw.githubusercontent.com/luolangaga/tubatoolsPlugin/main/leaderboard.json";
-	private static readonly string GitCodeApiUrl = "https://api.gitcode.com/api/v5/repos/gcw_uDDNaqJw/tubatoolsPlugin/contents/leaderboard.json";
+	private static readonly string GitCodeApiUrl = "https://api.gitcode.com/api/v5/repos/luolangaga/tubatoolsPlugin/contents/leaderboard.json";
 	private static readonly string GitHubPagedBase = "https://raw.githubusercontent.com/luolangaga/tubatoolsPlugin/main/leaderboard";
-	private static readonly string GitCodePagedApiBase = "https://api.gitcode.com/api/v5/repos/gcw_uDDNaqJw/tubatoolsPlugin/contents/leaderboard";
+	private static readonly string GitCodePagedApiBase = "https://api.gitcode.com/api/v5/repos/luolangaga/tubatoolsPlugin/contents/leaderboard";
 	
 	private static LeaderboardSource _currentSource = LeaderboardSource.GitCode;
 	public static LeaderboardSource CurrentSource

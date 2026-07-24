@@ -146,7 +146,7 @@ public static class ToolUpdateService
                 catch { }
             }
 
-            var blobUrl = $"https://raw.gitcode.com/gcw_uDDNaqJw/tubatool/blobs/{sha}/{Uri.EscapeDataString(fileName)}";
+            var blobUrl = $"https://raw.gitcode.com/luolangaga/tubatool/blobs/{sha}/{Uri.EscapeDataString(fileName)}";
             result.Add(new ResolvedDownloadUrl(blobUrl, relPath));
         }
 

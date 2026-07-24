@@ -17,7 +17,7 @@ public static class CommunityToolService
     private const string UpstreamOwner = "luolangaga";
     private const string UpstreamRepo = "tubatoolsPlugin";
     private const string PluginsPath = "plugins";
-    private const string GitCodeOwner = "gcw_uDDNaqJw";
+    private const string GitCodeOwner = "luolangaga";
     private const string GitCodeRepo = "tubatoolsPlugin";
     private const string GitCodeRawBase = $"https://gitcode.com/{GitCodeOwner}/{GitCodeRepo}/-/raw/main";
     private const string GitCodeApiBase = $"https://api.gitcode.com/api/v5/repos/{GitCodeOwner}/{GitCodeRepo}";

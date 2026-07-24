@@ -221,7 +221,7 @@ public static class ToolMetadataService
 
     private static async Task<IReadOnlyList<RemoteToolVersion>?> TryFetchGitCodeToolsJsonAsync(CancellationToken ct)
     {
-        const string url = "https://raw.gitcode.com/gcw_uDDNaqJw/tubatool/raw/master/TubaWinUi3.WinUI3/Metadata/tools.json";
+        const string url = "https://raw.gitcode.com/luolangaga/tubatool/raw/master/TubaWinUi3.WinUI3/Metadata/tools.json";
 
         using var client = ProxyService.CreateClient(TimeSpan.FromSeconds(15));
         if (!client.DefaultRequestHeaders.Contains("User-Agent"))

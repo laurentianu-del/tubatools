@@ -93,7 +93,7 @@ Two formats available:
 
 ### GitCode Releases (China Mirror)
 
-Users in China can download from the [GitCode mirror](https://gitcode.com/gcw_uDDNaqJw/tubatool) for faster speeds.
+Users in China can download from the [GitCode mirror](https://gitcode.com/luolangaga/tubatool) for faster speeds.
 
 ### Winget (Windows Package Manager)
 
