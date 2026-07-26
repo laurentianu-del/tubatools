@@ -1924,7 +1924,7 @@ public sealed partial class SettingsPage : Page
         => Path.Combine(ConfigManager.GetDataDir(), "download");
 
     private static string GetHttpDownloadPath()
-        => AppSettings.Get("HttpDownloadPath") ?? GetDefaultHttpDownloadPath();
+        => PathResolver.MakeAbsolute(AppSettings.Get("HttpDownloadPath")) ?? GetDefaultHttpDownloadPath();
 
     private void InitHttpDownloadSettings()
     {

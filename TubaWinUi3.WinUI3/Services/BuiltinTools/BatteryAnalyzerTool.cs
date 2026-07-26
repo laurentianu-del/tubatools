@@ -13,7 +13,7 @@ public sealed class BatteryAnalyzerTool : IBuiltinTool
     public string Id => "battery-analyzer";
     public string Name => "电池消耗分析";
     public string Description => "分析电池消耗趋势、应用耗电排行，比 Windows 设置更强大的电池分析工具。";
-    public string Glyph => "\uE946";
+    public string Glyph => "\uE85E";
     public string Category => "硬件信息";
     public BuiltinToolKind Kind => BuiltinToolKind.Dialog;
 

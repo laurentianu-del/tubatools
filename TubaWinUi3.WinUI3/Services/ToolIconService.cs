@@ -43,7 +43,8 @@ public static class ToolIconService
             return null;
 
         Directory.CreateDirectory(CacheRoot);
-        var iconPath = Path.Combine(CacheRoot, $"{Hash(toolPath)}.png");
+        var cacheKey = GetCacheKey(toolPath);
+        var iconPath = Path.Combine(CacheRoot, $"{cacheKey}.png");
 
         if (!File.Exists(iconPath))
             return null;
@@ -71,7 +72,8 @@ public static class ToolIconService
         return await Task.Run(() =>
         {
             Directory.CreateDirectory(CacheRoot);
-            var iconPath = Path.Combine(CacheRoot, $"{Hash(toolPath)}.png");
+            var cacheKey = GetCacheKey(toolPath);
+            var iconPath = Path.Combine(CacheRoot, $"{cacheKey}.png");
 
             if (File.Exists(iconPath))
             {
@@ -201,5 +203,11 @@ public static class ToolIconService
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
         return Convert.ToHexString(bytes)[..16].ToLowerInvariant();
+    }
+
+    private static string GetCacheKey(string toolPath)
+    {
+        var relative = PathResolver.MakeRelative(toolPath);
+        return Hash(relative);
     }
 }

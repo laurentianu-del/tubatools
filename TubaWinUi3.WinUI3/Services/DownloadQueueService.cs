@@ -158,6 +158,31 @@ public static class DownloadQueueService
         QueueChanged?.Invoke();
     }
 
+    public static void DeleteFile(string itemId)
+    {
+        var item = FindItem(itemId);
+        if (item is null) return;
+        if (item.State is not DownloadItemState.Completed) return;
+
+        try
+        {
+            var fileName = item.ResolvedFileName ?? SanitizeFileName(item.DisplayName);
+            if (!string.IsNullOrEmpty(fileName))
+            {
+                var filePath = Path.Combine(item.DestinationPath, fileName);
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                }
+            }
+        }
+        catch { }
+
+        _queue.Remove(item);
+        MarkDirty();
+        QueueChanged?.Invoke();
+    }
+
     public static void ClearCompleted()
     {
         var toRemove = _queue.Where(i =>

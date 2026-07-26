@@ -558,6 +558,7 @@ public sealed partial class HomePage : Page
             var flyout = (MenuFlyout)CompactGrid.Resources["CompactItemFlyout"];
             PopulateArchSubmenu(flyout, tool);
             UpdateBuiltinLinkFlyoutItems(flyout, tool, "CompactMenu");
+            UpdateFavoriteMenuItem(flyout, tool, "CompactMenuToggleFavorite");
             flyout.ShowAt(fe, e.GetPosition(fe));
         }
     }
@@ -603,6 +604,7 @@ public sealed partial class HomePage : Page
             var flyout = (MenuFlyout)ToolsGrid.Resources["NormalItemFlyout"];
             PopulateArchSubmenu(flyout, tool);
             UpdateBuiltinLinkFlyoutItems(flyout, tool, "NormalMenu");
+            UpdateFavoriteMenuItem(flyout, tool, "NormalMenuToggleFavorite");
             flyout.ShowAt(fe, e.GetPosition(fe));
         }
     }
@@ -856,6 +858,33 @@ public sealed partial class HomePage : Page
             FavoritesService.ToggleFavorite(tool.Path);
             tool.IsFavorite = !tool.IsFavorite;
             AnimateFavoriteButton(fe);
+        }
+    }
+
+    private static void UpdateFavoriteMenuItem(MenuFlyout flyout, ToolItem tool, string menuItemName)
+    {
+        var item = flyout.Items.OfType<MenuFlyoutItem>().FirstOrDefault(i => i.Name == menuItemName);
+        if (item is null) return;
+        item.Text = tool.IsFavorite ? "取消收藏" : "收藏";
+        if (item.Icon is FontIcon icon)
+            icon.Glyph = tool.IsFavorite ? "\uE735" : "\uE734";
+    }
+
+    private void NormalMenu_ToggleFavorite(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuFlyoutItem { DataContext: ToolItem tool })
+        {
+            FavoritesService.ToggleFavorite(tool.Path);
+            tool.IsFavorite = !tool.IsFavorite;
+        }
+    }
+
+    private void CompactMenu_ToggleFavorite(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuFlyoutItem { DataContext: ToolItem tool })
+        {
+            FavoritesService.ToggleFavorite(tool.Path);
+            tool.IsFavorite = !tool.IsFavorite;
         }
     }
 

@@ -7,8 +7,7 @@ namespace TubaWinUi3.Services;
 public static class ToolCacheService
 {
     private static string CachePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "TubaWinUi3", "tool_cache.json");
+        ConfigManager.GetDataDir(), "tool_cache.json");
 
     private static readonly TimeSpan CacheMaxAge = TimeSpan.FromHours(24);
 
@@ -29,7 +28,38 @@ public static class ToolCacheService
             if (data?.Entries is null || data.Version != ToolCatalog.CacheVersion)
                 return false;
 
-            entries = data.Entries;
+            foreach (var e in data.Entries)
+            {
+                if (!string.IsNullOrEmpty(e.Path) && e.Path.Contains('{'))
+                {
+                    var expanded = new ToolCacheEntry
+                    {
+                        Name = e.Name,
+                        Category = e.Category,
+                        Path = PathResolver.MakeAbsolute(e.Path),
+                        RelativePath = e.RelativePath,
+                        Extension = e.Extension,
+                        Description = e.Description,
+                        Publisher = e.Publisher,
+                        Version = e.Version,
+                        DownloadUrl = e.DownloadUrl,
+                        WingetId = e.WingetId,
+                        IconGlyph = e.IconGlyph,
+                        PrimaryArch = e.PrimaryArch,
+                        Tags = e.Tags,
+                        IsFavorite = e.IsFavorite,
+                        IsBuiltinLink = e.IsBuiltinLink,
+                        BuiltinToolId = e.BuiltinToolId,
+                        BuiltinKindText = e.BuiltinKindText,
+                        TutorialUrl = e.TutorialUrl
+                    };
+                    entries.Add(expanded);
+                }
+                else
+                {
+                    entries.Add(e);
+                }
+            }
             return true;
         }
         catch
@@ -46,10 +76,32 @@ public static class ToolCacheService
             if (!string.IsNullOrEmpty(dir))
                 Directory.CreateDirectory(dir);
 
+            var toSave = entries.Select(e => new ToolCacheEntry
+            {
+                Name = e.Name,
+                Category = e.Category,
+                Path = PathResolver.MakeRelative(e.Path),
+                RelativePath = e.RelativePath,
+                Extension = e.Extension,
+                Description = e.Description,
+                Publisher = e.Publisher,
+                Version = e.Version,
+                DownloadUrl = e.DownloadUrl,
+                WingetId = e.WingetId,
+                IconGlyph = e.IconGlyph,
+                PrimaryArch = e.PrimaryArch,
+                Tags = e.Tags,
+                IsFavorite = e.IsFavorite,
+                IsBuiltinLink = e.IsBuiltinLink,
+                BuiltinToolId = e.BuiltinToolId,
+                BuiltinKindText = e.BuiltinKindText,
+                TutorialUrl = e.TutorialUrl
+            }).ToList();
+
             var data = new ToolCacheData
             {
                 Version = ToolCatalog.CacheVersion,
-                Entries = entries,
+                Entries = toSave,
                 SavedAt = DateTime.UtcNow
             };
 

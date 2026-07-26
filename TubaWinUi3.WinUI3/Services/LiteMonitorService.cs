@@ -292,6 +292,49 @@ public sealed class LiteMonitorService : IDisposable
         return 4;
     }
 
+    public static List<GpuInfo> GetAvailableGpus()
+    {
+        var result = new List<GpuInfo>();
+        Instance.EnsureInit();
+        lock (s_lock)
+        {
+            if (s_computer == null) return result;
+            try
+            {
+                foreach (IHardware hw in s_computer.Hardware)
+                    hw.Update();
+                int gpuIdx = 0;
+                foreach (IHardware hw in s_computer.Hardware)
+                {
+                    if (hw.HardwareType is not (HardwareType.GpuNvidia or HardwareType.GpuAmd or HardwareType.GpuIntel))
+                        continue;
+                    if (IsVirtualGpu(hw.Name)) continue;
+                    result.Add(new GpuInfo
+                    {
+                        Index = gpuIdx++,
+                        Name = hw.Name,
+                        Type = hw.HardwareType.ToString()
+                    });
+                }
+            }
+            catch { }
+        }
+        return result;
+    }
+
+    private static readonly string[] s_virtualGpuKW =
+        ["Microsoft Basic Render", "Microsoft Remote Display", "DDA Wrapper",
+         "Idd Desk", "GameViewer Virtual Display", "Honor Virtual Display", "Virtual Display",
+         "Virtual GPU", "Virtual Adapter", "虚拟", "Remote Display Adapter"];
+
+    private static bool IsVirtualGpu(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return true;
+        foreach (var kw in s_virtualGpuKW)
+            if (name.Contains(kw, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
+
     public static Dictionary<string, float> ReadDiskTemperatures()
     {
         var result = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);

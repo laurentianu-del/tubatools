@@ -6,13 +6,15 @@ namespace TubaWinUi3.Services;
 public enum ConfigLocation
 {
     AppData,
-    AppRoot
+    AppRoot,
+    Custom
 }
 
 public static class ConfigManager
 {
     private static readonly object _lock = new();
     private static string? _cachedDataDir;
+    private static ConfigLocation? _cachedLocation;
 
     private static readonly string AppDataDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -21,42 +23,110 @@ public static class ConfigManager
     private static readonly string AppRootDir = Path.Combine(
         ToolCatalog.AppDirectory, "Data");
 
+    private const string CustomLocationFile = ".config_location";
+    private const string CustomPathPrefix = "Custom:";
+
     public static string GetDataDir()
     {
         lock (_lock)
         {
             if (_cachedDataDir is not null) return _cachedDataDir;
-            _cachedDataDir = GetConfigLocation() == ConfigLocation.AppRoot ? AppRootDir : AppDataDir;
+
+            var location = GetConfigLocation();
+            _cachedDataDir = location switch
+            {
+                ConfigLocation.AppRoot => AppRootDir,
+                ConfigLocation.Custom => ResolveCustomDataDir(),
+                _ => AppDataDir
+            };
             return _cachedDataDir;
         }
     }
 
     public static ConfigLocation GetConfigLocation()
     {
-        try
+        lock (_lock)
         {
-            var markerPath = Path.Combine(AppRootDir, ".config_location");
-            if (File.Exists(markerPath)) return ConfigLocation.AppRoot;
+            if (_cachedLocation is not null) return _cachedLocation.Value;
+
+            try
+            {
+                var markerPath = Path.Combine(AppRootDir, CustomLocationFile);
+                if (File.Exists(markerPath))
+                {
+                    var content = File.ReadAllText(markerPath).Trim();
+                    if (content.StartsWith(CustomPathPrefix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _cachedLocation = ConfigLocation.Custom;
+                        return ConfigLocation.Custom;
+                    }
+                    if (content.Equals("AppRoot", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _cachedLocation = ConfigLocation.AppRoot;
+                        return ConfigLocation.AppRoot;
+                    }
+                }
+            }
+            catch { }
+
+            _cachedLocation = ConfigLocation.AppData;
+            return ConfigLocation.AppData;
         }
-        catch { }
-        return ConfigLocation.AppData;
     }
 
-    public static bool SetConfigLocation(ConfigLocation location)
+    public static string? GetCustomPath()
     {
         try
         {
-            if (location == ConfigLocation.AppRoot)
+            var markerPath = Path.Combine(AppRootDir, CustomLocationFile);
+            if (File.Exists(markerPath))
             {
-                Directory.CreateDirectory(AppRootDir);
-                File.WriteAllText(Path.Combine(AppRootDir, ".config_location"), "AppRoot");
+                var content = File.ReadAllText(markerPath).Trim();
+                if (content.StartsWith(CustomPathPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    return content[CustomPathPrefix.Length..];
+                }
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    private static string ResolveCustomDataDir()
+    {
+        var customPath = GetCustomPath();
+        if (string.IsNullOrWhiteSpace(customPath)) return AppDataDir;
+        var expanded = PathResolver.ExpandPath(customPath);
+        if (Path.IsPathRooted(expanded)) return expanded;
+        return Path.Combine(ToolCatalog.AppDirectory, expanded);
+    }
+
+    public static bool SetConfigLocation(ConfigLocation location, string? customPath = null)
+    {
+        try
+        {
+            Directory.CreateDirectory(AppRootDir);
+            var markerPath = Path.Combine(AppRootDir, CustomLocationFile);
+
+            if (location == ConfigLocation.Custom)
+            {
+                if (string.IsNullOrWhiteSpace(customPath)) return false;
+                File.WriteAllText(markerPath, CustomPathPrefix + customPath.Trim());
+            }
+            else if (location == ConfigLocation.AppRoot)
+            {
+                File.WriteAllText(markerPath, "AppRoot");
             }
             else
             {
-                var markerPath = Path.Combine(AppRootDir, ".config_location");
                 if (File.Exists(markerPath)) File.Delete(markerPath);
             }
-            lock (_lock) { _cachedDataDir = null; }
+
+            lock (_lock)
+            {
+                _cachedDataDir = null;
+                _cachedLocation = null;
+            }
             return true;
         }
         catch
@@ -95,10 +165,22 @@ public static class ConfigManager
         catch { return "未知"; }
     }
 
-    public static bool MigrateData(ConfigLocation targetLocation, bool migrate)
+    public static bool MigrateData(ConfigLocation targetLocation, bool migrate, string? customPath = null)
     {
         var sourceDir = GetDataDir();
-        var targetDir = targetLocation == ConfigLocation.AppRoot ? AppRootDir : AppDataDir;
+        var oldDataDir = sourceDir;
+
+        string targetDir;
+        if (targetLocation == ConfigLocation.Custom)
+        {
+            if (string.IsNullOrWhiteSpace(customPath)) return false;
+            var expanded = PathResolver.ExpandPath(customPath);
+            targetDir = Path.IsPathRooted(expanded) ? expanded : Path.Combine(ToolCatalog.AppDirectory, expanded);
+        }
+        else
+        {
+            targetDir = targetLocation == ConfigLocation.AppRoot ? AppRootDir : AppDataDir;
+        }
 
         if (string.Equals(sourceDir, targetDir, StringComparison.OrdinalIgnoreCase)) return true;
 
@@ -130,11 +212,93 @@ public static class ConfigManager
                 try { Directory.Delete(sourceDir, true); } catch { }
             }
 
-            if (!SetConfigLocation(targetLocation)) return false;
+            if (!SetConfigLocation(targetLocation, customPath)) return false;
+
+            if (migrate)
+            {
+                try { RewritePathsInDataDir(targetDir, oldDataDir); } catch { }
+            }
 
             return true;
         }
         catch { return false; }
+    }
+
+    public static void RewritePathsInDataDir(string dataDir, string? oldDataDir = null)
+    {
+        oldDataDir ??= dataDir;
+
+        try
+        {
+            var favoritesPath = Path.Combine(dataDir, "favorites.json");
+            if (File.Exists(favoritesPath))
+            {
+                var json = File.ReadAllText(favoritesPath);
+                var paths = JsonSerializer.Deserialize<List<string>>(json);
+                if (paths is not null)
+                {
+                    var rewritten = paths.Select(p => PathResolver.MakeRelative(p)).ToList();
+                    File.WriteAllText(favoritesPath, JsonSerializer.Serialize(rewritten));
+                }
+            }
+        }
+        catch { }
+
+        try
+        {
+            var historyPath = Path.Combine(dataDir, "launch_history.json");
+            if (File.Exists(historyPath))
+            {
+                var json = File.ReadAllText(historyPath);
+                var records = JsonSerializer.Deserialize<List<LaunchRecord>>(json);
+                if (records is not null)
+                {
+                    foreach (var r in records)
+                    {
+                        r.Path = PathResolver.MakeRelative(r.Path);
+                    }
+                    File.WriteAllText(historyPath, JsonSerializer.Serialize(records));
+                }
+            }
+        }
+        catch { }
+
+        try
+        {
+            var settingsPath = Path.Combine(dataDir, "settings.json");
+            if (File.Exists(settingsPath))
+            {
+                var json = File.ReadAllText(settingsPath);
+                var settings = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+                if (settings is not null)
+                {
+                    var pathKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        "BackgroundImagePath", "HttpDownloadPath"
+                    };
+
+                    var changed = false;
+                    foreach (var key in pathKeys)
+                    {
+                        if (settings.TryGetValue(key, out var val) && !string.IsNullOrWhiteSpace(val))
+                        {
+                            var rewritten = PathResolver.MakeRelative(val);
+                            if (rewritten != val)
+                            {
+                                settings[key] = rewritten;
+                                changed = true;
+                            }
+                        }
+                    }
+
+                    if (changed)
+                    {
+                        File.WriteAllText(settingsPath, JsonSerializer.Serialize(settings));
+                    }
+                }
+            }
+        }
+        catch { }
     }
 
     private static void CopyDirectory(string sourceDir, string targetDir)
@@ -219,5 +383,33 @@ public static class ConfigManager
         AppSettings.InvalidateCache();
         FavoritesService.InvalidateCache();
         LaunchHistoryService.InvalidateCache();
+        ToolCacheService.Invalidate();
+    }
+
+    private const int CurrentPathMigrationVersion = 1;
+
+    public static void AutoMigratePathsIfNeeded()
+    {
+        try
+        {
+            var dataDir = GetDataDir();
+            if (!Directory.Exists(dataDir)) return;
+
+            var markerPath = Path.Combine(dataDir, ".path_migration_done");
+            if (File.Exists(markerPath)) return;
+
+            RewritePathsInDataDir(dataDir);
+
+            try
+            {
+                File.WriteAllText(markerPath, CurrentPathMigrationVersion.ToString());
+            }
+            catch { }
+
+            AppSettings.InvalidateCache();
+            FavoritesService.InvalidateCache();
+            LaunchHistoryService.InvalidateCache();
+        }
+        catch { }
     }
 }

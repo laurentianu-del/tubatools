@@ -15,7 +15,16 @@
         <local:NoAlternatesToVisibilityConverter x:Key="NoAlternatesToVis" />
 
         <MenuFlyout x:Key="FavItemFlyout">
-            <MenuFlyoutItem Text="发送到桌面快捷方式" Click="FavMenu_SendToDesktop" Icon="Link" />
+            <MenuFlyoutItem x:Name="FavMenuToggleFavorite" Text="取消收藏" Click="FavMenu_ToggleFavorite">
+                <MenuFlyoutItem.Icon>
+                    <FontIcon Glyph="&#xE735;" />
+                </MenuFlyoutItem.Icon>
+            </MenuFlyoutItem>
+            <MenuFlyoutItem Text="发送到桌面快捷方式" Click="FavMenu_SendToDesktop">
+                <MenuFlyoutItem.Icon>
+                    <FontIcon Glyph="&#xE8AD;" />
+                </MenuFlyoutItem.Icon>
+            </MenuFlyoutItem>
             <MenuFlyoutItem Text="以管理员身份运行" Click="FavMenu_RunAsAdmin" Icon="Admin" />
             <MenuFlyoutItem Text="打开工具所在目录" Click="FavMenu_OpenDirectory" Icon="Folder" />
             <MenuFlyoutItem x:Name="FavMenuOpenTutorial" Text="打开教程" Click="FavMenu_OpenTutorial" Visibility="Collapsed">
@@ -205,7 +214,7 @@
                                         Padding="0"
                                         Click="SendToDesktopButton_Click"
                                         ToolTipService.ToolTip="发送到桌面快捷方式">
-                                        <FontIcon FontSize="12" Glyph="&#xE8BD;" />
+                                        <FontIcon FontSize="12" Glyph="&#xE8AD;" />
                                     </Button>
                                     <Button
                                         Grid.Column="1"

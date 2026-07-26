@@ -252,10 +252,13 @@ public static class PerformanceBenchmarkService
 		cpu.Grade = ComputeGrade(cpu.TotalScore);
 	}
 
-	public static GpuBenchmarkResult RunGpuBenchmarkFurMark(int durationSec, IProgress<BenchmarkProgress>? progress, CancellationToken ct)
+	public static GpuBenchmarkResult RunGpuBenchmarkFurMark(int durationSec, IProgress<BenchmarkProgress>? progress, CancellationToken ct, int gpuIndex = 0)
 	{
 		var sw = Stopwatch.StartNew();
-		var gpu = new GpuBenchmarkResult();
+		var gpu = new GpuBenchmarkResult { GpuIndex = gpuIndex };
+		var gpus = LiteMonitorService.GetAvailableGpus();
+		if (gpus.Count > 0 && gpuIndex >= 0 && gpuIndex < gpus.Count)
+			gpu.GpuName = gpus[gpuIndex].Name;
 		string furMarkExe = FindFurMarkExe();
 		if (furMarkExe == null)
 		{
@@ -287,7 +290,7 @@ public static class PerformanceBenchmarkService
 			try { File.Delete(logFile); } catch { }
 		}
 		int durationMs = durationSec * 1000;
-		string arguments = "--demo furmark-vk --width 1920 --height 1080 --fullscreen --benchmark --duration-ms " + durationMs + " --print-render-speed";
+		string arguments = "--demo furmark-vk --width 1920 --height 1080 --fullscreen --benchmark --duration-ms " + durationMs + " --gpu-index " + gpuIndex + " --print-render-speed";
 		using var process = Process.Start(new ProcessStartInfo(furMarkExe, arguments)
 		{
 			WorkingDirectory = furMarkDir,
@@ -1097,6 +1100,8 @@ public static class PerformanceBenchmarkService
 			},
 			gpu = new
 			{
+				gpuName = result.Gpu.GpuName,
+				gpuIndex = result.Gpu.GpuIndex,
 				renderScore = result.Gpu.RenderScore,
 				renderFps = result.Gpu.RenderFps,
 				furMarkScore = result.Gpu.FurMarkScore,

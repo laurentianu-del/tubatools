@@ -18,7 +18,8 @@ public static class FavoritesService
             if (File.Exists(FavoritesPath))
             {
                 var json = File.ReadAllText(FavoritesPath);
-                _cache = JsonSerializer.Deserialize<List<string>>(json) ?? [];
+                var stored = JsonSerializer.Deserialize<List<string>>(json) ?? [];
+                _cache = stored.Select(p => PathResolver.MakeAbsolute(p)).ToList();
             }
             else
             {
@@ -87,7 +88,8 @@ public static class FavoritesService
         {
             var dir = Path.GetDirectoryName(FavoritesPath)!;
             Directory.CreateDirectory(dir);
-            var json = JsonSerializer.Serialize(favorites);
+            var stored = favorites.Select(p => PathResolver.MakeRelative(p)).ToList();
+            var json = JsonSerializer.Serialize(stored);
             File.WriteAllText(FavoritesPath, json);
         }
         catch { }

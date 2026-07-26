@@ -8,6 +8,7 @@ namespace TubaWinUi3.Pages;
 public sealed partial class ConfigManagerDialog : ContentDialog
 {
     private bool _locationInitializing;
+    private string? _pendingCustomPath;
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct OPENFILENAME
@@ -51,7 +52,15 @@ public sealed partial class ConfigManagerDialog : ContentDialog
     public ConfigManagerDialog()
     {
         InitializeComponent();
+        InitPlaceholderList();
         RefreshUI();
+    }
+
+    private void InitPlaceholderList()
+    {
+        var placeholders = PathResolver.GetAvailablePlaceholders();
+        var lines = placeholders.Select(p => $"{p} — {PathResolver.GetPlaceholderDescription(p)}  例: {PathResolver.GetPlaceholderExample(p)}");
+        PlaceholderListText.Text = string.Join("\n", lines);
     }
 
     private void RefreshUI()
@@ -60,11 +69,65 @@ public sealed partial class ConfigManagerDialog : ContentDialog
         var loc = ConfigManager.GetConfigLocation();
         AppDataRadio.IsChecked = loc == ConfigLocation.AppData;
         AppRootRadio.IsChecked = loc == ConfigLocation.AppRoot;
+        CustomRadio.IsChecked = loc == ConfigLocation.Custom;
+
+        if (loc == ConfigLocation.Custom)
+        {
+            CustomPathPanel.Visibility = Visibility.Visible;
+            CustomPathTextBox.Text = ConfigManager.GetCustomPath() ?? "";
+            UpdateCustomPathPreview();
+        }
+        else
+        {
+            CustomPathPanel.Visibility = Visibility.Collapsed;
+        }
+
         _locationInitializing = false;
 
         DataDirText.Text = ConfigManager.GetDataDir();
         DataSizeText.Text = $"占用空间: {ConfigManager.GetDataSize()}";
         StatusText.Text = "";
+    }
+
+    private void CustomPathTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_locationInitializing) return;
+        _pendingCustomPath = CustomPathTextBox.Text.Trim();
+        UpdateCustomPathPreview();
+    }
+
+    private async void ApplyCustomPathButton_Click(object sender, RoutedEventArgs e)
+    {
+        var customPath = CustomPathTextBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(customPath))
+        {
+            StatusText.Text = "请输入自定义路径";
+            return;
+        }
+
+        await PerformLocationSwitch(ConfigLocation.Custom, customPath);
+    }
+
+    private void UpdateCustomPathPreview()
+    {
+        var path = CustomPathTextBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            CustomPathPreviewText.Text = "请输入自定义路径";
+            return;
+        }
+
+        try
+        {
+            var expanded = PathResolver.ExpandPath(path);
+            if (!Path.IsPathRooted(expanded))
+                expanded = Path.Combine(ToolCatalog.AppDirectory, expanded);
+            CustomPathPreviewText.Text = $"解析后: {expanded}";
+        }
+        catch (Exception ex)
+        {
+            CustomPathPreviewText.Text = $"路径无效: {ex.Message}";
+        }
     }
 
     private async void LocationRadio_Checked(object sender, RoutedEventArgs e)
@@ -74,10 +137,39 @@ public sealed partial class ConfigManagerDialog : ContentDialog
         var radio = sender as RadioButton;
         if (radio?.Tag is not string tag) return;
 
-        var targetLocation = tag == "AppRoot" ? ConfigLocation.AppRoot : ConfigLocation.AppData;
+        var targetLocation = tag switch
+        {
+            "Custom" => ConfigLocation.Custom,
+            "AppRoot" => ConfigLocation.AppRoot,
+            _ => ConfigLocation.AppData
+        };
+
+        CustomPathPanel.Visibility = targetLocation == ConfigLocation.Custom
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        if (targetLocation == ConfigLocation.Custom)
+        {
+            _pendingCustomPath = CustomPathTextBox.Text.Trim();
+            UpdateCustomPathPreview();
+            return;
+        }
+
+        var currentLocation = ConfigManager.GetConfigLocation();
+        if (targetLocation == currentLocation) return;
+
+        await PerformLocationSwitch(targetLocation, null);
+    }
+
+    private async Task PerformLocationSwitch(ConfigLocation targetLocation, string? customPath)
+    {
         var currentLocation = ConfigManager.GetConfigLocation();
 
-        if (targetLocation == currentLocation) return;
+        if (targetLocation == ConfigLocation.Custom && string.IsNullOrWhiteSpace(customPath))
+        {
+            StatusText.Text = "请输入自定义路径";
+            return;
+        }
 
         Hide();
 
@@ -100,6 +192,10 @@ public sealed partial class ConfigManagerDialog : ContentDialog
             _locationInitializing = true;
             AppDataRadio.IsChecked = currentLocation == ConfigLocation.AppData;
             AppRootRadio.IsChecked = currentLocation == ConfigLocation.AppRoot;
+            CustomRadio.IsChecked = currentLocation == ConfigLocation.Custom;
+            CustomPathPanel.Visibility = currentLocation == ConfigLocation.Custom
+                ? Visibility.Visible
+                : Visibility.Collapsed;
             _locationInitializing = false;
             await ShowAsync();
             return;
@@ -107,7 +203,7 @@ public sealed partial class ConfigManagerDialog : ContentDialog
 
         var migrate = result == ContentDialogResult.Primary;
 
-        var success = await Task.Run(() => ConfigManager.MigrateData(targetLocation, migrate));
+        var success = await Task.Run(() => ConfigManager.MigrateData(targetLocation, migrate, customPath));
 
         if (success)
         {
@@ -134,6 +230,10 @@ public sealed partial class ConfigManagerDialog : ContentDialog
             _locationInitializing = true;
             AppDataRadio.IsChecked = currentLocation == ConfigLocation.AppData;
             AppRootRadio.IsChecked = currentLocation == ConfigLocation.AppRoot;
+            CustomRadio.IsChecked = currentLocation == ConfigLocation.Custom;
+            CustomPathPanel.Visibility = currentLocation == ConfigLocation.Custom
+                ? Visibility.Visible
+                : Visibility.Collapsed;
             _locationInitializing = false;
             StatusText.Text = "切换失败，请检查文件权限或磁盘空间";
         }

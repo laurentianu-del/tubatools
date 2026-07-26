@@ -46,6 +46,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 	private TextBlock _gpuAvgFpsText;
 	private TextBlock _gpuMinFpsText;
 	private TextBlock _gpuMaxFpsText;
+	private TextBlock _gpuNameText;
 	private TextBlock _memCapacityText;
 	private TextBlock _diskSeqReadScoreText;
 	private TextBlock _diskSeqWriteScoreText;
@@ -81,6 +82,9 @@ public sealed partial class PerformanceBenchmarkPage : Page
 	private CheckBox _chkMem;
 	private CheckBox _chkDisk;
 	private CheckBox _chkBrowser;
+	private ComboBox _gpuSelector;
+	private List<GpuInfo> _availableGpus = [];
+	private StackPanel _gpuSelectorRow;
 
 	private static readonly Color AccentBlue = Color.FromArgb(byte.MaxValue, 0, 99, 177);
 	private static readonly Color ColorS = Color.FromArgb(byte.MaxValue, 74, 222, 128);
@@ -348,11 +352,19 @@ public sealed partial class PerformanceBenchmarkPage : Page
 
 	private StackPanel BuildGpuContent()
 	{
+		_gpuNameText = new TextBlock
+		{
+			Text = "",
+			FontSize = 11.0,
+			Foreground = (Brush)Application.Current.Resources["TextFillColorTertiaryBrush"],
+			TextWrapping = TextWrapping.Wrap
+		};
 		return new StackPanel
 		{
 			Spacing = 6.0,
 			Children =
 			{
+				(UIElement)_gpuNameText,
 				(UIElement)BuildScoreRow("渲染性能", out _gpuRenderScoreText),
 				(UIElement)BuildDetailRow("FurMark分数", out _gpuFurMarkScoreText, out _gpuAvgFpsText),
 				(UIElement)BuildDetailRow("FPS范围", out _gpuMinFpsText, out _gpuMaxFpsText)
@@ -610,6 +622,13 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		_chkMem = new CheckBox { Content = "内存", IsChecked = true, FontSize = 12.0 };
 		_chkDisk = new CheckBox { Content = "硬盘", IsChecked = true, FontSize = 12.0 };
 		_chkBrowser = new CheckBox { Content = "浏览器", IsChecked = true, FontSize = 12.0 };
+		_gpuSelector = new ComboBox
+		{
+			FontSize = 12.0,
+			MinWidth = 200.0,
+			PlaceholderText = "选择GPU",
+			Visibility = Visibility.Collapsed
+		};
 		StackPanel stackPanel = new()
 		{
 			Orientation = Orientation.Horizontal,
@@ -627,6 +646,29 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		stackPanel.Children.Add(_chkMem);
 		stackPanel.Children.Add(_chkDisk);
 		stackPanel.Children.Add(_chkBrowser);
+		StackPanel gpuSelectorRow = new()
+		{
+			Orientation = Orientation.Horizontal,
+			Spacing = 8.0,
+			Visibility = Visibility.Collapsed
+		};
+		gpuSelectorRow.Children.Add(new TextBlock
+		{
+			Text = "测试GPU:",
+			FontSize = 12.0,
+			VerticalAlignment = VerticalAlignment.Center,
+			Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+		});
+		gpuSelectorRow.Children.Add(_gpuSelector);
+		gpuSelectorRow.Children.Add(new TextBlock
+		{
+			Text = "多GPU时选择要测试的显卡",
+			FontSize = 11.0,
+			VerticalAlignment = VerticalAlignment.Center,
+			Foreground = (Brush)Application.Current.Resources["TextFillColorTertiaryBrush"]
+		});
+		_gpuSelectorRow = gpuSelectorRow;
+		LoadAvailableGpus();
 		StackPanel stackPanel2 = new()
 		{
 			Orientation = Orientation.Horizontal,
@@ -644,6 +686,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 			Children =
 			{
 				(UIElement)stackPanel,
+				(UIElement)_gpuSelectorRow,
 				(UIElement)stackPanel2,
 				(UIElement)_globalProgress,
 				(UIElement)_statusText
@@ -725,7 +768,10 @@ public sealed partial class PerformanceBenchmarkPage : Page
 			}
 			if (runGpu)
 			{
-				result.Gpu = await Task.Run(() => PerformanceBenchmarkService.RunGpuBenchmarkFurMark(60, progress, _cts.Token), _cts.Token);
+				int gpuIdx = _gpuSelector.SelectedIndex >= 0 ? _gpuSelector.SelectedIndex : 0;
+				result.Gpu = await Task.Run(() => PerformanceBenchmarkService.RunGpuBenchmarkFurMark(60, progress, _cts.Token, gpuIdx), _cts.Token);
+				if (!string.IsNullOrEmpty(result.Gpu.GpuName))
+					result.GpuName = result.Gpu.GpuName;
 				_cts.Token.ThrowIfCancellationRequested();
 				DispatcherQueue.TryEnqueue(() => UpdateGpuUI(result));
 			}
@@ -776,6 +822,48 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		_chkMem.IsEnabled = enabled;
 		_chkDisk.IsEnabled = enabled;
 		_chkBrowser.IsEnabled = enabled;
+		_gpuSelector.IsEnabled = enabled;
+	}
+
+	private void LoadAvailableGpus()
+	{
+		try
+		{
+			_availableGpus = LiteMonitorService.GetAvailableGpus();
+		}
+		catch { _availableGpus = []; }
+
+		_gpuSelector.Items.Clear();
+		if (_availableGpus.Count <= 1)
+		{
+			_gpuSelectorRow.Visibility = Visibility.Collapsed;
+			return;
+		}
+
+		_gpuSelectorRow.Visibility = Visibility.Visible;
+		for (int i = 0; i < _availableGpus.Count; i++)
+		{
+			var gpu = _availableGpus[i];
+			_gpuSelector.Items.Add($"GPU {i}: {gpu.Name}");
+		}
+		int bestIdx = 0;
+		int bestPri = int.MaxValue;
+		for (int i = 0; i < _availableGpus.Count; i++)
+		{
+			int pri = GpuPriority(_availableGpus[i].Name);
+			if (pri < bestPri) { bestPri = pri; bestIdx = i; }
+		}
+		_gpuSelector.SelectedIndex = bestIdx;
+	}
+
+	private static int GpuPriority(string name)
+	{
+		if (name.Contains("NVIDIA", StringComparison.OrdinalIgnoreCase)) return 0;
+		if (name.Contains("Radeon(TM) Graphics", StringComparison.OrdinalIgnoreCase)) return 2;
+		if (name.Contains("AMD", StringComparison.OrdinalIgnoreCase)) return 0;
+		if (name.Contains("Arc", StringComparison.OrdinalIgnoreCase)) return 1;
+		if (name.Contains("Intel", StringComparison.OrdinalIgnoreCase)) return 3;
+		return 4;
 	}
 
 	private void OnStopClick(object sender, RoutedEventArgs e)
@@ -982,6 +1070,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 
 	private void UpdateGpuUI(PerformanceBenchmarkResult r)
 	{
+		_gpuNameText.Text = !string.IsNullOrEmpty(r.Gpu.GpuName) ? r.Gpu.GpuName : r.GpuName;
 		UpdateScoreRow(_gpuRenderScoreText, r.Gpu.RenderScore);
 		UpdateDetailRow(_gpuFurMarkScoreText, _gpuAvgFpsText, r.Gpu.FurMarkScore, $"平均 {r.Gpu.AvgFps:F0} FPS");
 		UpdateDetailRow(_gpuMinFpsText, _gpuMaxFpsText, (int)r.Gpu.MinFps, $"最低 {r.Gpu.MinFps:F0} / 最高 {r.Gpu.MaxFps:F0}");
@@ -1065,6 +1154,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		_latencyHeatmapImage.Source = null;
 		_latencyHeatmapImage.Visibility = Visibility.Collapsed;
 		_latencyHeatmapPath = null;
+		_gpuNameText.Text = "";
 		_gpuRenderScoreText.Text = "—";
 		_gpuFurMarkScoreText.Text = "—";
 		_gpuAvgFpsText.Text = "";

@@ -75,6 +75,7 @@ public partial class App : Application
     {
         _ = Task.Run(() => ToolIconService.CleanExpiredCache());
         _ = Task.Run(() => HardwareInfoService.PreloadAsync());
+        _ = Task.Run(() => ConfigManager.AutoMigratePathsIfNeeded());
 
         try
         {

@@ -291,7 +291,7 @@
                                         HorizontalContentAlignment="Center"
                                         Click="DesktopShortcutButton_Click">
                                         <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <FontIcon FontSize="12" Glyph="&#xE8BD;" />
+                                            <FontIcon FontSize="12" Glyph="&#xE8AD;" />
                                             <TextBlock Text="发送到桌面快捷方式" />
                                         </StackPanel>
                                     </Button>

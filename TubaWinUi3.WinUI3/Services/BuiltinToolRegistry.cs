@@ -47,6 +47,7 @@ public static class BuiltinToolRegistry
         Register(new ServiceCenterTool());
         Register(new DotnetCompletionTool());
         Register(new VideoProcessorTool());
+        Register(new LanFileShareTool());
     }
 
     public static IReadOnlyList<string> GetCategories()

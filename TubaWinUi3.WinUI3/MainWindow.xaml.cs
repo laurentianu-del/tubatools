@@ -645,6 +645,8 @@ public sealed partial class MainWindow : Window
             return "\uE7F5";
         if (category.Contains("网卡", StringComparison.CurrentCultureIgnoreCase))
             return "\uEDA3";
+        if (category.Contains("烤鸡", StringComparison.CurrentCultureIgnoreCase))
+            return "\uECAD";
         if (category.Contains("综合", StringComparison.CurrentCultureIgnoreCase))
             return "\uEC4E";
         if (category.Contains("其他", StringComparison.CurrentCultureIgnoreCase))

@@ -4,6 +4,10 @@ namespace TubaWinUi3.Models;
 
 public sealed class GpuBenchmarkResult
 {
+    public string GpuName { get; set; } = "";
+
+    public int GpuIndex { get; set; }
+
     public int FurMarkScore { get; set; }
 
     public double AvgFps { get; set; }

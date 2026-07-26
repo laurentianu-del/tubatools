@@ -113,6 +113,12 @@ public sealed partial class DownloadQueueFlyout : UserControl
             DownloadQueueService.Remove(id);
     }
 
+    private void DeleteFileButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string id)
+            DownloadQueueService.DeleteFile(id);
+    }
+
     private void OpenFolderButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button btn && btn.Tag is string id)
@@ -225,6 +231,9 @@ public sealed class DownloadItemViewModel : INotifyPropertyChanged
         or DownloadItemState.Failed
         or DownloadItemState.Cancelled
         or DownloadItemState.Paused
+        ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility DeleteFileVisible => State is DownloadItemState.Completed
         ? Visibility.Visible : Visibility.Collapsed;
 
     public void Rebind()

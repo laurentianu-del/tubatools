@@ -148,7 +148,34 @@ public sealed partial class FavoritesPage : Page
             var flyout = (MenuFlyout)Resources["FavItemFlyout"];
             PopulateArchSubmenu(flyout, tool);
             UpdateTutorialVisibility(flyout, tool);
+            UpdateFavoriteMenuItem(flyout, tool);
             flyout.ShowAt(fe, e.GetPosition(fe));
+        }
+    }
+
+    private static void UpdateFavoriteMenuItem(MenuFlyout flyout, ToolItem tool)
+    {
+        var item = flyout.Items.OfType<MenuFlyoutItem>().FirstOrDefault(i => i.Name == "FavMenuToggleFavorite");
+        if (item is null) return;
+        item.Text = tool.IsFavorite ? "取消收藏" : "收藏";
+        if (item.Icon is FontIcon icon)
+            icon.Glyph = tool.IsFavorite ? "\uE735" : "\uE734";
+    }
+
+    private void FavMenu_ToggleFavorite(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuFlyoutItem { DataContext: ToolItem tool })
+        {
+            FavoritesService.ToggleFavorite(tool.Path);
+            tool.IsFavorite = !tool.IsFavorite;
+            if (!tool.IsFavorite)
+            {
+                _tools.Remove(tool);
+                ToolCountText.Text = _tools.Count > 0 ? $"已收藏 {_tools.Count} 个工具" : "暂无收藏";
+                ClearAllButton.Visibility = _tools.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+                EmptyState.Visibility = _tools.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+                ToolsGrid.Visibility = _tools.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            }
         }
     }
 

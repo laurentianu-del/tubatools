@@ -43,6 +43,10 @@ public static class LaunchHistoryService
                 var records = JsonSerializer.Deserialize<List<LaunchRecord>>(json, _jsonOptions);
                 if (records is not null)
                 {
+                    foreach (var r in records)
+                    {
+                        r.Path = PathResolver.MakeAbsolute(r.Path);
+                    }
                     _cache = records;
                     return _cache;
                 }
@@ -164,7 +168,14 @@ public static class LaunchHistoryService
         {
             var dir = Path.GetDirectoryName(HistoryPath)!;
             Directory.CreateDirectory(dir);
-            var json = JsonSerializer.Serialize(records, _jsonOptions);
+            var toSave = records.Select(r => new LaunchRecord
+            {
+                Path = PathResolver.MakeRelative(r.Path),
+                Count = r.Count,
+                LastLaunched = r.LastLaunched,
+                FirstLaunched = r.FirstLaunched
+            }).ToList();
+            var json = JsonSerializer.Serialize(toSave, _jsonOptions);
             File.WriteAllText(HistoryPath, json);
         }
         catch { }

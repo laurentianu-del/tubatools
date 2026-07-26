@@ -37,6 +37,48 @@
                         Content="程序根目录 (程序目录\Data\)"
                         Checked="LocationRadio_Checked"
                         Tag="AppRoot" />
+                    <RadioButton
+                        x:Name="CustomRadio"
+                        Content="自定义目录"
+                        Checked="LocationRadio_Checked"
+                        Tag="Custom" />
+                    <StackPanel
+                        x:Name="CustomPathPanel"
+                        Visibility="Collapsed"
+                        Spacing="8"
+                        Padding="32,0,0,0">
+                        <TextBox
+                            x:Name="CustomPathTextBox"
+                            PlaceholderText="例如: {ParentDir}\TubaConfig 或 D:\MyConfig"
+                            TextChanged="CustomPathTextBox_TextChanged" />
+                        <TextBlock
+                            x:Name="CustomPathPreviewText"
+                            FontSize="12"
+                            Opacity="1.0"
+                            TextWrapping="Wrap" />
+                        <Button
+                            x:Name="ApplyCustomPathButton"
+                            Click="ApplyCustomPathButton_Click"
+                            Style="{StaticResource AccentButtonStyle}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon FontSize="12" Glyph="&#xE73E;" />
+                                <TextBlock Text="应用自定义路径" />
+                            </StackPanel>
+                        </Button>
+                        <Expander
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
+                            IsExpanded="False">
+                            <Expander.Header>
+                                <TextBlock FontSize="12" Text="可用占位符" />
+                            </Expander.Header>
+                            <Expander.Content>
+                                <StackPanel Spacing="4" Padding="8,4">
+                                    <TextBlock x:Name="PlaceholderListText" FontSize="12" TextWrapping="Wrap" Opacity="1.0" />
+                                </StackPanel>
+                            </Expander.Content>
+                        </Expander>
+                    </StackPanel>
                 </StackPanel>
             </Border>
 

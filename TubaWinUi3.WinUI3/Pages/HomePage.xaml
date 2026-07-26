@@ -186,7 +186,16 @@
                 Visibility="Collapsed">
                     <GridView.Resources>
                         <MenuFlyout x:Key="NormalItemFlyout">
-                            <MenuFlyoutItem Text="发送到桌面快捷方式" Click="NormalMenu_SendToDesktop" Icon="Link" />
+                            <MenuFlyoutItem x:Name="NormalMenuToggleFavorite" Text="收藏" Click="NormalMenu_ToggleFavorite">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE734;" />
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem Text="发送到桌面快捷方式" Click="NormalMenu_SendToDesktop">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE8AD;" />
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
                             <MenuFlyoutItem Text="以管理员身份运行" Click="NormalMenu_RunAsAdmin" Icon="Admin" />
                             <MenuFlyoutItem Text="打开工具所在目录" Click="NormalMenu_OpenDirectory" Icon="Folder" />
                             <MenuFlyoutItem x:Name="NormalMenuOpenTutorial" Text="打开教程" Click="NormalMenu_OpenTutorial" Visibility="Collapsed">
@@ -336,7 +345,7 @@
                                             Click="SendToDesktopButton_Click"
                                             ToolTipService.ToolTip="发送到桌面快捷方式"
                                             Visibility="{Binding CanSendToDesktop, Converter={StaticResource BoolToVis}}">
-                                            <FontIcon FontSize="12" Glyph="&#xE8BD;" />
+                                            <FontIcon FontSize="12" Glyph="&#xE8AD;" />
                                         </Button>
                                         <Button
                                             Grid.Column="1"
@@ -381,7 +390,16 @@
                 Visibility="Collapsed">
                     <GridView.Resources>
                         <MenuFlyout x:Key="CompactItemFlyout">
-                            <MenuFlyoutItem Text="发送到桌面快捷方式" Click="CompactMenu_SendToDesktop" Icon="Link" />
+                            <MenuFlyoutItem x:Name="CompactMenuToggleFavorite" Text="收藏" Click="CompactMenu_ToggleFavorite">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE734;" />
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem Text="发送到桌面快捷方式" Click="CompactMenu_SendToDesktop">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE8AD;" />
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
                             <MenuFlyoutItem Text="以管理员身份运行" Click="CompactMenu_RunAsAdmin" Icon="Admin" />
                             <MenuFlyoutItem Text="打开工具所在目录" Click="CompactMenu_OpenDirectory" Icon="Folder" />
                             <MenuFlyoutItem x:Name="CompactMenuOpenTutorial" Text="打开教程" Click="CompactMenu_OpenTutorial" Visibility="Collapsed">

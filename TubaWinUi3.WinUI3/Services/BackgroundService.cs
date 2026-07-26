@@ -11,14 +11,18 @@ public static class BackgroundService
     private static string? _cachedPath;
     private static bool _brandInitialized;
 
-    public static string? GetBackgroundPath() => AppSettings.Get(PathKey);
+    public static string? GetBackgroundPath()
+    {
+        var stored = AppSettings.Get(PathKey);
+        return string.IsNullOrWhiteSpace(stored) ? stored : PathResolver.MakeAbsolute(stored);
+    }
 
     public static void SetBackgroundPath(string? path)
     {
         _cachedImage = null;
         _cachedPath = null;
         if (path is not null)
-            AppSettings.Set(PathKey, path);
+            AppSettings.Set(PathKey, PathResolver.MakeRelative(path));
         else
             AppSettings.Remove(PathKey);
     }

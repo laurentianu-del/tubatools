@@ -21,6 +21,13 @@ public sealed class MonitorSample
     public string FpsProcess = "";
 }
 
+public sealed class GpuInfo
+{
+    public int Index { get; init; }
+    public string Name { get; init; } = "";
+    public string Type { get; init; } = "";
+}
+
 public sealed class FpsSnapshot
 {
     public string ProcessName = "";

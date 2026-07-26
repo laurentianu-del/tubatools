@@ -169,6 +169,15 @@
                                             Content="打开" />
                                         <Button
                                             Tag="{Binding Id}"
+                                            Click="DeleteFileButton_Click"
+                                            Padding="4,2"
+                                            FontSize="11"
+                                            Visibility="{Binding DeleteFileVisible}"
+                                            ToolTipService.ToolTip="删除文件">
+                                            <FontIcon FontSize="10" Glyph="&#xE74D;" />
+                                        </Button>
+                                        <Button
+                                            Tag="{Binding Id}"
                                             Click="RemoveButton_Click"
                                             Padding="4,2"
                                             FontSize="11"
