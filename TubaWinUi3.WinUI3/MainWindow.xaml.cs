@@ -80,12 +80,15 @@ public sealed partial class MainWindow : Window
         UpdateBanner.ShowDownloadComplete();
     }
 
+    private DispatcherTimer? _toolUpdateToastTimer;
+
     public void ShowToolUpdateToast(string toolName)
     {
         ToolUpdateToast.Title = "工具更新完成";
         ToolUpdateToast.Message = $"「{toolName}」已更新到最新版本";
         ToolUpdateToast.Severity = Microsoft.UI.Xaml.Controls.InfoBarSeverity.Success;
         ToolUpdateToast.IsOpen = true;
+        StartToastAutoClose();
     }
 
     public void ShowToolUpdateProgressToast(string toolName)
@@ -102,6 +105,19 @@ public sealed partial class MainWindow : Window
         ToolUpdateToast.Message = $"「{toolName}」更新失败：{error}";
         ToolUpdateToast.Severity = Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error;
         ToolUpdateToast.IsOpen = true;
+        StartToastAutoClose();
+    }
+
+    private void StartToastAutoClose()
+    {
+        _toolUpdateToastTimer?.Stop();
+        _toolUpdateToastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _toolUpdateToastTimer.Tick += (s, e) =>
+        {
+            ToolUpdateToast.IsOpen = false;
+            ((DispatcherTimer)s).Stop();
+        };
+        _toolUpdateToastTimer.Start();
     }
 
     private bool _initialized;

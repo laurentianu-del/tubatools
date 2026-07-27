@@ -434,9 +434,7 @@ public sealed partial class SettingsPage : Page
             if (update is not null)
             {
                 UpdateStatusText.Text = $"发现新版本 v{update.Version}，请查看顶部更新提示";
-                var isMetered = NetworkHelper.IsMeteredConnection();
-                var mainWindow = App.MainWindow as MainWindow;
-                mainWindow?.ShowUpdateBanner(update, !isMetered);
+                (App.MainWindow as MainWindow)?.ShowUpdateBanner(update, false);
             }
             else
             {

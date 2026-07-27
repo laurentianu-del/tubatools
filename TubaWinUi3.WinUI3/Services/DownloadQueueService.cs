@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using Microsoft.UI.Dispatching;
+using Microsoft.Toolkit.Uwp.Notifications;
 using TubaWinUi3.Models;
 
 namespace TubaWinUi3.Services;
@@ -341,6 +342,11 @@ public static class DownloadQueueService
         IncrementPending();
         MarkDirty();
         StartItemAsync(item);
+
+        new ToastContentBuilder()
+            .AddText("已加入下载队列")
+            .AddText($"\"{item.DisplayName}\" 已开始下载")
+            .Show();
     }
 
     private static async void StartItemAsync(DownloadItem item)
@@ -427,10 +433,16 @@ public static class DownloadQueueService
         }
         catch (Exception ex)
         {
-            DispatchError(item, ex.InnerException?.Message ?? ex.Message);
+            var errorMsg = ex.InnerException?.Message ?? ex.Message;
+            DispatchError(item, errorMsg);
             DispatchState(item, DownloadItemState.Failed);
             DecrementPending();
             MarkDirty();
+
+            new ToastContentBuilder()
+                .AddText("下载失败")
+                .AddText($"\"{item.DisplayName}\" 下载失败：{errorMsg}")
+                .Show();
         }
         finally
         {
@@ -562,12 +574,22 @@ public static class DownloadQueueService
                 item.SetCompleted();
                 DecrementPending();
                 MarkDirty();
+
+                new ToastContentBuilder()
+                    .AddText("下载完成")
+                    .AddText($"\"{item.DisplayName}\" 已下载完成")
+                    .Show();
             });
         else
         {
             item.SetCompleted();
             DecrementPending();
             MarkDirty();
+
+            new ToastContentBuilder()
+                .AddText("下载完成")
+                .AddText($"\"{item.DisplayName}\" 已下载完成")
+                .Show();
         }
     }
 

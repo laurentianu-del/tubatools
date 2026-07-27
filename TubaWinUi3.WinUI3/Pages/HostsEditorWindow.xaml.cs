@@ -411,11 +411,22 @@ public sealed partial class HostsEditorWindow : Window
         Close();
     }
 
+    private DispatcherTimer? _toastBarTimer;
+
     private void ShowToast(string title, string message, InfoBarSeverity severity)
     {
         ToastBar.Title = title;
         ToastBar.Message = message;
         ToastBar.Severity = severity;
         ToastBar.IsOpen = true;
+
+        _toastBarTimer?.Stop();
+        _toastBarTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _toastBarTimer.Tick += (s, e) =>
+        {
+            ToastBar.IsOpen = false;
+            ((DispatcherTimer)s).Stop();
+        };
+        _toastBarTimer.Start();
     }
 }

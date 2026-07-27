@@ -372,12 +372,23 @@ public sealed partial class FavoritesPage : Page
         }
     }
 
+    private DispatcherTimer? _statusBarTimer;
+
     private void ShowStatus(string title, string message, InfoBarSeverity severity)
     {
         StatusBar.Title = title;
         StatusBar.Message = message;
         StatusBar.Severity = severity;
         StatusBar.IsOpen = true;
+
+        _statusBarTimer?.Stop();
+        _statusBarTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _statusBarTimer.Tick += (s, e) =>
+        {
+            StatusBar.IsOpen = false;
+            ((DispatcherTimer)s).Stop();
+        };
+        _statusBarTimer.Start();
     }
 
     private static string ValueOrUnknown(string? value)

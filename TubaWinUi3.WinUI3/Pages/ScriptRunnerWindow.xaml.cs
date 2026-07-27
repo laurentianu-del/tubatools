@@ -619,6 +619,8 @@ public sealed partial class ScriptRunnerWindow : Window
             : $"{elapsed.TotalSeconds:F1}s";
     }
 
+    private DispatcherTimer? _toastBarTimer;
+
     private void ShowToast(string title, string message, InfoBarSeverity severity)
     {
         _dq.TryEnqueue(() =>
@@ -627,6 +629,15 @@ public sealed partial class ScriptRunnerWindow : Window
             ToastBar.Message = message;
             ToastBar.Severity = severity;
             ToastBar.IsOpen = true;
+
+            _toastBarTimer?.Stop();
+            _toastBarTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+            _toastBarTimer.Tick += (s, e) =>
+            {
+                ToastBar.IsOpen = false;
+                ((DispatcherTimer)s).Stop();
+            };
+            _toastBarTimer.Start();
         });
     }
 

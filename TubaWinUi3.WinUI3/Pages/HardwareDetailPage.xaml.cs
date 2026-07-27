@@ -68,10 +68,7 @@ public sealed partial class HardwareDetailPage : Page
         }
         catch (Exception ex)
         {
-            StatusBar.Title = "硬件信息读取失败";
-            StatusBar.Message = ex.Message;
-            StatusBar.Severity = InfoBarSeverity.Error;
-            StatusBar.IsOpen = true;
+            ShowStatusBar("硬件信息读取失败", ex.Message, InfoBarSeverity.Error);
         }
         finally
         {
@@ -417,18 +414,48 @@ public sealed partial class HardwareDetailPage : Page
         ShowCopyToast(text);
     }
 
+    private DispatcherTimer? _statusBarTimer;
+
     private void ShowCopyToast(string text)
     {
         StatusBar.Title = "已复制";
         StatusBar.Message = text.Length > 80 ? text[..80] + "…" : text;
         StatusBar.Severity = InfoBarSeverity.Success;
         StatusBar.IsOpen = true;
+
+        _statusBarTimer?.Stop();
+        _statusBarTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _statusBarTimer.Tick += (s, e) =>
+        {
+            StatusBar.IsOpen = false;
+            ((DispatcherTimer)s).Stop();
+        };
+        _statusBarTimer.Start();
     }
 
     private void SetLoading(bool isLoading)
     {
         LoadingRing.IsActive = isLoading;
         LoadingRing.Visibility = isLoading ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private DispatcherTimer? _statusBarAutoCloseTimer;
+
+    private void ShowStatusBar(string title, string message, InfoBarSeverity severity)
+    {
+        StatusBar.Title = title;
+        StatusBar.Message = message;
+        StatusBar.Severity = severity;
+        StatusBar.IsOpen = true;
+
+        _statusBarAutoCloseTimer?.Stop();
+        _statusBarAutoCloseTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _statusBarAutoCloseTimer.Tick += (s, e) =>
+        {
+            StatusBar.IsOpen = false;
+            ((DispatcherTimer)s).Stop();
+        };
+        _statusBarAutoCloseTimer.Start();
     }
 
     private sealed class DetailSection

@@ -199,8 +199,7 @@ public partial class App : Application
                 return true;
             }
 
-            var isMetered = NetworkHelper.IsMeteredConnection();
-            var autoDownload = !isMetered;
+            var autoDownload = false;
 
             MainWindow.DispatcherQueue.TryEnqueue(() =>
             {

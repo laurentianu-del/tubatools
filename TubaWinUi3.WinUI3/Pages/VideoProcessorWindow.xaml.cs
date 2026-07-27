@@ -1434,9 +1434,20 @@ public sealed partial class VideoProcessorWindow : Window
 
     // ── Utils ──
 
+    DispatcherTimer? _toastBarTimer;
+
     void ShowToast(string title, string msg, InfoBarSeverity sev)
     {
         ToastBar.Title = title; ToastBar.Message = msg; ToastBar.Severity = sev; ToastBar.IsOpen = true;
+
+        _toastBarTimer?.Stop();
+        _toastBarTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _toastBarTimer.Tick += (s, e) =>
+        {
+            ToastBar.IsOpen = false;
+            ((DispatcherTimer)s).Stop();
+        };
+        _toastBarTimer.Start();
     }
 
     void CloseButton_Click(object sender, RoutedEventArgs e) => Close();

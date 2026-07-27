@@ -504,11 +504,22 @@ public sealed partial class NetworkAdapterProxyWindow : Window
         ShowToast("已恢复默认路由", InfoBarSeverity.Success);
     }
 
+    private DispatcherTimer? _toastBarTimer;
+
     private void ShowToast(string msg, InfoBarSeverity sev)
     {
         ToastBar.Title = msg;
         ToastBar.Severity = sev;
         ToastBar.IsOpen = true;
+
+        _toastBarTimer?.Stop();
+        _toastBarTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _toastBarTimer.Tick += (s, e) =>
+        {
+            ToastBar.IsOpen = false;
+            ((DispatcherTimer)s).Stop();
+        };
+        _toastBarTimer.Start();
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e)

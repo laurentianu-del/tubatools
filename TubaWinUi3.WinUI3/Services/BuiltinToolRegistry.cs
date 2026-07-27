@@ -25,8 +25,7 @@ public static class BuiltinToolRegistry
         Register(new BatteryAnalyzerTool());
         Register(new SpeedTestTool());
         Register(new WifiPasswordTool());
-        Register(new WindowsActivationTool());
-        Register(new DefenderTool());
+
         Register(new CpuRankingTool());
         Register(new GpuRankingTool());
         Register(new ContextMenuMgrTool());
@@ -48,6 +47,7 @@ public static class BuiltinToolRegistry
         Register(new DotnetCompletionTool());
         Register(new VideoProcessorTool());
         Register(new LanFileShareTool());
+        Register(new QuickDeviceCheckTool());
     }
 
     public static IReadOnlyList<string> GetCategories()

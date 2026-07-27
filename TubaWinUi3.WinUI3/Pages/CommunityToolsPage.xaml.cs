@@ -80,10 +80,7 @@ public sealed partial class CommunityToolsPage : Page
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            StatusBar.Title = "加载失败";
-            StatusBar.Message = ex.Message;
-            StatusBar.Severity = InfoBarSeverity.Error;
-            StatusBar.IsOpen = true;
+            ShowStatus("加载失败", ex.Message, InfoBarSeverity.Error);
             StatusText.Text = "加载失败";
 
             var errDialog = new ContentDialog
@@ -465,10 +462,7 @@ public sealed partial class CommunityToolsPage : Page
     {
         if (string.IsNullOrWhiteSpace(tool.DownloadUrl) && string.IsNullOrWhiteSpace(tool.File))
         {
-            StatusBar.Title = "无法下载";
-            StatusBar.Message = "该工具没有提供下载源";
-            StatusBar.Severity = InfoBarSeverity.Warning;
-            StatusBar.IsOpen = true;
+            ShowStatus("无法下载", "该工具没有提供下载源", InfoBarSeverity.Warning);
             return;
         }
 
@@ -1458,5 +1452,24 @@ public sealed partial class CommunityToolsPage : Page
             WriteIndented = true,
             DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
         });
+    }
+
+    private DispatcherTimer? _statusBarTimer;
+
+    private void ShowStatus(string title, string message, InfoBarSeverity severity)
+    {
+        StatusBar.Title = title;
+        StatusBar.Message = message;
+        StatusBar.Severity = severity;
+        StatusBar.IsOpen = true;
+
+        _statusBarTimer?.Stop();
+        _statusBarTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _statusBarTimer.Tick += (s, e) =>
+        {
+            StatusBar.IsOpen = false;
+            ((DispatcherTimer)s).Stop();
+        };
+        _statusBarTimer.Start();
     }
 }

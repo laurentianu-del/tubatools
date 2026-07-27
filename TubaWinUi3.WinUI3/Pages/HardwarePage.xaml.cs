@@ -237,10 +237,7 @@ public sealed partial class HardwarePage : Page
 
         _isAnimatingNickname = false;
 
-        StatusBar.Title = _nicknameMode ? "彩蛋模式" : "正常模式";
-        StatusBar.Message = _nicknameMode ? "品牌戏称已开启，点击标题恢复" : "品牌戏称已关闭";
-        StatusBar.Severity = _nicknameMode ? InfoBarSeverity.Informational : InfoBarSeverity.Success;
-        StatusBar.IsOpen = true;
+        ShowStatusBar(_nicknameMode ? "彩蛋模式" : "正常模式", _nicknameMode ? "品牌戏称已开启，点击标题恢复" : "品牌戏称已关闭", _nicknameMode ? InfoBarSeverity.Informational : InfoBarSeverity.Success);
     }
 
     private void Card_PointerEntered(object sender, PointerRoutedEventArgs e)
@@ -324,10 +321,7 @@ public sealed partial class HardwarePage : Page
             SystemText.Text = "未知";
             UptimeText.Text = "未知";
             DetailsRepeater.ItemsSource = Array.Empty<HardwareInfoItem>();
-            StatusBar.Title = "硬件信息读取失败";
-            StatusBar.Message = ex.Message;
-            StatusBar.Severity = InfoBarSeverity.Error;
-            StatusBar.IsOpen = true;
+            ShowStatusBar("硬件信息读取失败", ex.Message, InfoBarSeverity.Error);
         }
         finally
         {
@@ -417,12 +411,23 @@ public sealed partial class HardwarePage : Page
         ShowCopyToast(text);
     }
 
+    private DispatcherTimer? _statusBarTimer;
+
     private void ShowCopyToast(string text)
     {
         StatusBar.Title = "已复制";
         StatusBar.Message = text.Length > 80 ? text[..80] + "…" : text;
         StatusBar.Severity = InfoBarSeverity.Success;
         StatusBar.IsOpen = true;
+
+        _statusBarTimer?.Stop();
+        _statusBarTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _statusBarTimer.Tick += (s, e) =>
+        {
+            StatusBar.IsOpen = false;
+            ((DispatcherTimer)s).Stop();
+        };
+        _statusBarTimer.Start();
     }
 
     private void DetailsRepeater_ElementPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
@@ -630,17 +635,11 @@ public sealed partial class HardwarePage : Page
             Clipboard.SetContent(dataPackage);
             Clipboard.Flush();
 
-            StatusBar.Title = "截图已复制到剪贴板";
-            StatusBar.Message = "可直接粘贴使用";
-            StatusBar.Severity = InfoBarSeverity.Success;
-            StatusBar.IsOpen = true;
+            ShowStatusBar("截图已复制到剪贴板", "可直接粘贴使用", InfoBarSeverity.Success);
         }
         catch (Exception ex)
         {
-            StatusBar.Title = "截图失败";
-            StatusBar.Message = ex.Message;
-            StatusBar.Severity = InfoBarSeverity.Error;
-            StatusBar.IsOpen = true;
+            ShowStatusBar("截图失败", ex.Message, InfoBarSeverity.Error);
         }
         finally
         {
@@ -773,5 +772,24 @@ public sealed partial class HardwarePage : Page
             RootHost.Child = viewbox;
             viewbox.Child = LayoutRoot;
         }
+    }
+
+    private DispatcherTimer? _statusBarAutoCloseTimer;
+
+    private void ShowStatusBar(string title, string message, InfoBarSeverity severity)
+    {
+        StatusBar.Title = title;
+        StatusBar.Message = message;
+        StatusBar.Severity = severity;
+        StatusBar.IsOpen = true;
+
+        _statusBarAutoCloseTimer?.Stop();
+        _statusBarAutoCloseTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _statusBarAutoCloseTimer.Tick += (s, e) =>
+        {
+            StatusBar.IsOpen = false;
+            ((DispatcherTimer)s).Stop();
+        };
+        _statusBarAutoCloseTimer.Start();
     }
 }
