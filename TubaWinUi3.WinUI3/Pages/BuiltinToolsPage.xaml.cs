@@ -208,6 +208,7 @@ public sealed partial class BuiltinToolsPage : Page
                 StatusBar.Severity = InfoBarSeverity.Informational;
                 StatusBar.IsOpen = true;
             }),
+            ConfirmDownload = (toolName, description, size) => ConfirmDownloadAsync(toolName, description, size),
             CancellationToken = _activeCts.Token
         };
 
@@ -224,6 +225,52 @@ public sealed partial class BuiltinToolsPage : Page
         {
             ShowStatus("执行失败", ex.Message, InfoBarSeverity.Error);
         }
+    }
+
+    private async Task<bool> ConfirmDownloadAsync(string toolName, string description, string size)
+    {
+        var dialog = new ContentDialog
+        {
+            Title = "下载确认",
+            Content = new StackPanel
+            {
+                Spacing = 8,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = $"即将下载「{toolName}」，是否继续？",
+                        TextWrapping = TextWrapping.Wrap
+                    },
+                    !string.IsNullOrWhiteSpace(description)
+                        ? new TextBlock
+                        {
+                            Text = description,
+                            TextWrapping = TextWrapping.Wrap,
+                            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+                            FontSize = 13
+                        }
+                        : null!,
+                    !string.IsNullOrWhiteSpace(size)
+                        ? new TextBlock
+                        {
+                            Text = $"文件大小：{size}",
+                            TextWrapping = TextWrapping.Wrap,
+                            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+                            FontSize = 13
+                        }
+                        : null!
+                }
+            },
+            PrimaryButtonText = "下载",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot,
+            RequestedTheme = ThemeService.CurrentElementTheme
+        };
+
+        var result = await dialog.ShowAsync();
+        return result == ContentDialogResult.Primary;
     }
 
     private DispatcherTimer? _statusBarTimer;

@@ -32,6 +32,12 @@ public sealed class UniGetUITool : IBuiltinTool
         var arch = GitHubReleaseService.GetCurrentArch();
         var destDir = Path.Combine(Path.GetTempPath(), "TubaWinUi3_UniGetUI");
 
+        if (context.ConfirmDownload is not null)
+        {
+            var confirmed = await context.ConfirmDownload(Name, "安装包较大（约 135MB），下载可能需要较长时间", "约 135MB");
+            if (!confirmed) return;
+        }
+
         DownloadQueueService.EnqueueWithResolver(
             displayName: "UniGetUI 包管理器",
             urlResolver: async ct =>

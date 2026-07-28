@@ -31,6 +31,12 @@ public sealed class ContextMenuMgrTool : IBuiltinTool
         var arch = GitHubReleaseService.GetCurrentArch();
         var destDir = Path.Combine(Path.GetTempPath(), "TubaWinUi3_ContextMenuMgr");
 
+        if (context.ConfirmDownload is not null)
+        {
+            var confirmed = await context.ConfirmDownload(Name, "此软件运行后会在后台占用约 30MB 内存（托盘驻留进程）", "");
+            if (!confirmed) return;
+        }
+
         DownloadQueueService.EnqueueWithResolver(
             displayName: "右键菜单管理",
             urlResolver: async ct =>

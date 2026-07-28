@@ -30,6 +30,12 @@ public sealed class OptimizerDuckTool : IBuiltinTool
         var arch = GitHubReleaseService.GetCurrentArch();
         var destDir = PortableDir;
 
+        if (context.ConfirmDownload is not null)
+        {
+            var confirmed = await context.ConfirmDownload(Name, "当前仅提供 x64 版本，ARM64 设备可能需要通过兼容层运行", "");
+            if (!confirmed) return;
+        }
+
         DownloadQueueService.EnqueueWithResolver(
             displayName: "OptimizerDuck 优化鸭",
             urlResolver: async ct =>
