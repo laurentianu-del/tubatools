@@ -229,39 +229,41 @@ public sealed partial class BuiltinToolsPage : Page
 
     private async Task<bool> ConfirmDownloadAsync(string toolName, string description, string size)
     {
+        var panel = new StackPanel { Spacing = 8 };
+        panel.Children.Add(new TextBlock
+        {
+            Text = $"即将下载「{toolName}」，是否继续？",
+            TextWrapping = TextWrapping.Wrap
+        });
+
+        var secondaryBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
+
+        if (!string.IsNullOrWhiteSpace(description))
+        {
+            panel.Children.Add(new TextBlock
+            {
+                Text = description,
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = secondaryBrush,
+                FontSize = 13
+            });
+        }
+
+        if (!string.IsNullOrWhiteSpace(size))
+        {
+            panel.Children.Add(new TextBlock
+            {
+                Text = $"文件大小：{size}",
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = secondaryBrush,
+                FontSize = 13
+            });
+        }
+
         var dialog = new ContentDialog
         {
             Title = "下载确认",
-            Content = new StackPanel
-            {
-                Spacing = 8,
-                Children =
-                {
-                    new TextBlock
-                    {
-                        Text = $"即将下载「{toolName}」，是否继续？",
-                        TextWrapping = TextWrapping.Wrap
-                    },
-                    !string.IsNullOrWhiteSpace(description)
-                        ? new TextBlock
-                        {
-                            Text = description,
-                            TextWrapping = TextWrapping.Wrap,
-                            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
-                            FontSize = 13
-                        }
-                        : null!,
-                    !string.IsNullOrWhiteSpace(size)
-                        ? new TextBlock
-                        {
-                            Text = $"文件大小：{size}",
-                            TextWrapping = TextWrapping.Wrap,
-                            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
-                            FontSize = 13
-                        }
-                        : null!
-                }
-            },
+            Content = panel,
             PrimaryButtonText = "下载",
             CloseButtonText = "取消",
             DefaultButton = ContentDialogButton.Primary,

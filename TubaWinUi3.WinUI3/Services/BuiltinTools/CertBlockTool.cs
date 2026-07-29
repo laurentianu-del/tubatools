@@ -14,7 +14,7 @@ public sealed class CertBlockTool : IBuiltinTool
     private DialogState? _state;
 
     public string Id => "cert-block";
-    public string Name => "证书拦截";
+    public string Name => "恶意软件拦截器";
     public string Description => "通过将软件厂商证书加入系统不信任列表，阻止流氓软件安装和运行。";
     public string Glyph => "\uE72E";
     public string Category => "安全工具";
@@ -31,7 +31,7 @@ public sealed class CertBlockTool : IBuiltinTool
         page.RequestedTheme = ThemeService.CurrentElementTheme;
 
         window.Content = page;
-        window.AppWindow.Title = "证书拦截";
+        window.AppWindow.Title = "恶意软件拦截器";
         window.AppWindow.Resize(new SizeInt32(860, 720));
 
         try
@@ -88,7 +88,7 @@ public sealed class CertBlockTool : IBuiltinTool
         var adminWarning = new InfoBar
         {
             Title = "需要管理员权限",
-            Message = "证书拦截需要以管理员身份运行本程序才能操作。请右键程序选择「以管理员身份运行」后重试。",
+            Message = "恶意软件拦截器需要以管理员身份运行本程序才能操作。请右键程序选择「以管理员身份运行」后重试。",
             Severity = InfoBarSeverity.Error,
             IsOpen = !CertBlockService.IsAdmin,
             IsClosable = false
@@ -139,7 +139,7 @@ public sealed class CertBlockTool : IBuiltinTool
         var root = new StackPanel { Spacing = 14, Padding = new Thickness(24, 48, 24, 16) };
         root.Children.Add(new TextBlock
         {
-            Text = "Malware-Patch 证书拦截引擎 · 将厂商证书加入系统不信任列表",
+            Text = "Malware-Patch 恶意软件拦截引擎 · 将厂商证书加入系统不信任列表",
             FontSize = 12,
             Opacity = 0.68
         });

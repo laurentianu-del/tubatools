@@ -17,7 +17,7 @@ public partial class App : Application
 
     public App()
     {
-        SyncfusionLicenseProvider.RegisterLicense("Ngo9BigBOggjHTQxAR8/V1JAaF5cX2pCfFN0Q35Zd0NwcUVGYVZTRXxcR1ZhSXxVdkJhUH9fcnVWQ2FaWU19XEY=");
+        SyncfusionLicenseProvider.RegisterLicense("Ngo9BigBOggjGyk3AR0PGlJAfVxGQ2JXfFp9TGpQdkNxdkhFYUxTR3xaS1dmQHVRdkdlWXhceXRSQmNfVEVzW0FWYE0=");
         Environment.SetEnvironmentVariable("MICROSOFT_WINDOWSAPPRUNTIME_BASE_DIRECTORY", AppContext.BaseDirectory);
         InitializeComponent();
         

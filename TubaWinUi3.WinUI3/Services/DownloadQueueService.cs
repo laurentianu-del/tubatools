@@ -343,10 +343,7 @@ public static class DownloadQueueService
         MarkDirty();
         StartItemAsync(item);
 
-        new ToastContentBuilder()
-            .AddText("已加入下载队列")
-            .AddText($"\"{item.DisplayName}\" 已开始下载")
-            .Show();
+        ShowToast("已加入下载队列", $"\"{item.DisplayName}\" 已开始下载");
     }
 
     private static async void StartItemAsync(DownloadItem item)
@@ -439,10 +436,7 @@ public static class DownloadQueueService
             DecrementPending();
             MarkDirty();
 
-            new ToastContentBuilder()
-                .AddText("下载失败")
-                .AddText($"\"{item.DisplayName}\" 下载失败：{errorMsg}")
-                .Show();
+            ShowToast("下载失败", $"\"{item.DisplayName}\" 下载失败：{errorMsg}");
         }
         finally
         {
@@ -575,10 +569,7 @@ public static class DownloadQueueService
                 DecrementPending();
                 MarkDirty();
 
-                new ToastContentBuilder()
-                    .AddText("下载完成")
-                    .AddText($"\"{item.DisplayName}\" 已下载完成")
-                    .Show();
+                ShowToast("下载完成", $"\"{item.DisplayName}\" 已下载完成");
             });
         else
         {
@@ -586,10 +577,7 @@ public static class DownloadQueueService
             DecrementPending();
             MarkDirty();
 
-            new ToastContentBuilder()
-                .AddText("下载完成")
-                .AddText($"\"{item.DisplayName}\" 已下载完成")
-                .Show();
+            ShowToast("下载完成", $"\"{item.DisplayName}\" 已下载完成");
         }
     }
 
@@ -753,6 +741,23 @@ public static class DownloadQueueService
 
     private static DownloadItem? FindItem(string itemId)
         => _queue.FirstOrDefault(i => i.Id == itemId);
+
+    private static void ShowToast(string title, string message)
+    {
+        try
+        {
+            new ToastContentBuilder()
+                .AddText(title)
+                .AddText(message)
+                .Show();
+        }
+        catch
+        {
+            // Toast notifications may throw ArgumentException ("Value does not
+            // fall within the expected range") in unpackaged mode when no AUMID
+            // is registered. Swallow so the download flow is not broken.
+        }
+    }
 
     private static void IncrementPending()
     {

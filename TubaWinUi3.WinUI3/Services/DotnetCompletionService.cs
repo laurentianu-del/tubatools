@@ -492,35 +492,9 @@ public static class DotnetCompletionService
     {
         var frameworkEntries = new (string Version, string DisplayName, string DownloadUrl, string FileName, bool UseDism)[]
         {
-            ("4.8.1", ".NET Framework 4.8.1",
-                "https://download.microsoft.com/download/1/a/2/1a2ed9b1-d58d-4b03-9e5e-7b0b2e4c1a0e/ndp481-x86-x64-allos-enu.exe",
-                "ndp481-x86-x64-allos-enu.exe", false),
             ("4.8", ".NET Framework 4.8",
                 "https://download.microsoft.com/download/f/3/a/f3a6af84-da23-40a5-8d1c-49cc10c8e76f/NDP48-x86-x64-AllOS-ENU.exe",
                 "NDP48-x86-x64-AllOS-ENU.exe", false),
-            ("4.7.2", ".NET Framework 4.7.2",
-                "https://download.microsoft.com/download/6/E/4/6E48E3AB-2E09-4E32-AF7E-5B0F0A3FC4A7/NDP472-KB4054530-x86-x64-AllOS-ENU.exe",
-                "NDP472-KB4054530-x86-x64-AllOS-ENU.exe", false),
-            ("4.7.1", ".NET Framework 4.7.1",
-                "https://download.microsoft.com/download/9/E/6/9E6330FE-0967-4E35-9B69-D1E3B78A9DD3/NDP471-KB4033342-x86-x64-AllOS-ENU.exe",
-                "NDP471-KB4033342-x86-x64-AllOS-ENU.exe", false),
-            ("4.7", ".NET Framework 4.7",
-                "https://download.microsoft.com/download/D/5/5/D5534D6B-CB50-42F5-8B9C-9E0D79C75D1F/NDP47-KB3186497-x86-x64-AllOS-ENU.exe",
-                "NDP47-KB3186497-x86-x64-AllOS-ENU.exe", false),
-            ("4.6.2", ".NET Framework 4.6.2",
-                "https://download.microsoft.com/download/F/9/4/F942F07D-F26F-4F30-B4E3-EBD54FABA377/NDP462-KB3151800-x86-x64-AllOS-ENU.exe",
-                "NDP462-KB3151800-x86-x64-AllOS-ENU.exe", false),
-            ("4.6.1", ".NET Framework 4.6.1",
-                "https://download.microsoft.com/download/E/4/1/E4173820-A24A-4936-9FC9-AF930FE3FA40/NDP461-KB3102436-x86-x64-AllOS-ENU.exe",
-                "NDP461-KB3102436-x86-x64-AllOS-ENU.exe", false),
-            ("4.6", ".NET Framework 4.6",
-                "https://download.microsoft.com/download/C/3/A/C3A5200B-D33C-47E9-9D95-9C1B6F7FCBB7/NDP46-KB3045557-x86-x64-AllOS-ENU.exe",
-                "NDP46-KB3045557-x86-x64-AllOS-ENU.exe", false),
-            ("4.5.2", ".NET Framework 4.5.2",
-                "https://download.microsoft.com/download/B/4/1/B4119C11-0423-477B-80EE-7A47BA3B0813/NDP452-KB2901907-x86-x64-AllOS-ENU.exe",
-                "NDP452-KB2901907-x86-x64-AllOS-ENU.exe", false),
-            ("3.5", ".NET Framework 3.5 SP1",
-                "", "", true),
         };
 
         foreach (var entry in frameworkEntries)
