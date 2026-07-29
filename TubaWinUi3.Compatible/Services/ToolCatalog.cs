@@ -379,7 +379,7 @@ namespace TubaWinUi3.Compatible.Services
 
         private static readonly string[] ArchX64Patterns = new[]
         {
-            "x64", "_x64", "w64", "_Win64"
+            "x64", "_x64", "64", "_64", "w64", "_Win64"
         };
 
         private static readonly string[] ArchArm64Patterns = new[]

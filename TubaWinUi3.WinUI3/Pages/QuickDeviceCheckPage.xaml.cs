@@ -414,7 +414,36 @@ public sealed partial class QuickDeviceCheckPage : Page
             Style = Application.Current.Resources["AccentButtonStyle"] as Style,
             Padding = new Thickness(24, 10, 24, 10)
         };
-        launchBtn.Click += (_, _) => LaunchDiskInfo();
+        launchBtn.Click += async (_, _) =>
+        {
+            launchBtn.IsEnabled = false;
+            launchBtn.Content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                Children =
+                {
+                    new ProgressRing { Width = 16, Height = 16, IsActive = true },
+                    new TextBlock { Text = "正在启动 DiskInfo...", FontSize = 15 }
+                }
+            };
+
+            await Task.Delay(TimeSpan.FromSeconds(2));
+
+            LaunchDiskInfo();
+
+            launchBtn.IsEnabled = true;
+            launchBtn.Content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                Children =
+                {
+                    new FontIcon { Glyph = "\uEDA7", FontSize = 16 },
+                    new TextBlock { Text = "打开 DiskInfo", FontSize = 15 }
+                }
+            };
+        };
         launchStack.Children.Add(launchBtn);
 
         launchCard.Child = launchStack;

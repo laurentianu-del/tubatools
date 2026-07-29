@@ -240,19 +240,6 @@
       "version": 1
     },
     {
-      "match": "FurMark",
-      "description": "GPU 压力测试和烤机工具（OpenGL），俗称显卡杀手，用于检测显卡稳定性。",
-      "tutorialUrl": "https://tubawinui3.cn/tutorials/furmark",
-      "publisher": "Geeks3D",
-      "tags": [
-        "烤机",
-        "显卡",
-        "稳定性测试"
-      ],
-      "downloadUrl": "gc:Tools/烤鸡工具/FurMark",
-      "version": 1
-    },
-    {
       "match": "FurMark_win64",
       "description": "FurMark 2（64 位）GPU 压力测试和烤机工具，支持 Vulkan 和 OpenGL，用于检测显卡稳定性。",
       "tutorialUrl": "https://tubawinui3.cn/tutorials/furmark",
@@ -1050,18 +1037,7 @@
       "downloadUrl": "gc:Tools/其他工具/WinDbg",
       "version": 1
     },
-    {
-      "match": "nvflash",
-      "description": "NVIDIA 显卡 BIOS 刷写工具，支持 Blackwell/Ada/Ampere/Turing/Pascal 等全系 NVIDIA 显卡 BIOS 刷写和备份。",
-      "publisher": "NVIDIA",
-      "tags": [
-        "显卡",
-        "NVIDIA",
-        "BIOS刷写"
-      ],
-      "downloadUrl": "gc:Tools/显卡工具/NVFlash",
-      "version": 1
-    },
+
     {
       "match": "fptw64",
       "description": "Intel Flash Programming Tool 64 位版，用于刷写和备份 Intel 主板 BIOS/ME 固件。",

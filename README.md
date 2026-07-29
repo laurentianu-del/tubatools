@@ -17,6 +17,7 @@
 [![.NET 10](https://img.shields.io/badge/.NET-10-512bd4?style=flat-square&logo=dotnet)](https://dotnet.microsoft.com/)
 [![WinUI 3](https://img.shields.io/badge/WinUI-3-0078d4?style=flat-square&logo=windows)](https://learn.microsoft.com/windows/apps/winui/)
 [![Stars](https://img.shields.io/github/stars/luolangaga/tubatool?style=flat-square&logo=github)](https://github.com/luolangaga/tubatool)
+[![GitCode Stars](https://gitcode.com/luolangaga/tubatool/star/badge.svg)](https://gitcode.com/luolangaga/tubatool)
 [![Today Views](https://visitor-badge.laobi.icu/badge?page_id=luolangaga.tubatool&left_text=today+views&right_color=%230078D4)](https://github.com/luolangaga/tubatool)
 
 <a href="https://atomgit.com/luolangaga/tubatool"><img alt="AtomGit G-Star" src="https://atomgit.com/luolangaga/tubatool/star/new_badge.svg" height="55"/></a>

@@ -2,6 +2,7 @@
 using System.Security.Principal;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Syncfusion.Licensing;
 using TubaWinUi3.Pages;
 using TubaWinUi3.Services;
 using TubaWinUi3.Models;
@@ -16,6 +17,7 @@ public partial class App : Application
 
     public App()
     {
+        SyncfusionLicenseProvider.RegisterLicense("Ngo9BigBOggjHTQxAR8/V1JAaF5cX2pCfFN0Q35Zd0NwcUVGYVZTRXxcR1ZhSXxVdkJhUH9fcnVWQ2FaWU19XEY=");
         Environment.SetEnvironmentVariable("MICROSOFT_WINDOWSAPPRUNTIME_BASE_DIRECTORY", AppContext.BaseDirectory);
         InitializeComponent();
         

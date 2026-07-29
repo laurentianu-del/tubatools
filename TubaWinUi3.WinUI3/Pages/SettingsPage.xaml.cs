@@ -315,6 +315,11 @@ public sealed partial class SettingsPage : Page
         WhatsNewWindow.Show();
     }
 
+    private void NavTestPage_Tapped(object sender, TappedRoutedEventArgs e)
+    {
+        Frame.Navigate(typeof(TestPage));
+    }
+
     private void InitThemeComboBox()
     {
         ThemeComboBox.Items.Add("跟随系统");

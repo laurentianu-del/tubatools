@@ -16,7 +16,7 @@ public static class BrandEasterEggService
     private static readonly BrandEasterEgg[] BrandEasterEggs =
     [
         new("ROG", "华硕(ASUS)", "ROG背景.jpg", "https://dlcdnwebimgs.asus.com/dl/f68d6612-ef3c-456f-a8d5-5e91524844a2/"),
-        new("Honor", "荣耀", "荣耀背景.webp", "https://assetscdn.c.hihonor.com/myhonor/img/66a31721ef7b7d5e525aed51.webp?fileSize=2000*1000"),
+        new("Honor", "荣耀", "荣耀背景.webp", "https://assetscdn.c.hihonor.com/myhonor/img/66a317216a3f6e472f4e560f.webp?fileSize=2000*1000"),
         new("Lenovo", "联想(Lenovo)", "联想背景.jpg", "https://img2cdn.clubstatic.lenovo.com.cn/pic/31917391149167/0"),
         new("MSI", "微星(MSI)", "微星背景.jpeg", "https://storage-asset.msi.com/global/picture/wallpaper/wallpaper_178177079861ba0eff67da563c5cd38b5730760761.jpeg"),
         new("ASRock", "华擎(ASRock)", "华擎背景.jpg", "https://download.asrock.com/Wallpaper/2024_Taichi-3440x1440.jpg"),
