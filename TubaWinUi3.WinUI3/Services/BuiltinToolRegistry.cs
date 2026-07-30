@@ -48,6 +48,7 @@ public static class BuiltinToolRegistry
         Register(new VideoProcessorTool());
         Register(new LanFileShareTool());
         Register(new QuickDeviceCheckTool());
+        Register(new EnergyStarTool());
     }
 
     public static IReadOnlyList<string> GetCategories()

@@ -87,9 +87,7 @@
     <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
     <PackageReference Include="System.Management" Version="10.0.8" />
     <PackageReference Include="SIPSorcery" Version="10.0.11" />
-    <PackageReference Include="Syncfusion.Licensing" Version="34.1.33" />
-    <PackageReference Include="Syncfusion.Gauge.WinUI" Version="34.1.33" />
-    <PackageReference Include="Syncfusion.Chart.WinUI" Version="34.1.33" />
+
     <PackageReference Include="System.Speech" Version="10.0.10" />
 
   </ItemGroup>

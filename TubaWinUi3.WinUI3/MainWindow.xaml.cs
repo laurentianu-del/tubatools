@@ -346,6 +346,11 @@ public sealed partial class MainWindow : Window
 
     private void MainWindow_Closed(object sender, WindowEventArgs args)
     {
+        // Gracefully stop EnergyStar throttling so any throttled processes recover
+        // their normal scheduling priority before the app exits. If the user has
+        // enabled the scheduled-task auto-start, the next logon will re-enable it.
+        try { EnergyStarService.Shutdown(); } catch { }
+
         if (App.IsLiteMode)
         {
             args.Handled = true;

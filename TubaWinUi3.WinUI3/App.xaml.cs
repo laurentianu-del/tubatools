@@ -2,7 +2,6 @@
 using System.Security.Principal;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Syncfusion.Licensing;
 using TubaWinUi3.Pages;
 using TubaWinUi3.Services;
 using TubaWinUi3.Models;
@@ -17,7 +16,6 @@ public partial class App : Application
 
     public App()
     {
-        SyncfusionLicenseProvider.RegisterLicense("Ngo9BigBOggjGyk3AR0PGlJAfVxGQ2JXfFp9TGpQdkNxdkhFYUxTR3xaS1dmQHVRdkdlWXhceXRSQmNfVEVzW0FWYE0=");
         Environment.SetEnvironmentVariable("MICROSOFT_WINDOWSAPPRUNTIME_BASE_DIRECTORY", AppContext.BaseDirectory);
         InitializeComponent();
         
@@ -57,6 +55,20 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        // EnergyStar silent auto-start (scheduled-task launched this instance
+        // in the background — silently enable EcoQoS without showing the main UI).
+        var silentEnergyStar = Environment.GetCommandLineArgs()
+            .Any(a => string.Equals(a, EnergyStarStartupService.SilentArg, StringComparison.OrdinalIgnoreCase));
+
+        if (silentEnergyStar)
+        {
+            try { EnergyStarService.Initialize(); } catch { /* swallow so OS keeps the task happy */ }
+            // No main window: keep this process throttling in the background.
+            // Active throttling is driven by the static service; the process can
+            // stay alive without a WinUI window (the dispatcher here is unused).
+            return;
+        }
+
         if (!RuntimeHelper.IsMsixPackaged && !IsRunningAsAdmin())
         {
             ElevateAndRestart();

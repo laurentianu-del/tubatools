@@ -1197,6 +1197,16 @@
       ],
       "downloadUrl": "gc:Tools/其他工具/卡巴斯基",
       "version": 1
+    },
+    {
+      "match": "RoboCopyEx",
+      "description": "取代 Windows 自带复制和粘贴的高性能文件复制工具",
+      "publisher": "RoboCopyEx",
+      "tags": [
+        "文件复制",
+        "文件管理"
+      ],
+      "version": 1
     }
   ]
 }
