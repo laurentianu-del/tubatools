@@ -7,7 +7,7 @@ namespace TubaWinUi3.Services;
 public sealed class EnergyStarTool : IBuiltinTool
 {
     public string Id => "energy-star";
-    public string Name => "效率模式管理";
+    public string Name => "后台节流省电神器";
     public string Description => "通过 Windows 11 效率模式 (EcoQoS) 节流后台进程以省电降温, 前台应用保持流畅 (基于 Energy Star X 内核)。";
     public string Glyph => "\uE83F";
     public string Category => "系统工具";
@@ -15,7 +15,7 @@ public sealed class EnergyStarTool : IBuiltinTool
 
     public Task ExecuteAsync(BuiltinToolContext context)
     {
-        context.OnProgress?.Invoke("正在打开效率模式管理...");
+        context.OnProgress?.Invoke("正在打开后台节流省电神器...");
 
         App.MainWindow?.DispatcherQueue.TryEnqueue(() =>
         {

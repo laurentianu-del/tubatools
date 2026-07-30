@@ -379,6 +379,111 @@ public static class HardwareInfoService
         }
     }
 
+    private static bool? _laptopCache;
+
+    /// <summary>
+    /// 判断当前设备是否为笔记本。基于机箱类型 + 电池存在性双重判断。
+    /// </summary>
+    public static bool IsLaptop()
+    {
+        if (_laptopCache.HasValue) return _laptopCache.Value;
+        _laptopCache = DetectLaptop();
+        return _laptopCache.Value;
+    }
+
+    private static bool DetectLaptop()
+    {
+        try
+        {
+            foreach (var item in Query("Win32_SystemEnclosure"))
+            {
+                var chassisTypes = item["ChassisTypes"];
+                if (chassisTypes is ushort[] arr)
+                {
+                    foreach (var t in arr)
+                    {
+                        // 8=Portable, 9=Laptop, 10=Notebook, 11=Handheld, 14=SubNotebook
+                        if (t == 8 || t == 9 || t == 10 || t == 11 || t == 14 || t == 30 || t == 31 || t == 32)
+                            return true;
+                    }
+                }
+            }
+        }
+        catch { }
+
+        // 兜底：笔记本通常有电池
+        try
+        {
+            var battery = Query("Win32_Battery");
+            if (!battery.GetEnumerator().MoveNext()) return false;
+            var model = Get(First("Win32_ComputerSystem"), "Model");
+            if (model != null &&
+                (model.Contains("Virtual", StringComparison.OrdinalIgnoreCase) ||
+                 model.Contains("VMware", StringComparison.OrdinalIgnoreCase) ||
+                 model.Contains("HVM", StringComparison.OrdinalIgnoreCase) ||
+                 model.Contains("KVM", StringComparison.OrdinalIgnoreCase)))
+                return false;
+            return true;
+        }
+        catch { }
+
+        return false;
+    }
+
+    /// <summary>
+    /// 获取当前设备的机型标识（厂商 + 型号），用于笔记本评分归组。
+    /// </summary>
+    public static string GetDeviceModel()
+    {
+        var computer = First("Win32_ComputerSystem");
+        return Join(Get(computer, "Manufacturer"), Get(computer, "Model"));
+    }
+
+    /// <summary>
+    /// 获取主 CPU 名称。
+    /// </summary>
+    public static string GetCpuName()
+    {
+        return FirstName("Win32_Processor");
+    }
+
+    /// <summary>
+    /// 获取主显卡名称（已过滤虚拟显示器适配器）。
+    /// </summary>
+    public static string GetGpuName()
+    {
+        return BuildGpuDisplayText() ?? "未知";
+    }
+
+    /// <summary>
+    /// 获取主板型号。
+    /// </summary>
+    public static string GetMotherboardModel()
+    {
+        return BoardModel();
+    }
+
+    /// <summary>
+    /// 获取第一个硬盘型号。
+    /// </summary>
+    public static string GetPrimaryDiskModel()
+    {
+        foreach (var item in Query("Win32_DiskDrive"))
+        {
+            var model = Get(item, "Model");
+            if (!string.IsNullOrWhiteSpace(model)) return model;
+        }
+        return "未知";
+    }
+
+    /// <summary>
+    /// 获取内存描述。
+    /// </summary>
+    public static string GetMemoryDescription()
+    {
+        return FormatMemory();
+    }
+
     private static List<HardwareInfoSection> CreateEmptySections()
     {
         return

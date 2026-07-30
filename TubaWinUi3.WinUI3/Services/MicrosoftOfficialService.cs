@@ -40,11 +40,13 @@ public static class MicrosoftOfficialService
     {
         return
         [
-            new() { Name = "Windows 11 (家庭/专业版)", SkuIds = [3321, 3324], Product = "windows11", Arch = "x64" },
-            new() { Name = "Windows 11 (家庭/专业版 ARM64)", SkuIds = [3324], Product = "windows11arm64", Arch = "ARM64" },
-            new() { Name = "Windows 11 家庭中国版", SkuIds = [3322], Product = "windows11", Arch = "x64" },
-            new() { Name = "Windows 11 专业中国版", SkuIds = [3323], Product = "windows11", Arch = "x64" },
-            new() { Name = "Windows 10 (家庭/专业版)", SkuIds = [2618], Product = "Windows10ISO", Arch = "x64" },
+            new() { Name = "Windows 11 24H2 (家庭/专业版)", SkuIds = [3321, 3324], Product = "windows11", Arch = "x64" },
+            new() { Name = "Windows 11 24H2 (家庭/专业版 ARM64)", SkuIds = [3324], Product = "windows11arm64", Arch = "ARM64" },
+            new() { Name = "Windows 11 24H2 家庭中国版", SkuIds = [3322], Product = "windows11", Arch = "x64" },
+            new() { Name = "Windows 11 24H2 专业中国版", SkuIds = [3323], Product = "windows11", Arch = "x64" },
+            new() { Name = "Windows 11 23H2 (家庭/专业版)", SkuIds = [2361, 2379], Product = "windows11", Arch = "x64" },
+            new() { Name = "Windows 10 22H2 (家庭/专业版)", SkuIds = [2618], Product = "Windows10ISO", Arch = "x64" },
+            new() { Name = "Windows 10 22H2 (家庭/专业版 ARM64)", SkuIds = [2619], Product = "Windows10ISO", Arch = "ARM64" },
             new() { Name = "Windows 10 家庭中国版", SkuIds = [2378], Product = "Windows10ISO", Arch = "x64" },
         ];
     }

@@ -1,7 +1,8 @@
+using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
-using System.Collections.ObjectModel;
+using Microsoft.UI.Xaml.Media;
 using TubaWinUi3.Models;
 using TubaWinUi3.Services;
 
@@ -9,18 +10,16 @@ namespace TubaWinUi3.Pages;
 
 public sealed partial class BuiltinToolsPage : Page
 {
-    private readonly ObservableCollection<BuiltinToolViewModel> _tools = [];
     private CancellationTokenSource? _activeCts;
     private CancellationTokenSource? _highlightCts;
     private string? _pendingHighlightId;
 
+    private readonly FontFamily _appFont = (FontFamily)Application.Current.Resources["AppFontFamily"];
+
     public BuiltinToolsPage()
     {
         InitializeComponent();
-        ToolsGrid.ItemsSource = _tools;
-        PopulateCategoryFilter();
-        LoadTools(null);
-
+        LoadTools();
     }
 
     protected override void OnNavigatedTo(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
@@ -48,149 +47,213 @@ public sealed partial class BuiltinToolsPage : Page
 
     private async Task HighlightBuiltinToolAsync(string builtinId, CancellationToken ct)
     {
-        var vm = _tools.FirstOrDefault(t => t.Id.Equals(builtinId, StringComparison.OrdinalIgnoreCase));
-        if (vm is null || ct.IsCancellationRequested) return;
-
-        ToolsGrid.ScrollIntoView(vm);
-        try { await Task.Delay(100, ct); } catch (OperationCanceledException) { return; }
-
-        var container = ToolsGrid.ContainerFromItem(vm) as GridViewItem;
-        if (container is null || ct.IsCancellationRequested) return;
-
-        var scrollViewer = FindChildScrollViewer(ToolsGrid);
-        if (scrollViewer is not null)
-        {
-            var transform = container.TransformToVisual(scrollViewer.Content as UIElement ?? scrollViewer);
-            var point = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
-            var targetOffset = scrollViewer.VerticalOffset + point.Y - scrollViewer.ViewportHeight / 2 + container.ActualHeight / 2;
-            targetOffset = Math.Max(0, Math.Min(targetOffset, scrollViewer.ExtentHeight - scrollViewer.ViewportHeight));
-            scrollViewer.ChangeView(null, targetOffset, null, disableAnimation: false);
-            try { await Task.Delay(600, ct); } catch (OperationCanceledException) { return; }
-        }
-
         if (ct.IsCancellationRequested) return;
 
-        var border = FindChildBorder(container);
-        if (border is not null)
-            SearchHighlightService.HighlightBorder(border);
+        try { await Task.Delay(100, ct); } catch (OperationCanceledException) { return; }
+        if (ct.IsCancellationRequested) return;
+
+        var card = FindCard(builtinId);
+        if (card is null) return;
+
+        var scrollViewer = FindParent<ScrollViewer>(card);
+        if (scrollViewer is not null)
+        {
+            var transform = card.TransformToVisual(scrollViewer);
+            var point = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
+            var targetOffset = scrollViewer.VerticalOffset + point.Y - scrollViewer.ViewportHeight / 2 + card.ActualHeight / 2;
+            targetOffset = Math.Max(0, Math.Min(targetOffset, scrollViewer.ScrollableHeight));
+            scrollViewer.ChangeView(null, targetOffset, null, disableAnimation: false);
+        }
+
+        try { await Task.Delay(600, ct); } catch (OperationCanceledException) { return; }
+        if (ct.IsCancellationRequested) return;
+
+        SearchHighlightService.HighlightBorder(card);
     }
 
-    private static ScrollViewer? FindChildScrollViewer(DependencyObject parent)
+    private Border? FindCard(string builtinId)
     {
-        var count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent);
-        for (var i = 0; i < count; i++)
+        foreach (var child in GroupsPanel.Children)
         {
-            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
-            if (child is ScrollViewer sv) return sv;
-            var result = FindChildScrollViewer(child);
-            if (result is not null) return result;
+            if (child is not StackPanel section) continue;
+            foreach (var sectionChild in section.Children)
+            {
+                if (sectionChild is not GridView grid) continue;
+                foreach (var item in grid.Items)
+                {
+                    if (item is BuiltinToolViewModel vm && vm.Id == builtinId)
+                    {
+                        var container = grid.ContainerFromItem(item) as GridViewItem;
+                        if (container?.ContentTemplateRoot is Border border)
+                            return border;
+                    }
+                }
+            }
         }
         return null;
     }
 
-    private static Border? FindChildBorder(DependencyObject parent)
+    private static T? FindParent<T>(DependencyObject child) where T : DependencyObject
     {
-        var count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent);
-        for (var i = 0; i < count; i++)
+        var parent = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(child);
+        while (parent is not null)
         {
-            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
-            if (child is Border b) return b;
-            var result = FindChildBorder(child);
-            if (result is not null) return result;
+            if (parent is T result) return result;
+            parent = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(parent);
         }
         return null;
     }
 
-    private void ToolsGrid_SizeChanged(object sender, SizeChangedEventArgs e)
+    private void LoadTools()
     {
-        var panel = ToolsGrid.ItemsPanelRoot as ItemsWrapGrid;
+        GroupsPanel.Children.Clear();
+
+        var grouped = BuiltinToolRegistry.Tools
+            .GroupBy(t => t.Category)
+            .OrderByDescending(g => g.Count())
+            .ThenBy(g => g.Key, StringComparer.CurrentCultureIgnoreCase);
+
+        foreach (var group in grouped)
+        {
+            GroupsPanel.Children.Add(CreateGroupSection(group.Key, group.ToList()));
+        }
+
+        ToolCountText.Text = $"{BuiltinToolRegistry.Tools.Count} 个内置工具";
+    }
+
+    private UIElement CreateGroupSection(string category, List<IBuiltinTool> tools)
+    {
+        var section = new StackPanel { Spacing = 10 };
+
+        var headerGrid = new Grid();
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var title = new TextBlock
+        {
+            Text = category,
+            FontSize = 16,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontFamily = _appFont,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        var countBadge = new Border
+        {
+            Padding = new Thickness(8, 1, 8, 2),
+            CornerRadius = new CornerRadius(4),
+            Background = (Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"],
+            Child = new TextBlock
+            {
+                Text = tools.Count.ToString(),
+                FontSize = 12,
+                Opacity = 0.7,
+                FontFamily = _appFont
+            }
+        };
+
+        Grid.SetColumn(title, 0);
+        Grid.SetColumn(countBadge, 1);
+        headerGrid.Children.Add(title);
+        headerGrid.Children.Add(countBadge);
+        section.Children.Add(headerGrid);
+
+        var viewModels = tools.Select(t => new BuiltinToolViewModel(t)).ToList();
+
+        var grid = new GridView
+        {
+            ItemsSource = viewModels,
+            ItemContainerStyle = (Style)Resources["BuiltinCardStyle"],
+            IsItemClickEnabled = true,
+            SelectionMode = ListViewSelectionMode.None,
+            Padding = new Thickness(0),
+        };
+
+        grid.ItemClick += BuiltinGrid_ItemClick;
+        grid.SizeChanged += BuiltinGrid_SizeChanged;
+
+        grid.ItemTemplate = CreateCompactItemTemplate();
+
+        section.Children.Add(grid);
+
+        return section;
+    }
+
+    private DataTemplate CreateCompactItemTemplate()
+    {
+        return (DataTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load("""
+            <DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>
+                <Border
+                    Padding="8,10,8,6"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
+                    PointerEntered="BuiltinCard_PointerEntered"
+                    PointerExited="BuiltinCard_PointerExited">
+                    <StackPanel HorizontalAlignment="Center" Spacing="6">
+                        <Border
+                            Width="52"
+                            Height="52"
+                            HorizontalAlignment="Center"
+                            Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                            CornerRadius="10">
+                            <FontIcon
+                                FontSize="26"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Glyph="{Binding Glyph}" />
+                        </Border>
+                        <TextBlock
+                            FontFamily="{StaticResource AppFontFamily}"
+                            HorizontalAlignment="Center"
+                            FontSize="13"
+                            MaxLines="2"
+                            Text="{Binding Name}"
+                            TextAlignment="Center"
+                            TextTrimming="CharacterEllipsis"
+                            TextWrapping="Wrap"
+                            Width="84" />
+                    </StackPanel>
+                </Border>
+            </DataTemplate>
+            """);
+    }
+
+    private void BuiltinCard_PointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is Border border)
+            border.Background = (Brush)Application.Current.Resources["ControlFillColorSecondaryBrush"];
+    }
+
+    private void BuiltinCard_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is Border border)
+            border.Background = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"];
+    }
+
+    private void BuiltinGrid_ItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is BuiltinToolViewModel vm)
+            _ = ExecuteToolAsync(vm);
+    }
+
+    private void BuiltinGrid_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (sender is not GridView grid) return;
+        var panel = grid.ItemsPanelRoot as ItemsWrapGrid;
         if (panel is null) return;
 
-        double minItemWidth = 280;
-        double spacing = 12;
-        double availableWidth = ToolsGrid.ActualWidth - ToolsGrid.Padding.Left - ToolsGrid.Padding.Right;
-
+        double minItemWidth = 100;
+        double spacing = 10;
+        double availableWidth = grid.ActualWidth - grid.Padding.Left - grid.Padding.Right;
         if (availableWidth <= 0) return;
 
         int columns = Math.Max(1, (int)((availableWidth + spacing) / (minItemWidth + spacing)));
         double itemWidth = (availableWidth - (columns - 1) * spacing) / columns;
         panel.ItemWidth = Math.Max(minItemWidth, itemWidth);
-    }
-
-    private void PopulateCategoryFilter()
-    {
-        CategoryFilter.Items.Add("全部分类");
-        foreach (var category in BuiltinToolRegistry.GetCategories())
-        {
-            CategoryFilter.Items.Add(category);
-        }
-        CategoryFilter.SelectedIndex = 0;
-    }
-
-    private void CategoryFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        var selected = CategoryFilter.SelectedItem as string;
-        LoadTools(selected == "全部分类" ? null : selected);
-    }
-
-    private void LoadTools(string? category)
-    {
-        _tools.Clear();
-        var tools = category is null
-            ? BuiltinToolRegistry.Tools
-            : BuiltinToolRegistry.GetByCategory(category);
-
-        foreach (var tool in tools)
-        {
-            _tools.Add(new BuiltinToolViewModel(tool));
-        }
-
-        ToolCountText.Text = $"{_tools.Count} 个内置工具";
-    }
-
-    private void ToolsGrid_ItemClick(object sender, ItemClickEventArgs e)
-    {
-        if (e.ClickedItem is BuiltinToolViewModel vm)
-        {
-            ShowToolDetail(vm);
-        }
-    }
-
-    private void ToolsGrid_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-    {
-        var vm = FindAncestorDataContext<BuiltinToolViewModel>(e.OriginalSource as FrameworkElement);
-        if (vm is not null)
-            _ = ExecuteToolAsync(vm);
-    }
-
-    private static T? FindAncestorDataContext<T>(FrameworkElement? element) where T : class
-    {
-        while (element is not null)
-        {
-            if (element.DataContext is T t) return t;
-            element = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(element) as FrameworkElement;
-        }
-        return null;
-    }
-
-    private void ShowToolDetail(BuiltinToolViewModel vm)
-    {
-        ToolDetailTip.Title = vm.Name;
-        ToolDetailTip.Subtitle = vm.Category;
-        DetailDescriptionText.Text = string.IsNullOrWhiteSpace(vm.Description)
-            ? "暂无介绍。"
-            : vm.Description;
-        DetailCategoryText.Text = $"分类：{vm.Category}";
-        DetailKindText.Text = $"类型：{vm.KindText}";
-        ToolDetailTip.IsOpen = true;
-    }
-
-    private void RunButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button { DataContext: BuiltinToolViewModel vm })
-        {
-            _ = ExecuteToolAsync(vm);
-        }
     }
 
     private async Task ExecuteToolAsync(BuiltinToolViewModel vm)
@@ -236,7 +299,7 @@ public sealed partial class BuiltinToolsPage : Page
             TextWrapping = TextWrapping.Wrap
         });
 
-        var secondaryBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
+        var secondaryBrush = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
 
         if (!string.IsNullOrWhiteSpace(description))
         {

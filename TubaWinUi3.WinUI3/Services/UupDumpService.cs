@@ -103,9 +103,13 @@ public static class UupDumpService
         ["ENTERPRISEN"] = "Windows 企业版 N",
         ["ENTERPRISEG"] = "Windows 企业版 G",
         ["ENTERPRISEGN"] = "Windows 企业版 G N",
+        ["ENTERPRISES"] = "Windows 企业版 S",
+        ["ENTERPRISESN"] = "Windows 企业版 S N",
         ["SERVERRDSH"] = "Windows 企业多会话版",
         ["IOTENTERPRISE"] = "Windows IoT 企业版",
         ["IOTENTERPRISEK"] = "Windows IoT 企业版订阅",
+        ["IOTENTERPRISES"] = "Windows IoT 企业版 S",
+        ["IOTENTERPRISESK"] = "Windows IoT 企业版 S 订阅",
         ["CLOUD"] = "Windows Cloud",
         ["CLOUDN"] = "Windows Cloud N",
         ["CLOUDE"] = "Windows Cloud Edition",
@@ -116,6 +120,7 @@ public static class UupDumpService
         ["SERVERDATACENTERCORE"] = "Windows Server 数据中心版 (Core)",
         ["SERVERTURBINE"] = "Windows Server Turbine",
         ["SERVERTURBINECORE"] = "Windows Server Turbine (Core)",
+        ["SERVERAZURESTACKHCICOR"] = "Windows Server Azure Stack HCI (Core)",
         ["PPIPRO"] = "Windows Team",
         ["STARTER"] = "Windows 入门版",
         ["STARTERN"] = "Windows 入门版 N"
@@ -129,7 +134,9 @@ public static class UupDumpService
         ["ENTERPRISE"] = "企业版",
         ["SERVERRDSH"] = "企业多会话版",
         ["IOTENTERPRISE"] = "IoT 企业版",
-        ["IOTENTERPRISEK"] = "IoT 企业版订阅"
+        ["IOTENTERPRISEK"] = "IoT 企业版订阅",
+        ["IOTENTERPRISES"] = "IoT 企业版 S",
+        ["IOTENTERPRISESK"] = "IoT 企业版 S 订阅"
     };
 
     public static IReadOnlyDictionary<string, string> GetLanguageNames() => LanguageNames;

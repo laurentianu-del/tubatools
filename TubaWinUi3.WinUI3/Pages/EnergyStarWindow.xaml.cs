@@ -33,7 +33,7 @@ public sealed partial class EnergyStarWindow : Window
     {
         InitializeComponent();
 
-        AppWindow.Title = "效率模式管理 (Energy Star X)";
+        AppWindow.Title = "后台节流省电神器 (Energy Star X)";
         AppWindow.Resize(new SizeInt32(820, 760));
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"));
 

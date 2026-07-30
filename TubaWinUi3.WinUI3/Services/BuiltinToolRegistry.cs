@@ -38,6 +38,7 @@ public static class BuiltinToolRegistry
         Register(new PerformanceBenchmarkTool());
         Register(new BenchmarkCloudTool());
         Register(new WindowsImageTool());
+        Register(new FirPeTool());
         Register(new PcTutorialTool());
         Register(new AntiMotionSicknessTool());
         if (!RuntimeHelper.IsMsixPackaged)

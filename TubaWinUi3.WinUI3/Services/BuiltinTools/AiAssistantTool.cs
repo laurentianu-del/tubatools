@@ -59,16 +59,12 @@ public sealed class AiAssistantTool : IBuiltinTool
 
         window.Activate();
 
-        if (!AiService.IsConfigured)
+        if (AiService.IsUsingDefaultModel)
         {
-            AddSystemMessage(state, "AI 服务未配置，请在设置中配置 API 地址、模型名和 API Key 后再使用。");
-            state.InputBox.IsEnabled = false;
-            state.SendBtn.IsEnabled = false;
+            AddSystemMessage(state, "⚠️ 自带模型可能出现排队/限额满速，质量低下等问题。推荐使用 DeepSeek V4 Pro。\n\n你可以在 设置 → AI 服务 中配置自己的 API Key 和模型。");
         }
-        else
-        {
-            AddSystemMessage(state, "你好！我是图吧助手，可以帮你诊断系统问题、优化配置、推荐软件。\n\n你可以问我：\n- 新电脑怎么验机\n- 电脑卡顿怎么办\n- 内存占用过高怎么优化\n- 推荐硬件检测工具\n- 查看系统配置\n- 最新处理器/显卡性能对比\n- 搜索最新驱动或技术资讯\n\n我会先收集信息，制定方案，确认后再执行操作。\n现在支持联网搜索，可以获取最新的硬件信息和技术资讯！");
-        }
+
+        AddSystemMessage(state, "你好！我是图吧助手，可以帮你诊断系统问题、优化配置、推荐软件。\n\n你可以问我：\n- 新电脑怎么验机\n- 电脑卡顿怎么办\n- 内存占用过高怎么优化\n- 推荐硬件检测工具\n- 查看系统配置\n- 最新处理器/显卡性能对比\n- 搜索最新驱动或技术资讯\n\n我会先收集信息，制定方案，确认后再执行操作。\n现在支持联网搜索，可以获取最新的硬件信息和技术资讯！");
 
         return Task.CompletedTask;
     }

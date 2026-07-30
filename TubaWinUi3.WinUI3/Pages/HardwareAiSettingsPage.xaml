@@ -203,7 +203,7 @@
                                     Opacity="1.0"
                                     FontSize="13"
                                     TextWrapping="Wrap"
-                                    Text="OpenAI 兼容 API 的 Base URL" />
+                                    Text="OpenAI 兼容 API 的 Base URL（留空使用默认）" />
                             </StackPanel>
 
                             <TextBox
@@ -212,7 +212,7 @@
                                 HorizontalAlignment="Right"
                                 MinWidth="280"
                                 MaxWidth="360"
-                                PlaceholderText="https://api.openai.com/v1"
+                                PlaceholderText="https://ai.tubawinui3.cn/v1"
                                 TextChanged="AiEndpointTextBox_TextChanged" />
                         </Grid>
 
@@ -232,7 +232,7 @@
                                     Opacity="1.0"
                                     FontSize="13"
                                     TextWrapping="Wrap"
-                                    Text="使用的模型标识符" />
+                                    Text="使用的模型标识符（留空使用默认 auto）" />
                             </StackPanel>
 
                             <TextBox
@@ -241,7 +241,7 @@
                                 HorizontalAlignment="Right"
                                 MinWidth="280"
                                 MaxWidth="360"
-                                PlaceholderText="gpt-4o"
+                                PlaceholderText="auto"
                                 TextChanged="AiModelTextBox_TextChanged" />
                         </Grid>
 
@@ -262,7 +262,7 @@
                                     Opacity="1.0"
                                     FontSize="13"
                                     TextWrapping="Wrap"
-                                    Text="API 密钥，将安全保存在本地" />
+                                    Text="API 密钥，将安全保存在本地（留空使用默认）" />
                             </StackPanel>
 
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
@@ -270,7 +270,7 @@
                                     x:Name="AiApiKeyBox"
                                     MinWidth="200"
                                     MaxWidth="280"
-                                    PlaceholderText="sk-..."
+                                    PlaceholderText="留空使用默认"
                                     PasswordChanged="AiApiKeyBox_PasswordChanged" />
                                 <Button
                                     x:Name="AiTestButton"

@@ -52,25 +52,23 @@ public static class AiService
     private static readonly HttpClient _http = new() { Timeout = TimeSpan.FromMinutes(5) };
     private static readonly HttpClient _streamHttp = new() { Timeout = TimeSpan.FromMinutes(10) };
 
-    public static bool IsConfigured
-    {
-        get
-        {
-            var endpoint = AppSettings.Get("AiApiEndpoint");
-            var model = AppSettings.Get("AiModelName");
-            var key = AppSettings.Get("AiApiKey");
-            return !string.IsNullOrWhiteSpace(endpoint)
-                && !string.IsNullOrWhiteSpace(model)
-                && !string.IsNullOrWhiteSpace(key);
-        }
-    }
+    public const string DefaultEndpoint = "https://ai.tubawinui3.cn/v1";
+    public const string DefaultModel = "auto";
+    public const string DefaultApiKey = "sk-tuba-default";
 
-    public static (string? Endpoint, string? Model, string? ApiKey) GetConfig()
+    public static bool IsUsingDefaultModel =>
+        string.IsNullOrWhiteSpace(AppSettings.Get("AiApiEndpoint")) &&
+        string.IsNullOrWhiteSpace(AppSettings.Get("AiModelName")) &&
+        string.IsNullOrWhiteSpace(AppSettings.Get("AiApiKey"));
+
+    public static bool IsConfigured => true;
+
+    public static (string Endpoint, string Model, string ApiKey) GetConfig()
     {
         return (
-            AppSettings.Get("AiApiEndpoint"),
-            AppSettings.Get("AiModelName"),
-            AppSettings.Get("AiApiKey")
+            AppSettings.Get("AiApiEndpoint")?.Trim() is { Length: > 0 } e ? e : DefaultEndpoint,
+            AppSettings.Get("AiModelName")?.Trim() is { Length: > 0 } m ? m : DefaultModel,
+            AppSettings.Get("AiApiKey")?.Trim() is { Length: > 0 } k ? k : DefaultApiKey
         );
     }
 
@@ -92,12 +90,6 @@ public static class AiService
         Action<int, string?, string?, string?>? onToolCallDelta = null)
     {
         var (endpoint, model, apiKey) = GetConfig();
-
-        if (string.IsNullOrWhiteSpace(endpoint) || string.IsNullOrWhiteSpace(model) || string.IsNullOrWhiteSpace(apiKey))
-        {
-            onError?.Invoke("AI 服务未配置，请在设置中配置 API 地址、模型名和 API Key");
-            return;
-        }
 
         var url = endpoint.TrimEnd('/') + "/chat/completions";
 
@@ -212,9 +204,6 @@ public static class AiService
     {
         var (endpoint, model, apiKey) = GetConfig();
 
-        if (string.IsNullOrWhiteSpace(endpoint) || string.IsNullOrWhiteSpace(model) || string.IsNullOrWhiteSpace(apiKey))
-            return new AiChatResponse { Success = false, Error = "AI 服务未配置" };
-
         var url = endpoint.TrimEnd('/') + "/chat/completions";
         var body = BuildRequestBody(messages, temperature, false, maxTokens, tools);
 
@@ -298,6 +287,8 @@ public static class AiService
         int? maxTokens,
         List<AiToolDefinition>? tools)
     {
+        var (_, model, _) = GetConfig();
+
         var msgList = new List<object>();
         foreach (var m in messages)
         {
@@ -335,7 +326,7 @@ public static class AiService
 
         var body = new Dictionary<string, object>
         {
-            ["model"] = AppSettings.Get("AiModelName") ?? "",
+            ["model"] = model,
             ["messages"] = msgList,
             ["temperature"] = temperature,
             ["stream"] = stream

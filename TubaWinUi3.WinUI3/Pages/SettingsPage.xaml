@@ -788,9 +788,9 @@
                                             </Border>
                                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                                 <TextBlock FontWeight="SemiBold" Text="API 地址" />
-                                                <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="OpenAI 兼容 API 的 Base URL" />
+                                                <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="OpenAI 兼容 API 的 Base URL（留空使用默认）" />
                                             </StackPanel>
-                                            <TextBox x:Name="AiEndpointTextBox" Grid.Column="1" HorizontalAlignment="Right" MinWidth="280" MaxWidth="360" PlaceholderText="https://api.openai.com/v1" TextChanged="AiEndpointTextBox_TextChanged" />
+                                            <TextBox x:Name="AiEndpointTextBox" Grid.Column="1" HorizontalAlignment="Right" MinWidth="280" MaxWidth="360" PlaceholderText="https://ai.tubawinui3.cn/v1" TextChanged="AiEndpointTextBox_TextChanged" />
                                         </Grid>
                                         <Grid Grid.Row="3" ColumnSpacing="16">
                                             <Grid.ColumnDefinitions>
@@ -802,9 +802,9 @@
                                             </Border>
                                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                                 <TextBlock FontWeight="SemiBold" Text="模型名" />
-                                                <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="使用的模型标识符" />
+                                                <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="使用的模型标识符（留空使用默认 auto）" />
                                             </StackPanel>
-                                            <TextBox x:Name="AiModelTextBox" Grid.Column="1" HorizontalAlignment="Right" MinWidth="280" MaxWidth="360" PlaceholderText="gpt-4o" TextChanged="AiModelTextBox_TextChanged" />
+                                            <TextBox x:Name="AiModelTextBox" Grid.Column="1" HorizontalAlignment="Right" MinWidth="280" MaxWidth="360" PlaceholderText="auto" TextChanged="AiModelTextBox_TextChanged" />
                                         </Grid>
                                         <Grid Grid.Row="4" ColumnSpacing="16">
                                             <Grid.ColumnDefinitions>
@@ -817,10 +817,10 @@
                                             </Border>
                                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                                 <TextBlock FontWeight="SemiBold" Text="API Key" />
-                                                <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="API 密钥，将安全保存在本地" />
+                                                <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="API 密钥，将安全保存在本地（留空使用默认）" />
                                             </StackPanel>
                                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                                <PasswordBox x:Name="AiApiKeyBox" MinWidth="200" MaxWidth="280" PlaceholderText="sk-..." PasswordChanged="AiApiKeyBox_PasswordChanged" />
+                                                <PasswordBox x:Name="AiApiKeyBox" MinWidth="200" MaxWidth="280" PlaceholderText="留空使用默认" PasswordChanged="AiApiKeyBox_PasswordChanged" />
                                                 <Button x:Name="AiTestButton" Padding="14,6" Click="AiTestButton_Click">
                                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                                         <FontIcon x:Name="AiTestIcon" FontSize="12" Glyph="&#xE73E;" />

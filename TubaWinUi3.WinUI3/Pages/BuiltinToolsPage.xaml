@@ -10,192 +10,77 @@
 
     <Page.Resources>
         <Style x:Key="BuiltinCardStyle" TargetType="GridViewItem">
-            <Setter Property="Margin" Value="0,0,12,12" />
+            <Setter Property="Margin" Value="0,0,10,10" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="VerticalContentAlignment" Value="Stretch" />
         </Style>
     </Page.Resources>
 
     <Grid>
-    <Grid Padding="28,18,28,24" RowSpacing="18">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
+        <Grid Padding="28,18,28,24" RowSpacing="18">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-        <StackPanel Spacing="4">
-            <TextBlock
-                FontSize="30"
-                FontWeight="SemiBold"
-                Text="内置" />
-            <TextBlock
-                Opacity="1.0"
-                Text="无需外部文件，直接使用的系统工具集。" />
-        </StackPanel>
+            <StackPanel Spacing="4">
+                <TextBlock
+                    FontSize="30"
+                    FontWeight="SemiBold"
+                    Text="内置" />
+                <TextBlock
+                    Opacity="1.0"
+                    Text="无需外部文件，直接使用的系统工具集。" />
+            </StackPanel>
 
-        <Border
-            Grid.Row="1"
-            Padding="18"
-            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-            BorderThickness="1"
-            CornerRadius="8">
-            <Grid ColumnSpacing="18">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
+            <Border
+                Grid.Row="1"
+                Padding="18"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8">
+                <Grid ColumnSpacing="18">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
 
-                <Border
-                    Width="44"
-                    Height="44"
-                    Background="{ThemeResource AccentFillColorDefaultBrush}"
-                    CornerRadius="8">
-                    <FontIcon
-                        FontSize="22"
-                        Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
-                        Glyph="&#xE90F;" />
-                </Border>
+                    <Border
+                        Width="44"
+                        Height="44"
+                        Background="{ThemeResource AccentFillColorDefaultBrush}"
+                        CornerRadius="8">
+                        <FontIcon
+                            FontSize="22"
+                            Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                            Glyph="&#xE90F;" />
+                    </Border>
 
-                <StackPanel Grid.Column="1" Spacing="2">
-                    <TextBlock
-                        FontSize="16"
-                        FontWeight="SemiBold"
-                        Text="内置工具" />
-                    <TextBlock
-                        x:Name="ToolCountText"
-                        Opacity="1.0" />
-                </StackPanel>
+                    <StackPanel Grid.Column="1" Spacing="2">
+                        <TextBlock
+                            FontSize="16"
+                            FontWeight="SemiBold"
+                            Text="内置工具" />
+                        <TextBlock
+                            x:Name="ToolCountText"
+                            Opacity="1.0" />
+                    </StackPanel>
+                </Grid>
+            </Border>
 
-                <ComboBox
-                    x:Name="CategoryFilter"
-                    Grid.Column="2"
-                    MinWidth="140"
-                    SelectionChanged="CategoryFilter_SelectionChanged" />
-            </Grid>
-        </Border>
-
-        <Grid Grid.Row="2">
-            <GridView
-                x:Name="ToolsGrid"
-                IsItemClickEnabled="True"
-                ItemClick="ToolsGrid_ItemClick"
-                DoubleTapped="ToolsGrid_DoubleTapped"
-                ItemContainerStyle="{StaticResource BuiltinCardStyle}"
-                SelectionMode="None"
-                SizeChanged="ToolsGrid_SizeChanged">
-                <GridView.ItemTemplate>
-                    <DataTemplate>
-                        <Border
-                            Padding="16"
-                            MinHeight="220"
-                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8"
-                            HorizontalAlignment="Stretch"
-                            VerticalAlignment="Stretch">
-                            <Grid RowSpacing="7">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="52" />
-                                    <RowDefinition Height="*" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-
-                                <Grid ColumnSpacing="12">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="48" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border
-                                        Width="48"
-                                        Height="48"
-                                        Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                                        CornerRadius="8">
-                                        <FontIcon
-                                            FontSize="24"
-                                            Glyph="{Binding Glyph}" />
-                                    </Border>
-                                    <StackPanel Grid.Column="1" Spacing="3">
-                                        <TextBlock
-                                            FontFamily="{StaticResource AppFontFamily}"
-                                            FontSize="16"
-                                            FontWeight="SemiBold"
-                                            MaxLines="1"
-                                            Text="{Binding Name}"
-                                            TextTrimming="CharacterEllipsis" />
-                                        <TextBlock
-                                            FontFamily="{StaticResource AppFontFamily}"
-                                            FontSize="12"
-                                            Opacity="1.0"
-                                            Text="{Binding Category}"
-                                            TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
-                                </Grid>
-
-                                <TextBlock
-                                    FontFamily="{StaticResource AppFontFamily}"
-                                    Grid.Row="1"
-                                    MaxLines="2"
-                                    Opacity="1.0"
-                                    Text="{Binding Description}"
-                                    TextTrimming="CharacterEllipsis"
-                                    TextWrapping="Wrap" />
-
-                                <Grid Grid.Row="3" ColumnSpacing="8" VerticalAlignment="Bottom">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border
-                                        HorizontalAlignment="Left"
-                                        VerticalAlignment="Center"
-                                        Padding="8,4"
-                                        Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                                        CornerRadius="6">
-                                        <TextBlock
-                                            FontFamily="{StaticResource AppFontFamily}"
-                                            FontSize="11"
-                                            FontWeight="SemiBold"
-                                            VerticalAlignment="Center"
-                                            Text="{Binding KindText}" />
-                                    </Border>
-                                    <Button
-                                        Grid.Column="1"
-                                        MinWidth="88"
-                                        HorizontalAlignment="Right"
-                                        VerticalAlignment="Center"
-                                        Padding="10,4"
-                                        Click="RunButton_Click"
-                                        Content="运行" />
-                                </Grid>
-                            </Grid>
-                        </Border>
-                    </DataTemplate>
-                </GridView.ItemTemplate>
-            </GridView>
-
-            <TeachingTip
-                x:Name="ToolDetailTip"
-                CloseButtonContent="关闭"
-                PreferredPlacement="Right">
-                <StackPanel MaxWidth="420" Spacing="8">
-                    <TextBlock x:Name="DetailDescriptionText" TextWrapping="Wrap" />
-                    <TextBlock x:Name="DetailCategoryText" Opacity="1.0" TextWrapping="Wrap" />
-                    <TextBlock x:Name="DetailKindText" Opacity="1.0" TextWrapping="Wrap" />
-                </StackPanel>
-            </TeachingTip>
+            <ScrollViewer Grid.Row="2">
+                <StackPanel x:Name="GroupsPanel" Spacing="20" />
+            </ScrollViewer>
 
             <InfoBar
                 x:Name="StatusBar"
+                Grid.Row="2"
                 HorizontalAlignment="Right"
                 VerticalAlignment="Bottom"
                 IsClosable="True"
                 IsOpen="False" />
         </Grid>
-    </Grid>
     </Grid>
 </Page>

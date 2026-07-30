@@ -429,18 +429,9 @@ public sealed class JunkCleanerTool : IBuiltinTool
         var state = GetState(root);
         if (state is null) return;
 
-        if (!AiService.IsConfigured)
+        if (AiService.IsUsingDefaultModel)
         {
-            state.AiLogScroll.Visibility = Visibility.Visible;
-            state.AiLogList.Children.Clear();
-            state.ListScroll.Visibility = Visibility.Collapsed;
-            state.CategoryList.Children.Clear();
-            state.ResultText.Visibility = Visibility.Collapsed;
-            state.LoadingPanel.Visibility = Visibility.Collapsed;
-            state.LoadingRing.IsActive = false;
-            AppendAiLog(state, "错误", "AI 服务未配置，请先在设置中配置 AI 服务（API 地址、模型名和 API Key）。", AccentRed);
-            AppendAiLog(state, "提示", "设置路径：设置 → AI 服务", AccentYellow);
-            return;
+            AppendAiLog(state, "提示", "⚠️ 自带模型可能出现排队/限额满速，质量低下等问题。推荐使用 DeepSeek V4 Pro。", AccentYellow);
         }
 
         var scanLabel = _aiFullScan ? "AI 完全扫描" : "AI 快速扫描";

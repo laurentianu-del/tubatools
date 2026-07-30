@@ -356,7 +356,12 @@ public sealed partial class HardwareAiSettingsPage : Page
 
     private void UpdateAiConfigStatus()
     {
-        if (AiService.IsConfigured)
+        if (AiService.IsUsingDefaultModel)
+        {
+            AiConfigStatusText.Text = "⚠️ 使用自带默认模型，可能出现排队/限额满速，质量低下等问题。推荐使用 DeepSeek V4 Pro。";
+            AiConfigStatusText.Foreground = new SolidColorBrush(ThemeColors.AccentOrange);
+        }
+        else if (AiService.IsConfigured)
         {
             AiConfigStatusText.Text = "AI 服务已配置，可在支持 AI 的功能中使用";
             AiConfigStatusText.Foreground = new SolidColorBrush(Microsoft.UI.Colors.Green);

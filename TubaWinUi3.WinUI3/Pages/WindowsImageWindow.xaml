@@ -40,7 +40,7 @@
                     <PivotItem Header="微软官方下载">
                         <StackPanel Spacing="14" Padding="0,8,0,0">
                             <InfoBar IsOpen="True" IsClosable="False" Title="微软官方下载说明" Severity="Informational">
-                                <TextBlock Text="从微软官方服务器获取 ISO 下载链接。需选择版本和语言后获取链接，链接 24 小时内有效。部分地区可能需要 VPN。" TextWrapping="Wrap" />
+                                <TextBlock Text="从微软官方服务器获取 ISO 下载链接。需选择版本和语言后获取链接，链接 24 小时内有效。部分地区可能需要 VPN。&#x0a;注意：LTSC、企业版、教育版、IoT、Server 等版本请使用「UUP Dump」标签页获取。" TextWrapping="Wrap" />
                             </InfoBar>
 
                             <Grid ColumnSpacing="10">
@@ -249,17 +249,28 @@
                                                 <x:String>RP</x:String>
                                                 <x:String>Retail</x:String>
                                             </ComboBox>
-                                            <ComboBox x:Name="UupNewSkuCombo" Grid.Column="3" MinWidth="140" SelectedIndex="1">
+                                            <ComboBox x:Name="UupNewSkuCombo" Grid.Column="3" MinWidth="160" SelectedIndex="1">
                                                 <ComboBoxItem Content="Windows 家庭版 (101)" Tag="101" />
                                                 <ComboBoxItem Content="Windows 专业版 (48)" Tag="48" />
                                                 <ComboBoxItem Content="Windows 教育版 (121)" Tag="121" />
                                                 <ComboBoxItem Content="Windows 企业版 (4)" Tag="4" />
                                                 <ComboBoxItem Content="Windows 企业评估版 (72)" Tag="72" />
-                                                <ComboBoxItem Content="Windows LTSC (125)" Tag="125" />
-                                                <ComboBoxItem Content="Windows LTSC 评估 (129)" Tag="129" />
+                                                <ComboBoxItem Content="Windows 11 IoT 企业版 (188)" Tag="188" />
+                                                <ComboBoxItem Content="Windows 11 IoT 企业版订阅 (191)" Tag="191" />
+                                                <ComboBoxItem Content="Windows 11 企业多会话版 (175)" Tag="175" />
+                                                <ComboBoxItem Content="Windows 11 专业教育版 (164)" Tag="164" />
+                                                <ComboBoxItem Content="Windows 11 专业工作站版 (161)" Tag="161" />
+                                                <ComboBoxItem Content="Windows 11 SE (190)" Tag="190" />
+                                                <ComboBoxItem Content="Windows 10/11 LTSC (125)" Tag="125" />
+                                                <ComboBoxItem Content="Windows 10/11 LTSC 评估 (129)" Tag="129" />
+                                                <ComboBoxItem Content="Windows 10 IoT 企业版 (183)" Tag="183" />
+                                                <ComboBoxItem Content="Windows 10 企业版 LTSB (86)" Tag="86" />
+                                                <ComboBoxItem Content="Windows 10 企业版 LTSB 评估 (87)" Tag="87" />
                                                 <ComboBoxItem Content="Windows Team (119)" Tag="119" />
                                                 <ComboBoxItem Content="Server 标准 (7)" Tag="7" />
                                                 <ComboBoxItem Content="Server 数据中心 (8)" Tag="8" />
+                                                <ComboBoxItem Content="Server 标准评估 (80)" Tag="80" />
+                                                <ComboBoxItem Content="Server 数据中心评估 (81)" Tag="81" />
                                                 <ComboBoxItem Content="Azure Stack HCI (406)" Tag="406" />
                                             </ComboBox>
                                         </Grid>
