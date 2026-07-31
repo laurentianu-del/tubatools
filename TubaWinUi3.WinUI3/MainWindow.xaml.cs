@@ -150,8 +150,6 @@ public sealed partial class MainWindow : Window
         NavFrame.Navigated += NavFrame_Navigated;
         TabNavFrame.Navigated += TabNavFrame_Navigated;
 
-        ApplyBackground();
-
         if (RuntimeHelper.IsMsixPackaged)
         {
             NavView.MenuItems.Remove(CommunityNavItem);
@@ -167,6 +165,8 @@ public sealed partial class MainWindow : Window
         _initialized = true;
 
         NavigateToDefaultPage();
+
+        _ = ApplyBackgroundAsync();
 
         _ = Task.Run(async () =>
         {
@@ -208,6 +208,22 @@ public sealed partial class MainWindow : Window
     private void ApplyBackground()
     {
         var bmp = BackgroundService.LoadBackgroundImage();
+        if (bmp is not null)
+        {
+            BackgroundImg.Source = bmp;
+            BackgroundImg.Opacity = BackgroundService.GetBackgroundOpacity();
+            BackgroundImg.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            BackgroundImg.Source = null;
+            BackgroundImg.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private async Task ApplyBackgroundAsync()
+    {
+        var bmp = await BackgroundService.LoadBackgroundImageAsync();
         if (bmp is not null)
         {
             BackgroundImg.Source = bmp;

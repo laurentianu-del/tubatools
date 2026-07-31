@@ -25,7 +25,14 @@ public static class BrandEasterEggService
 
     public static event EventHandler<BrandEasterEggLoadedEventArgs>? BrandBackgroundLoaded;
 
-    public static string? GetDetectedBrand() => _cachedBrand ??= DetectBrand();
+    public static string? GetDetectedBrand() => _cachedBrand;
+
+    public static async Task<string?> DetectBrandAsync()
+    {
+        if (_cachedBrand is not null) return _cachedBrand;
+        _cachedBrand = await Task.Run(DetectBrand);
+        return _cachedBrand;
+    }
 
     public static BrandEasterEgg? GetDetectedEasterEgg()
     {
@@ -44,12 +51,12 @@ public static class BrandEasterEggService
         return File.Exists(path) ? path : null;
     }
 
-    public static void StartBackgroundDownload()
+    public static async Task StartBackgroundDownloadAsync()
     {
         if (_downloadAttempted) return;
         if (IsBrandBackgroundDisabled()) return;
 
-        var easterEgg = GetDetectedEasterEgg();
+        var easterEgg = await GetDetectedEasterEggAsync();
         if (easterEgg is null) return;
 
         var dir = ConfigManager.GetBackgroundsDir();
@@ -84,11 +91,36 @@ public static class BrandEasterEggService
         });
     }
 
+    public static void StartBackgroundDownload()
+    {
+        _ = StartBackgroundDownloadAsync();
+    }
+
+    public static async Task<BrandEasterEgg?> GetDetectedEasterEggAsync()
+    {
+        var brand = await DetectBrandAsync();
+        if (brand is null) return null;
+        return BrandEasterEggs.FirstOrDefault(e => brand.Contains(e.MatchKeyword, StringComparison.OrdinalIgnoreCase));
+    }
+
     public static bool ShouldApplyBrandBackground()
     {
         if (IsBrandBackgroundDisabled()) return false;
         var customBg = BackgroundService.GetBackgroundPath();
         return string.IsNullOrEmpty(customBg) && GetDetectedBrand() is not null;
+    }
+
+    public static async Task ApplyBrandBackgroundIfDetectedAsync()
+    {
+        var brand = await DetectBrandAsync();
+        if (brand is null) return;
+        if (!ShouldApplyBrandBackground()) return;
+
+        var path = GetBrandBackgroundPath();
+        if (File.Exists(path))
+        {
+            BackgroundService.SetBackgroundPath(path);
+        }
     }
 
     public static void ApplyBrandBackgroundIfDetected()

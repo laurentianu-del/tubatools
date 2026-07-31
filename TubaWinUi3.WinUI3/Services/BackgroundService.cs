@@ -41,6 +41,16 @@ public static class BackgroundService
         BrandEasterEggService.BrandBackgroundLoaded += OnBrandBackgroundLoaded;
     }
 
+    public static async Task EnsureBrandBackgroundInitializedAsync()
+    {
+        if (_brandInitialized) return;
+        _brandInitialized = true;
+
+        await BrandEasterEggService.ApplyBrandBackgroundIfDetectedAsync();
+        await BrandEasterEggService.StartBackgroundDownloadAsync();
+        BrandEasterEggService.BrandBackgroundLoaded += OnBrandBackgroundLoaded;
+    }
+
     private static void OnBrandBackgroundLoaded(object? sender, BrandEasterEggLoadedEventArgs e)
     {
         if (string.IsNullOrEmpty(GetBackgroundPath()))
@@ -51,8 +61,6 @@ public static class BackgroundService
 
     public static BitmapImage? LoadBackgroundImage()
     {
-        EnsureBrandBackgroundInitialized();
-
         var path = GetBackgroundPath();
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
         {
@@ -76,6 +84,12 @@ public static class BackgroundService
             _cachedPath = null;
             return null;
         }
+    }
+
+    public static async Task<BitmapImage?> LoadBackgroundImageAsync()
+    {
+        await EnsureBrandBackgroundInitializedAsync();
+        return LoadBackgroundImage();
     }
 
     public static List<BackgroundImageEntry> GetImportedBackgrounds()

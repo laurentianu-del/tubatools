@@ -35,7 +35,7 @@ public static class DownloadQueueService
     {
         _dispatcherQueue = dq;
         PostProcessorRegistry.RegisterDefaults();
-        LoadQueue();
+        _ = Task.Run(() => LoadQueue());
     }
 
     public static ObservableCollection<DownloadItem> Queue => _queue;
@@ -247,6 +247,8 @@ public static class DownloadQueueService
             var entries = JsonSerializer.Deserialize<List<DownloadQueueEntry>>(json);
             if (entries is null) return;
 
+            var items = new List<DownloadItem>();
+
             foreach (var entry in entries)
             {
                 DownloadItem? item = null;
@@ -299,10 +301,24 @@ public static class DownloadQueueService
                         item.SetErrorMessage(entry.ErrorMessage);
                 }
 
-                _queue.Add(item);
+                items.Add(item);
             }
 
-            QueueChanged?.Invoke();
+            if (_dispatcherQueue is not null)
+            {
+                _dispatcherQueue.TryEnqueue(() =>
+                {
+                    foreach (var item in items)
+                        _queue.Add(item);
+                    QueueChanged?.Invoke();
+                });
+            }
+            else
+            {
+                foreach (var item in items)
+                    _queue.Add(item);
+                QueueChanged?.Invoke();
+            }
         }
         catch { }
     }

@@ -26,7 +26,7 @@ public partial class App : Application
             .AddDefaultMappers()
             .AddDefaultTheme());
         
-        _ = Task.Run(() => AppSettings.Load());
+        AppSettings.Load();
         
         BuiltinToolRegistry.RegisterDefaults();
 
@@ -86,14 +86,21 @@ public partial class App : Application
         _window = new MainWindow();
         _window.Activate();
         ToolItem.SetUIDispatcher(_window.DispatcherQueue);
-        ThemeService.ApplySavedTheme();
-        FontService.ApplySavedFonts();
 
         _ = RunStartupSequenceAsync();
     }
 
     private static async Task RunStartupSequenceAsync()
     {
+        if (MainWindow?.DispatcherQueue is not null)
+        {
+            MainWindow.DispatcherQueue.TryEnqueue(() =>
+            {
+                ThemeService.ApplySavedTheme();
+                FontService.ApplySavedFonts();
+            });
+        }
+
         _ = Task.Run(() => ToolIconService.CleanExpiredCache());
         _ = Task.Run(() => HardwareInfoService.PreloadAsync());
         _ = Task.Run(() => ConfigManager.AutoMigratePathsIfNeeded());
