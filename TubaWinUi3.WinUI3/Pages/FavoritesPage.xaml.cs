@@ -386,7 +386,7 @@ public sealed partial class FavoritesPage : Page
         _statusBarTimer.Tick += (s, e) =>
         {
             StatusBar.IsOpen = false;
-            ((DispatcherTimer)s).Stop();
+            ((DispatcherTimer)s!).Stop();
         };
         _statusBarTimer.Start();
     }

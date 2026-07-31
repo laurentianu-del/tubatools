@@ -115,12 +115,14 @@ public sealed partial class MainWindow : Window
         _toolUpdateToastTimer.Tick += (s, e) =>
         {
             ToolUpdateToast.IsOpen = false;
-            ((DispatcherTimer)s).Stop();
+            ((DispatcherTimer)s!).Stop();
         };
         _toolUpdateToastTimer.Start();
     }
 
+#pragma warning disable CS0414
     private bool _initialized;
+#pragma warning restore CS0414
 
     public MainWindow()
     {
@@ -567,7 +569,7 @@ public sealed partial class MainWindow : Window
 
                 case "benchmark":
                     _navFromSidebar = false;
-                    ExecuteBenchmarkToolAsync();
+                    _ = ExecuteBenchmarkToolAsync();
                     break;
                 case string category:
                     NavFrame.Navigate(typeof(HomePage), category);
@@ -841,7 +843,7 @@ public sealed partial class MainWindow : Window
                 break;
             case "benchmark":
                 _navFromSidebar = false;
-                ExecuteBenchmarkToolAsync();
+                _ = ExecuteBenchmarkToolAsync();
                 break;
             case "settings":
                 TabNavFrame.Navigate(typeof(SettingsPage));
@@ -1141,7 +1143,7 @@ public sealed partial class MainWindow : Window
                 break;
             case "benchmark":
                 _navFromSidebar = false;
-                ExecuteBenchmarkToolAsync();
+                _ = ExecuteBenchmarkToolAsync();
                 break;
 
             case "settings":

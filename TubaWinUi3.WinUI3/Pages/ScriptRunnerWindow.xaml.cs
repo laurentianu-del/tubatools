@@ -31,7 +31,9 @@ public sealed partial class ScriptRunnerWindow : Window
     private bool _closed;
     private DispatcherQueueTimer? _durationTimer;
     private bool _hasProgressLine;
+#pragma warning disable CS0414
     private int _progressLineInlineCount;
+#pragma warning restore CS0414
 
     public ScriptRunnerWindow()
     {
@@ -635,7 +637,7 @@ public sealed partial class ScriptRunnerWindow : Window
             _toastBarTimer.Tick += (s, e) =>
             {
                 ToastBar.IsOpen = false;
-                ((DispatcherTimer)s).Stop();
+                ((DispatcherTimer)s!).Stop();
             };
             _toastBarTimer.Start();
         });

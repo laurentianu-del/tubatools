@@ -1320,22 +1320,20 @@ public sealed partial class AiAssistantService
             var stdoutTask = Task.Run(async () =>
             {
                 using var reader = proc.StandardOutput;
-                while (!reader.EndOfStream)
+                while (await reader.ReadLineAsync(ct) is { } line)
                 {
                     ct.ThrowIfCancellationRequested();
-                    var line = await reader.ReadLineAsync(ct);
-                    if (line is not null) stdoutBuilder.AppendLine(line);
+                    stdoutBuilder.AppendLine(line);
                 }
             }, ct);
 
             var stderrTask = Task.Run(async () =>
             {
                 using var reader = proc.StandardError;
-                while (!reader.EndOfStream)
+                while (await reader.ReadLineAsync(ct) is { } line)
                 {
                     ct.ThrowIfCancellationRequested();
-                    var line = await reader.ReadLineAsync(ct);
-                    if (line is not null) stderrBuilder.AppendLine(line);
+                    stderrBuilder.AppendLine(line);
                 }
             }, ct);
 

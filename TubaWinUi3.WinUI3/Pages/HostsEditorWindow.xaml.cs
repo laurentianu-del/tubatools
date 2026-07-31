@@ -425,7 +425,7 @@ public sealed partial class HostsEditorWindow : Window
         _toastBarTimer.Tick += (s, e) =>
         {
             ToastBar.IsOpen = false;
-            ((DispatcherTimer)s).Stop();
+            ((DispatcherTimer)s!).Stop();
         };
         _toastBarTimer.Start();
     }

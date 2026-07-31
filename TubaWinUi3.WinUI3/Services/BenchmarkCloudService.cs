@@ -112,7 +112,7 @@ public static class BenchmarkCloudService
 		await SyncForkWithUpstreamAsync(forkOwner, token, ct);
 		string branchName = "report/" + entry.Id;
 		progress?.Report("正在创建分支...");
-		string mainSha = await GetRefShaAsync(forkOwner, "tubatoolsPlugin", "heads/main", token, ct);
+		string mainSha = (await GetRefShaAsync(forkOwner, "tubatoolsPlugin", "heads/main", token, ct))!;
 		if (mainSha == null)
 		{
 			throw new InvalidOperationException("无法获取 main 分支 SHA");
@@ -177,7 +177,7 @@ public static class BenchmarkCloudService
 		await SyncForkWithUpstreamAsync(forkOwner, token, ct);
 		string branchName = "delete/" + entry.Id;
 		progress?.Report("正在创建分支...");
-		string mainSha = await GetRefShaAsync(forkOwner, "tubatoolsPlugin", "heads/main", token, ct);
+		string mainSha = (await GetRefShaAsync(forkOwner, "tubatoolsPlugin", "heads/main", token, ct))!;
 		if (mainSha == null)
 		{
 			throw new InvalidOperationException("无法获取 main 分支 SHA");
@@ -420,7 +420,7 @@ public static class BenchmarkCloudService
 			{
 				try
 				{
-					string content = await DownloadBlobAsync(item.Sha, token);
+					string content = (await DownloadBlobAsync(item.Sha, token))!;
 					if (content != null)
 					{
 						var entry = JsonSerializer.Deserialize<BenchmarkReportEntry>(content, new JsonSerializerOptions
@@ -623,7 +623,7 @@ public static class BenchmarkCloudService
 
 	private static async Task SyncForkWithUpstreamAsync(string forkOwner, string token, CancellationToken ct)
 	{
-		string upstreamMainSha = await GetRefShaAsync("luolangaga", "tubatoolsPlugin", "heads/main", token, ct);
+		string upstreamMainSha = (await GetRefShaAsync("luolangaga", "tubatoolsPlugin", "heads/main", token, ct))!;
 		if (upstreamMainSha == null || await GetRefShaAsync(forkOwner, "tubatoolsPlugin", "heads/main", token, ct) == upstreamMainSha)
 		{
 			return;

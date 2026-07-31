@@ -352,7 +352,7 @@ public sealed partial class BuiltinToolsPage : Page
         _statusBarTimer.Tick += (s, e) =>
         {
             StatusBar.IsOpen = false;
-            ((DispatcherTimer)s).Stop();
+            ((DispatcherTimer)s!).Stop();
         };
         _statusBarTimer.Start();
     }

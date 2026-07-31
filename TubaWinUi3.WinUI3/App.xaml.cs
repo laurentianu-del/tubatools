@@ -251,7 +251,48 @@ public partial class App : Application
             var updates = await ToolUpdateService.CheckForToolUpdatesAsync();
             if (updates is null || updates.Count == 0) return;
 
-            ToolUpdateService.EnqueueToolUpdates(updates);
+            if (MainWindow?.DispatcherQueue is null) return;
+
+            var tcs = new TaskCompletionSource<bool>();
+
+            MainWindow.DispatcherQueue.TryEnqueue(async () =>
+            {
+                try
+                {
+                    if (MainWindow?.Content is not FrameworkElement root)
+                    {
+                        tcs.SetResult(false);
+                        return;
+                    }
+
+                    var toolList = string.Join("\n", updates.Select(u =>
+                        $"• {u.ToolName}  v{u.LocalVersion} → v{u.RemoteVersion}"));
+
+                    var dialog = new ContentDialog
+                    {
+                        Title = "发现工具更新",
+                        Content = $"以下 {updates.Count} 个工具有新版本：\n\n{toolList}\n\n是否立即更新？",
+                        PrimaryButtonText = "全部更新",
+                        SecondaryButtonText = "跳过",
+                        DefaultButton = ContentDialogButton.Primary,
+                        XamlRoot = root.XamlRoot,
+                        RequestedTheme = ThemeService.CurrentElementTheme
+                    };
+
+                    var result = await dialog.ShowAsync();
+                    tcs.SetResult(result == ContentDialogResult.Primary);
+                }
+                catch
+                {
+                    tcs.SetResult(false);
+                }
+            });
+
+            var confirmed = await tcs.Task;
+            if (confirmed)
+            {
+                ToolUpdateService.EnqueueToolUpdates(updates);
+            }
         }
         catch { }
     }

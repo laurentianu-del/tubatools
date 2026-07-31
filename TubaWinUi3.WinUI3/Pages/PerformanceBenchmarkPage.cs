@@ -27,64 +27,64 @@ public sealed partial class PerformanceBenchmarkPage : Page
 	private CancellationTokenSource _cts;
 	private PerformanceBenchmarkResult? _result;
 	private bool _isRunning;
-	private Brush cardBg;
-	private Brush cardBorderBrush;
-	private TextBlock _gamingScoreText;
-	private TextBlock _gamingGradeText;
-	private ProgressBar _gamingBar;
-	private TextBlock _officeScoreText;
-	private TextBlock _officeGradeText;
-	private ProgressBar _officeBar;
-	private TextBlock _cpuSingleScoreText;
-	private TextBlock _cpuMultiScoreText;
-	private TextBlock _cpuLatencyScoreText;
-	private Border _latencyGridContainer;
-	private Image _latencyHeatmapImage;
+	private Brush cardBg = null!;
+	private Brush cardBorderBrush = null!;
+	private TextBlock _gamingScoreText = null!;
+	private TextBlock _gamingGradeText = null!;
+	private ProgressBar _gamingBar = null!;
+	private TextBlock _officeScoreText = null!;
+	private TextBlock _officeGradeText = null!;
+	private ProgressBar _officeBar = null!;
+	private TextBlock _cpuSingleScoreText = null!;
+	private TextBlock _cpuMultiScoreText = null!;
+	private TextBlock _cpuLatencyScoreText = null!;
+	private Border _latencyGridContainer = null!;
+	private Image _latencyHeatmapImage = null!;
 	private string? _latencyHeatmapPath;
-	private TextBlock _gpuRenderScoreText;
-	private TextBlock _gpuFurMarkScoreText;
-	private TextBlock _gpuAvgFpsText;
-	private TextBlock _gpuMinFpsText;
-	private TextBlock _gpuMaxFpsText;
-	private TextBlock _gpuNameText;
-	private TextBlock _memCapacityText;
-	private TextBlock _diskSeqReadScoreText;
-	private TextBlock _diskSeqWriteScoreText;
-	private TextBlock _disk4KReadScoreText;
-	private TextBlock _disk4KWriteScoreText;
-	private TextBlock _diskSeqReadDetailText;
-	private TextBlock _diskSeqWriteDetailText;
-	private TextBlock _disk4KReadDetailText;
-	private TextBlock _disk4KWriteDetailText;
-	private TextBlock _diskTempText;
-	private TextBlock _brJsScoreText;
-	private TextBlock _brJsDetailText;
-	private TextBlock _brDomScoreText;
-	private TextBlock _brDomDetailText;
-	private TextBlock _brCardScoreText;
-	private TextBlock _brCardDetailText;
-	private TextBlock _brCssScoreText;
-	private TextBlock _brCssDetailText;
-	private TextBlock _brLayoutScoreText;
-	private TextBlock _brLayoutDetailText;
-	private TextBlock _brEventScoreText;
-	private TextBlock _brEventDetailText;
-	private Button _startBtn;
-	private Button _stopBtn;
-	private Button _exportBtn;
-	private Button _historyBtn;
-	private Button _uploadBtn;
-	private Button _rankingBtn;
-	private ProgressBar _globalProgress;
-	private TextBlock _statusText;
-	private CheckBox _chkCpu;
-	private CheckBox _chkGpu;
-	private CheckBox _chkMem;
-	private CheckBox _chkDisk;
-	private CheckBox _chkBrowser;
-	private ComboBox _gpuSelector;
+	private TextBlock _gpuRenderScoreText = null!;
+	private TextBlock _gpuFurMarkScoreText = null!;
+	private TextBlock _gpuAvgFpsText = null!;
+	private TextBlock _gpuMinFpsText = null!;
+	private TextBlock _gpuMaxFpsText = null!;
+	private TextBlock _gpuNameText = null!;
+	private TextBlock _memCapacityText = null!;
+	private TextBlock _diskSeqReadScoreText = null!;
+	private TextBlock _diskSeqWriteScoreText = null!;
+	private TextBlock _disk4KReadScoreText = null!;
+	private TextBlock _disk4KWriteScoreText = null!;
+	private TextBlock _diskSeqReadDetailText = null!;
+	private TextBlock _diskSeqWriteDetailText = null!;
+	private TextBlock _disk4KReadDetailText = null!;
+	private TextBlock _disk4KWriteDetailText = null!;
+	private TextBlock _diskTempText = null!;
+	private TextBlock _brJsScoreText = null!;
+	private TextBlock _brJsDetailText = null!;
+	private TextBlock _brDomScoreText = null!;
+	private TextBlock _brDomDetailText = null!;
+	private TextBlock _brCardScoreText = null!;
+	private TextBlock _brCardDetailText = null!;
+	private TextBlock _brCssScoreText = null!;
+	private TextBlock _brCssDetailText = null!;
+	private TextBlock _brLayoutScoreText = null!;
+	private TextBlock _brLayoutDetailText = null!;
+	private TextBlock _brEventScoreText = null!;
+	private TextBlock _brEventDetailText = null!;
+	private Button _startBtn = null!;
+	private Button _stopBtn = null!;
+	private Button _exportBtn = null!;
+	private Button _historyBtn = null!;
+	private Button _uploadBtn = null!;
+	private Button _rankingBtn = null!;
+	private ProgressBar _globalProgress = null!;
+	private TextBlock _statusText = null!;
+	private CheckBox _chkCpu = null!;
+	private CheckBox _chkGpu = null!;
+	private CheckBox _chkMem = null!;
+	private CheckBox _chkDisk = null!;
+	private CheckBox _chkBrowser = null!;
+	private ComboBox _gpuSelector = null!;
 	private List<GpuInfo> _availableGpus = [];
-	private StackPanel _gpuSelectorRow;
+	private StackPanel _gpuSelectorRow = null!;
 
 	private static readonly Color AccentBlue = Color.FromArgb(byte.MaxValue, 0, 99, 177);
 	private static readonly Color ColorS = Color.FromArgb(byte.MaxValue, 74, 222, 128);
@@ -736,7 +736,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 				result.Cpu = await Task.Run(() => PerformanceBenchmarkService.RunCpuBenchmark(60, progress, _cts.Token), _cts.Token);
 				_cts.Token.ThrowIfCancellationRequested();
 				DispatcherQueue.TryEnqueue(() => UpdateCpuUI(result));
-				string coreToCoreExe = PerformanceBenchmarkService.FindCoreToCoreLatencyExe();
+				string? coreToCoreExe = PerformanceBenchmarkService.FindCoreToCoreLatencyExe();
 				if (coreToCoreExe != null)
 				{
 					var (csv, _) = await ShowCoreToCoreLatencyDialog(coreToCoreExe);
@@ -900,7 +900,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		if (chkDontShow.IsChecked == true)
 			AppSettings.Set("BenchmarkPostPromptDisabled", true);
 		if (result == ContentDialogResult.Primary)
-			OnUploadClick(this, null);
+			OnUploadClick(this, null!);
 		else if (result == ContentDialogResult.Secondary)
 		{
 			var tool = new RatingSystemTool();
@@ -954,10 +954,10 @@ public sealed partial class PerformanceBenchmarkPage : Page
 			StandardOutputEncoding = Encoding.UTF8,
 			StandardErrorEncoding = Encoding.UTF8
 		};
-		Process proc = null;
+		Process? proc = null;
 		try
 		{
-			proc = Process.Start(startInfo);
+			proc = Process.Start(startInfo)!;
 			if (proc == null)
 			{
 				outputText.Text = "无法启动 core-to-core-latency";
@@ -1004,7 +1004,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 			outputText.Text = "启动失败: " + ex.Message;
 			return (csv: "", stderr: "");
 		}
-		dialog.ShowAsync().AsTask().ContinueWith(_ =>
+		_ = dialog.ShowAsync().AsTask().ContinueWith(_ =>
 		{
 			if (!procExited && proc != null)
 			{
@@ -1068,7 +1068,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 			}
 			catch { }
 		};
-		dialog.ShowAsync().AsTask().ContinueWith(_ =>
+		_ = dialog.ShowAsync().AsTask().ContinueWith(_ =>
 		{
 			DispatcherQueue.TryEnqueue(() =>
 			{
@@ -1479,7 +1479,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 			XamlRoot = XamlRoot,
 			RequestedTheme = ThemeService.CurrentElementTheme
 		};
-		progressDlg.ShowAsync();
+		_ = progressDlg.ShowAsync();
 		try
 		{
 			var progress = new Progress<string>(msg =>

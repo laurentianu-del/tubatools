@@ -126,13 +126,13 @@ public static class PerformanceBenchmarkService
 
 	private static (int singleCore, int multiCore) RunCpuzBenchmark(IProgress<BenchmarkProgress>? progress, CancellationToken ct)
 	{
-		string cpuzExe = CpuzInfoService.FindCpuzExe();
+		string cpuzExe = CpuzInfoService.FindCpuzExe()!;
 		if (cpuzExe == null)
 		{
 			throw new InvalidOperationException("未找到 CPU-Z，无法运行 CPU 基准测试。请确保 Tools/处理器工具/CPUZ/ 目录下存在 cpuz_x64.exe。");
 		}
-		string cpuzDir = Path.GetDirectoryName(cpuzExe);
-		string benchFile = Path.Combine(cpuzDir, Environment.MachineName + ".txt");
+		string cpuzDir = Path.GetDirectoryName(cpuzExe)!;
+		string benchFile = Path.Combine(cpuzDir!, Environment.MachineName + ".txt");
 		try
 		{
 			CleanCpuzBenchFiles(cpuzDir);
@@ -259,7 +259,7 @@ public static class PerformanceBenchmarkService
 		var gpus = LiteMonitorService.GetAvailableGpus();
 		if (gpus.Count > 0 && gpuIndex >= 0 && gpuIndex < gpus.Count)
 			gpu.GpuName = gpus[gpuIndex].Name;
-		string furMarkExe = FindFurMarkExe();
+		string furMarkExe = FindFurMarkExe()!;
 		if (furMarkExe == null)
 		{
 			progress?.Report(new BenchmarkProgress
@@ -283,8 +283,8 @@ public static class PerformanceBenchmarkService
 			Detail = "路径: " + furMarkExe,
 			Progress = 0.55
 		});
-		string furMarkDir = Path.GetDirectoryName(furMarkExe);
-		string logFile = Path.Combine(furMarkDir, "_furmark_log.txt");
+		string furMarkDir = Path.GetDirectoryName(furMarkExe)!;
+		string logFile = Path.Combine(furMarkDir!, "_furmark_log.txt");
 		if (File.Exists(logFile))
 		{
 			try { File.Delete(logFile); } catch { }
@@ -474,7 +474,7 @@ public static class PerformanceBenchmarkService
 	{
 		var sw = Stopwatch.StartNew();
 		var disk = new DiskBenchmarkResult();
-		string diskSpdExe = FindDiskSpdExe();
+		string diskSpdExe = FindDiskSpdExe()!;
 		if (diskSpdExe == null)
 		{
 			disk.SeqReadMBs = 0.0;

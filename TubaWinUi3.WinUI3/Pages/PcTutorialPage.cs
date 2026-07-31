@@ -847,7 +847,7 @@ public sealed class PcTutorialPage : Page
                     var pressed = KeyToString(vkCode);
                     var target = guide.ShortcutKey;
 
-                    if (IsShortcutMatch(vkCode, target))
+                    if (IsShortcutMatch(vkCode, target!))
                     {
                         _completedExperiences.Add(guide.Id);
                         SaveProgress();

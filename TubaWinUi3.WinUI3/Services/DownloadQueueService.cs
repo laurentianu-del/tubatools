@@ -20,7 +20,9 @@ public static class DownloadQueueService
     private static readonly Dictionary<string, Task> _activeTasks = [];
     private static int _pendingCount;
     private static DispatcherQueue? _dispatcherQueue;
+#pragma warning disable CS0414
     private static bool _dirty;
+#pragma warning restore CS0414
     private static readonly object _saveLock = new();
 
     private static HttpClient CreateHttpClient(TimeSpan? timeout = null)

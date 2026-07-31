@@ -136,11 +136,15 @@ public sealed partial class UpdateDialog : ContentDialog
             string filePath;
             if (useGitCode && !string.IsNullOrEmpty(asset.GitCodeDownloadUrl))
             {
+#pragma warning disable CS0618
                 filePath = await UpdateService.DownloadFromGitCodeAsync(asset, downloadProgress, _cts.Token);
+#pragma warning restore CS0618
             }
             else
             {
+#pragma warning disable CS0618
                 filePath = await UpdateService.DownloadUpdateAsync(asset, downloadProgress, _cts.Token);
+#pragma warning restore CS0618
             }
 
             Hide();

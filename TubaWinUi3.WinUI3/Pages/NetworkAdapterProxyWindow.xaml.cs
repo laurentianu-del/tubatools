@@ -517,7 +517,7 @@ public sealed partial class NetworkAdapterProxyWindow : Window
         _toastBarTimer.Tick += (s, e) =>
         {
             ToastBar.IsOpen = false;
-            ((DispatcherTimer)s).Stop();
+            ((DispatcherTimer)s!).Stop();
         };
         _toastBarTimer.Start();
     }

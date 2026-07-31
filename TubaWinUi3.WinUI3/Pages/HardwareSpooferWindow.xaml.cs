@@ -353,7 +353,7 @@ public sealed partial class HardwareSpooferWindow : Window
         _statusBarTimer.Tick += (s, e) =>
         {
             StatusBar.IsOpen = false;
-            ((DispatcherTimer)s).Stop();
+            ((DispatcherTimer)s!).Stop();
         };
         _statusBarTimer.Start();
     }

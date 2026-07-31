@@ -22,9 +22,13 @@ public sealed partial class CommunitySubmitWindow : Window
     private readonly string? _iconFilePath;
     private readonly string? _downloadUrl;
     private readonly string? _downloadFilter;
+#pragma warning disable CS0414
     private bool _completed;
+#pragma warning restore CS0414
 
+#pragma warning disable CS0067
     public event Action? SubmitSucceeded;
+#pragma warning restore CS0067
 
     public CommunitySubmitWindow(
         string name, string description, string category, string tags,

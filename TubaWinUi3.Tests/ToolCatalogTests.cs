@@ -40,7 +40,7 @@ public class ToolCatalogTests
     [InlineData("CPUZ_x86", "x86")]
     [InlineData("CPUZ_ARM64", "ARM64")]
     [InlineData("CPUZ_arm64", "ARM64")]
-    [InlineData("HWMonitor64", null)]
+    [InlineData("HWMonitor64", "x64")]
     [InlineData("GPUZ32", "x86")]
     [InlineData("Tool_w64", "x64")]
     [InlineData("Tool_Win64", "x64")]

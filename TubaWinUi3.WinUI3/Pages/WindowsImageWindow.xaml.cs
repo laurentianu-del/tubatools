@@ -365,7 +365,7 @@ public sealed partial class WindowsImageWindow : Window
             var result = await dialog.ShowAsync();
             if (result == ContentDialogResult.Primary)
             {
-                try { Windows.System.Launcher.LaunchUriAsync(new Uri("https://www.ezbsystems.com/ultraiso/")); } catch { }
+                try { _ = Windows.System.Launcher.LaunchUriAsync(new Uri("https://www.ezbsystems.com/ultraiso/")); } catch { }
             }
             return;
         }

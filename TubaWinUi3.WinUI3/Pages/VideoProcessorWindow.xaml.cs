@@ -1421,7 +1421,7 @@ public sealed partial class VideoProcessorWindow : Window
                 }));
 
             await FfmpegService.RunFfmpegAsync(args, progress, _cts.Token);
-            ShowToast("处理完成", Path.GetFileName(_outputFile), InfoBarSeverity.Success);
+            ShowToast("处理完成", Path.GetFileName(_outputFile) ?? "", InfoBarSeverity.Success);
             ProgressText.Text = "处理完成！";
             try { await Windows.System.Launcher.LaunchFolderPathAsync(Path.GetDirectoryName(_outputFile)!); } catch { }
         }
@@ -1445,7 +1445,7 @@ public sealed partial class VideoProcessorWindow : Window
         _toastBarTimer.Tick += (s, e) =>
         {
             ToastBar.IsOpen = false;
-            ((DispatcherTimer)s).Stop();
+            ((DispatcherTimer)s!).Stop();
         };
         _toastBarTimer.Start();
     }

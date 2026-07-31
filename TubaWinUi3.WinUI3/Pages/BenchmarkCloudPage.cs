@@ -36,79 +36,79 @@ public sealed class BenchmarkCloudPage : Page
 
 	private string _currentSortBy = "gaming";
 
-	private Pivot MainPivot;
+	private Pivot MainPivot = null!;
 
-	private ProgressBar MyHistoryProgress;
+	private ProgressBar MyHistoryProgress = null!;
 
-	private ScrollViewer MyHistoryArea;
+	private ScrollViewer MyHistoryArea = null!;
 
-	private StackPanel MyHistoryEmpty;
+	private StackPanel MyHistoryEmpty = null!;
 
-	private ListView MyHistoryList;
+	private ListView MyHistoryList = null!;
 
-	private CartesianChart MyHistoryChart;
+	private CartesianChart MyHistoryChart = null!;
 
-	private Button DeleteMyReportBtn;
+	private Button DeleteMyReportBtn = null!;
 
-	private TextBlock MyHistoryLoginHint;
+	private TextBlock MyHistoryLoginHint = null!;
 
-	private ProgressBar SameHwProgress;
+	private ProgressBar SameHwProgress = null!;
 
-	private ListView SameHwList;
+	private ListView SameHwList = null!;
 
-	private StackPanel SameHwEmpty;
+	private StackPanel SameHwEmpty = null!;
 
-	private StackPanel SameHwInfo;
+	private StackPanel SameHwInfo = null!;
 
-	private TextBlock SameHwCpuText;
+	private TextBlock SameHwCpuText = null!;
 
-	private TextBlock SameHwGpuText;
+	private TextBlock SameHwGpuText = null!;
 
-	private ProgressBar CompareProgress;
+	private ProgressBar CompareProgress = null!;
 
-	private ScrollViewer CompareResultArea;
+	private ScrollViewer CompareResultArea = null!;
 
-	private StackPanel CompareEmpty;
+	private StackPanel CompareEmpty = null!;
 
-	private PolarChart CompareRadarChart;
+	private PolarChart CompareRadarChart = null!;
 
-	private CartesianChart CompareBarChart;
+	private CartesianChart CompareBarChart = null!;
 
-	private Grid CompareTableGrid;
+	private Grid CompareTableGrid = null!;
 
-	private StackPanel CompareViewTogglePanel;
+	private StackPanel CompareViewTogglePanel = null!;
 
 	private List<ComboBox> CompareCombos = new List<ComboBox>();
 
-	private StackPanel CompareComboPanel;
+	private StackPanel CompareComboPanel = null!;
 
-	private Button CompareButton;
+	private Button CompareButton = null!;
 
 	private const int MaxCompareCount = 6;
 
-	private ProgressBar LeaderboardProgress;
+	private ProgressBar LeaderboardProgress = null!;
 
-	private ListView LeaderboardList;
+	private ListView LeaderboardList = null!;
 
-	private StackPanel LeaderboardEmpty;
+	private StackPanel LeaderboardEmpty = null!;
 
-	private TextBlock LeaderboardEmptyText;
+	private TextBlock LeaderboardEmptyText = null!;
 
-	private ComboBox SortByCombo;
+	private ComboBox SortByCombo = null!;
 
-	private AutoSuggestBox CpuFilterBox;
+	private AutoSuggestBox CpuFilterBox = null!;
 
-	private Button RefreshButton;
+	private Button RefreshButton = null!;
 
-	private Button UploadButton;
+	private Button UploadButton = null!;
 
-	private ComboBox SourceCombo;
+	private ComboBox SourceCombo = null!;
 
-	private TextBlock ReportCountText;
+	private TextBlock ReportCountText = null!;
 
-	private ProgressBar LoadMoreProgress;
+	private ProgressBar LoadMoreProgress = null!;
 
-	private TextBlock LoadMoreText;
+	private TextBlock LoadMoreText = null!;
 
 	private static readonly Color AccentBlue = Color.FromArgb(255, 0, 99, 177);
 
@@ -977,10 +977,10 @@ public sealed class BenchmarkCloudPage : Page
 		}
 	}
 
-	private async void LeaderboardScrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
+	private async void LeaderboardScrollViewer_ViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
 	{
 		if (!_hasMorePages || _isLoadingMore || _currentPage < 0) return;
-		var sv = (ScrollViewer)sender;
+		if (sender is not ScrollViewer sv) return;
 		if (sv.VerticalOffset >= sv.ScrollableHeight - 200)
 		{
 			await LoadMoreLeaderboardAsync();
@@ -1017,7 +1017,8 @@ public sealed class BenchmarkCloudPage : Page
 			.Select(c => c.SelectedItem as BenchmarkReportEntry)
 			.Where(r => r != null)
 			.Distinct()
-			.ToList();
+			.OfType<BenchmarkReportEntry>()
+		.ToList();
 		if (selected.Count < 2)
 		{
 			await new ContentDialog
@@ -1447,7 +1448,7 @@ public sealed class BenchmarkCloudPage : Page
 			XamlRoot = XamlRoot,
 			RequestedTheme = ThemeService.CurrentElementTheme
 		};
-		progressDlg.ShowAsync();
+		_ = progressDlg.ShowAsync();
 		try
 		{
 			Progress<string> progress = new Progress<string>(delegate(string msg)
@@ -1661,7 +1662,7 @@ public sealed class BenchmarkCloudPage : Page
 			XamlRoot = XamlRoot,
 			RequestedTheme = ThemeService.CurrentElementTheme
 		};
-		progressDlg.ShowAsync();
+		_ = progressDlg.ShowAsync();
 		try
 		{
 			Progress<string> progress = new Progress<string>(delegate(string msg)

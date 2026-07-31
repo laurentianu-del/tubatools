@@ -285,7 +285,7 @@ public sealed class AntiMotionSicknessOverlay
             hIcon = IntPtr.Zero,
             hCursor = IntPtr.Zero,
             hbrBackground = GetStockObject(NULL_BRUSH),
-            lpszMenuName = null,
+            lpszMenuName = null!,
             lpszClassName = ClassName
         };
         _classAtom = RegisterClassW(ref wc);
