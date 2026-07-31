@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Diagnostics;
 using System.Drawing;
 using System.Security.Cryptography;
@@ -11,6 +12,8 @@ public static class ToolIconService
     private static string CacheRoot => ConfigManager.GetIconCacheDir();
 
     private static readonly TimeSpan CacheMaxAge = TimeSpan.FromDays(90);
+    private const long MaxCacheSizeBytes = 50 * 1024 * 1024;
+    private const int MaxCacheFiles = 2000;
 
     private static readonly Dictionary<string, string> ExtensionGlyphs = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -20,6 +23,8 @@ public static class ToolIconService
         [".vbs"] = "\uE943",
         [".msc"] = "\uEC7A",
     };
+
+    private static readonly LruCache<string, string> _memoryCache = new(512);
 
     public static string? GetIconGlyph(string toolPath)
     {
@@ -42,8 +47,12 @@ public static class ToolIconService
             !extension.Equals(".lnk", StringComparison.OrdinalIgnoreCase))
             return null;
 
-        Directory.CreateDirectory(CacheRoot);
         var cacheKey = GetCacheKey(toolPath);
+
+        if (_memoryCache.TryGetValue(cacheKey, out var cachedPath))
+            return cachedPath;
+
+        Directory.CreateDirectory(CacheRoot);
         var iconPath = Path.Combine(CacheRoot, $"{cacheKey}.png");
 
         if (!File.Exists(iconPath))
@@ -53,9 +62,18 @@ public static class ToolIconService
         if (age >= CacheMaxAge)
         {
             try { File.Delete(iconPath); } catch { }
+            _memoryCache.Remove(cacheKey);
             return null;
         }
 
+        if (IsSourceStale(toolPath, iconPath))
+        {
+            try { File.Delete(iconPath); } catch { }
+            _memoryCache.Remove(cacheKey);
+            return null;
+        }
+
+        _memoryCache.Set(cacheKey, iconPath);
         return iconPath;
     }
 
@@ -78,10 +96,14 @@ public static class ToolIconService
             if (File.Exists(iconPath))
             {
                 var age = DateTime.UtcNow - File.GetLastWriteTimeUtc(iconPath);
-                if (age < CacheMaxAge)
+                if (age < CacheMaxAge && !IsSourceStale(toolPath, iconPath))
+                {
+                    _memoryCache.Set(cacheKey, iconPath);
                     return iconPath;
+                }
 
-                try { File.Delete(iconPath); } catch { return iconPath; }
+                try { File.Delete(iconPath); } catch { }
+                _memoryCache.Remove(cacheKey);
             }
 
             try
@@ -92,6 +114,7 @@ public static class ToolIconService
 
                 using var bitmap = icon.ToBitmap();
                 bitmap.Save(iconPath, System.Drawing.Imaging.ImageFormat.Png);
+                _memoryCache.Set(cacheKey, iconPath);
                 return iconPath;
             }
             catch (Exception ex)
@@ -174,6 +197,8 @@ public static class ToolIconService
         if (!Directory.Exists(CacheRoot))
             return;
 
+        _memoryCache.Clear();
+
         var cutoff = DateTime.UtcNow - CacheMaxAge;
 
         foreach (var file in Directory.EnumerateFiles(CacheRoot, "*.png"))
@@ -185,16 +210,116 @@ public static class ToolIconService
             }
             catch { }
         }
+
+        CleanOrphanedCache();
+        EnforceCacheSizeLimit();
     }
 
     public static void CleanAllCache()
     {
+        _memoryCache.Clear();
+
         if (!Directory.Exists(CacheRoot))
             return;
 
         try
         {
             Directory.Delete(CacheRoot, true);
+        }
+        catch { }
+    }
+
+    public static void InvalidateCache(string toolPath)
+    {
+        var cacheKey = GetCacheKey(toolPath);
+        _memoryCache.Remove(cacheKey);
+
+        var iconPath = Path.Combine(CacheRoot, $"{cacheKey}.png");
+        try { if (File.Exists(iconPath)) File.Delete(iconPath); } catch { }
+    }
+
+    private static bool IsSourceStale(string toolPath, string cachedIconPath)
+    {
+        try
+        {
+            var sourceWrite = File.GetLastWriteTimeUtc(toolPath);
+            var cacheWrite = File.GetLastWriteTimeUtc(cachedIconPath);
+            return sourceWrite > cacheWrite;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void CleanOrphanedCache()
+    {
+        if (!Directory.Exists(CacheRoot))
+            return;
+
+        try
+        {
+            var validKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var tools = ToolCatalog.GetAllToolsCached();
+            foreach (var tool in tools)
+            {
+                var ext = Path.GetExtension(tool.Path);
+                if (ext.Equals(".exe", StringComparison.OrdinalIgnoreCase) ||
+                    ext.Equals(".lnk", StringComparison.OrdinalIgnoreCase))
+                {
+                    validKeys.Add(GetCacheKey(tool.Path));
+                }
+            }
+
+            foreach (var file in Directory.EnumerateFiles(CacheRoot, "*.png"))
+            {
+                var name = Path.GetFileNameWithoutExtension(file);
+                if (!validKeys.Contains(name))
+                {
+                    try { File.Delete(file); } catch { }
+                }
+            }
+        }
+        catch { }
+    }
+
+    private static void EnforceCacheSizeLimit()
+    {
+        if (!Directory.Exists(CacheRoot))
+            return;
+
+        try
+        {
+            var files = new List<FileInfo>();
+            foreach (var file in Directory.EnumerateFiles(CacheRoot, "*.png"))
+            {
+                try { files.Add(new FileInfo(file)); } catch { }
+            }
+
+            var totalSize = files.Sum(f => f.Length);
+            if (totalSize <= MaxCacheSizeBytes && files.Count <= MaxCacheFiles)
+                return;
+
+            var sorted = files
+                .OrderBy(f => f.LastWriteTimeUtc)
+                .ToList();
+
+            foreach (var file in sorted)
+            {
+                if (totalSize <= MaxCacheSizeBytes && files.Count <= MaxCacheFiles)
+                    break;
+
+                var key = Path.GetFileNameWithoutExtension(file.FullName);
+                _memoryCache.Remove(key);
+
+                try
+                {
+                    totalSize -= file.Length;
+                    files.Remove(file);
+                    file.Delete();
+                }
+                catch { }
+            }
         }
         catch { }
     }
@@ -210,4 +335,91 @@ public static class ToolIconService
         var relative = PathResolver.MakeRelative(toolPath);
         return Hash(relative);
     }
+
+        private sealed class LruCache<TKey, TValue> where TKey : notnull
+        {
+            private readonly int _capacity;
+            private readonly Dictionary<TKey, LinkedListNode<LruEntry>> _map;
+            private readonly LinkedList<LruEntry> _list;
+
+            public LruCache(int capacity)
+            {
+                if (capacity < 1) throw new ArgumentOutOfRangeException(nameof(capacity));
+                _capacity = capacity;
+                _map = new Dictionary<TKey, LinkedListNode<LruEntry>>(capacity);
+                _list = new LinkedList<LruEntry>();
+            }
+
+            public bool TryGetValue(TKey key, out TValue? value)
+            {
+                lock (_map)
+                {
+                    if (_map.TryGetValue(key, out var node))
+                    {
+                        _list.Remove(node);
+                        _list.AddFirst(node);
+                        value = node.Value.Value;
+                        return true;
+                    }
+
+                    value = default;
+                    return false;
+                }
+            }
+
+            public void Set(TKey key, TValue value)
+            {
+                lock (_map)
+                {
+                    if (_map.TryGetValue(key, out var existing))
+                    {
+                        _list.Remove(existing);
+                        existing.Value = new LruEntry(key, value);
+                        _list.AddFirst(existing);
+                    }
+                    else
+                    {
+                        if (_map.Count >= _capacity)
+                        {
+                            var lru = _list.Last!;
+                            _list.RemoveLast();
+                            _map.Remove(lru.Value.Key);
+                        }
+
+                        var node = _list.AddFirst(new LruEntry(key, value));
+                        _map[key] = node;
+                    }
+                }
+            }
+
+            public void Remove(TKey key)
+            {
+                lock (_map)
+                {
+                    if (_map.Remove(key, out var node))
+                        _list.Remove(node);
+                }
+            }
+
+            public void Clear()
+            {
+                lock (_map)
+                {
+                    _map.Clear();
+                    _list.Clear();
+                }
+            }
+
+            private readonly struct LruEntry
+            {
+                public TKey Key { get; }
+                public TValue Value { get; }
+
+                public LruEntry(TKey key, TValue value)
+                {
+                    Key = key;
+                    Value = value;
+                }
+            }
+        }
 }

@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using LiveChartsCore;
+using LiveChartsCore.SkiaSharpView;
+using LiveChartsCore.SkiaSharpView.WinUI;
 using Microsoft.UI;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
@@ -44,7 +46,7 @@ public sealed class BenchmarkCloudPage : Page
 
 	private ListView MyHistoryList;
 
-	private WebView2 MyHistoryChart;
+	private CartesianChart MyHistoryChart;
 
 	private Button DeleteMyReportBtn;
 
@@ -68,9 +70,9 @@ public sealed class BenchmarkCloudPage : Page
 
 	private StackPanel CompareEmpty;
 
-	private WebView2 CompareRadarChart;
+	private PolarChart CompareRadarChart;
 
-	private WebView2 CompareBarChart;
+	private CartesianChart CompareBarChart;
 
 	private Grid CompareTableGrid;
 
@@ -538,8 +540,8 @@ public sealed class BenchmarkCloudPage : Page
 		};
 		stack.Children.Add(CompareProgress);
 
-		CompareRadarChart = new WebView2 { Height = 460.0 };
-		CompareBarChart = new WebView2 { Height = 420.0, Visibility = Visibility.Collapsed };
+		CompareRadarChart = new PolarChart { Height = 460.0 };
+		CompareBarChart = new CartesianChart { Height = 420.0, Visibility = Visibility.Collapsed };
 		CompareTableGrid = new Grid { Visibility = Visibility.Collapsed };
 
 		var resultStack = new StackPanel { Spacing = 8.0 };
@@ -672,7 +674,7 @@ public sealed class BenchmarkCloudPage : Page
 		grid.Children.Add(MyHistoryProgress);
 		Grid.SetRow(MyHistoryProgress, 1);
 
-		MyHistoryChart = new WebView2
+		MyHistoryChart = new CartesianChart
 		{
 			Height = 280.0
 		};
@@ -1056,18 +1058,125 @@ public sealed class BenchmarkCloudPage : Page
 		RenderCompareTable(reports);
 	}
 
-	private async Task RenderRadarChart(List<BenchmarkReportEntry> reports)
+	private Task RenderRadarChart(List<BenchmarkReportEntry> reports)
 	{
-		await CompareRadarChart.EnsureCoreWebView2Async();
-		string htmlContent = BuildRadarChartHtml(reports);
-		CompareRadarChart.NavigateToString(htmlContent);
+		string[] axes = ["CPU单核", "CPU多核", "GPU渲染", "内存", "硬盘读", "硬盘写", "4K读", "4K写", "浏览器"];
+		Func<BenchmarkReportEntry, int>[] getters =
+		[
+			r => r.CpuSingleCoreScore, r => r.CpuMultiCoreScore, r => r.GpuRenderScore,
+			r => r.MemoryCapacityScore, r => r.DiskSeqReadScore, r => r.DiskSeqWriteScore,
+			r => r.Disk4KReadScore, r => r.Disk4KWriteScore, r => r.BrowserTotalScore
+		];
+		var skiaColors = new SkiaSharp.SKColor[]
+		{
+			new SkiaSharp.SKColor(59, 125, 216, 0x33),
+			new SkiaSharp.SKColor(224, 123, 57, 0x33),
+			new SkiaSharp.SKColor(80, 180, 80, 0x33),
+			new SkiaSharp.SKColor(180, 80, 180, 0x33),
+			new SkiaSharp.SKColor(220, 180, 50, 0x33),
+			new SkiaSharp.SKColor(50, 180, 180, 0x33)
+		};
+		var strokeColors = new[]
+		{
+			SkiaSharp.SKColor.Parse("#3b7dd8"),
+			SkiaSharp.SKColor.Parse("#e07b39"),
+			SkiaSharp.SKColor.Parse("#50b450"),
+			SkiaSharp.SKColor.Parse("#b450b4"),
+			SkiaSharp.SKColor.Parse("#dcb432"),
+			SkiaSharp.SKColor.Parse("#32b4b4")
+		};
+
+		var series = new List<ISeries>();
+		for (int r = 0; r < reports.Count; r++)
+		{
+			var rep = reports[r];
+			var values = getters.Select(g => (double)g(rep)).ToArray();
+			series.Add(new PolarLineSeries<double>
+			{
+				Values = values,
+				Name = GetCompareShortName(rep),
+				Fill = new LiveChartsCore.SkiaSharpView.Painting.SolidColorPaint(skiaColors[r]),
+				Stroke = new LiveChartsCore.SkiaSharpView.Painting.SolidColorPaint(strokeColors[r]) { StrokeThickness = 2 },
+				GeometrySize = 4,
+				GeometryStroke = new LiveChartsCore.SkiaSharpView.Painting.SolidColorPaint(strokeColors[r]) { StrokeThickness = 2 },
+				GeometryFill = new LiveChartsCore.SkiaSharpView.Painting.SolidColorPaint(skiaColors[r]),
+				IsClosed = true
+			});
+		}
+
+		CompareRadarChart.Series = series;
+		CompareRadarChart.AngleAxes = new List<PolarAxis>
+		{
+			new PolarAxis
+			{
+				Labels = axes,
+				LabelsRotation = 0,
+				MinStep = 1
+			}
+		};
+		CompareRadarChart.RadiusAxes = new List<PolarAxis>
+		{
+			new PolarAxis
+			{
+				IsVisible = true
+			}
+		};
+
+		return Task.CompletedTask;
 	}
 
-	private async Task RenderBarChart(List<BenchmarkReportEntry> reports)
+	private Task RenderBarChart(List<BenchmarkReportEntry> reports)
 	{
-		await CompareBarChart.EnsureCoreWebView2Async();
-		string htmlContent = BuildBarChartHtml(reports);
-		CompareBarChart.NavigateToString(htmlContent);
+		string[] labels = ["CPU单核", "CPU多核", "GPU渲染", "内存", "硬盘读", "硬盘写", "4K读", "4K写", "浏览器"];
+		Func<BenchmarkReportEntry, int>[] getters =
+		[
+			r => r.CpuSingleCoreScore, r => r.CpuMultiCoreScore, r => r.GpuRenderScore,
+			r => r.MemoryCapacityScore, r => r.DiskSeqReadScore, r => r.DiskSeqWriteScore,
+			r => r.Disk4KReadScore, r => r.Disk4KWriteScore, r => r.BrowserTotalScore
+		];
+		var strokeColors = new[]
+		{
+			SkiaSharp.SKColor.Parse("#3b7dd8"),
+			SkiaSharp.SKColor.Parse("#e07b39"),
+			SkiaSharp.SKColor.Parse("#50b450"),
+			SkiaSharp.SKColor.Parse("#b450b4"),
+			SkiaSharp.SKColor.Parse("#dcb432"),
+			SkiaSharp.SKColor.Parse("#32b4b4")
+		};
+
+		var series = new List<ISeries>();
+		for (int r = 0; r < reports.Count; r++)
+		{
+			var rep = reports[r];
+			var values = getters.Select(g => (double)g(rep)).ToArray();
+			series.Add(new ColumnSeries<double>
+			{
+				Values = values,
+				Name = GetCompareShortName(rep),
+				Fill = new LiveChartsCore.SkiaSharpView.Painting.SolidColorPaint(strokeColors[r]),
+				Stroke = null
+			});
+		}
+
+		CompareBarChart.Series = series;
+		CompareBarChart.XAxes = new List<Axis>
+		{
+			new Axis
+			{
+				Labels = labels,
+				LabelsRotation = 15,
+				MinStep = 1
+			}
+		};
+		CompareBarChart.YAxes = new List<Axis>
+		{
+			new Axis
+			{
+				MinLimit = 0
+			}
+		};
+
+		return Task.CompletedTask;
 	}
 
 	private void RenderCompareTable(List<BenchmarkReportEntry> reports)
@@ -1147,128 +1256,6 @@ public sealed class BenchmarkCloudPage : Page
 	private static string GetCompareShortName(BenchmarkReportEntry rep)
 	{
 		return rep.Author + " · " + rep.CpuName.Split(' ').FirstOrDefault();
-	}
-
-	private static string BuildBarChartHtml(List<BenchmarkReportEntry> reports)
-	{
-		string[] labels = ["CPU单核", "CPU多核", "GPU渲染", "内存", "硬盘读", "硬盘写", "4K读", "4K写", "浏览器"];
-		Func<BenchmarkReportEntry, int>[] getters = [
-			r => r.CpuSingleCoreScore, r => r.CpuMultiCoreScore, r => r.GpuRenderScore,
-			r => r.MemoryCapacityScore, r => r.DiskSeqReadScore, r => r.DiskSeqWriteScore,
-			r => r.Disk4KReadScore, r => r.Disk4KWriteScore, r => r.BrowserTotalScore
-		];
-		string[] colors = ["#3b7dd8", "#e07b39", "#50b450", "#b450b4", "#dcb432", "#32b4b4"];
-		int barHeight = 24;
-		int groupSpacing = 8;
-		int barSpacing = 4;
-		int labelWidth = 70;
-		int chartWidth = 500;
-		int totalHeight = labels.Length * (reports.Count * (barHeight + barSpacing) + groupSpacing) + 40;
-
-		var sb = new StringBuilder();
-		sb.Append($"<!DOCTYPE html><html><head><meta charset=\"utf-8\"><style>body{{font-family:'Segoe UI',sans-serif;margin:16px;background:#fff}}\n.label{{display:inline-block;width:{labelWidth}px;font-size:11px;color:#666;vertical-align:top;padding-top:4px}}\n.bar-group{{display:inline-block;vertical-align:top}}\n.bar{{display:inline-block;height:{barHeight}px;margin:2px;border-radius:3px}}\n.bar-label{{font-size:10px;color:#fff;padding:0 6px;line-height:{barHeight}px}}\n.legend{{margin-bottom:12px;font-size:11px}}\n.legend-item{{display:inline-block;margin-right:16px}}\n.legend-dot{{width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:4px}}</style></head><body>");
-
-		sb.Append("<div class='legend'>");
-		for (int r = 0; r < reports.Count; r++)
-			sb.Append($"<span class='legend-item'><span class='legend-dot' style='background:{colors[r]}'></span>{GetCompareShortName(reports[r])}</span>");
-		sb.Append("</div>");
-
-		for (int i = 0; i < labels.Length; i++)
-		{
-			sb.Append($"<div style='margin-bottom:{groupSpacing}px'><span class='label'>{labels[i]}</span><span class='bar-group'>");
-			int maxVal = Math.Max(1, reports.Select(getters[i]).Max());
-			for (int r = 0; r < reports.Count; r++)
-			{
-				int score = getters[i](reports[r]);
-				int width = Math.Max(20, (int)((double)score / maxVal * chartWidth));
-				sb.Append($"<div class='bar' style='width:{width}px;background:{colors[r]}'><span class='bar-label'>{score}</span></div>");
-			}
-			sb.Append("</span></div>");
-		}
-		sb.Append("</body></html>");
-		return sb.ToString();
-	}
-
-	private static readonly (string fill, string stroke)[] ChartColors = new[]
-	{
-		("rgba(59,125,216,0.20)", "#3b7dd8"),
-		("rgba(224,123,57,0.20)", "#e07b39"),
-		("rgba(80,180,80,0.20)", "#50b450"),
-		("rgba(180,80,180,0.20)", "#b450b4"),
-		("rgba(220,180,50,0.20)", "#dcb432"),
-		("rgba(50,180,180,0.20)", "#32b4b4")
-	};
-
-	private static string BuildRadarChartHtml(List<BenchmarkReportEntry> reports)
-	{
-		string[] axes = new string[9] { "CPU单核", "CPU多核", "GPU渲染", "内存", "硬盘读", "硬盘写", "4K读", "4K写", "浏览器" };
-		int[][] scoreArrays = new int[reports.Count][];
-		for (int r = 0; r < reports.Count; r++)
-		{
-			var rep = reports[r];
-			scoreArrays[r] = new int[9]
-			{
-				rep.CpuSingleCoreScore,
-				rep.CpuMultiCoreScore,
-				rep.GpuRenderScore,
-				rep.MemoryCapacityScore,
-				rep.DiskSeqReadScore,
-				rep.DiskSeqWriteScore,
-				rep.Disk4KReadScore,
-				rep.Disk4KWriteScore,
-				rep.BrowserTotalScore
-			};
-		}
-		int num = axes.Length;
-		int cx = 220;
-		int cy = 220;
-		int radius = 150;
-		int maxVal = 1;
-		for (int r = 0; r < reports.Count; r++)
-		{
-			int m = scoreArrays[r].Max();
-			if (m > maxVal) maxVal = m;
-		}
-		List<string>[] polygons = new List<string>[reports.Count];
-		for (int r = 0; r < reports.Count; r++) polygons[r] = new List<string>();
-		List<string> svg = new List<string>();
-		for (int i = 0; i < num; i++)
-		{
-			double angle = -Math.PI / 2.0 + Math.PI * 2.0 * (double)i / (double)num;
-			double cosA = Math.Cos(angle);
-			double sinA = Math.Sin(angle);
-			for (int r = 0; r < reports.Count; r++)
-			{
-				double rVal = (double)scoreArrays[r][i] / (double)maxVal * (double)radius;
-				polygons[r].Add($"{(double)cx + rVal * cosA:F1},{(double)cy + rVal * sinA:F1}");
-			}
-			double labelX = (double)cx + (double)(radius + 20) * cosA;
-			double labelY = (double)cy + (double)(radius + 20) * sinA;
-			svg.Add($"<text x='{labelX:F0}' y='{labelY:F0}' text-anchor='middle' dominant-baseline='middle' font-size='10' fill='#5a7a9a'>{axes[i]}</text>");
-			double scoreY = labelY + 13;
-			for (int r = 0; r < reports.Count; r++)
-			{
-				svg.Add($"<text x='{labelX:F0}' y='{scoreY:F0}' text-anchor='middle' dominant-baseline='middle' font-size='9' fill='{ChartColors[r].stroke}'>{scoreArrays[r][i]}</text>");
-				scoreY += 11;
-			}
-			for (double ring = 0.25; ring <= 1.0; ring += 0.25)
-			{
-				svg.Add($"<circle cx='{cx}' cy='{cy}' r='{(double)radius * ring:F0}' fill='none' stroke='#d0dde8' stroke-width='0.5'/>");
-			}
-			svg.Add($"<line x1='{cx}' y1='{cy}' x2='{(double)cx + (double)radius * cosA:F1}' y2='{(double)cy + (double)radius * sinA:F1}' stroke='#d0dde8' stroke-width='0.5'/>");
-		}
-		var legendItems = new List<string>();
-		for (int r = 0; r < reports.Count; r++)
-		{
-			var c = ChartColors[r];
-			legendItems.Add($"<span><span class=\"legend-dot\" style=\"background:{c.fill}\"></span>{ShortName(reports[r])}</span>");
-		}
-		int svgSize = 440 + (reports.Count - 2) * 20;
-		return $"<!DOCTYPE html><html><head><meta charset=\"utf-8\">\n<style>body{{font-family:'Segoe UI',sans-serif;margin:0;background:#f8fafd;display:flex;justify-content:center;align-items:center;min-height:{svgSize}px}}\n.legend{{position:absolute;top:12px;left:16px;font-size:12px;display:flex;gap:16px;flex-wrap:wrap}}\n.legend-dot{{width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:4px}}\n</style></head><body>\n<div class=\"legend\">{string.Join("", legendItems)}</div>\n<svg width='{svgSize}' height='{svgSize}' viewBox='0 0 {svgSize} {svgSize}'>\n{string.Join("\n", svg)}\n{string.Join("\n", polygons.Select((pts, r) => $"<polygon points='{string.Join(" ", pts)}' fill='{ChartColors[r].fill}' stroke='{ChartColors[r].stroke}' stroke-width='1.5'/>"))}\n</svg></body></html>";
-		static string ShortName(BenchmarkReportEntry rep)
-		{
-			return rep.Author + " · " + rep.CpuName.Split(' ').FirstOrDefault();
-		}
 	}
 
 	private async Task LoadSameHardware()
@@ -1355,129 +1342,52 @@ public sealed class BenchmarkCloudPage : Page
 		}
 	}
 
-	private async Task RenderHistoryChart(List<BenchmarkReportEntry> reports)
+	private Task RenderHistoryChart(List<BenchmarkReportEntry> reports)
 	{
-		await MyHistoryChart.EnsureCoreWebView2Async();
-		string htmlContent = BuildHistoryChartHtml(reports);
-		MyHistoryChart.NavigateToString(htmlContent);
-	}
+		var sorted = reports.OrderBy(r => r.SubmittedAt).ToList();
+		var dateLabels = sorted.Select(r => r.SubmittedAt.LocalDateTime.ToString("MM/dd")).ToArray();
 
-	private static string BuildHistoryChartHtml(List<BenchmarkReportEntry> reports)
-	{
-		List<BenchmarkReportEntry> list = reports.OrderBy((BenchmarkReportEntry r) => r.SubmittedAt).ToList();
-		StringBuilder stringBuilder = new StringBuilder();
-		stringBuilder.AppendLine("<!DOCTYPE html><html><head><meta charset=\"utf-8\">\n<style>body{font-family:'Segoe UI',sans-serif;margin:16px;background:#f8fafd}\nsvg text{font-size:10px;fill:#5a7a9a}\n.line-gaming{fill:none;stroke:#3b7dd8;stroke-width:2}\n.line-office{fill:none;stroke:#e07b39;stroke-width:2}\n.dot-gaming{fill:#3b7dd8}\n.dot-office{fill:#e07b39}\n.legend{display:flex;gap:16px;margin-bottom:8px;font-size:12px}\n.legend-dot{width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:4px}\n</style></head><body>\n<div class=\"legend\"><span><span class=\"legend-dot\" style=\"background:#3b7dd8\"></span>游戏性能</span><span><span class=\"legend-dot\" style=\"background:#e07b39\"></span>办公性能</span></div>\n<svg width='100%' height='260' viewBox='0 0 600 260'>");
-		int num = 560;
-		int num2 = 220;
-		int num3 = 40;
-		int num4 = 20;
-		int num5 = Math.Max(list.Max((BenchmarkReportEntry r) => r.GamingScore), list.Max((BenchmarkReportEntry r) => r.OfficeScore));
-		if (num5 == 0)
+		var gamingSeries = new LineSeries<double>
 		{
-			num5 = 100;
-		}
-		int num6 = (int)((double)num5 * 1.1);
-		for (int num7 = 0; num7 <= 4; num7++)
+			Values = sorted.Select(r => (double)r.GamingScore).ToArray(),
+			Name = "游戏性能",
+			Fill = null,
+			Stroke = new LiveChartsCore.SkiaSharpView.Painting.SolidColorPaint(SkiaSharp.SKColor.Parse("#3b7dd8")) { StrokeThickness = 2.5f },
+			GeometrySize = 6,
+			GeometryStroke = new LiveChartsCore.SkiaSharpView.Painting.SolidColorPaint(SkiaSharp.SKColor.Parse("#3b7dd8")) { StrokeThickness = 2f },
+			GeometryFill = new LiveChartsCore.SkiaSharpView.Painting.SolidColorPaint(SkiaSharp.SKColor.Parse("#3b7dd8")),
+		};
+
+		var officeSeries = new LineSeries<double>
 		{
-			double num8 = (double)(num4 + num2) - (double)num7 / 4.0 * (double)num2;
-			int value = (int)((double)num7 / 4.0 * (double)num6);
-			StringBuilder stringBuilder2 = stringBuilder;
-			StringBuilder stringBuilder3 = stringBuilder2;
-			StringBuilder.AppendInterpolatedStringHandler handler = new StringBuilder.AppendInterpolatedStringHandler(67, 4, stringBuilder2);
-			handler.AppendLiteral("<line x1='");
-			handler.AppendFormatted(num3);
-			handler.AppendLiteral("' y1='");
-			handler.AppendFormatted(num8, "F0");
-			handler.AppendLiteral("' x2='");
-			handler.AppendFormatted(num3 + num);
-			handler.AppendLiteral("' y2='");
-			handler.AppendFormatted(num8, "F0");
-			handler.AppendLiteral("' stroke='#e8eef4' stroke-width='0.5'/>");
-			stringBuilder3.AppendLine(ref handler);
-			stringBuilder2 = stringBuilder;
-			StringBuilder stringBuilder4 = stringBuilder2;
-			handler = new StringBuilder.AppendInterpolatedStringHandler(41, 3, stringBuilder2);
-			handler.AppendLiteral("<text x='");
-			handler.AppendFormatted(num3 - 4);
-			handler.AppendLiteral("' y='");
-			handler.AppendFormatted(num8 + 3.0, "F0");
-			handler.AppendLiteral("' text-anchor='end'>");
-			handler.AppendFormatted(value);
-			handler.AppendLiteral("</text>");
-			stringBuilder4.AppendLine(ref handler);
-		}
-		int count = list.Count;
-		for (int num9 = 0; num9 < count; num9++)
+			Values = sorted.Select(r => (double)r.OfficeScore).ToArray(),
+			Name = "办公性能",
+			Fill = null,
+			Stroke = new LiveChartsCore.SkiaSharpView.Painting.SolidColorPaint(SkiaSharp.SKColor.Parse("#e07b39")) { StrokeThickness = 2.5f },
+			GeometrySize = 6,
+			GeometryStroke = new LiveChartsCore.SkiaSharpView.Painting.SolidColorPaint(SkiaSharp.SKColor.Parse("#e07b39")) { StrokeThickness = 2f },
+			GeometryFill = new LiveChartsCore.SkiaSharpView.Painting.SolidColorPaint(SkiaSharp.SKColor.Parse("#e07b39")),
+		};
+
+		MyHistoryChart.Series = new List<ISeries> { gamingSeries, officeSeries };
+		MyHistoryChart.XAxes = new List<Axis>
 		{
-			double value2 = (double)num3 + (double)num9 / (double)Math.Max(count - 1, 1) * (double)num;
-			double value3 = (double)(num4 + num2) - (double)list[num9].GamingScore / (double)num6 * (double)num2;
-			double value4 = (double)(num4 + num2) - (double)list[num9].OfficeScore / (double)num6 * (double)num2;
-			StringBuilder stringBuilder2;
-			StringBuilder.AppendInterpolatedStringHandler handler;
-			if (num9 > 0)
+			new Axis
 			{
-				double value5 = (double)num3 + (double)(num9 - 1) / (double)Math.Max(count - 1, 1) * (double)num;
-				double value6 = (double)(num4 + num2) - (double)list[num9 - 1].GamingScore / (double)num6 * (double)num2;
-				double value7 = (double)(num4 + num2) - (double)list[num9 - 1].OfficeScore / (double)num6 * (double)num2;
-				stringBuilder2 = stringBuilder;
-				StringBuilder stringBuilder5 = stringBuilder2;
-				handler = new StringBuilder.AppendInterpolatedStringHandler(51, 4, stringBuilder2);
-				handler.AppendLiteral("<line x1='");
-				handler.AppendFormatted(value5, "F1");
-				handler.AppendLiteral("' y1='");
-				handler.AppendFormatted(value6, "F1");
-				handler.AppendLiteral("' x2='");
-				handler.AppendFormatted(value2, "F1");
-				handler.AppendLiteral("' y2='");
-				handler.AppendFormatted(value3, "F1");
-				handler.AppendLiteral("' class='line-gaming'/>");
-				stringBuilder5.AppendLine(ref handler);
-				stringBuilder2 = stringBuilder;
-				StringBuilder stringBuilder6 = stringBuilder2;
-				handler = new StringBuilder.AppendInterpolatedStringHandler(51, 4, stringBuilder2);
-				handler.AppendLiteral("<line x1='");
-				handler.AppendFormatted(value5, "F1");
-				handler.AppendLiteral("' y1='");
-				handler.AppendFormatted(value7, "F1");
-				handler.AppendLiteral("' x2='");
-				handler.AppendFormatted(value2, "F1");
-				handler.AppendLiteral("' y2='");
-				handler.AppendFormatted(value4, "F1");
-				handler.AppendLiteral("' class='line-office'/>");
-				stringBuilder6.AppendLine(ref handler);
+				Labels = dateLabels,
+				LabelsRotation = 0,
+				MinStep = 1
 			}
-			stringBuilder2 = stringBuilder;
-			StringBuilder stringBuilder7 = stringBuilder2;
-			handler = new StringBuilder.AppendInterpolatedStringHandler(46, 2, stringBuilder2);
-			handler.AppendLiteral("<circle cx='");
-			handler.AppendFormatted(value2, "F1");
-			handler.AppendLiteral("' cy='");
-			handler.AppendFormatted(value3, "F1");
-			handler.AppendLiteral("' r='3' class='dot-gaming'/>");
-			stringBuilder7.AppendLine(ref handler);
-			stringBuilder2 = stringBuilder;
-			StringBuilder stringBuilder8 = stringBuilder2;
-			handler = new StringBuilder.AppendInterpolatedStringHandler(46, 2, stringBuilder2);
-			handler.AppendLiteral("<circle cx='");
-			handler.AppendFormatted(value2, "F1");
-			handler.AppendLiteral("' cy='");
-			handler.AppendFormatted(value4, "F1");
-			handler.AppendLiteral("' r='3' class='dot-office'/>");
-			stringBuilder8.AppendLine(ref handler);
-			stringBuilder2 = stringBuilder;
-			StringBuilder stringBuilder9 = stringBuilder2;
-			handler = new StringBuilder.AppendInterpolatedStringHandler(44, 3, stringBuilder2);
-			handler.AppendLiteral("<text x='");
-			handler.AppendFormatted(value2, "F1");
-			handler.AppendLiteral("' y='");
-			handler.AppendFormatted(num4 + num2 + 14, "F0");
-			handler.AppendLiteral("' text-anchor='middle'>");
-			handler.AppendFormatted(list[num9].SubmittedAt.LocalDateTime, "MM/dd");
-			handler.AppendLiteral("</text>");
-			stringBuilder9.AppendLine(ref handler);
-		}
-		stringBuilder.AppendLine("</svg></body></html>");
-		return stringBuilder.ToString();
+		};
+		MyHistoryChart.YAxes = new List<Axis>
+		{
+			new Axis
+			{
+				MinLimit = 0
+			}
+		};
+
+		return Task.CompletedTask;
 	}
 
 	private async void UploadButton_Click(object sender, RoutedEventArgs e)

@@ -1,6 +1,13 @@
+using System.Collections.ObjectModel;
+using System.Text;
+using LiveChartsCore;
+using LiveChartsCore.SkiaSharpView;
+using LiveChartsCore.SkiaSharpView.Painting;
+using LiveChartsCore.SkiaSharpView.WinUI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using SkiaSharp;
 using TubaWinUi3.Models;
 using TubaWinUi3.Services;
 using Windows.ApplicationModel.DataTransfer;
@@ -10,17 +17,181 @@ namespace TubaWinUi3.Pages;
 public sealed partial class HardwareDetailPage : Page
 {
     private bool _dataLoaded;
+    private DispatcherTimer? _monitorTimer;
+    private const int MaxPoints = 50;
+    private HardwareDetailData? _lastDetailData;
+
+    private readonly ObservableCollection<double> _cpuHist = [];
+    private readonly ObservableCollection<double> _gpuHist = [];
+    private readonly ObservableCollection<double> _memHist = [];
+    private readonly ObservableCollection<double> _diskReadHist = [], _diskWriteHist = [];
+    private readonly ObservableCollection<double> _batHist = [];
+    private bool _isLaptop;
 
     public HardwareDetailPage()
     {
         InitializeComponent();
         Loaded += HardwareDetailPage_Loaded;
+        Unloaded += HardwareDetailPage_Unloaded;
     }
 
     private void HardwareDetailPage_Loaded(object sender, RoutedEventArgs e)
     {
         _ = LoadDetailAsync();
+        InitRealtimeMonitor();
     }
+
+    private void HardwareDetailPage_Unloaded(object sender, RoutedEventArgs e)
+    {
+        StopRealtimeMonitor();
+    }
+
+    private void InitRealtimeMonitor()
+    {
+        _isLaptop = HardwareInfoService.IsLaptop();
+        BatteryCard.Visibility = _isLaptop ? Visibility.Visible : Visibility.Collapsed;
+
+        CpuChart.Series = [new LineSeries<double>
+        {
+            Values = _cpuHist,
+            Stroke = new SolidColorPaint(new SKColor(76, 110, 245)) { StrokeThickness = 2 },
+            Fill = new SolidColorPaint(new SKColor(76, 110, 245, 40)),
+            GeometrySize = 0,
+            LineSmoothness = 0.4
+        }];
+        CpuChart.XAxes = [new Axis { IsVisible = false }];
+        CpuChart.YAxes = [new Axis { IsVisible = false, MinLimit = 0, MaxLimit = 100 }];
+        CpuChart.AnimationsSpeed = TimeSpan.FromMilliseconds(100);
+        CpuChart.EasingFunction = null;
+
+        GpuChart.Series = [new LineSeries<double>
+        {
+            Values = _gpuHist,
+            Stroke = new SolidColorPaint(new SKColor(121, 80, 242)) { StrokeThickness = 2 },
+            Fill = new SolidColorPaint(new SKColor(121, 80, 242, 40)),
+            GeometrySize = 0,
+            LineSmoothness = 0.4
+        }];
+        GpuChart.XAxes = [new Axis { IsVisible = false }];
+        GpuChart.YAxes = [new Axis { IsVisible = false, MinLimit = 0, MaxLimit = 100 }];
+        GpuChart.AnimationsSpeed = TimeSpan.FromMilliseconds(100);
+        GpuChart.EasingFunction = null;
+
+        MemChart.Series = [new LineSeries<double>
+        {
+            Values = _memHist,
+            Stroke = new SolidColorPaint(new SKColor(21, 170, 191)) { StrokeThickness = 2 },
+            Fill = new SolidColorPaint(new SKColor(21, 170, 191, 40)),
+            GeometrySize = 0,
+            LineSmoothness = 0.4
+        }];
+        MemChart.XAxes = [new Axis { IsVisible = false }];
+        MemChart.YAxes = [new Axis { IsVisible = false, MinLimit = 0, MaxLimit = 100 }];
+        MemChart.AnimationsSpeed = TimeSpan.FromMilliseconds(100);
+        MemChart.EasingFunction = null;
+
+        DiskChart.Series =
+        [
+            new LineSeries<double>
+            {
+                Values = _diskReadHist,
+                Stroke = new SolidColorPaint(new SKColor(76, 110, 245)) { StrokeThickness = 1.5f },
+                Fill = new SolidColorPaint(new SKColor(76, 110, 245, 30)),
+                GeometrySize = 0,
+                LineSmoothness = 0.4
+            },
+            new LineSeries<double>
+            {
+                Values = _diskWriteHist,
+                Stroke = new SolidColorPaint(new SKColor(121, 80, 242)) { StrokeThickness = 1.5f },
+                Fill = new SolidColorPaint(new SKColor(121, 80, 242, 30)),
+                GeometrySize = 0,
+                LineSmoothness = 0.4
+            }
+        ];
+        DiskChart.XAxes = [new Axis { IsVisible = false }];
+        DiskChart.YAxes = [new Axis { IsVisible = false, MinLimit = 0 }];
+        DiskChart.AnimationsSpeed = TimeSpan.FromMilliseconds(100);
+        DiskChart.EasingFunction = null;
+
+        if (_isLaptop)
+        {
+            BatChart.Series = [new LineSeries<double>
+            {
+                Values = _batHist,
+                Stroke = new SolidColorPaint(new SKColor(64, 192, 87)) { StrokeThickness = 2 },
+                Fill = new SolidColorPaint(new SKColor(64, 192, 87, 40)),
+                GeometrySize = 0,
+                LineSmoothness = 0.4
+            }];
+            BatChart.XAxes = [new Axis { IsVisible = false }];
+            BatChart.YAxes = [new Axis { IsVisible = false, MinLimit = 0, MaxLimit = 100 }];
+            BatChart.AnimationsSpeed = TimeSpan.FromMilliseconds(100);
+            BatChart.EasingFunction = null;
+        }
+
+        _monitorTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _monitorTimer.Tick += MonitorTimer_Tick;
+        _monitorTimer.Start();
+        _ = UpdateMonitorAsync();
+    }
+
+    private void StopRealtimeMonitor()
+    {
+        _monitorTimer?.Stop();
+        _monitorTimer = null;
+    }
+
+    private async void MonitorTimer_Tick(object? sender, object e)
+    {
+        await UpdateMonitorAsync();
+    }
+
+    private async Task UpdateMonitorAsync()
+    {
+        MonitorSample sample;
+        try
+        {
+            sample = await Task.Run(() => LiteMonitorService.Instance.Read());
+        }
+        catch
+        {
+            return;
+        }
+
+        Push(_cpuHist, Val(sample.CpuLoad));
+        Push(_gpuHist, Val(sample.GpuLoad));
+        Push(_memHist, Val(sample.MemLoad));
+        Push(_diskReadHist, Val(sample.DiskReadMBs));
+        Push(_diskWriteHist, Val(sample.DiskWriteMBs));
+
+        if (_isLaptop)
+            Push(_batHist, Val(sample.BatPercent));
+
+        CpuLoadText.Text = sample.CpuLoad >= 0 ? $"{sample.CpuLoad:0}%" : "--";
+        GpuLoadText.Text = sample.GpuLoad >= 0 ? $"{sample.GpuLoad:0}%" : "--";
+        MemLoadText.Text = sample.MemLoad >= 0 ? $"{sample.MemLoad:0}%" : "--";
+        DiskReadText.Text = sample.DiskReadMBs >= 0 ? $"↑{sample.DiskReadMBs:0.0}" : "--";
+        DiskWriteText.Text = sample.DiskWriteMBs >= 0 ? $"↓{sample.DiskWriteMBs:0.0}" : "--";
+
+        if (_isLaptop)
+        {
+            BatPercentText.Text = sample.BatPercent >= 0 ? $"{sample.BatPercent:0}%" : "--";
+            BatPowerText.Text = sample.BatPower >= 0
+                ? $"{(sample.BatCharging ? "+" : "")}{sample.BatPower:0.1}W"
+                : "";
+        }
+    }
+
+    private static void Push(ObservableCollection<double> list, double value)
+    {
+        list.Add(value);
+        if (list.Count > MaxPoints) list.RemoveAt(0);
+    }
+
+    private static double Val(float v) => v >= 0 ? Math.Round(v, 1) : 0;
+
+    private static string Fmt(float v, string unit) => v >= 0 ? $"{v:0}{unit}" : "--";
 
     private void RefreshButton_Click(object sender, RoutedEventArgs e)
     {
@@ -33,6 +204,111 @@ public sealed partial class HardwareDetailPage : Page
             Frame.GoBack();
         else
             Frame.Navigate(typeof(HardwarePage));
+    }
+
+    private async void ExportButton_Click(object sender, RoutedEventArgs e)
+    {
+        var data = _lastDetailData;
+        if (data == null)
+        {
+            ShowStatusBar("导出失败", "暂无硬件数据", InfoBarSeverity.Warning);
+            return;
+        }
+
+        string? filePath = null;
+        try
+        {
+            var picker = new Windows.Storage.Pickers.FileSavePicker();
+            picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary;
+            picker.SuggestedFileName = $"硬件信息_{DateTime.Now:yyyyMMdd_HHmmss}";
+            picker.FileTypeChoices.Add("HTML 文件", [".html"]);
+
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+
+            var file = await picker.PickSaveFileAsync();
+            if (file != null)
+                filePath = file.Path;
+        }
+        catch { }
+
+        if (filePath == null)
+        {
+            try
+            {
+                var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "硬件信息");
+                Directory.CreateDirectory(dir);
+                filePath = Path.Combine(dir, $"硬件信息_{DateTime.Now:yyyyMMdd_HHmmss}.html");
+            }
+            catch
+            {
+                filePath = Path.Combine(Path.GetTempPath(), $"硬件信息_{DateTime.Now:yyyyMMdd_HHmmss}.html");
+            }
+        }
+
+        try
+        {
+            var html = BuildHtml(data);
+            await File.WriteAllTextAsync(filePath, html);
+            ShowStatusBar("导出成功", filePath, InfoBarSeverity.Success);
+        }
+        catch (Exception ex)
+        {
+            ShowStatusBar("导出失败", ex.Message, InfoBarSeverity.Error);
+        }
+    }
+
+    private static string BuildHtml(HardwareDetailData data)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("<!DOCTYPE html>");
+        sb.AppendLine("<html lang=\"zh-CN\">");
+        sb.AppendLine("<head>");
+        sb.AppendLine("<meta charset=\"UTF-8\">");
+        sb.AppendLine("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">");
+        sb.AppendLine("<title>硬件详细信息</title>");
+        sb.AppendLine("<style>");
+        sb.AppendLine("*{margin:0;padding:0;box-sizing:border-box}");
+        sb.AppendLine("body{font-family:-apple-system,\"Microsoft YaHei\",\"Segoe UI\",sans-serif;background:#f5f5f5;color:#1a1a1a;padding:24px}");
+        sb.AppendLine(".container{max-width:1100px;margin:0 auto}");
+        sb.AppendLine("h1{font-size:22px;font-weight:600;margin-bottom:4px}");
+        sb.AppendLine(".sub{font-size:13px;color:#888;margin-bottom:20px}");
+        sb.AppendLine(".grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}");
+        sb.AppendLine("@media(max-width:800px){.grid{grid-template-columns:repeat(2,1fr)}}");
+        sb.AppendLine("@media(max-width:520px){.grid{grid-template-columns:1fr}}");
+        sb.AppendLine(".card{background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:12px 14px}");
+        sb.AppendLine(".card-title{font-size:13px;font-weight:600;color:#555;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #f0f0f0}");
+        sb.AppendLine(".row{display:flex;padding:3px 0;font-size:12px;line-height:1.6}");
+        sb.AppendLine(".row-label{color:#888;min-width:90px;flex-shrink:0}");
+        sb.AppendLine(".row-sep{width:1px;background:#e0e0e0;margin:2px 8px;flex-shrink:0}");
+        sb.AppendLine(".row-value{color:#1a1a1a;font-weight:500;word-break:break-all}");
+        sb.AppendLine(".footer{margin-top:20px;font-size:11px;color:#bbb;text-align:center}");
+        sb.AppendLine("</style>");
+        sb.AppendLine("</head>");
+        sb.AppendLine("<body>");
+        sb.AppendLine("<div class=\"container\">");
+        sb.AppendLine("<h1>硬件详细信息</h1>");
+        sb.AppendLine($"<div class=\"sub\">图吧工具箱 WinUI3 · 导出时间 {DateTime.Now:yyyy-MM-dd HH:mm:ss}</div>");
+        sb.AppendLine("<div class=\"grid\">");
+
+        AppendSection(sb, "处理器", BuildCpuItems(data.Cpu));
+        AppendSection(sb, "主板", BuildBoardItems(data.Motherboard));
+        AppendSection(sb, "内存", BuildMemoryItems(data.Memory));
+        AppendSection(sb, "显卡", BuildGpuItems(data.Gpus));
+        if (data.Npu != null)
+            AppendSection(sb, "NPU", BuildNpuItems(data.Npu));
+        AppendSection(sb, "硬盘", BuildDiskItems(data.Disks));
+        AppendSection(sb, "显示器", BuildDisplayItems(data.Displays));
+        AppendSection(sb, "声卡", BuildSoundItems(data.SoundDevices));
+        AppendSection(sb, "网卡", BuildNetworkItems(data.NetworkAdapters));
+
+        sb.AppendLine("</div>");
+        sb.AppendLine("<div class=\"footer\">由图吧工具箱 WinUI3 自动生成</div>");
+        sb.AppendLine("</div>");
+        sb.AppendLine("</body>");
+        sb.AppendLine("</html>");
+
+        return sb.ToString();
     }
 
     private async Task LoadDetailAsync(bool forceRefresh = false)
@@ -78,6 +354,7 @@ public sealed partial class HardwareDetailPage : Page
 
     private void ApplyData(HardwareDetailData data)
     {
+        _lastDetailData = data;
         var sections = new List<DetailSection>();
 
         // CPU
@@ -471,4 +748,18 @@ public sealed partial class HardwareDetailPage : Page
             Weight = weight;
         }
     }
+
+    private static void AppendSection(StringBuilder sb, string title, List<HardwareInfoItem> items)
+    {
+        if (items.Count == 0) return;
+        sb.AppendLine($"<div class=\"card\"><div class=\"card-title\">{HtmlEscape(title)}</div>");
+        foreach (var item in items)
+        {
+            if (string.IsNullOrEmpty(item.Label) && item.Value == "未知") continue;
+            sb.AppendLine($"<div class=\"row\"><span class=\"row-label\">{HtmlEscape(item.Label)}</span><span class=\"row-sep\"></span><span class=\"row-value\">{HtmlEscape(item.Value)}</span></div>");
+        }
+        sb.AppendLine("</div>");
+    }
+
+    private static string HtmlEscape(string? s) => string.IsNullOrEmpty(s) ? "" : s.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("\"", "&quot;");
 }

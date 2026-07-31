@@ -9,16 +9,8 @@ using TubaWinUi3.Models;
 
 namespace TubaWinUi3.Services;
 
-/// <summary>
-/// 硬件评分系统服务 —— 与 Cloudflare Worker + D1 后端通信。
-/// API 地址通过 AppSettings 的 "RatingApiBase" 配置，默认为占位地址，部署后请替换。
-/// </summary>
 public static class RatingSystemService
 {
-	/// <summary>
-	/// 评分系统后端 API 根地址。部署 rating-worker 后将此常量改为你的 *.workers.dev 地址。
-	/// 也支持在运行时通过 AppSettings["RatingApiBase"] 覆盖。
-	/// </summary>
 	public const string DefaultApiBase = "https://ratingapi.tubawinui3.cn";
 
 	private const string SettingsKeyApiBase = "RatingApiBase";
@@ -32,9 +24,38 @@ public static class RatingSystemService
 		Timeout = TimeSpan.FromSeconds(30)
 	};
 
+	private static readonly TimeSpan CacheTtl = TimeSpan.FromHours(2);
+	private static readonly Dictionary<string, (DateTime Expires, object Data)> _cache = [];
+	private static readonly object _cacheLock = new();
+
 	static RatingSystemService()
 	{
 		_http.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-RatingSystem");
+	}
+
+	public static void InvalidateCache()
+	{
+		lock (_cacheLock) { _cache.Clear(); }
+	}
+
+	private static bool TryGetCache<T>(string key, out T? value) where T : class
+	{
+		lock (_cacheLock)
+		{
+			if (_cache.TryGetValue(key, out var entry) && entry.Expires > DateTime.UtcNow)
+			{
+				value = entry.Data as T;
+				return value is not null;
+			}
+			_cache.Remove(key);
+		}
+		value = null;
+		return false;
+	}
+
+	private static void SetCache(string key, object data)
+	{
+		lock (_cacheLock) { _cache[key] = (DateTime.UtcNow + CacheTtl, data); }
 	}
 
 	public static string ApiBase
@@ -53,7 +74,6 @@ public static class RatingSystemService
 		}
 	}
 
-	/// <summary> 读取/生成当前设备唯一标识，用于防刷。 </summary>
 	public static string GetDeviceId()
 	{
 		var v = AppSettings.Get(SettingsKeyDeviceId);
@@ -64,7 +84,6 @@ public static class RatingSystemService
 		return v;
 	}
 
-	/// <summary> 获取/设置评分作者昵称。 </summary>
 	public static string AuthorName
 	{
 		get => AppSettings.Get(SettingsKeyAuthor) ?? "匿名用户";
@@ -81,9 +100,6 @@ public static class RatingSystemService
 		return GetDeviceId();
 	}
 
-	// ---------------------------------------------------------------------
-	// 健康检查
-	// ---------------------------------------------------------------------
 	public static async Task<bool> PingAsync(CancellationToken ct = default)
 	{
 		try
@@ -94,21 +110,23 @@ public static class RatingSystemService
 		catch { return false; }
 	}
 
-	public static async Task<RatingStats?> GetStatsAsync(CancellationToken ct = default)
+	public static async Task<RatingStats?> GetStatsAsync(bool forceRefresh = false, CancellationToken ct = default)
 	{
+		const string cacheKey = "stats";
+		if (!forceRefresh && TryGetCache<RatingStats>(cacheKey, out var cached))
+			return cached;
 		try
 		{
 			using var resp = await _http.GetAsync($"{ApiBase}/api/stats", ct);
 			if (!resp.IsSuccessStatusCode) return null;
 			var body = await resp.Content.ReadAsStringAsync(ct);
-			return JsonSerializer.Deserialize<RatingStats>(body);
+			var result = JsonSerializer.Deserialize<RatingStats>(body);
+			if (result is not null) SetCache(cacheKey, result);
+			return result;
 		}
 		catch { return null; }
 	}
 
-	// ---------------------------------------------------------------------
-	// 笔记本评分
-	// ---------------------------------------------------------------------
 	public sealed class LaptopRatingRequest
 	{
 		public string DeviceModel { get; set; } = "";
@@ -136,7 +154,10 @@ public static class RatingSystemService
 			using var resp = await _http.PostAsync($"{ApiBase}/api/ratings/laptop", content, ct);
 			var body = await resp.Content.ReadAsStringAsync(ct);
 			if (resp.IsSuccessStatusCode)
+			{
+				InvalidateCache();
 				return (true, "");
+			}
 			var err = TryParseError(body);
 			return (false, err ?? $"提交失败（HTTP {resp.StatusCode}）");
 		}
@@ -147,8 +168,11 @@ public static class RatingSystemService
 	}
 
 	public static async Task<List<LaptopLeaderboardEntry>> GetLaptopLeaderboardAsync(
-		string sortBy = "overall", int page = 1, int limit = 50, CancellationToken ct = default)
+		string sortBy = "overall", int page = 1, int limit = 50, bool forceRefresh = false, CancellationToken ct = default)
 	{
+		var cacheKey = $"laptop_lb_{sortBy}_{page}_{limit}";
+		if (!forceRefresh && TryGetCache<List<LaptopLeaderboardEntry>>(cacheKey, out var cached))
+			return cached!;
 		try
 		{
 			var url = $"{ApiBase}/api/ratings/laptop/leaderboard?sortBy={Uri.EscapeDataString(sortBy)}&page={page}&limit={limit}";
@@ -156,14 +180,19 @@ public static class RatingSystemService
 			if (!resp.IsSuccessStatusCode) return [];
 			var body = await resp.Content.ReadAsStringAsync(ct);
 			var pageData = JsonSerializer.Deserialize<LeaderboardPage<LaptopLeaderboardEntry>>(body, JsonOpts);
-			return pageData?.Entries ?? [];
+			var result = pageData?.Entries ?? [];
+			if (result.Count > 0) SetCache(cacheKey, result);
+			return result;
 		}
 		catch { return []; }
 	}
 
 	public static async Task<List<LaptopReviewEntry>> GetLaptopReviewsAsync(
-		string deviceModel, string cpu, string gpu, CancellationToken ct = default)
+		string deviceModel, string cpu, string gpu, bool forceRefresh = false, CancellationToken ct = default)
 	{
+		var cacheKey = $"laptop_rv_{deviceModel}_{cpu}_{gpu}";
+		if (!forceRefresh && TryGetCache<List<LaptopReviewEntry>>(cacheKey, out var cached))
+			return cached!;
 		try
 		{
 			var url = $"{ApiBase}/api/ratings/laptop/reviews?deviceModel={Uri.EscapeDataString(deviceModel)}&cpu={Uri.EscapeDataString(cpu)}&gpu={Uri.EscapeDataString(gpu)}";
@@ -171,14 +200,13 @@ public static class RatingSystemService
 			if (!resp.IsSuccessStatusCode) return [];
 			var body = await resp.Content.ReadAsStringAsync(ct);
 			var data = JsonSerializer.Deserialize<LaptopReviewsResponse>(body, JsonOpts);
-			return data?.Reviews ?? [];
+			var result = data?.Reviews ?? [];
+			if (result.Count > 0) SetCache(cacheKey, result);
+			return result;
 		}
 		catch { return []; }
 	}
 
-	// ---------------------------------------------------------------------
-	// 台式机部件评分
-	// ---------------------------------------------------------------------
 	public sealed class DesktopRatingRequest
 	{
 		public string ComponentType { get; set; } = "";
@@ -201,7 +229,10 @@ public static class RatingSystemService
 			using var resp = await _http.PostAsync($"{ApiBase}/api/ratings/desktop", content, ct);
 			var body = await resp.Content.ReadAsStringAsync(ct);
 			if (resp.IsSuccessStatusCode)
+			{
+				InvalidateCache();
 				return (true, "");
+			}
 			var err = TryParseError(body);
 			return (false, err ?? $"提交失败（HTTP {resp.StatusCode}）");
 		}
@@ -212,8 +243,11 @@ public static class RatingSystemService
 	}
 
 	public static async Task<List<DesktopLeaderboardEntry>> GetDesktopLeaderboardAsync(
-		string componentType, string sortBy = "overall", int page = 1, int limit = 50, CancellationToken ct = default)
+		string componentType, string sortBy = "overall", int page = 1, int limit = 50, bool forceRefresh = false, CancellationToken ct = default)
 	{
+		var cacheKey = $"desktop_lb_{componentType}_{sortBy}_{page}_{limit}";
+		if (!forceRefresh && TryGetCache<List<DesktopLeaderboardEntry>>(cacheKey, out var cached))
+			return cached!;
 		try
 		{
 			var url = $"{ApiBase}/api/ratings/desktop/leaderboard?componentType={Uri.EscapeDataString(componentType)}&sortBy={Uri.EscapeDataString(sortBy)}&page={page}&limit={limit}";
@@ -221,14 +255,19 @@ public static class RatingSystemService
 			if (!resp.IsSuccessStatusCode) return [];
 			var body = await resp.Content.ReadAsStringAsync(ct);
 			var pageData = JsonSerializer.Deserialize<LeaderboardPage<DesktopLeaderboardEntry>>(body, JsonOpts);
-			return pageData?.Entries ?? [];
+			var result = pageData?.Entries ?? [];
+			if (result.Count > 0) SetCache(cacheKey, result);
+			return result;
 		}
 		catch { return []; }
 	}
 
 	public static async Task<List<DesktopReviewEntry>> GetDesktopReviewsAsync(
-		string componentType, string componentModel, CancellationToken ct = default)
+		string componentType, string componentModel, bool forceRefresh = false, CancellationToken ct = default)
 	{
+		var cacheKey = $"desktop_rv_{componentType}_{componentModel}";
+		if (!forceRefresh && TryGetCache<List<DesktopReviewEntry>>(cacheKey, out var cached))
+			return cached!;
 		try
 		{
 			var url = $"{ApiBase}/api/ratings/desktop/reviews?componentType={Uri.EscapeDataString(componentType)}&componentModel={Uri.EscapeDataString(componentModel)}";
@@ -236,14 +275,13 @@ public static class RatingSystemService
 			if (!resp.IsSuccessStatusCode) return [];
 			var body = await resp.Content.ReadAsStringAsync(ct);
 			var data = JsonSerializer.Deserialize<DesktopReviewsResponse>(body, JsonOpts);
-			return data?.Reviews ?? [];
+			var result = data?.Reviews ?? [];
+			if (result.Count > 0) SetCache(cacheKey, result);
+			return result;
 		}
 		catch { return []; }
 	}
 
-	// ---------------------------------------------------------------------
-	// JSON 辅助
-	// ---------------------------------------------------------------------
 	private static readonly JsonSerializerOptions JsonOpts = new()
 	{
 		PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,

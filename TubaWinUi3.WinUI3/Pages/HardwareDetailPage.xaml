@@ -5,6 +5,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:lvc="using:LiveChartsCore.SkiaSharpView.WinUI"
     mc:Ignorable="d">
 
     <Page.Resources>
@@ -56,6 +57,7 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <Button
                         Padding="10,5"
@@ -89,8 +91,19 @@
                         <TextBlock FontSize="13" Opacity="1.0" Text="完整硬件参数一览" />
                     </StackPanel>
                     <Button
-                        x:Name="RefreshButton"
+                        x:Name="ExportButton"
                         Grid.Column="2"
+                        Padding="10,5"
+                        Click="ExportButton_Click"
+                        VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon FontSize="14" Glyph="&#xEDE1;" />
+                            <TextBlock FontSize="14" Text="导出" />
+                        </StackPanel>
+                    </Button>
+                    <Button
+                        x:Name="RefreshButton"
+                        Grid.Column="3"
                         Padding="10,5"
                         Click="RefreshButton_Click"
                         VerticalAlignment="Center">
@@ -103,6 +116,79 @@
 
                 <!-- Cards container — populated dynamically in code-behind -->
                 <Grid x:Name="CardsContainer" ColumnSpacing="8" RowSpacing="8" />
+
+                <!-- Real-time monitoring section -->
+                <StackPanel x:Name="RealtimeSection" Spacing="8" Margin="0,8,0,0">
+                    <TextBlock FontFamily="{StaticResource AppFontFamily}" FontSize="14" FontWeight="SemiBold" Text="实时信息" Margin="0,0,0,2" />
+
+                    <Grid ColumnSpacing="8" RowSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Style="{StaticResource SectionCardStyle}" Grid.Column="0" Padding="12,10">
+                            <StackPanel Spacing="6">
+                                <Grid>
+                                    <TextBlock FontFamily="{StaticResource AppFontFamily}" FontSize="12" Opacity="0.7" Text="CPU" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="CpuLoadText" FontFamily="{StaticResource AppFontFamily}" FontSize="18" FontWeight="Bold" HorizontalAlignment="Right" Text="--" VerticalAlignment="Center" />
+                                </Grid>
+                                <lvc:CartesianChart x:Name="CpuChart" Height="80" Background="Transparent" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SectionCardStyle}" Grid.Column="1" Padding="12,10">
+                            <StackPanel Spacing="6">
+                                <Grid>
+                                    <TextBlock FontFamily="{StaticResource AppFontFamily}" FontSize="12" Opacity="0.7" Text="GPU" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="GpuLoadText" FontFamily="{StaticResource AppFontFamily}" FontSize="18" FontWeight="Bold" HorizontalAlignment="Right" Text="--" VerticalAlignment="Center" />
+                                </Grid>
+                                <lvc:CartesianChart x:Name="GpuChart" Height="80" Background="Transparent" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SectionCardStyle}" Grid.Column="2" Padding="12,10">
+                            <StackPanel Spacing="6">
+                                <Grid>
+                                    <TextBlock FontFamily="{StaticResource AppFontFamily}" FontSize="12" Opacity="0.7" Text="内存" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="MemLoadText" FontFamily="{StaticResource AppFontFamily}" FontSize="18" FontWeight="Bold" HorizontalAlignment="Right" Text="--" VerticalAlignment="Center" />
+                                </Grid>
+                                <lvc:CartesianChart x:Name="MemChart" Height="80" Background="Transparent" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SectionCardStyle}" Grid.Column="3" Padding="12,10">
+                            <StackPanel Spacing="6">
+                                <Grid>
+                                    <TextBlock FontFamily="{StaticResource AppFontFamily}" FontSize="12" Opacity="0.7" Text="硬盘" VerticalAlignment="Center" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                        <TextBlock x:Name="DiskReadText" FontFamily="{StaticResource AppFontFamily}" FontSize="12" FontWeight="SemiBold" Text="--" />
+                                        <TextBlock FontFamily="{StaticResource AppFontFamily}" FontSize="10" Opacity="0.5" Text="/" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="DiskWriteText" FontFamily="{StaticResource AppFontFamily}" FontSize="12" FontWeight="SemiBold" Text="--" />
+                                    </StackPanel>
+                                </Grid>
+                                <lvc:CartesianChart x:Name="DiskChart" Height="80" Background="Transparent" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border x:Name="BatteryCard" Style="{StaticResource SectionCardStyle}" Grid.Column="4" Padding="12,10" Visibility="Collapsed">
+                            <StackPanel Spacing="6">
+                                <Grid>
+                                    <TextBlock FontFamily="{StaticResource AppFontFamily}" FontSize="12" Opacity="0.7" Text="电池" VerticalAlignment="Center" />
+                                    <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                        <TextBlock x:Name="BatPercentText" FontFamily="{StaticResource AppFontFamily}" FontSize="18" FontWeight="Bold" Text="--" />
+                                        <TextBlock x:Name="BatPowerText" FontFamily="{StaticResource AppFontFamily}" FontSize="11" Opacity="0.7" Text="" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Grid>
+                                <lvc:CartesianChart x:Name="BatChart" Height="80" Background="Transparent" />
+                            </StackPanel>
+                        </Border>
+
+                    </Grid>
+                </StackPanel>
 
             </StackPanel>
         </ScrollViewer>

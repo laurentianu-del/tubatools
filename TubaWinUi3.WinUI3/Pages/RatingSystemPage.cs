@@ -180,7 +180,7 @@ public sealed partial class RatingSystemPage : Page
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 4, 10, 4)
         };
-        refreshBtn.Click += (_, _) => _ = LoadLaptopLeaderboardAsync();
+        refreshBtn.Click += (_, _) => _ = LoadLaptopLeaderboardAsync(true);
         filterRow.Children.Add(refreshBtn);
 
         _laptopStatsText = new TextBlock
@@ -344,7 +344,7 @@ public sealed partial class RatingSystemPage : Page
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 4, 10, 4)
         };
-        refreshBtn.Click += (_, _) => _ = LoadDesktopLeaderboardAsync();
+        refreshBtn.Click += (_, _) => _ = LoadDesktopLeaderboardAsync(true);
         filterRow.Children.Add(refreshBtn);
 
         _desktopStatsText = new TextBlock
@@ -451,14 +451,14 @@ public sealed partial class RatingSystemPage : Page
         catch { }
     }
 
-    private async Task LoadLaptopLeaderboardAsync()
+    private async Task LoadLaptopLeaderboardAsync(bool forceRefresh = false)
     {
         if (_laptopProgress is null) return;
         _laptopProgress.Visibility = Visibility.Visible;
         _laptopList.Visibility = Visibility.Collapsed;
         _laptopEmpty.Visibility = Visibility.Collapsed;
 
-        var entries = await Task.Run(() => RatingSystemService.GetLaptopLeaderboardAsync(_laptopSortBy, 1, 50));
+        var entries = await Task.Run(() => RatingSystemService.GetLaptopLeaderboardAsync(_laptopSortBy, 1, 50, forceRefresh));
 
         _laptopProgress.Visibility = Visibility.Collapsed;
         _laptopList.Items.Clear();
@@ -482,14 +482,14 @@ public sealed partial class RatingSystemPage : Page
         }
     }
 
-    private async Task LoadDesktopLeaderboardAsync()
+    private async Task LoadDesktopLeaderboardAsync(bool forceRefresh = false)
     {
         if (_desktopProgress is null) return;
         _desktopProgress.Visibility = Visibility.Visible;
         _desktopList.Visibility = Visibility.Collapsed;
         _desktopEmpty.Visibility = Visibility.Collapsed;
 
-        var entries = await Task.Run(() => RatingSystemService.GetDesktopLeaderboardAsync(_desktopComponentType, _desktopSortBy, 1, 50));
+        var entries = await Task.Run(() => RatingSystemService.GetDesktopLeaderboardAsync(_desktopComponentType, _desktopSortBy, 1, 50, forceRefresh));
 
         _desktopProgress.Visibility = Visibility.Collapsed;
         _desktopList.Items.Clear();
@@ -514,9 +514,9 @@ public sealed partial class RatingSystemPage : Page
         }
     }
 
-    private async Task LoadStatsAsync()
+    private async Task LoadStatsAsync(bool forceRefresh = false)
     {
-        var stats = await Task.Run(() => RatingSystemService.GetStatsAsync());
+        var stats = await Task.Run(() => RatingSystemService.GetStatsAsync(forceRefresh));
         if (stats is null) return;
     }
 
@@ -1082,7 +1082,7 @@ public sealed partial class RatingSystemPage : Page
         {
             dialog.Hide();
             ShowToast(InfoBarSeverity.Success, "提交成功", "感谢你的评价！正在刷新排行榜……");
-            await LoadLaptopLeaderboardAsync();
+            await LoadLaptopLeaderboardAsync(true);
         }
         else
         {
@@ -1222,7 +1222,7 @@ public sealed partial class RatingSystemPage : Page
             // 切换到对应分类并刷新
             _desktopComponentType = type;
             _desktopTypeCombo.SelectedIndex = typeIdx;
-            await LoadDesktopLeaderboardAsync();
+            await LoadDesktopLeaderboardAsync(true);
         }
         else
         {

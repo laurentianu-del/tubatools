@@ -11,8 +11,8 @@ public sealed class RatingSystemTool : IBuiltinTool
 {
 	public string Id => "rating-system";
 	public string Name => "硬件评分";
-	public string Description => "为你的笔记本或台式机硬件打分，上传到社区排行榜，查看全球用户评价对比。";
-	public string Glyph => "\ue9d5";
+	public string Description => "为你的笔记本或台式机硬件打分，查看社区排行榜对比评价。";
+	public string Glyph => "\ue735";
 	public string Category => "硬件信息";
 	public BuiltinToolKind Kind => BuiltinToolKind.Dialog;
 
@@ -23,7 +23,7 @@ public sealed class RatingSystemTool : IBuiltinTool
 		page.RequestedTheme = ThemeService.CurrentElementTheme;
 		window.Content = page;
 		BackdropService.ApplyBackdrop(window);
-		window.AppWindow.Title = "硬件评分";
+		window.AppWindow.Title = "硬件评分系统";
 		try
 		{
 			var displayArea = DisplayArea.GetFromWindowId(window.AppWindow.Id, DisplayAreaFallback.Primary);

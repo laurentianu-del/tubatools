@@ -797,6 +797,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 			_exportBtn.IsEnabled = true;
 			_statusText.Text = $"测试完成！总耗时: {result.TotalDuration:mm\\mss\\s}";
 			_globalProgress.Value = 100.0;
+			DispatcherQueue.TryEnqueue(() => _ = ShowPostBenchmarkDialogAsync());
 		}
 		catch (OperationCanceledException)
 		{
@@ -864,6 +865,48 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		if (name.Contains("Arc", StringComparison.OrdinalIgnoreCase)) return 1;
 		if (name.Contains("Intel", StringComparison.OrdinalIgnoreCase)) return 3;
 		return 4;
+	}
+
+	private async Task ShowPostBenchmarkDialogAsync()
+	{
+		if (AppSettings.GetBool("BenchmarkPostPromptDisabled")) return;
+
+		var chkDontShow = new CheckBox
+		{
+			Content = "下次不再提示",
+			FontSize = 12,
+			Margin = new Thickness(0, 8, 0, 0)
+		};
+		var content = new StackPanel
+		{
+			Spacing = 4,
+			Children =
+			{
+				new TextBlock { Text = "测试已经跑完了，你可以上传你的跑分或者给你的电脑打分。", TextWrapping = TextWrapping.Wrap },
+				chkDontShow
+			}
+		};
+		var dialog = new ContentDialog
+		{
+			Title = "测试完成",
+			Content = content,
+			PrimaryButtonText = "上传跑分",
+			SecondaryButtonText = "评价电脑",
+			CloseButtonText = "取消",
+			XamlRoot = XamlRoot,
+			RequestedTheme = ThemeService.CurrentElementTheme
+		};
+		var result = await dialog.ShowAsync();
+		if (chkDontShow.IsChecked == true)
+			AppSettings.Set("BenchmarkPostPromptDisabled", true);
+		if (result == ContentDialogResult.Primary)
+			OnUploadClick(this, null);
+		else if (result == ContentDialogResult.Secondary)
+		{
+			var tool = new RatingSystemTool();
+			var ctx = new BuiltinToolContext { XamlRoot = XamlRoot };
+			await tool.ExecuteAsync(ctx);
+		}
 	}
 
 	private void OnStopClick(object sender, RoutedEventArgs e)

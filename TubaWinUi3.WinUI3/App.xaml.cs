@@ -1,5 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Security.Principal;
+using LiveChartsCore;
+using LiveChartsCore.SkiaSharpView;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using TubaWinUi3.Pages;
@@ -18,6 +20,11 @@ public partial class App : Application
     {
         Environment.SetEnvironmentVariable("MICROSOFT_WINDOWSAPPRUNTIME_BASE_DIRECTORY", AppContext.BaseDirectory);
         InitializeComponent();
+
+        LiveCharts.Configure(config => config
+            .AddSkiaSharp()
+            .AddDefaultMappers()
+            .AddDefaultTheme());
         
         _ = Task.Run(() => AppSettings.Load());
         

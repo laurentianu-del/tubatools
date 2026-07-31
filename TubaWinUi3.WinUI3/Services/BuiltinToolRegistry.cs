@@ -50,6 +50,7 @@ public static class BuiltinToolRegistry
         Register(new LanFileShareTool());
         Register(new QuickDeviceCheckTool());
         Register(new EnergyStarTool());
+        Register(new RatingSystemTool());
     }
 
     public static IReadOnlyList<string> GetCategories()
