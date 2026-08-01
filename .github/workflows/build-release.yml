@@ -277,6 +277,64 @@ jobs:
           name: lite-x64
           path: TubaWinUi3_Lite_${{ inputs.version }}_x64.zip
 
+      - name: Publish app (framework-dependent, x64 only)
+        if: matrix.arch == 'x64'
+        run: |
+          dotnet publish TubaWinUi3.WinUI3/TubaWinUi3.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained false `
+            -p:Platform=x64 `
+            -p:PublishTrimmed=false `
+            -p:PublishReadyToRun=false `
+            -p:WindowsAppSDKSelfContained=false `
+            -p:WindowsPackageType=None `
+            -o publish_x64_fdd
+
+      - name: Restore .pri file for framework-dependent
+        if: matrix.arch == 'x64'
+        shell: pwsh
+        run: |
+          $priFile = "TubaWinUi3.WinUI3\bin\x64\Release\net10.0-windows10.0.26100.0\win-x64\TubaWinUi3.pri"
+          if (Test-Path -LiteralPath $priFile) {
+            Copy-Item -LiteralPath $priFile -Destination publish_x64_fdd -Force
+            Write-Host "Restored TubaWinUi3.pri for framework-dependent"
+          }
+
+      - name: Create framework-dependent zip (x64 only)
+        if: matrix.arch == 'x64'
+        shell: pwsh
+        run: |
+          $publishDir = "publish_x64_fdd"
+          $stagingDir = "portable_staging_x64_fdd"
+          $srcDir = Join-Path $stagingDir 'src'
+
+          if (Test-Path -LiteralPath $stagingDir) { Remove-Item -LiteralPath $stagingDir -Recurse -Force }
+          New-Item -ItemType Directory -Path $srcDir -Force | Out-Null
+
+          Get-ChildItem -LiteralPath $publishDir | Where-Object { $_.Extension -ne '.pdb' } | Move-Item -Destination $srcDir -Force
+
+          Copy-Item -LiteralPath "Launcher\bin\图吧工具箱WinUI3_x64.exe" -Destination (Join-Path $stagingDir '图吧工具箱WinUI3.exe') -Force
+
+          $compatExe = "TubaWinUi3.Compatible/bin/Release/net45/图吧工具箱Winui3兼容版.exe"
+          if (Test-Path -LiteralPath $compatExe) {
+            Copy-Item -LiteralPath $compatExe -Destination (Join-Path $stagingDir '图吧工具箱Winui3兼容版.exe') -Force
+            Write-Host "Added compatible edition to framework-dependent zip"
+          }
+
+          Compress-Archive -Path "$stagingDir\*" `
+            -DestinationPath "TubaWinUi3_Fdd_${{ inputs.version }}_x64.zip"
+
+          $size = [math]::Round((Get-Item "TubaWinUi3_Fdd_${{ inputs.version }}_x64.zip").Length / 1MB, 1)
+          Write-Host "Framework-dependent zip size: $size MB"
+
+      - name: Upload framework-dependent zip
+        if: matrix.arch == 'x64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: fdd-x64
+          path: TubaWinUi3_Fdd_${{ inputs.version }}_x64.zip
+
   generate-changelog:
     needs: [build, build-tools]
     runs-on: ubuntu-latest
@@ -409,6 +467,7 @@ jobs:
             | `TubaWinUi3_Portable_${{ inputs.version }}_x86.zip` | x86 便携版（含工具） |
             | `TubaWinUi3_Portable_${{ inputs.version }}_arm64.zip` | ARM64 便携版（含工具） |
             | `TubaWinUi3_Lite_${{ inputs.version }}_x64.zip` | x64 精简版（不含工具，首次启动自动下载） |
+            | `TubaWinUi3_Fdd_${{ inputs.version }}_x64.zip` | x64 不含运行时版（需预装 .NET 10 桌面运行时，体积最小） |
             | `Tools.zip` | 工具包（精简版/商店版首次启动下载） |
 
             $(cat hash_table.md)
