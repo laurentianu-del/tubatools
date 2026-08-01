@@ -602,8 +602,8 @@ h1{{font-size:28px;font-weight:600;margin-bottom:4px}}
 
     private void StartFurMarkGpuStress(int minutes)
     {
-        var furmarkExe = FindExecutable("FurMark.exe", "furmark");
-        if (furmarkExe is null) { Log("未找到 FurMark"); return; }
+        var furmarkExe = PerformanceBenchmarkService.FindFurMarkExe();
+        if (furmarkExe is null) { Log("未找到 FurMark (烤鸡工具/FurMark_win64/furmark.exe)"); return; }
         try
         {
             _furmarkProcess = Process.Start(new ProcessStartInfo { FileName = furmarkExe, Arguments = $"--demo furmark-gl --fullscreen --max-time {minutes * 60} --no-score-box", UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(furmarkExe) });

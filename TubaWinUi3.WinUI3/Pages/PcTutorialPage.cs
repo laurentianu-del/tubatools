@@ -965,7 +965,11 @@ public sealed class PcTutorialPage : Page
                     }
                     break;
                 case "open_burngpu":
-                    LaunchToolByExeName("FurMark");
+                    {
+                        var furmarkExe = PerformanceBenchmarkService.FindFurMarkExe();
+                        if (furmarkExe is not null && File.Exists(furmarkExe))
+                            Process.Start(new ProcessStartInfo(furmarkExe) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(furmarkExe) });
+                    }
                     break;
                 case "open_winget":
                     {
@@ -1336,6 +1340,15 @@ public sealed class PcTutorialPage : Page
 
     private static void LaunchToolByExeName(string exePartialName)
     {
+        if (exePartialName.Equals("FurMark", StringComparison.OrdinalIgnoreCase))
+        {
+            var furmarkExe = PerformanceBenchmarkService.FindFurMarkExe();
+            if (furmarkExe is not null && File.Exists(furmarkExe))
+            {
+                Process.Start(new ProcessStartInfo(furmarkExe) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(furmarkExe) });
+                return;
+            }
+        }
         var allTools = ToolCatalog.GetAllToolsCached();
         var tool = allTools.FirstOrDefault(t =>
         {

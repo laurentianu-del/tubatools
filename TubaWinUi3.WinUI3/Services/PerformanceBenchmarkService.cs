@@ -436,18 +436,6 @@ public static class PerformanceBenchmarkService
 					string exe = Path.Combine(dir, "furmark.exe");
 					if (File.Exists(exe)) return exe;
 				}
-				dir = Path.Combine(toolsRoot, "烤鸡工具", "FurMark");
-				if (Directory.Exists(dir))
-				{
-					string exe = Path.Combine(dir, "FurMark.exe");
-					if (File.Exists(exe)) return exe;
-				}
-			}
-			string baseDir = Path.Combine(AppContext.BaseDirectory, "Tools", "烤鸡工具", "FurMark_win64");
-			if (Directory.Exists(baseDir))
-			{
-				string exe = Path.Combine(baseDir, "furmark.exe");
-				if (File.Exists(exe)) return exe;
 			}
 		}
 		catch { }
