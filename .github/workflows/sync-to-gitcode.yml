@@ -4,14 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag to sync (e.g. v1.0.3, or untagged-xxx for draft releases)'
+        description: 'Release tag (e.g. v1.0.3, untagged-xxx for drafts)'
         required: true
         type: string
-      release_id:
-        description: 'GitHub Release ID (for draft/untagged releases). Find it in the release URL or leave empty to lookup by tag.'
-        required: false
-        type: string
-        default: ''
       prerelease:
         description: 'Mark as pre-release on GitCode'
         required: false
@@ -19,7 +14,7 @@ on:
         default: false
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   DOTNET_CLI_TELEMETRY_OPTOUT: '1'
@@ -29,57 +24,46 @@ jobs:
   sync-to-gitcode:
     runs-on: ubuntu-latest
     steps:
-      - name: Resolve release ID and tag
+      - name: Resolve release
         id: release-info
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
-          INPUT_TAG="${{ inputs.tag }}"
-          INPUT_ID="${{ inputs.release_id }}"
+          echo "Looking up release for tag: $INPUT_TAG"
 
-          if [ -n "$INPUT_ID" ]; then
-            RELEASE_ID="$INPUT_ID"
-            echo "Using provided release ID: $RELEASE_ID"
-          else
-            echo "Looking up release by tag: $INPUT_TAG"
-            RESPONSE=$(gh api repos/${{ github.repository }}/releases/tags/"$INPUT_TAG" 2>/dev/null || echo "")
-            if [ -n "$RESPONSE" ]; then
-              RELEASE_ID=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))")
-              echo "Found release ID: $RELEASE_ID"
-            else
-              echo "Tag lookup failed, searching all releases (including drafts)..."
-              RELEASE_ID=""
-              PAGE=1
-              while true; do
-                RESPONSE=$(gh api "repos/${{ github.repository }}/releases?per_page=100&page=$PAGE" 2>/dev/null || echo "[]")
-                COUNT=$(echo "$RESPONSE" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))")
-                if [ "$COUNT" = "0" ]; then
-                  break
-                fi
-                RELEASE_ID=$(echo "$RESPONSE" | python3 -c "
+          RELEASE_ID=""
+
+          RESPONSE=$(gh api "repos/${{ github.repository }}/releases/tags/$INPUT_TAG" 2>/dev/null || true)
+          if [ -n "$RESPONSE" ] && echo "$RESPONSE" | python3 -c "import sys,json; json.load(sys.stdin)" 2>/dev/null; then
+            RELEASE_ID=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))")
+            echo "Found by tag API, id=$RELEASE_ID"
+          fi
+
+          if [ -z "$RELEASE_ID" ]; then
+            echo "Tag API failed, listing all releases (including drafts)..."
+            ALL_RELEASES=$(gh api "repos/${{ github.repository }}/releases?per_page=100" 2>/dev/null || echo "[]")
+            RELEASE_ID=$(echo "$ALL_RELEASES" | python3 -c "
           import sys, json
-          releases = json.load(sys.stdin)
-          for r in releases:
-            if r.get('tag_name') == '$INPUT_TAG':
+          tag = '$INPUT_TAG'
+          for r in json.load(sys.stdin):
+            if r.get('tag_name') == tag:
               print(r['id'])
               break
           " 2>/dev/null || echo "")
-                if [ -n "$RELEASE_ID" ]; then
-                  break
-                fi
-                PAGE=$((PAGE + 1))
-              done
+            if [ -n "$RELEASE_ID" ]; then
+              echo "Found in release list, id=$RELEASE_ID"
             fi
           fi
 
           if [ -z "$RELEASE_ID" ]; then
-            echo "::error::Could not find release for tag '$INPUT_TAG'. Try providing the release_id manually."
+            echo "::error::Could not find release for '$INPUT_TAG'"
             exit 1
           fi
 
           echo "release_id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
 
-          RELEASE_JSON=$(gh api repos/${{ github.repository }}/releases/"$RELEASE_ID")
+          RELEASE_JSON=$(gh api "repos/${{ github.repository }}/releases/$RELEASE_ID")
           TAG=$(echo "$RELEASE_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('tag_name',''))")
           IS_DRAFT=$(echo "$RELEASE_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('draft',False))")
           IS_PRERELEASE=$(echo "$RELEASE_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('prerelease',False))")
