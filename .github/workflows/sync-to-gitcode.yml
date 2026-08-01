@@ -123,7 +123,7 @@ jobs:
           done
           cat ../hash_table.md
 
-      - name: Create GitCode Release
+      - name: Create or update GitCode Release
         id: gitcode-create
         env:
           GITCODE_ACCESS_TOKEN: ${{ secrets.GITCODE_ACCESS_TOKEN }}
@@ -138,7 +138,7 @@ jobs:
 
           BODY=$(cat hash_table.md | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
 
-          CREATE_RESPONSE=$(curl -s -X POST "$API_BASE/releases?access_token=$GITCODE_ACCESS_TOKEN" \
+          HTTP_CODE=$(curl -s -o /tmp/gitcode_resp.json -w '%%{http_code}' -X POST "$API_BASE/releases?access_token=$GITCODE_ACCESS_TOKEN" \
             -H "Content-Type: application/json" \
             -d "{
               \"tag_name\": \"$TAG\",
@@ -148,18 +148,31 @@ jobs:
               \"release_status\": \"$RELEASE_STATUS\"
             }")
 
-          echo "Create response: $CREATE_RESPONSE"
+          echo "Create HTTP status: $HTTP_CODE"
 
-          RESP_TAG=$(echo "$CREATE_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('tag_name',''))")
-
-          echo "Parsed tag_name from response: [$RESP_TAG]"
-
-          if [ "$RESP_TAG" != "$TAG" ]; then
-            echo "::error::Failed to create GitCode release (expected tag=$TAG, got tag=$RESP_TAG)"
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+            echo "GitCode release created for tag $TAG"
+          elif [ "$HTTP_CODE" = "409" ]; then
+            echo "Release already exists, updating..."
+            HTTP_CODE=$(curl -s -o /tmp/gitcode_resp.json -w '%%{http_code}' -X PATCH "$API_BASE/releases/$TAG?access_token=$GITCODE_ACCESS_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{
+                \"name\": \"图吧工具箱WinUI3 $TAG\",
+                \"body\": $BODY,
+                \"release_status\": \"$RELEASE_STATUS\"
+              }")
+            echo "Update HTTP status: $HTTP_CODE"
+            if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+              echo "GitCode release updated for tag $TAG"
+            else
+              echo "::warning::Failed to update GitCode release (HTTP $HTTP_CODE)"
+              cat /tmp/gitcode_resp.json
+            fi
+          else
+            echo "::error::Failed to create GitCode release (HTTP $HTTP_CODE)"
+            cat /tmp/gitcode_resp.json
             exit 1
           fi
-
-          echo "GitCode release created for tag $TAG"
 
       - name: Upload assets to GitCode
         env:
@@ -193,7 +206,7 @@ jobs:
           print(' '.join(args))
           ")
 
-            HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' \
+            HTTP_CODE=$(curl -s -o /dev/null -w '%%{http_code}' \
               -X PUT \
               $HEADER_ARGS \
               --data-binary "@$f" \
