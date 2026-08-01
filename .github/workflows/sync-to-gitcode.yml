@@ -1,0 +1,176 @@
+name: Sync Release to GitCode
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to sync (e.g. v1.0.3)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as pre-release on GitCode'
+        required: false
+        type: boolean
+        default: false
+  repository_dispatch:
+    types: [release-published]
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+
+jobs:
+  sync-to-gitcode:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve release info
+        id: release-info
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            TAG="${{ inputs.tag }}"
+          elif [ -n "${{ github.event.client_payload.tag }}" ]; then
+            TAG="${{ github.event.client_payload.tag }}"
+          else
+            echo "::error::No tag specified"
+            exit 1
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+          if [ "${{ inputs.prerelease }}" = "true" ]; then
+            echo "release_status=pre" >> "$GITHUB_OUTPUT"
+          else
+            echo "release_status=latest" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download release assets
+        id: download
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.release-info.outputs.tag }}"
+          mkdir -p release_files
+
+          gh release download "$TAG" \
+            --repo "${{ github.repository }}" \
+            --dir release_files \
+            --clobber
+
+          ASSET_COUNT=$(find release_files -type f | wc -l)
+          echo "Downloaded $ASSET_COUNT assets"
+          echo "asset_count=$ASSET_COUNT" >> "$GITHUB_OUTPUT"
+
+      - name: Calculate file hashes
+        id: hashes
+        run: |
+          cd release_files
+          echo "## SHA256 哈希值" > ../hash_table.md
+          echo "" >> ../hash_table.md
+          echo "| 文件 | SHA256 |" >> ../hash_table.md
+          echo "|------|--------|" >> ../hash_table.md
+          for f in *.exe *.zip; do
+            [ -f "$f" ] || continue
+            HASH=$(sha256sum "$f" | awk '{print $1}')
+            echo "| \`$f\` | \`$HASH\` |" >> ../hash_table.md
+          done
+          cat ../hash_table.md
+
+      - name: Get release body from GitHub
+        id: gh-body
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.release-info.outputs.tag }}"
+          BODY=$(gh release view "$TAG" --repo "${{ github.repository }}" --json body --jq '.body')
+          echo "gh_body<<EOFMARKER" >> "$GITHUB_OUTPUT"
+          echo "$BODY" >> "$GITHUB_OUTPUT"
+          echo "EOFMARKER" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitCode Release
+        id: gitcode-create
+        env:
+          GITCODE_ACCESS_TOKEN: ${{ secrets.GITCODE_ACCESS_TOKEN }}
+        run: |
+          TAG="${{ steps.release-info.outputs.tag }}"
+          RELEASE_STATUS="${{ steps.release-info.outputs.release_status }}"
+          OWNER="luolangaga"
+          REPO="tubatool"
+          API_BASE="https://api.atomgit.com/api/v5/repos/$OWNER/$REPO"
+
+          echo "Creating GitCode release for tag $TAG (status=$RELEASE_STATUS) ..."
+
+          BODY=$(cat hash_table.md | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
+
+          CREATE_RESPONSE=$(curl -s -X POST "$API_BASE/releases?access_token=$GITCODE_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"tag_name\": \"$TAG\",
+              \"name\": \"图吧工具箱WinUI3 $TAG\",
+              \"body\": $BODY,
+              \"target_commitish\": \"master\",
+              \"release_status\": \"$RELEASE_STATUS\"
+            }")
+
+          echo "Create response: $CREATE_RESPONSE"
+
+          RELEASE_ID=$(echo "$CREATE_RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id',''))")
+
+          if [ -z "$RELEASE_ID" ]; then
+            echo "::error::Failed to create GitCode release"
+            exit 1
+          fi
+
+          echo "GitCode release created, id=$RELEASE_ID"
+          echo "release_id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Upload assets to GitCode
+        env:
+          GITCODE_ACCESS_TOKEN: ${{ secrets.GITCODE_ACCESS_TOKEN }}
+        run: |
+          TAG="${{ steps.release-info.outputs.tag }}"
+          OWNER="luolangaga"
+          REPO="tubatool"
+          API_BASE="https://api.atomgit.com/api/v5/repos/$OWNER/$REPO"
+
+          for f in release_files/*.exe release_files/*.zip; do
+            [ -f "$f" ] || continue
+            FNAME=$(basename "$f")
+            echo "Uploading $FNAME ..."
+
+            UPLOAD_INFO=$(curl -s "$API_BASE/releases/$TAG/upload_url?access_token=$GITCODE_ACCESS_TOKEN&file_name=$FNAME")
+            UPLOAD_URL=$(echo "$UPLOAD_INFO" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('url',''))")
+
+            if [ -z "$UPLOAD_URL" ]; then
+              echo "::warning::Failed to get upload URL for $FNAME, response: $UPLOAD_INFO"
+              continue
+            fi
+
+            HEADER_ARGS=$(echo "$UPLOAD_INFO" | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          headers = d.get('headers', {})
+          args = []
+          for k, v in headers.items():
+            args.extend(['-H', k + ': ' + v])
+          print(' '.join(args))
+          ")
+
+            HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' \
+              -X PUT \
+              $HEADER_ARGS \
+              --data-binary "@$f" \
+              "$UPLOAD_URL")
+
+            if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+              echo "  OK ($HTTP_CODE)"
+            else
+              echo "::warning::Upload $FNAME failed (HTTP $HTTP_CODE)"
+            fi
+          done
+
+          echo "GitCode release upload complete"
