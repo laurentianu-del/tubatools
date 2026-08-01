@@ -22,7 +22,7 @@ env:
 
 jobs:
   sync-to-gitcode:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - name: Resolve release
         id: release-info
