@@ -10,7 +10,7 @@
 
     <Grid RowSpacing="0">
         <ScrollViewer HorizontalScrollMode="Disabled" VerticalScrollBarVisibility="Auto" Padding="24,0,24,0">
-            <StackPanel Spacing="14" MaxWidth="960">
+            <StackPanel Spacing="14" MaxWidth="960" HorizontalAlignment="Center">
 
                 <Border x:Name="AidaStatusBorder" Padding="14,10" BorderThickness="1" CornerRadius="6"
                         BorderBrush="{ThemeResource SubtleFillColorSecondaryBrush}"
