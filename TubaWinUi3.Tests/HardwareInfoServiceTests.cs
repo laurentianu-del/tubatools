@@ -229,10 +229,15 @@ public class HardwareInfoServiceTests
     [InlineData(null, null, null, 7200, "HDD")]
     [InlineData(null, null, null, 1, "SSD")]
     [InlineData("Solid State Drive", null, null, 0, "SSD")]
-    [InlineData("Fixed hard disk media", null, null, 0, "HDD")]
+    [InlineData("Fixed hard disk media", null, null, 0, null)]
     [InlineData("Hard Disk Drive", null, null, 0, "HDD")]
     [InlineData(null, null, "NVMe Controller", 0, "SSD")]
     [InlineData(null, null, null, 0, null)]
+    [InlineData("Fixed hard disk media", "SCSI", "Samsung 990 PRO", 0, "SSD")]
+    [InlineData("Fixed hard disk media", "IDE", null, 0, null)]
+    [InlineData(null, "SCSI", null, 0, "SSD")]
+    [InlineData(null, "USB", null, 0, null)]
+    [InlineData(null, "1394", null, 0, null)]
     public void DetermineMediaType_DeterminesCorrectly(
         string? mediaType, string? interfaceType, string? model, long rotationRate, string? expected)
     {

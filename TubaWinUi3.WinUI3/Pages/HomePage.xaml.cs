@@ -15,7 +15,6 @@ namespace TubaWinUi3.Pages;
 public sealed partial class HomePage : Page
 {
     private readonly BulkObservableCollection<ToolItem> _tools = new();
-    private readonly ObservableCollection<ToolItem> _frequentTools = [];
     private string? _category;
     private string? _selectedTag;
     private CancellationTokenSource? _loadCts;
@@ -28,7 +27,6 @@ public sealed partial class HomePage : Page
     private string _lastLoadedQuery = string.Empty;
     private int _lastCacheVersion = -1;
     private int _tagBarCacheVersion = -1;
-    private int _lastFrequentVersion = -1;
 
     public HomePage()
     {
@@ -162,15 +160,6 @@ public sealed partial class HomePage : Page
             _ = PopulateTagBarAsync();
         else if (_category is not null)
             TagBarScrollViewer.Visibility = Visibility.Collapsed;
-
-        if (_category is null && _selectedTag is null && _searchQuery.Length == 0)
-        {
-            _ = LoadFrequentToolsAsync();
-        }
-        else
-        {
-            FrequentSection.Visibility = Visibility.Collapsed;
-        }
     }
 
     private async Task PopulateTagBarAsync()
@@ -233,146 +222,6 @@ public sealed partial class HomePage : Page
             }
             UpdateTitle();
             _ = LoadToolsAsync();
-        }
-    }
-
-    private async Task LoadFrequentToolsAsync()
-    {
-        _frequentTools.Clear();
-
-        var frequentRecords = LaunchHistoryService.GetFrequentTools(12);
-        if (frequentRecords.Count == 0)
-        {
-            FrequentSection.Visibility = Visibility.Collapsed;
-            return;
-        }
-
-        List<ToolItem> allTools;
-        try
-        {
-            allTools = await Task.Run(() => ToolCatalog.GetAllToolsCached().ToList());
-        }
-        catch
-        {
-            FrequentSection.Visibility = Visibility.Collapsed;
-            return;
-        }
-
-        foreach (var record in frequentRecords)
-        {
-            var tool = allTools.FirstOrDefault(t =>
-                t.Path.Equals(record.Path, StringComparison.OrdinalIgnoreCase));
-            if (tool is not null)
-                _frequentTools.Add(tool);
-        }
-
-        if (_frequentTools.Count == 0)
-        {
-            FrequentSection.Visibility = Visibility.Collapsed;
-            return;
-        }
-
-        FrequentPanel.Children.Clear();
-        foreach (var tool in _frequentTools)
-        {
-            var card = CreateFrequentCard(tool);
-            FrequentPanel.Children.Add(card);
-        }
-
-        FrequentSection.Visibility = Visibility.Visible;
-        FrequentSubtitle.Text = _frequentTools.Count >= 12
-            ? $"基于使用频率智能排序 · 前 {_frequentTools.Count} 个"
-            : $"基于使用频率智能排序 · {_frequentTools.Count} 个";
-
-        _ = ToolIconService.LoadIconsAsync(_frequentTools.ToList(), DispatcherQueue);
-        _lastFrequentVersion = ToolCatalog.CacheVersion;
-    }
-
-    private Border CreateFrequentCard(ToolItem tool)
-    {
-        var card = new Border
-        {
-            Padding = new Thickness(10, 10, 10, 8),
-            Background = (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
-            BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["CardStrokeColorDefaultBrush"],
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(8),
-            Width = 100,
-            Tag = tool
-        };
-
-        var stack = new StackPanel
-        {
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Spacing = 6
-        };
-
-        var iconBorder = new Border
-        {
-            Width = 48,
-            Height = 48,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Background = (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["SubtleFillColorSecondaryBrush"],
-            CornerRadius = new CornerRadius(10)
-        };
-
-        var iconGrid = new Grid();
-        var image = new Image
-        {
-            Width = 36,
-            Height = 36,
-            Stretch = Microsoft.UI.Xaml.Media.Stretch.Uniform,
-            Source = tool.IconPath is not null ? new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(tool.IconPath)) : null,
-            Visibility = tool.IconPath is not null ? Visibility.Visible : Visibility.Collapsed
-        };
-        var fontIcon = new FontIcon
-        {
-            FontSize = 24,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            Glyph = tool.IconGlyph ?? "",
-            Visibility = tool.IconGlyph is not null ? Visibility.Visible : Visibility.Collapsed
-        };
-        iconGrid.Children.Add(image);
-        iconGrid.Children.Add(fontIcon);
-        iconBorder.Child = iconGrid;
-        stack.Children.Add(iconBorder);
-
-        var nameBlock = new TextBlock
-        {
-            FontFamily = (Microsoft.UI.Xaml.Media.FontFamily)Microsoft.UI.Xaml.Application.Current.Resources["AppFontFamily"],
-            HorizontalAlignment = HorizontalAlignment.Center,
-            FontSize = 12,
-            MaxLines = 2,
-            Text = tool.Name,
-            TextAlignment = TextAlignment.Center,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-            TextWrapping = TextWrapping.Wrap,
-            Width = 80
-        };
-        stack.Children.Add(nameBlock);
-
-        card.Child = stack;
-
-        var toolTip = new ToolTip
-        {
-            Content = string.IsNullOrWhiteSpace(tool.Description) ? tool.Name : $"{tool.Name}\n{tool.Description}"
-        };
-        ToolTipService.SetToolTip(card, toolTip);
-
-        card.PointerPressed += (s, e) =>
-        {
-            LaunchTool(tool, runAsAdmin: false);
-        };
-
-        return card;
-    }
-
-    private void FrequentViewAll_Click(object sender, RoutedEventArgs e)
-    {
-        if (App.MainWindow is MainWindow mainWindow)
-        {
-            mainWindow.NavigateToFavorites();
         }
     }
 
