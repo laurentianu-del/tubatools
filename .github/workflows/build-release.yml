@@ -289,6 +289,7 @@ jobs:
             -p:PublishReadyToRun=false `
             -p:WindowsAppSDKSelfContained=false `
             -p:WindowsPackageType=None `
+            -p:ExcludeToolsFromPublish=true `
             -o publish_x64_fdd
 
       - name: Restore .pri file for framework-dependent
