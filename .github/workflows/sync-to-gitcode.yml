@@ -136,43 +136,51 @@ jobs:
 
           echo "Creating GitCode release for tag $TAG (status=$RELEASE_STATUS) ..."
 
-          BODY=$(cat hash_table.md | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
+          python3 -c "
+          import json, urllib.request, urllib.error, os
 
-          HTTP_CODE=$(curl -s -o /tmp/gitcode_resp.json -w '%%{http_code}' -X POST "$API_BASE/releases?access_token=$GITCODE_ACCESS_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"tag_name\": \"$TAG\",
-              \"name\": \"图吧工具箱WinUI3 $TAG\",
-              \"body\": $BODY,
-              \"target_commitish\": \"master\",
-              \"release_status\": \"$RELEASE_STATUS\"
-            }")
+          tag = os.environ.get('TAG', '')
+          status = os.environ.get('RELEASE_STATUS', 'latest')
+          token = os.environ.get('GITCODE_ACCESS_TOKEN', '')
+          api_base = os.environ.get('API_BASE', '')
 
-          echo "Create HTTP status: $HTTP_CODE"
+          with open('hash_table.md', 'r') as f:
+              body = f.read()
 
-          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
-            echo "GitCode release created for tag $TAG"
-          elif [ "$HTTP_CODE" = "409" ]; then
-            echo "Release already exists, updating..."
-            HTTP_CODE=$(curl -s -o /tmp/gitcode_resp.json -w '%%{http_code}' -X PATCH "$API_BASE/releases/$TAG?access_token=$GITCODE_ACCESS_TOKEN" \
-              -H "Content-Type: application/json" \
-              -d "{
-                \"name\": \"图吧工具箱WinUI3 $TAG\",
-                \"body\": $BODY,
-                \"release_status\": \"$RELEASE_STATUS\"
-              }")
-            echo "Update HTTP status: $HTTP_CODE"
-            if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
-              echo "GitCode release updated for tag $TAG"
-            else
-              echo "::warning::Failed to update GitCode release (HTTP $HTTP_CODE)"
-              cat /tmp/gitcode_resp.json
-            fi
-          else
-            echo "::error::Failed to create GitCode release (HTTP $HTTP_CODE)"
-            cat /tmp/gitcode_resp.json
-            exit 1
-          fi
+          payload = {
+              'tag_name': tag,
+              'name': f'图吧工具箱WinUI3 {tag}',
+              'body': body,
+              'target_commitish': 'master',
+              'release_status': status
+          }
+
+          data = json.dumps(payload).encode('utf-8')
+          url = f'{api_base}/releases?access_token={token}'
+
+          req = urllib.request.Request(url, data=data, method='POST')
+          req.add_header('Content-Type', 'application/json')
+
+          try:
+              resp = urllib.request.urlopen(req)
+              print(f'GitCode release created for tag {tag} (HTTP {resp.status})')
+          except urllib.error.HTTPError as e:
+              if e.code == 409:
+                  print('Release already exists, updating...')
+                  update_url = f'{api_base}/releases/{tag}?access_token={token}'
+                  req2 = urllib.request.Request(update_url, data=data, method='PATCH')
+                  req2.add_header('Content-Type', 'application/json')
+                  try:
+                      resp2 = urllib.request.urlopen(req2)
+                      print(f'GitCode release updated for tag {tag} (HTTP {resp2.status})')
+                  except urllib.error.HTTPError as e2:
+                      body2 = e2.read().decode('utf-8', errors='replace')
+                      print(f'::warning::Failed to update GitCode release (HTTP {e2.code}): {body2}')
+              else:
+                  body2 = e.read().decode('utf-8', errors='replace')
+                  print(f'::error::Failed to create GitCode release (HTTP {e.code}): {body2}')
+                  raise
+          "
 
       - name: Upload assets to GitCode
         env:
@@ -183,40 +191,48 @@ jobs:
           REPO="tubatool"
           API_BASE="https://api.atomgit.com/api/v5/repos/$OWNER/$REPO"
 
-          for f in release_files/*.exe release_files/*.zip; do
-            [ -f "$f" ] || continue
-            FNAME=$(basename "$f")
-            echo "Uploading $FNAME ..."
+          python3 -c "
+          import json, urllib.request, urllib.error, os, glob
 
-            UPLOAD_INFO=$(curl -s "$API_BASE/releases/$TAG/upload_url?access_token=$GITCODE_ACCESS_TOKEN&file_name=$FNAME")
-            UPLOAD_URL=$(echo "$UPLOAD_INFO" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('url',''))")
+          tag = os.environ.get('TAG', '')
+          token = os.environ.get('GITCODE_ACCESS_TOKEN', '')
+          api_base = os.environ.get('API_BASE', '')
 
-            if [ -z "$UPLOAD_URL" ]; then
-              echo "::warning::Failed to get upload URL for $FNAME, response: $UPLOAD_INFO"
-              continue
-            fi
+          files = glob.glob('release_files/*.exe') + glob.glob('release_files/*.zip')
+          for fpath in files:
+              fname = os.path.basename(fpath)
+              print(f'Uploading {fname} ...')
 
-            HEADER_ARGS=$(echo "$UPLOAD_INFO" | python3 -c "
-          import sys, json
-          d = json.load(sys.stdin)
-          headers = d.get('headers', {})
-          args = []
-          for k, v in headers.items():
-            args.extend(['-H', k + ': ' + v])
-          print(' '.join(args))
-          ")
+              try:
+                  url = f'{api_base}/releases/{tag}/upload_url?access_token={token}&file_name={fname}'
+                  resp = urllib.request.urlopen(url)
+                  info = json.loads(resp.read().decode('utf-8'))
+                  upload_url = info.get('url', '')
+                  headers = info.get('headers', {})
+              except Exception as e:
+                  print(f'::warning::Failed to get upload URL for {fname}: {e}')
+                  continue
 
-            HTTP_CODE=$(curl -s -o /dev/null -w '%%{http_code}' \
-              -X PUT \
-              $HEADER_ARGS \
-              --data-binary "@$f" \
-              "$UPLOAD_URL")
+              if not upload_url:
+                  print(f'::warning::No upload URL for {fname}')
+                  continue
 
-            if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
-              echo "  OK ($HTTP_CODE)"
-            else
-              echo "::warning::Upload $FNAME failed (HTTP $HTTP_CODE)"
-            fi
-          done
+              with open(fpath, 'rb') as f:
+                  file_data = f.read()
 
-          echo "GitCode release upload complete"
+              req = urllib.request.Request(upload_url, data=file_data, method='PUT')
+              for k, v in headers.items():
+                  req.add_header(k, v)
+              if not any(h[0].lower() == 'content-type' for h in req.header_items()):
+                  req.add_header('Content-Type', 'application/octet-stream')
+
+              try:
+                  resp2 = urllib.request.urlopen(req)
+                  print(f'  OK (HTTP {resp2.status})')
+              except urllib.error.HTTPError as e:
+                  print(f'::warning::Upload {fname} failed (HTTP {e.code})')
+              except Exception as e:
+                  print(f'::warning::Upload {fname} failed: {e}')
+
+          print('GitCode release upload complete')
+          "
