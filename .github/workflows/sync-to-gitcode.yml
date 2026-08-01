@@ -127,22 +127,19 @@ jobs:
         id: gitcode-create
         env:
           GITCODE_ACCESS_TOKEN: ${{ secrets.GITCODE_ACCESS_TOKEN }}
+          TAG: ${{ steps.release-info.outputs.tag }}
+          RELEASE_STATUS: ${{ steps.release-info.outputs.release_status }}
+          API_BASE: https://api.atomgit.com/api/v5/repos/luolangaga/tubatool
         run: |
-          TAG="${{ steps.release-info.outputs.tag }}"
-          RELEASE_STATUS="${{ steps.release-info.outputs.release_status }}"
-          OWNER="luolangaga"
-          REPO="tubatool"
-          API_BASE="https://api.atomgit.com/api/v5/repos/$OWNER/$REPO"
-
           echo "Creating GitCode release for tag $TAG (status=$RELEASE_STATUS) ..."
 
           python3 -c "
           import json, urllib.request, urllib.error, os
 
-          tag = os.environ.get('TAG', '')
-          status = os.environ.get('RELEASE_STATUS', 'latest')
-          token = os.environ.get('GITCODE_ACCESS_TOKEN', '')
-          api_base = os.environ.get('API_BASE', '')
+          tag = os.environ['TAG']
+          status = os.environ['RELEASE_STATUS']
+          token = os.environ['GITCODE_ACCESS_TOKEN']
+          api_base = os.environ['API_BASE']
 
           with open('hash_table.md', 'r') as f:
               body = f.read()
@@ -185,18 +182,15 @@ jobs:
       - name: Upload assets to GitCode
         env:
           GITCODE_ACCESS_TOKEN: ${{ secrets.GITCODE_ACCESS_TOKEN }}
+          TAG: ${{ steps.release-info.outputs.tag }}
+          API_BASE: https://api.atomgit.com/api/v5/repos/luolangaga/tubatool
         run: |
-          TAG="${{ steps.release-info.outputs.tag }}"
-          OWNER="luolangaga"
-          REPO="tubatool"
-          API_BASE="https://api.atomgit.com/api/v5/repos/$OWNER/$REPO"
-
           python3 -c "
           import json, urllib.request, urllib.error, os, glob
 
-          tag = os.environ.get('TAG', '')
-          token = os.environ.get('GITCODE_ACCESS_TOKEN', '')
-          api_base = os.environ.get('API_BASE', '')
+          tag = os.environ['TAG']
+          token = os.environ['GITCODE_ACCESS_TOKEN']
+          api_base = os.environ['API_BASE']
 
           files = glob.glob('release_files/*.exe') + glob.glob('release_files/*.zip')
           for fpath in files:
