@@ -1,0 +1,650 @@
+using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.Globalization;
+using LiveChartsCore;
+using LiveChartsCore.SkiaSharpView;
+using LiveChartsCore.SkiaSharpView.Painting;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+using SkiaSharp;
+using TubaWinUi3.Services;
+using Windows.UI;
+
+namespace TubaWinUi3.Controls;
+
+public sealed partial class StressTestControl : UserControl
+{
+    private const int ChartMaxPoints = 120;
+    private const int DownsampleThreshold = 800;
+    private const int MaxLogLines = 200;
+
+    private static readonly SKColor TempC = new(248, 113, 113);
+    private static readonly SKColor UsageC = new(96, 165, 250);
+    private static readonly SKColor ClockC = new(251, 191, 36);
+    private static readonly SKColor PowerC = new(52, 211, 153);
+    private static readonly SKColor GpuTempC = new(251, 146, 60);
+    private static readonly SKColor GpuClockC = new(167, 139, 250);
+    private static readonly SKColor GpuPowerC = new(244, 114, 182);
+
+    private readonly ObservableCollection<double> _cpuTempChart = [];
+    private readonly ObservableCollection<double> _cpuUsageChart = [];
+    private readonly ObservableCollection<double> _cpuClockChart = [];
+    private readonly ObservableCollection<double> _cpuPowerChart = [];
+    private readonly ObservableCollection<double> _gpuTempChart = [];
+    private readonly ObservableCollection<double> _gpuClockChart = [];
+    private readonly ObservableCollection<double> _gpuPowerChart = [];
+
+    private readonly List<double> _cpuTempReport = [];
+    private readonly List<double> _cpuUsageReport = [];
+    private readonly List<double> _cpuClockReport = [];
+    private readonly List<double> _cpuPowerReport = [];
+    private readonly List<double> _gpuTempReport = [];
+    private readonly List<double> _gpuClockReport = [];
+    private readonly List<double> _gpuPowerReport = [];
+
+    private readonly Aida64WmiReader _reader = new();
+
+    private DispatcherTimer? _monitorTimer;
+    private DispatcherTimer? _elapsedTimer;
+    private DateTime _startTime;
+    private int _targetMinutes;
+    private StressMode _currentMode;
+
+    private Process? _aidaProcess;
+    private Process? _furmarkProcess;
+    private bool _weStartedAida;
+
+    private bool _isRunning;
+    private bool _wmiConnected;
+
+    private double _cpuTempPeak, _cpuUsagePeak, _cpuClockPeak, _cpuPowerPeak;
+    private double _gpuTempPeak, _gpuClockPeak, _gpuPowerPeak;
+    private double _cpuTempSum, _cpuUsageSum, _cpuClockSum, _cpuPowerSum;
+    private double _gpuTempSum, _gpuClockSum, _gpuPowerSum;
+    private int _sampleCount;
+    private int _cpuTempCount, _cpuUsageCount, _cpuClockCount, _cpuPowerCount;
+    private int _gpuTempCount, _gpuClockCount, _gpuPowerCount;
+    private int _monitorRetryCount;
+
+    public event EventHandler? StressStarted;
+    public event EventHandler? StressStopped;
+
+    public Window? OwnerWindow { get; set; }
+
+    public bool IsRunning => _isRunning;
+
+    public StressTestControl()
+    {
+        InitializeComponent();
+        InitCharts();
+        CheckAida64Wmi();
+    }
+
+    public void Cleanup() => StopStress();
+
+    private void InitCharts()
+    {
+        var fast = TimeSpan.FromMilliseconds(150);
+
+        CpuTempChart.Series = [MakeSeries(_cpuTempChart, TempC)];
+        CpuTempChart.XAxes = [new Axis { IsVisible = false }];
+        CpuTempChart.YAxes = [new Axis { IsVisible = false, MinLimit = 20, MaxLimit = 120 }];
+        CpuTempChart.AnimationsSpeed = fast;
+        CpuTempChart.EasingFunction = null;
+
+        CpuUsageChart.Series = [MakeSeries(_cpuUsageChart, UsageC)];
+        CpuUsageChart.XAxes = [new Axis { IsVisible = false }];
+        CpuUsageChart.YAxes = [new Axis { IsVisible = false, MinLimit = 0, MaxLimit = 100 }];
+        CpuUsageChart.AnimationsSpeed = fast;
+        CpuUsageChart.EasingFunction = null;
+
+        CpuClockChart.Series = [MakeSeries(_cpuClockChart, ClockC)];
+        CpuClockChart.XAxes = [new Axis { IsVisible = false }];
+        CpuClockChart.YAxes = [new Axis { IsVisible = false, MinLimit = 0 }];
+        CpuClockChart.AnimationsSpeed = fast;
+        CpuClockChart.EasingFunction = null;
+
+        CpuPowerChart.Series = [MakeSeries(_cpuPowerChart, PowerC)];
+        CpuPowerChart.XAxes = [new Axis { IsVisible = false }];
+        CpuPowerChart.YAxes = [new Axis { IsVisible = false, MinLimit = 0 }];
+        CpuPowerChart.AnimationsSpeed = fast;
+        CpuPowerChart.EasingFunction = null;
+
+        GpuTempChart.Series = [MakeSeries(_gpuTempChart, GpuTempC)];
+        GpuTempChart.XAxes = [new Axis { IsVisible = false }];
+        GpuTempChart.YAxes = [new Axis { IsVisible = false, MinLimit = 20, MaxLimit = 120 }];
+        GpuTempChart.AnimationsSpeed = fast;
+        GpuTempChart.EasingFunction = null;
+
+        GpuClockChart.Series = [MakeSeries(_gpuClockChart, GpuClockC)];
+        GpuClockChart.XAxes = [new Axis { IsVisible = false }];
+        GpuClockChart.YAxes = [new Axis { IsVisible = false, MinLimit = 0 }];
+        GpuClockChart.AnimationsSpeed = fast;
+        GpuClockChart.EasingFunction = null;
+
+        GpuPowerChart.Series = [MakeSeries(_gpuPowerChart, GpuPowerC)];
+        GpuPowerChart.XAxes = [new Axis { IsVisible = false }];
+        GpuPowerChart.YAxes = [new Axis { IsVisible = false, MinLimit = 0 }];
+        GpuPowerChart.AnimationsSpeed = fast;
+        GpuPowerChart.EasingFunction = null;
+    }
+
+    private static LineSeries<double> MakeSeries(ObservableCollection<double> values, SKColor color)
+    {
+        return new LineSeries<double>
+        {
+            Values = values,
+            Stroke = new SolidColorPaint(color) { StrokeThickness = 2.5f },
+            Fill = new SolidColorPaint(new SKColor(color.Red, color.Green, color.Blue, 50)),
+            GeometrySize = 0,
+            LineSmoothness = 0.4,
+            IsHoverable = true,
+        };
+    }
+
+    private async void CheckAida64Wmi()
+    {
+        var (data, _) = await Task.Run(() => _reader.Read());
+        if (data is not null)
+        {
+            _wmiConnected = true;
+            AidaStatusBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 108, 203, 95));
+            AidaStatusBorder.Background = new SolidColorBrush(Color.FromArgb(255, 222, 246, 228));
+            AidaStatusIcon.Glyph = "\uE73E";
+            AidaStatusText.Text = "AIDA64 WMI 已连接 — 实时监控已就绪";
+        }
+        else
+        {
+            _wmiConnected = false;
+            AidaStatusBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 249, 117, 51));
+            AidaStatusBorder.Background = new SolidColorBrush(Color.FromArgb(255, 255, 244, 225));
+            AidaStatusIcon.Glyph = "\uE7BA";
+            AidaStatusText.Text = "未检测到 AIDA64 WMI 数据。请启动 AIDA64 并开启：文件 → 设置 → 硬件监控 → 外部应用程序 → 允许将监测数据写入WMI。";
+        }
+    }
+
+    private void DualStress_Click(object sender, RoutedEventArgs e) => StartStress(StressMode.Dual);
+    private void CpuStress_Click(object sender, RoutedEventArgs e) => StartStress(StressMode.Cpu);
+    private void GpuStress_Click(object sender, RoutedEventArgs e) => StartStress(StressMode.Gpu);
+    private void Stop_Click(object sender, RoutedEventArgs e) => StopStress();
+
+    public void StartStress(StressMode mode, int? durationMinutes = null)
+    {
+        if (_isRunning) return;
+
+        _isRunning = true;
+        _weStartedAida = false;
+        _currentMode = mode;
+        _monitorRetryCount = 0;
+        _sampleCount = 0;
+        _cpuTempPeak = _cpuUsagePeak = _cpuClockPeak = _cpuPowerPeak = double.MinValue;
+        _gpuTempPeak = _gpuClockPeak = _gpuPowerPeak = double.MinValue;
+        _cpuTempSum = _cpuUsageSum = _cpuClockSum = _cpuPowerSum = 0;
+        _gpuTempSum = _gpuClockSum = _gpuPowerSum = 0;
+        _cpuTempCount = _cpuUsageCount = _cpuClockCount = _cpuPowerCount = 0;
+        _gpuTempCount = _gpuClockCount = _gpuPowerCount = 0;
+
+        _cpuTempChart.Clear(); _cpuUsageChart.Clear(); _cpuClockChart.Clear(); _cpuPowerChart.Clear();
+        _gpuTempChart.Clear(); _gpuClockChart.Clear(); _gpuPowerChart.Clear();
+        _cpuTempReport.Clear(); _cpuUsageReport.Clear(); _cpuClockReport.Clear(); _cpuPowerReport.Clear();
+        _gpuTempReport.Clear(); _gpuClockReport.Clear(); _gpuPowerReport.Clear();
+
+        SetButtonsEnabled(false);
+        StopBtn.IsEnabled = true;
+        ExportBtn.IsEnabled = false;
+
+        var cpuDuration = durationMinutes ?? (int)CpuDurationBox.Value;
+        var gpuDuration = durationMinutes ?? (int)GpuDurationBox.Value;
+        var dualDuration = durationMinutes ?? (int)DualDurationBox.Value;
+
+        switch (mode)
+        {
+            case StressMode.Cpu:
+                _targetMinutes = cpuDuration;
+                Log($"启动 CPU 单烤 — AIDA64 系统稳定性测试，时长 {cpuDuration} 分钟");
+                StartAida64(cpuDuration, cpuStress: true);
+                break;
+            case StressMode.Gpu:
+                _targetMinutes = gpuDuration;
+                Log($"启动 GPU 单烤 — FurMark 压力测试，时长 {gpuDuration} 分钟");
+                StartFurMarkGpuStress(gpuDuration);
+                break;
+            case StressMode.Dual:
+                _targetMinutes = dualDuration;
+                Log($"启动一键双烤 — AIDA64 CPU + FurMark GPU，时长 {dualDuration} 分钟");
+                StartAida64(dualDuration, cpuStress: true);
+                StartFurMarkGpuStress(dualDuration);
+                break;
+        }
+
+        _startTime = DateTime.UtcNow;
+
+        _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _elapsedTimer.Tick += ElapsedTimer_Tick;
+        _elapsedTimer.Start();
+
+        _monitorTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _monitorTimer.Tick += MonitorTimer_Tick;
+        _monitorTimer.Start();
+
+        StressStarted?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void StopStress()
+    {
+        if (!_isRunning) return;
+
+        _isRunning = false;
+        _monitorTimer?.Stop(); _monitorTimer = null;
+        _elapsedTimer?.Stop(); _elapsedTimer = null;
+
+        KillAidaBenchmarkModule();
+        KillProcess(ref _furmarkProcess);
+        if (_weStartedAida) KillProcess(ref _aidaProcess);
+
+        SetButtonsEnabled(true);
+        StopBtn.IsEnabled = false;
+        ExportBtn.IsEnabled = _sampleCount > 0;
+
+        Log("烤机已停止");
+        CheckAida64Wmi();
+        StressStopped?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void KillAidaBenchmarkModule()
+    {
+        foreach (var proc in Process.GetProcesses())
+        {
+            try
+            {
+                var name = proc.ProcessName.ToLowerInvariant();
+                if (name.Contains("aida_bench") || name.Contains("aida64.benchmark") || name.Equals("aidabench") || name.Equals("aidabench64") || name.Equals("aidabench32"))
+                {
+                    proc.Kill();
+                    Log($"已终止烤机进程: {proc.ProcessName} (PID {proc.Id})");
+                }
+            }
+            catch { }
+        }
+
+        if (_aidaProcess != null && !_aidaProcess.HasExited)
+        {
+            try
+            {
+                foreach (var child in Process.GetProcesses())
+                {
+                    try { if (child.ProcessName.ToLowerInvariant().Contains("aida")) { child.Kill(); Log($"已终止 AIDA64 相关进程: {child.ProcessName} (PID {child.Id})"); } }
+                    catch { }
+                }
+            }
+            catch { }
+        }
+    }
+
+    private void ElapsedTimer_Tick(object? sender, object e)
+    {
+        var elapsed = DateTime.UtcNow - _startTime;
+        ElapsedText.Text = $"{(int)elapsed.TotalMinutes}:{elapsed.Seconds:D2}";
+
+        if (_targetMinutes > 0 && elapsed.TotalMinutes >= _targetMinutes)
+        {
+            Log($"已达到设定时长 {_targetMinutes} 分钟，自动停止");
+            StopStress();
+        }
+    }
+
+    private async void MonitorTimer_Tick(object? sender, object e) => await UpdateMonitorAsync();
+
+    private async Task UpdateMonitorAsync()
+    {
+        if (!_isRunning) return;
+
+        var (data, error) = await Task.Run(() => _reader.Read());
+
+        if (data is null)
+        {
+            _monitorRetryCount++;
+            if (!_wmiConnected)
+            {
+                if (_monitorRetryCount == 5) Log("等待 AIDA64 WMI 数据就绪中...");
+                else if (_monitorRetryCount == 15) Log($"WMI 数据仍不可用: {error}");
+            }
+            else { _wmiConnected = false; CheckAida64Wmi(); }
+            return;
+        }
+
+        _monitorRetryCount = 0;
+        _sampleCount++;
+
+        if (!_wmiConnected) { _wmiConnected = true; CheckAida64Wmi(); Log("AIDA64 WMI 连接成功，实时监控已启动"); }
+
+        if (data.CpuTemp > 0) { _cpuTempSum += data.CpuTemp; _cpuTempCount++; if (data.CpuTemp > _cpuTempPeak) _cpuTempPeak = data.CpuTemp; }
+        if (data.CpuUsage > 0) { _cpuUsageSum += data.CpuUsage; _cpuUsageCount++; if (data.CpuUsage > _cpuUsagePeak) _cpuUsagePeak = data.CpuUsage; }
+        if (data.CpuClock > 0) { _cpuClockSum += data.CpuClock; _cpuClockCount++; if (data.CpuClock > _cpuClockPeak) _cpuClockPeak = data.CpuClock; }
+        if (data.CpuPower > 0) { _cpuPowerSum += data.CpuPower; _cpuPowerCount++; if (data.CpuPower > _cpuPowerPeak) _cpuPowerPeak = data.CpuPower; }
+        if (data.GpuTemp > 0) { _gpuTempSum += data.GpuTemp; _gpuTempCount++; if (data.GpuTemp > _gpuTempPeak) _gpuTempPeak = data.GpuTemp; }
+        if (data.GpuClock > 0) { _gpuClockSum += data.GpuClock; _gpuClockCount++; if (data.GpuClock > _gpuClockPeak) _gpuClockPeak = data.GpuClock; }
+        if (data.GpuPower > 0) { _gpuPowerSum += data.GpuPower; _gpuPowerCount++; if (data.GpuPower > _gpuPowerPeak) _gpuPowerPeak = data.GpuPower; }
+
+        PushChart(_cpuTempChart, Val(data.CpuTemp));
+        PushChart(_cpuUsageChart, Val(data.CpuUsage));
+        PushChart(_cpuClockChart, Val(data.CpuClock));
+        PushChart(_cpuPowerChart, Val(data.CpuPower));
+        PushChart(_gpuTempChart, Val(data.GpuTemp));
+        PushChart(_gpuClockChart, Val(data.GpuClock));
+        PushChart(_gpuPowerChart, Val(data.GpuPower));
+
+        PushReport(_cpuTempReport, Val(data.CpuTemp));
+        PushReport(_cpuUsageReport, Val(data.CpuUsage));
+        PushReport(_cpuClockReport, Val(data.CpuClock));
+        PushReport(_cpuPowerReport, Val(data.CpuPower));
+        PushReport(_gpuTempReport, Val(data.GpuTemp));
+        PushReport(_gpuClockReport, Val(data.GpuClock));
+        PushReport(_gpuPowerReport, Val(data.GpuPower));
+
+        CpuTempText.Text = Fi(data.CpuTemp, "°C");
+        CpuUsageText.Text = Fi(data.CpuUsage, "%");
+        CpuClockText.Text = Fi(data.CpuClock, " MHz");
+        CpuPowerText.Text = F(data.CpuPower, "W");
+
+        GpuTempText.Text = Fi(data.GpuTemp, "°C");
+        GpuClockText.Text = Fi(data.GpuClock, " MHz");
+        GpuPowerText.Text = F(data.GpuPower, "W");
+    }
+
+    private static void PushChart(ObservableCollection<double> list, double value)
+    {
+        if (value <= 0) return;
+        list.Add(value);
+        if (list.Count > ChartMaxPoints) list.RemoveAt(0);
+    }
+
+    private static void PushReport(List<double> list, double value)
+    {
+        if (value <= 0) return;
+        list.Add(value);
+        if (list.Count > DownsampleThreshold)
+        {
+            for (int i = 1; i < list.Count - 1; i++)
+                list.RemoveAt(i);
+        }
+    }
+
+    private static double Val(double v) => v > 0 ? Math.Round(v, 1) : 0;
+
+    private static string F(double v, string unit)
+    {
+        if (v < 0) return "--";
+        var s = v.ToString("0.0", CultureInfo.InvariantCulture);
+        var parts = s.Split('.');
+        return parts.Length == 2 ? $"{parts[0]}.{parts[1]}{unit}" : $"{s}{unit}";
+    }
+
+    private static string Fi(double v, string unit) => v < 0 ? "--" : $"{v.ToString("0", CultureInfo.InvariantCulture)}{unit}";
+
+    private async void Export_Click(object sender, RoutedEventArgs e)
+    {
+        if (_sampleCount == 0) return;
+
+        var elapsed = DateTime.UtcNow - _startTime;
+        var modeStr = _currentMode switch { StressMode.Cpu => "CPU 单烤", StressMode.Gpu => "GPU 单烤", StressMode.Dual => "一键双烤", _ => "烤机" };
+
+        var cpuTempAvg = Avg(_cpuTempSum, _cpuTempCount); var cpuUsageAvg = Avg(_cpuUsageSum, _cpuUsageCount); var cpuClockAvg = Avg(_cpuClockSum, _cpuClockCount); var cpuPowerAvg = Avg(_cpuPowerSum, _cpuPowerCount);
+        var gpuTempAvg = Avg(_gpuTempSum, _gpuTempCount); var gpuClockAvg = Avg(_gpuClockSum, _gpuClockCount); var gpuPowerAvg = Avg(_gpuPowerSum, _gpuPowerCount);
+
+        var html = GenerateReportHtml(modeStr, elapsed, cpuTempAvg, cpuUsageAvg, cpuClockAvg, cpuPowerAvg, gpuTempAvg, gpuClockAvg, gpuPowerAvg);
+
+        try
+        {
+            var win = OwnerWindow ?? App.MainWindow;
+            if (win is not null)
+            {
+                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(win);
+                var picker = new Windows.Storage.Pickers.FileSavePicker();
+                WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+                picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary;
+                picker.SuggestedFileName = $"烤机报告_{DateTime.Now:yyyyMMdd_HHmmss}";
+                picker.FileTypeChoices.Add("HTML 报告", new List<string> { ".html" });
+
+                var file = await picker.PickSaveFileAsync();
+                if (file is not null)
+                {
+                    await Windows.Storage.FileIO.WriteTextAsync(file, html);
+                    Log($"报告已导出: {file.Path}");
+                    Process.Start(new ProcessStartInfo(file.Path) { UseShellExecute = true });
+                    return;
+                }
+            }
+        }
+        catch { }
+
+        try
+        {
+            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "TubaWinUi3_Reports");
+            Directory.CreateDirectory(dir);
+            var filePath = Path.Combine(dir, $"烤机报告_{DateTime.Now:yyyyMMdd_HHmmss}.html");
+            await File.WriteAllTextAsync(filePath, html);
+            Log($"报告已导出: {filePath}");
+            Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true });
+        }
+        catch (Exception ex2) { Log($"导出失败: {ex2.Message}"); }
+    }
+
+    private double Avg(double sum, int count) => count > 0 && sum > 0 ? sum / count : -1;
+
+    private string GenerateReportHtml(string mode, TimeSpan elapsed,
+        double cpuTempAvg, double cpuUsageAvg, double cpuClockAvg, double cpuPowerAvg,
+        double gpuTempAvg, double gpuClockAvg, double gpuPowerAvg)
+    {
+        var cpuTempPeak = Peak(_cpuTempPeak); var cpuUsagePeak = Peak(_cpuUsagePeak); var cpuClockPeak = Peak(_cpuClockPeak); var cpuPowerPeak = Peak(_cpuPowerPeak);
+        var gpuTempPeak = Peak(_gpuTempPeak); var gpuClockPeak = Peak(_gpuClockPeak); var gpuPowerPeak = Peak(_gpuPowerPeak);
+
+        string ChartJs(string canvasId, string label, string color, string unit, List<double> data)
+        {
+            var vals = string.Join(",", data.Select(v => v.ToString("0.#", CultureInfo.InvariantCulture)));
+            var labels = string.Join(",", Enumerable.Range(0, data.Count).Select(_ => "''"));
+            return $@"
+            new Chart(document.getElementById('{canvasId}'), {{
+                type: 'line',
+                data: {{
+                    labels: [{labels}],
+                    datasets: [{{
+                        label: '{label}',
+                        data: [{vals}],
+                        borderColor: '{color}',
+                        backgroundColor: '{color}26',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 0,
+                        borderWidth: 2
+                    }}]
+                }},
+                options: {{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {{
+                        legend: {{ display: false }},
+                        tooltip: {{
+                            backgroundColor: 'rgba(32,32,32,0.9)',
+                            titleFont: {{ family: 'Segoe UI', size: 12 }},
+                            bodyFont: {{ family: 'Segoe UI', size: 13 }},
+                            padding: 10,
+                            cornerRadius: 6,
+                            callbacks: {{ label: ctx => ctx.parsed.y + '{unit}' }}
+                        }}
+                    }},
+                    scales: {{
+                        x: {{ display: false }},
+                        y: {{
+                            grid: {{ color: 'rgba(128,128,128,0.1)' }},
+                            ticks: {{ font: {{ family: 'Segoe UI', size: 10 }}, color: '#888' }}
+                        }}
+                    }},
+                    interaction: {{ intersect: false, mode: 'index' }}
+                }}
+            }});";
+        }
+
+        var charts = "";
+        charts += ChartJs("cpuTempChart", "CPU 温度", "#f87171", "°C", _cpuTempReport);
+        charts += ChartJs("cpuUsageChart", "CPU 占用", "#60a5fa", "%", _cpuUsageReport);
+        charts += ChartJs("cpuClockChart", "CPU 频率", "#fbbf24", " MHz", _cpuClockReport);
+        charts += ChartJs("cpuPowerChart", "CPU 功耗", "#34d399", "W", _cpuPowerReport);
+        charts += ChartJs("gpuTempChart", "GPU 温度", "#fb923c", "°C", _gpuTempReport);
+        charts += ChartJs("gpuClockChart", "GPU 频率", "#a78bfa", " MHz", _gpuClockReport);
+        charts += ChartJs("gpuPowerChart", "GPU 功耗", "#f472b6", "W", _gpuPowerReport);
+
+        string S(string title, string val, string pk, string avg, string c) =>
+            $@"<div class=""stat-card""><div class=""stat-title"" style=""color:{c}"">{title}</div><div class=""stat-value"">{val}</div><div class=""stat-detail"">峰值 {pk} · 均值 {avg}</div></div>";
+
+        return $@"<!DOCTYPE html>
+<html lang=""zh-CN""><head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1.0"">
+<title>烤机报告 - {mode}</title>
+<script src=""https://cdn.jsdelivr.net/npm/chart.js@4""></script>
+<style>
+*{{margin:0;padding:0;box-sizing:border-box}}
+body{{font-family:'Segoe UI','Microsoft YaHei',sans-serif;background:#f5f5f5;color:#1a1a1a;padding:32px}}
+.container{{max-width:960px;margin:0 auto}}
+h1{{font-size:28px;font-weight:600;margin-bottom:4px}}
+.subtitle{{font-size:14px;color:#666;margin-bottom:24px}}
+.info-bar{{display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap}}
+.info-tag{{background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:8px 16px;font-size:13px}}
+.info-tag strong{{color:#0078d4}}
+.stats-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}}
+.stat-card{{background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:16px;text-align:center}}
+.stat-title{{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}}
+.stat-value{{font-size:24px;font-weight:700;margin-bottom:4px}}
+.stat-detail{{font-size:11px;color:#888}}
+.section{{background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:20px;margin-bottom:16px}}
+.section h2{{font-size:16px;font-weight:600;margin-bottom:16px}}
+.charts-grid{{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}}
+.chart-box{{position:relative;height:180px}}
+.chart-label{{font-size:11px;color:#888;text-align:center;margin-bottom:4px}}
+.footer{{text-align:center;font-size:11px;color:#aaa;margin-top:24px}}
+@media(max-width:640px){{.stats-grid{{grid-template-columns:repeat(2,1fr)}}.charts-grid{{grid-template-columns:1fr}}}}
+</style></head><body>
+<div class=""container"">
+<h1>烤机报告</h1>
+<div class=""subtitle"">{mode} · 由图吧工具箱 WinUI3 生成</div>
+<div class=""info-bar"">
+<div class=""info-tag"">测试模式 <strong>{mode}</strong></div>
+<div class=""info-tag"">运行时长 <strong>{(int)elapsed.TotalMinutes}分{elapsed.Seconds}秒</strong></div>
+<div class=""info-tag"">采样次数 <strong>{_sampleCount}</strong></div>
+<div class=""info-tag"">生成时间 <strong>{DateTime.Now:yyyy/MM/dd HH:mm:ss}</strong></div>
+</div>
+<h2 style=""font-size:16px;font-weight:600;margin-bottom:12px"">CPU 传感器</h2>
+<div class=""stats-grid"">
+{S("CPU 温度",Fi(cpuTempAvg,"°C"),Fi(cpuTempPeak,"°C"),Fi(cpuTempAvg,"°C"),"#f87171")}
+{S("CPU 占用",Fi(cpuUsageAvg,"%"),Fi(cpuUsagePeak,"%"),Fi(cpuUsageAvg,"%"),"#60a5fa")}
+{S("CPU 频率",Fi(cpuClockAvg," MHz"),Fi(cpuClockPeak," MHz"),Fi(cpuClockAvg," MHz"),"#fbbf24")}
+{S("CPU 功耗",F(cpuPowerAvg,"W"),F(cpuPowerPeak,"W"),F(cpuPowerAvg,"W"),"#34d399")}
+</div>
+<h2 style=""font-size:16px;font-weight:600;margin-bottom:12px"">GPU 传感器</h2>
+<div class=""stats-grid"">
+{S("GPU 温度",Fi(gpuTempAvg,"°C"),Fi(gpuTempPeak,"°C"),Fi(gpuTempAvg,"°C"),"#fb923c")}
+{S("GPU 频率",Fi(gpuClockAvg," MHz"),Fi(gpuClockPeak," MHz"),Fi(gpuClockAvg," MHz"),"#a78bfa")}
+{S("GPU 功耗",F(gpuPowerAvg,"W"),F(gpuPowerPeak,"W"),F(gpuPowerAvg,"W"),"#f472b6")}
+<div class=""stat-card""><div class=""stat-title"" style=""color:#888"">运行时长</div><div class=""stat-value"">{(int)elapsed.TotalMinutes}:{elapsed.Seconds:D2}</div><div class=""stat-detail"">设定 {_targetMinutes} 分钟</div></div>
+</div>
+<div class=""section""><h2>CPU 监控曲线</h2><div class=""charts-grid"">
+<div><div class=""chart-label"">温度 (°C)</div><div class=""chart-box""><canvas id=""cpuTempChart""></canvas></div></div>
+<div><div class=""chart-label"">占用 (%)</div><div class=""chart-box""><canvas id=""cpuUsageChart""></canvas></div></div>
+<div><div class=""chart-label"">频率 (MHz)</div><div class=""chart-box""><canvas id=""cpuClockChart""></canvas></div></div>
+<div><div class=""chart-label"">功耗 (W)</div><div class=""chart-box""><canvas id=""cpuPowerChart""></canvas></div></div>
+</div></div>
+<div class=""section""><h2>GPU 监控曲线</h2><div class=""charts-grid"">
+<div><div class=""chart-label"">温度 (°C)</div><div class=""chart-box""><canvas id=""gpuTempChart""></canvas></div></div>
+<div><div class=""chart-label"">频率 (MHz)</div><div class=""chart-box""><canvas id=""gpuClockChart""></canvas></div></div>
+<div><div class=""chart-label"">功耗 (W)</div><div class=""chart-box""><canvas id=""gpuPowerChart""></canvas></div></div>
+</div></div>
+<div class=""footer"">图吧工具箱 WinUI3 · 数据来源: AIDA64 WMI · {DateTime.Now:yyyy/MM/dd}</div>
+</div>
+<script>{charts}</script></body></html>";
+    }
+
+    private static double Peak(double v) => v > double.MinValue ? v : 0;
+
+    private void StartAida64(int stressMinutes, bool cpuStress)
+    {
+        var aidaExe = FindExecutable("aida64.exe", "aida64");
+        if (aidaExe is null)
+        {
+            if (Process.GetProcessesByName("aida64").Length == 0 && Process.GetProcessesByName("aida64c").Length == 0)
+            { Log("未找到 AIDA64，请确保已安装并放入 Tools 目录，或手动启动 AIDA64"); return; }
+            Log("检测到 AIDA64 已在运行，使用现有实例"); return;
+        }
+
+        if (Process.GetProcessesByName("aida64").Length > 0 || Process.GetProcessesByName("aida64c").Length > 0)
+        {
+            Log("检测到 AIDA64 已在运行");
+            if (cpuStress)
+            {
+                try
+                {
+                    Process.Start(new ProcessStartInfo { FileName = aidaExe, Arguments = $"/SST CPU /SSTDUR {stressMinutes * 60}", UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(aidaExe) });
+                    Log($"已向 AIDA64 发送 CPU 稳定性测试指令 ({stressMinutes} 分钟)");
+                }
+                catch (Exception ex) { Log($"AIDA64 指令发送失败: {ex.Message}"); }
+            }
+            return;
+        }
+
+        try
+        {
+            var args = cpuStress ? $"/SST CPU /SSTDUR {stressMinutes * 60}" : "";
+            _aidaProcess = Process.Start(new ProcessStartInfo { FileName = aidaExe, Arguments = args, UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(aidaExe) });
+            _weStartedAida = true;
+            Log(cpuStress ? $"AIDA64 已启动 (CPU 稳定性测试, {stressMinutes} 分钟)" : "AIDA64 已启动 (仅监控模式)");
+        }
+        catch (Exception ex) { Log($"AIDA64 启动失败: {ex.Message}"); }
+    }
+
+    private void StartFurMarkGpuStress(int minutes)
+    {
+        var furmarkExe = FindExecutable("FurMark.exe", "furmark");
+        if (furmarkExe is null) { Log("未找到 FurMark"); return; }
+        try
+        {
+            _furmarkProcess = Process.Start(new ProcessStartInfo { FileName = furmarkExe, Arguments = $"--demo furmark-gl --fullscreen --max-time {minutes * 60} --no-score-box", UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(furmarkExe) });
+            Log($"FurMark 已启动 (GPU 压力测试, {minutes} 分钟)");
+        }
+        catch (Exception ex) { Log($"FurMark 启动失败: {ex.Message}"); }
+    }
+
+    private static string? FindExecutable(params string[] names)
+    {
+        var toolsRoot = ToolCatalog.ToolsRoot;
+        if (Directory.Exists(toolsRoot))
+            foreach (var name in names) { var m = Directory.GetFiles(toolsRoot, name, SearchOption.AllDirectories); if (m.Length > 0) return m[0]; }
+
+        foreach (var name in names)
+            foreach (var root in new[] { Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86) })
+                if (Directory.Exists(root)) { var c = Directory.GetFiles(root, name, SearchOption.AllDirectories); if (c.Length > 0) return c[0]; }
+
+        return null;
+    }
+
+    private static void KillProcess(ref Process? proc)
+    {
+        if (proc is null || proc.HasExited) return;
+        try { proc.Kill(); } catch { }
+        try { proc.Dispose(); } catch { }
+        proc = null;
+    }
+
+    private void SetButtonsEnabled(bool enabled) { DualStressBtn.IsEnabled = enabled; CpuStressBtn.IsEnabled = enabled; GpuStressBtn.IsEnabled = enabled; }
+
+    private void Log(string msg)
+    {
+        var line = $"[{DateTime.Now:HH:mm:ss}] {msg}";
+        LogText.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = line + "\n" });
+        while (LogText.Inlines.Count > MaxLogLines)
+            LogText.Inlines.RemoveAt(0);
+        LogScrollViewer.ChangeView(null, LogScrollViewer.ScrollableHeight, null);
+    }
+
+    private void ClearLog_Click(object sender, RoutedEventArgs e) => LogText.Inlines.Clear();
+}
+
+public enum StressMode { Cpu, Gpu, Dual }

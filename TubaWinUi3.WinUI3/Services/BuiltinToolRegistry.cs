@@ -51,6 +51,7 @@ public static class BuiltinToolRegistry
         Register(new QuickDeviceCheckTool());
         Register(new EnergyStarTool());
         Register(new RatingSystemTool());
+        Register(new StressTestTool());
     }
 
     public static IReadOnlyList<string> GetCategories()

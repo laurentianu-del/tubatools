@@ -23,12 +23,7 @@ public sealed partial class QuickDeviceCheckPage : Page
     private int _currentStep;
     private const int TotalSteps = 8;
 
-    private DiagnosticsProcess? _furmarkProcess;
-    private DiagnosticsProcess? _aida64Process;
-    private CancellationTokenSource? _stressCts;
-    private DispatcherTimer? _stressTimer;
-    private DateTime _stressStart;
-    private int _stressDurationMin = 15;
+    private Controls.StressTestControl? _stressControl;
     private SpeechSynthesizer? _speechSynth;
     private bool _cameraLaunched;
     private MediaCapture? _mediaCapture;
@@ -75,7 +70,7 @@ public sealed partial class QuickDeviceCheckPage : Page
 
     public void Cleanup()
     {
-        StopStressTest();
+        _stressControl?.Cleanup();
         StopCamera();
         _speechSynth?.Dispose();
     }
@@ -919,352 +914,83 @@ public sealed partial class QuickDeviceCheckPage : Page
 
     private void BuildStressTestStep()
     {
-        var stack = new StackPanel { Spacing = 16 };
-
-        var warningCard = new Border
+        _stressControl = new Controls.StressTestControl
         {
-            Background = new SolidColorBrush(Color.FromArgb(40, 251, 191, 36)),
-            BorderBrush = new SolidColorBrush(ThemeColors.AccentOrange),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(12),
-            Padding = new Thickness(20),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            MaxWidth = 600
+            OwnerWindow = _window,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch
         };
-        var warnStack = new StackPanel { Spacing = 8 };
-        warnStack.Children.Add(new TextBlock
-        {
-            Text = "⚠️ 双烤压力测试说明",
-            FontSize = 16,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(ThemeColors.AccentOrange)
-        });
-        warnStack.Children.Add(new TextBlock
-        {
-            Text = "• 同时运行 FurMark（GPU 烤鸡）和 AIDA64 CPU 烤鸡\n" +
-                   "• 发热和风扇转速提高是正常现象\n" +
-                   "• 推荐垫高笔记本底部以改善散热\n" +
-                   "• 如果出现蓝屏、死机或自动关机，说明稳定性不通过！\n" +
-                   "• 测试期间请勿操作电脑，保持通风良好",
-            FontSize = 14,
-            TextWrapping = TextWrapping.Wrap
-        });
-        warningCard.Child = warnStack;
-        stack.Children.Add(warningCard);
-
-        var durationCard = new Border
-        {
-            Background = new SolidColorBrush(ThemeColors.CardBg),
-            BorderBrush = new SolidColorBrush(ThemeColors.BorderColor),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(12),
-            Padding = new Thickness(24, 20, 24, 20),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            MaxWidth = 600
-        };
-        var durStack = new StackPanel { Spacing = 12, HorizontalAlignment = HorizontalAlignment.Center };
-
-        durStack.Children.Add(new TextBlock
-        {
-            Text = "选择烤鸡时长",
-            FontSize = 16,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            HorizontalAlignment = HorizontalAlignment.Center
-        });
-
-        var sliderRow = new Grid { ColumnSpacing = 16 };
-        sliderRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
-        sliderRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        sliderRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
-
-        var minLabel = new TextBlock
-        {
-            Text = "5 分钟",
-            FontSize = 13,
-            Foreground = new SolidColorBrush(ThemeColors.DimText),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        Grid.SetColumn(minLabel, 0);
-        sliderRow.Children.Add(minLabel);
-
-        var slider = new Slider
-        {
-            Minimum = 5,
-            Maximum = 30,
-            Value = 15,
-            StepFrequency = 5,
-            TickFrequency = 5,
-            TickPlacement = TickPlacement.BottomRight,
-            Width = 300
-        };
-        Grid.SetColumn(slider, 1);
-        sliderRow.Children.Add(slider);
-
-        var maxLabel = new TextBlock
-        {
-            Text = "30 分钟",
-            FontSize = 13,
-            Foreground = new SolidColorBrush(ThemeColors.DimText),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        Grid.SetColumn(maxLabel, 2);
-        sliderRow.Children.Add(maxLabel);
-
-        durStack.Children.Add(sliderRow);
-
-        var durationDesc = new TextBlock
-        {
-            FontSize = 13,
-            Foreground = new SolidColorBrush(ThemeColors.DimText),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            TextWrapping = TextWrapping.Wrap
-        };
-        durStack.Children.Add(durationDesc);
-
-        void UpdateDurationDesc()
-        {
-            var val = (int)slider.Value;
-            _stressDurationMin = val;
-            durationDesc.Text = val switch
-            {
-                <= 5 => $"{val} 分钟 — 快速检查，仅验证基本稳定性",
-                <= 10 => $"{val} 分钟 — 短时测试，适合初步验证",
-                <= 15 => $"{val} 分钟 — 标准测试，推荐时长",
-                <= 20 => $"{val} 分钟 — 较长测试，更充分验证稳定性",
-                _ => $"{val} 分钟 — 长时间测试，全面验证散热与稳定性"
-            };
-        }
-        UpdateDurationDesc();
-        slider.ValueChanged += (_, _) => UpdateDurationDesc();
-
-        durationCard.Child = durStack;
-        stack.Children.Add(durationCard);
-
-        var startBtn = new Button
-        {
-            Content = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Spacing = 8,
-                Children =
-                {
-                    new FontIcon { Glyph = "\uE9D9", FontSize = 16 },
-                    new TextBlock { Text = "开始双烤测试", FontSize = 15 }
-                }
-            },
-            Style = Application.Current.Resources["AccentButtonStyle"] as Style,
-            Padding = new Thickness(24, 10, 24, 10),
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
-        startBtn.Click += (_, _) => StartStressTest(startBtn, stack);
-        stack.Children.Add(startBtn);
-
-        StepContentPanel.Children.Add(stack);
+        _stressControl.StressStarted += OnStressStarted;
+        _stressControl.StressStopped += OnStressStopped;
+        StepContentPanel.Children.Add(_stressControl);
     }
 
-    private void StartStressTest(Button startBtn, StackPanel parentStack)
+    private DispatcherTimer? _reclaimTimer;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool BringWindowToTop(IntPtr hWnd);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    private const int SW_SHOW = 5;
+
+    private void OnStressStarted(object? sender, EventArgs e)
     {
-        startBtn.IsEnabled = false;
-        startBtn.Content = new StackPanel
+        StepProgressPanel.Visibility = Visibility.Collapsed;
+        StepIndicatorText.Visibility = Visibility.Collapsed;
+        StepGlyphIcon.Visibility = Visibility.Collapsed;
+        StepTitleText.Visibility = Visibility.Collapsed;
+        StepDescText.Visibility = Visibility.Collapsed;
+        BackButton.Visibility = Visibility.Collapsed;
+        NextButton.Visibility = Visibility.Collapsed;
+        ForceToForeground();
+        _reclaimTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _reclaimTimer.Tick += (_, _) =>
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            Children =
+            _reclaimTimer.Stop();
+            _reclaimTimer = null;
+            if (_stressControl?.IsRunning == true)
             {
-                new ProgressRing { Width = 16, Height = 16, IsActive = true },
-                new TextBlock { Text = "双烤进行中...", FontSize = 15 }
-            }
-        };
-
-        _stressCts = new CancellationTokenSource();
-        _stressStart = DateTime.Now;
-
-        var furMarkExe = PerformanceBenchmarkService.FindFurMarkExe();
-        if (furMarkExe != null)
-        {
-            var furMarkDir = Path.GetDirectoryName(furMarkExe)!;
-            var durationMs = _stressDurationMin * 60 * 1000;
-            _furmarkProcess = DiagnosticsProcess.Start(new System.Diagnostics.ProcessStartInfo(furMarkExe,
-                $"--demo furmark-vk --width 1920 --height 1080 --fullscreen --benchmark --duration-ms {durationMs}")
-            {
-                WorkingDirectory = furMarkDir,
-                UseShellExecute = true
-            });
-        }
-
-        var aida64Exe = FindAida64Exe();
-        if (aida64Exe != null)
-        {
-            _aida64Process = DiagnosticsProcess.Start(new System.Diagnostics.ProcessStartInfo(aida64Exe, "/SST CPU")
-            {
-                UseShellExecute = true
-            });
-        }
-
-        if (furMarkExe == null && aida64Exe == null)
-        {
-            SendToast("未找到烤鸡工具", "请确保已安装 FurMark 和 AIDA64");
-            startBtn.IsEnabled = true;
-            startBtn.Content = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Spacing = 8,
-                Children =
+                ForceToForeground();
+                var t2 = new DispatcherTimer { Interval = TimeSpan.FromSeconds(7) };
+                t2.Tick += (_, _) =>
                 {
-                    new FontIcon { Glyph = "\uE9D9", FontSize = 16 },
-                    new TextBlock { Text = "开始双烤测试", FontSize = 15 }
-                }
-            };
-            return;
-        }
-
-        SendToast("双烤测试已启动", $"时长 {_stressDurationMin} 分钟，发热和风扇起飞是正常的");
-
-        var monitorCard = new Border
-        {
-            Background = new SolidColorBrush(ThemeColors.CardBg),
-            BorderBrush = new SolidColorBrush(ThemeColors.AccentBlue),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(12),
-            Padding = new Thickness(20),
-            Margin = new Thickness(0, 8, 0, 0),
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
-        var monitorStack = new StackPanel { Spacing = 8, HorizontalAlignment = HorizontalAlignment.Center };
-
-        var timerText = new TextBlock
-        {
-            FontSize = 24,
-            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
-        monitorStack.Children.Add(timerText);
-
-        var tempText = new TextBlock
-        {
-            FontSize = 14,
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
-        monitorStack.Children.Add(tempText);
-
-        var stopBtn = new Button
-        {
-            Content = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Spacing = 6,
-                Children =
-                {
-                    new FontIcon { Glyph = "\uE71A", FontSize = 14 },
-                    new TextBlock { Text = "提前结束", FontSize = 13 }
-                }
-            },
-            Padding = new Thickness(16, 6, 16, 6),
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
-        stopBtn.Click += (_, _) =>
-        {
-            StopStressTest();
-            timerText.Text = "⏹ 已手动停止";
-            timerText.Foreground = new SolidColorBrush(ThemeColors.AccentOrange);
-            tempText.Text = "测试已提前结束";
-        };
-        monitorStack.Children.Add(stopBtn);
-
-        monitorCard.Child = monitorStack;
-        parentStack.Children.Add(monitorCard);
-
-        _stressTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _stressTimer.Tick += (_, _) =>
-        {
-            var elapsed = DateTime.Now - _stressStart;
-            var remaining = TimeSpan.FromMinutes(_stressDurationMin) - elapsed;
-
-            if (remaining <= TimeSpan.Zero)
-            {
-                _stressTimer.Stop();
-                StopStressTest();
-                SendToast("双烤测试完成", "系统稳定运行，测试通过！");
-                timerText.Text = "✅ 测试完成 — 系统稳定";
-                timerText.Foreground = new SolidColorBrush(ThemeColors.AccentGreen);
-                tempText.Text = "双烤测试已通过，未出现蓝屏或死机";
-                return;
-            }
-
-            timerText.Text = $"⏱ 剩余 {remaining:mm\\:ss}  /  共 {_stressDurationMin} 分钟";
-
-            try
-            {
-                var monitor = LiteMonitorService.Instance;
-                monitor.EnsureInit();
-                var sample = monitor.Read(false);
-                var parts = new List<string>();
-                if (sample.CpuTemp >= 0) parts.Add($"CPU: {sample.CpuTemp:F0}°C");
-                if (sample.GpuTemp >= 0) parts.Add($"GPU: {sample.GpuTemp:F0}°C");
-                if (sample.CpuPower >= 0) parts.Add($"CPU功耗: {sample.CpuPower:F1}W");
-                if (sample.GpuPower >= 0) parts.Add($"GPU功耗: {sample.GpuPower:F1}W");
-                tempText.Text = string.Join("  |  ", parts);
-            }
-            catch
-            {
-                tempText.Text = "读取传感器数据中...";
+                    t2.Stop();
+                    if (_stressControl?.IsRunning == true) ForceToForeground();
+                };
+                t2.Start();
             }
         };
-        _stressTimer.Start();
-
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await Task.Delay(TimeSpan.FromMinutes(_stressDurationMin), _stressCts.Token);
-                DispatcherQueue.TryEnqueue(() =>
-                {
-                    StopStressTest();
-                    SendToast("双烤测试完成", "系统稳定运行，测试通过！");
-                });
-            }
-            catch (OperationCanceledException) { }
-        });
+        _reclaimTimer.Start();
     }
 
-    private void StopStressTest()
-    {
-        _stressCts?.Cancel();
-        _stressTimer?.Stop();
-
-        try { if (_furmarkProcess != null && !_furmarkProcess.HasExited) _furmarkProcess.Kill(entireProcessTree: true); } catch { }
-        try { if (_aida64Process != null && !_aida64Process.HasExited) _aida64Process.Kill(entireProcessTree: true); } catch { }
-
-        _furmarkProcess = null;
-        _aida64Process = null;
-    }
-
-    private static string? FindAida64Exe()
+    private void ForceToForeground()
     {
         try
         {
-            var toolsRoot = ToolCatalog.ToolsRoot;
-            if (string.IsNullOrEmpty(toolsRoot)) return null;
-
-            var paths = new[]
-            {
-                Path.Combine(toolsRoot, "综合检测", "AIDA64", "aida64.exe"),
-                Path.Combine(toolsRoot, "综合检测", "AIDA64", "AIDA64.exe"),
-            };
-
-            foreach (var path in paths)
-            {
-                if (File.Exists(path)) return path;
-            }
-
-            var allExes = Directory.GetFiles(toolsRoot, "aida64.exe", SearchOption.AllDirectories);
-            if (allExes.Length > 0) return allExes[0];
-
-            allExes = Directory.GetFiles(toolsRoot, "AIDA64.exe", SearchOption.AllDirectories);
-            if (allExes.Length > 0) return allExes[0];
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(_window);
+            _window.AppWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
+            ShowWindow(hwnd, SW_SHOW);
+            BringWindowToTop(hwnd);
+            SetForegroundWindow(hwnd);
         }
         catch { }
-        return null;
+    }
+
+    private void OnStressStopped(object? sender, EventArgs e)
+    {
+        StepProgressPanel.Visibility = Visibility.Visible;
+        StepIndicatorText.Visibility = Visibility.Visible;
+        StepGlyphIcon.Visibility = Visibility.Visible;
+        StepTitleText.Visibility = Visibility.Visible;
+        StepDescText.Visibility = Visibility.Visible;
+        NextButton.Visibility = Visibility.Visible;
+        BackButton.Visibility = _currentStep > 0 ? Visibility.Visible : Visibility.Collapsed;
+        try { _window.AppWindow.SetPresenter(AppWindowPresenterKind.Default); } catch { }
     }
 
     #endregion

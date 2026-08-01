@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Text;
 using LiveChartsCore;
 using LiveChartsCore.SkiaSharpView;
@@ -215,42 +216,13 @@ public sealed partial class HardwareDetailPage : Page
             return;
         }
 
-        string? filePath = null;
         try
         {
-            var picker = new Windows.Storage.Pickers.FileSavePicker();
-            picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary;
-            picker.SuggestedFileName = $"硬件信息_{DateTime.Now:yyyyMMdd_HHmmss}";
-            picker.FileTypeChoices.Add("HTML 文件", [".html"]);
-
-            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
-            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-
-            var file = await picker.PickSaveFileAsync();
-            if (file != null)
-                filePath = file.Path;
-        }
-        catch { }
-
-        if (filePath == null)
-        {
-            try
-            {
-                var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "硬件信息");
-                Directory.CreateDirectory(dir);
-                filePath = Path.Combine(dir, $"硬件信息_{DateTime.Now:yyyyMMdd_HHmmss}.html");
-            }
-            catch
-            {
-                filePath = Path.Combine(Path.GetTempPath(), $"硬件信息_{DateTime.Now:yyyyMMdd_HHmmss}.html");
-            }
-        }
-
-        try
-        {
+            var filePath = Path.Combine(Path.GetTempPath(), $"硬件信息_{DateTime.Now:yyyyMMdd_HHmmss}.html");
             var html = BuildHtml(data);
             await File.WriteAllTextAsync(filePath, html);
             ShowStatusBar("导出成功", filePath, InfoBarSeverity.Success);
+            Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true });
         }
         catch (Exception ex)
         {

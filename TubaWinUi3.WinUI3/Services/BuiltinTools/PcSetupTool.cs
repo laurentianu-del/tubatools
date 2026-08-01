@@ -1,5 +1,10 @@
+using Microsoft.UI;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
 using TubaWinUi3.Pages;
+using Windows.Graphics;
+using Windows.UI;
 
 namespace TubaWinUi3.Services;
 
@@ -26,25 +31,39 @@ public sealed class PcSetupTool : IBuiltinTool
         var window = new Window();
         var page = new PcSetupPage(window);
         page.RequestedTheme = ThemeService.CurrentElementTheme;
+
         window.Content = page;
+        BackdropService.ApplyBackdrop(window);
         window.AppWindow.Title = "新机开荒";
 
-        var displayArea = Microsoft.UI.Windowing.DisplayArea.GetFromWindowId(window.AppWindow.Id, Microsoft.UI.Windowing.DisplayAreaFallback.Primary);
-        if (displayArea is not null)
+        try
         {
-            var screenWidth = displayArea.WorkArea.Width;
-            var screenHeight = displayArea.WorkArea.Height;
-            var w = (int)(screenWidth * 0.8);
-            var h = (int)(screenHeight * 0.8);
-            window.AppWindow.Resize(new Windows.Graphics.SizeInt32(w, h));
-            window.AppWindow.Move(new Windows.Graphics.PointInt32(
-                (screenWidth - w) / 2 + displayArea.WorkArea.X,
-                (screenHeight - h) / 2 + displayArea.WorkArea.Y));
+            var displayArea = DisplayArea.GetFromWindowId(window.AppWindow.Id, DisplayAreaFallback.Primary);
+            if (displayArea is not null)
+            {
+                var workArea = displayArea.WorkArea;
+                var w = (int)(workArea.Width * 0.82);
+                var h = (int)(workArea.Height * 0.85);
+                window.AppWindow.Resize(new SizeInt32(w, h));
+                window.AppWindow.Move(new PointInt32(
+                    workArea.X + (int)((workArea.Width - w) / 2),
+                    workArea.Y + (int)((workArea.Height - h) / 2)));
+            }
         }
-        else
+        catch
         {
-            window.AppWindow.Resize(new Windows.Graphics.SizeInt32(1100, 750));
+            window.AppWindow.Resize(new SizeInt32(1100, 750));
+            try
+            {
+                var mainPos = App.MainWindow?.AppWindow.Position;
+                if (mainPos is not null)
+                    window.AppWindow.Move(new PointInt32(mainPos.Value.X + 50, mainPos.Value.Y + 50));
+            }
+            catch { }
         }
+
+        window.AppWindow.TitleBar.ExtendsContentIntoTitleBar = true;
+        window.AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
 
         ApplyTitleBarTheme(window);
         window.Activate();
@@ -52,17 +71,33 @@ public sealed class PcSetupTool : IBuiltinTool
 
     private static void ApplyTitleBarTheme(Window window)
     {
-        var isDark = ThemeService.CurrentElementTheme == ElementTheme.Dark ||
-                     (ThemeService.CurrentElementTheme == ElementTheme.Default &&
-                      Application.Current.RequestedTheme == ApplicationTheme.Dark);
-        var titleBar = window.AppWindow.TitleBar;
-        titleBar.BackgroundColor = isDark ? Windows.UI.Color.FromArgb(255, 32, 32, 32) : Windows.UI.Color.FromArgb(255, 243, 243, 243);
-        titleBar.ForegroundColor = isDark ? Windows.UI.Color.FromArgb(255, 210, 210, 210) : Windows.UI.Color.FromArgb(255, 30, 30, 30);
-        titleBar.InactiveBackgroundColor = titleBar.BackgroundColor;
-        titleBar.InactiveForegroundColor = isDark ? Windows.UI.Color.FromArgb(255, 100, 100, 100) : Windows.UI.Color.FromArgb(255, 160, 160, 160);
-        titleBar.ButtonBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
-        titleBar.ButtonForegroundColor = titleBar.ForegroundColor;
-        titleBar.ButtonInactiveBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
-        titleBar.ButtonInactiveForegroundColor = isDark ? Windows.UI.Color.FromArgb(255, 80, 80, 80) : Windows.UI.Color.FromArgb(255, 180, 180, 180);
+        var tb = window.AppWindow.TitleBar;
+        var isDark = ThemeService.CurrentTheme == AppTheme.Dark ||
+                     (ThemeService.CurrentTheme == AppTheme.Default && Application.Current.RequestedTheme == ApplicationTheme.Dark);
+
+        if (isDark)
+        {
+            tb.ButtonForegroundColor = Color.FromArgb(255, 255, 255, 255);
+            tb.ButtonBackgroundColor = Color.FromArgb(0, 255, 255, 255);
+            tb.ButtonHoverForegroundColor = Color.FromArgb(255, 255, 255, 255);
+            tb.ButtonHoverBackgroundColor = Color.FromArgb(255, 50, 50, 50);
+            tb.ButtonPressedForegroundColor = Color.FromArgb(255, 180, 180, 180);
+            tb.ButtonPressedBackgroundColor = Color.FromArgb(255, 30, 30, 30);
+            tb.BackgroundColor = Color.FromArgb(255, 32, 32, 32);
+            tb.InactiveBackgroundColor = Color.FromArgb(255, 32, 32, 32);
+        }
+        else
+        {
+            tb.ButtonForegroundColor = Color.FromArgb(255, 30, 30, 30);
+            tb.ButtonBackgroundColor = Color.FromArgb(0, 255, 255, 255);
+            tb.ButtonHoverForegroundColor = Color.FromArgb(255, 30, 30, 30);
+            tb.ButtonHoverBackgroundColor = Color.FromArgb(255, 230, 230, 230);
+            tb.ButtonPressedForegroundColor = Color.FromArgb(255, 100, 100, 100);
+            tb.ButtonPressedBackgroundColor = Color.FromArgb(255, 210, 210, 210);
+            tb.BackgroundColor = Color.FromArgb(0, 255, 255, 255);
+            tb.InactiveBackgroundColor = Color.FromArgb(0, 255, 255, 255);
+        }
+
+        tb.ButtonInactiveForegroundColor = Color.FromArgb(255, 160, 160, 160);
     }
 }

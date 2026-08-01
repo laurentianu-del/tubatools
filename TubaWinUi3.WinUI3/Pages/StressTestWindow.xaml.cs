@@ -2,69 +2,66 @@ using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
-using TubaWinUi3.Pages;
+using TubaWinUi3.Services;
 using Windows.Graphics;
 using Windows.UI;
 
-namespace TubaWinUi3.Services;
+namespace TubaWinUi3.Pages;
 
-public sealed class GpuRankingTool : IBuiltinTool
+public sealed partial class StressTestWindow : Window
 {
-    public string Id => "gpu-ranking";
-    public string Name => "GPU 天梯图";
-    public string Description => "查看桌面/笔记本 GPU 性能天梯图，支持品牌筛选与排序。数据来源 NanoReview。";
-    public string Glyph => "\uE9D5";
-    public string Category => "硬件信息";
-    public BuiltinToolKind Kind => BuiltinToolKind.Dialog;
-
-    public Task ExecuteAsync(BuiltinToolContext context)
+    public StressTestWindow()
     {
-        var window = new Window();
-        var page = new GpuRankingPage(window);
-        page.RequestedTheme = ThemeService.CurrentElementTheme;
+        InitializeComponent();
 
-        window.Content = page;
-        BackdropService.ApplyBackdrop(window);
-        window.AppWindow.Title = "GPU 天梯图";
+        StressControl.OwnerWindow = this;
+
+        AppWindow.Title = "一键双烤";
+        AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"));
 
         try
         {
-            var displayArea = DisplayArea.GetFromWindowId(window.AppWindow.Id, DisplayAreaFallback.Primary);
+            var displayArea = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary);
             if (displayArea is not null)
             {
                 var workArea = displayArea.WorkArea;
                 var w = (int)(workArea.Width * 0.82);
                 var h = (int)(workArea.Height * 0.85);
-                window.AppWindow.Resize(new SizeInt32(w, h));
-                window.AppWindow.Move(new PointInt32(
+                AppWindow.Resize(new SizeInt32(w, h));
+                AppWindow.Move(new PointInt32(
                     workArea.X + (int)((workArea.Width - w) / 2),
                     workArea.Y + (int)((workArea.Height - h) / 2)));
             }
         }
         catch
         {
-            window.AppWindow.Resize(new SizeInt32(1100, 750));
-            try
-            {
-                var mainPos = App.MainWindow?.AppWindow.Position;
-                if (mainPos is not null)
-                    window.AppWindow.Move(new PointInt32(mainPos.Value.X + 50, mainPos.Value.Y + 50));
-            }
-            catch { }
+            AppWindow.Resize(new SizeInt32(960, 820));
         }
 
-        window.AppWindow.TitleBar.ExtendsContentIntoTitleBar = true;
-        window.AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
+        if (AppWindow.Presenter is OverlappedPresenter p)
+        {
+            p.IsResizable = true;
+            p.IsMaximizable = true;
+        }
 
-        ApplyTitleBarTheme(window);
-        window.Activate();
+        AppWindow.TitleBar.ExtendsContentIntoTitleBar = true;
+        AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
+        ApplyTitleBarTheme();
 
-        return Task.CompletedTask;
+        if (Content is FrameworkElement root)
+            root.RequestedTheme = ThemeService.CurrentElementTheme;
+
+        BackdropService.ApplyBackdrop(this);
+
+        Closed += StressTestWindow_Closed;
     }
 
-    private static void ApplyTitleBarTheme(Window window)
+    private void StressTestWindow_Closed(object sender, WindowEventArgs args) => StressControl.Cleanup();
+    private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
+
+    private void ApplyTitleBarTheme()
     {
-        var tb = window.AppWindow.TitleBar;
+        var tb = AppWindow.TitleBar;
         var isDark = ThemeService.CurrentTheme == AppTheme.Dark ||
                      (ThemeService.CurrentTheme == AppTheme.Default && Application.Current.RequestedTheme == ApplicationTheme.Dark);
 
@@ -90,7 +87,7 @@ public sealed class GpuRankingTool : IBuiltinTool
             tb.BackgroundColor = Color.FromArgb(0, 255, 255, 255);
             tb.InactiveBackgroundColor = Color.FromArgb(0, 255, 255, 255);
         }
-
         tb.ButtonInactiveForegroundColor = Color.FromArgb(255, 160, 160, 160);
+        tb.ButtonInactiveBackgroundColor = Color.FromArgb(0, 255, 255, 255);
     }
 }

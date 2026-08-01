@@ -26,19 +26,32 @@ public sealed class BatteryAnalyzerTool : IBuiltinTool
         window.Content = page;
         BackdropService.ApplyBackdrop(window);
         window.AppWindow.Title = "电池消耗分析";
-        window.AppWindow.Resize(new SizeInt32(1100, 750));
 
         try
         {
-            var mainPos = App.MainWindow?.AppWindow.Position;
-            if (mainPos is not null)
+            var displayArea = DisplayArea.GetFromWindowId(window.AppWindow.Id, DisplayAreaFallback.Primary);
+            if (displayArea is not null)
             {
+                var workArea = displayArea.WorkArea;
+                var w = (int)(workArea.Width * 0.82);
+                var h = (int)(workArea.Height * 0.85);
+                window.AppWindow.Resize(new SizeInt32(w, h));
                 window.AppWindow.Move(new PointInt32(
-                    mainPos.Value.X + 50,
-                    mainPos.Value.Y + 50));
+                    workArea.X + (int)((workArea.Width - w) / 2),
+                    workArea.Y + (int)((workArea.Height - h) / 2)));
             }
         }
-        catch { }
+        catch
+        {
+            window.AppWindow.Resize(new SizeInt32(1100, 750));
+            try
+            {
+                var mainPos = App.MainWindow?.AppWindow.Position;
+                if (mainPos is not null)
+                    window.AppWindow.Move(new PointInt32(mainPos.Value.X + 50, mainPos.Value.Y + 50));
+            }
+            catch { }
+        }
 
         window.AppWindow.TitleBar.ExtendsContentIntoTitleBar = true;
         window.AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
