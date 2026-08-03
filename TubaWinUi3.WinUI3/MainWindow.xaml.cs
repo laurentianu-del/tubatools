@@ -163,7 +163,6 @@ public sealed partial class MainWindow : Window
 
     private async Task InitializeAfterSplashAsync()
     {
-        SplashOverlay.Visibility = Visibility.Collapsed;
         _initialized = true;
 
         NavigateToDefaultPage();
@@ -199,6 +198,40 @@ public sealed partial class MainWindow : Window
 
         BrandEasterEggService.BrandBackgroundLoaded += OnBrandBackgroundLoaded;
         AppSettings.SettingChanged += OnBackgroundSettingChanged;
+
+        await FadeOutSplashAsync();
+    }
+
+    private async Task FadeOutSplashAsync()
+    {
+        var storyboard = new Storyboard();
+        var duration = TimeSpan.FromMilliseconds(350);
+        var easing = new CubicEase { EasingMode = EasingMode.EaseIn };
+
+        storyboard.Children.Add(CreateSplashAnimation("Opacity", 1.0, 0.0, duration, easing));
+        storyboard.Children.Add(CreateSplashAnimation("(UIElement.RenderTransform).(ScaleTransform.ScaleX)", 1.0, 0.95, duration, easing));
+        storyboard.Children.Add(CreateSplashAnimation("(UIElement.RenderTransform).(ScaleTransform.ScaleY)", 1.0, 0.95, duration, easing));
+
+        var tcs = new TaskCompletionSource();
+        storyboard.Completed += (_, _) => tcs.TrySetResult();
+        storyboard.Begin();
+        await tcs.Task;
+
+        SplashOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    private DoubleAnimation CreateSplashAnimation(string targetProperty, double from, double to, TimeSpan duration, EasingFunctionBase easing)
+    {
+        var animation = new DoubleAnimation
+        {
+            From = from,
+            To = to,
+            Duration = duration,
+            EasingFunction = easing
+        };
+        Storyboard.SetTarget(animation, SplashOverlay);
+        Storyboard.SetTargetProperty(animation, targetProperty);
+        return animation;
     }
 
     private void OnBackgroundSettingChanged(string key)

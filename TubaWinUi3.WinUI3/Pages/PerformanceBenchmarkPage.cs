@@ -12,6 +12,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.Web.WebView2.Core;
 using TubaWinUi3.Models;
@@ -163,7 +164,11 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		{
 			Content = grid,
 			VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-			HorizontalScrollMode = ScrollMode.Disabled
+			HorizontalScrollMode = ScrollMode.Disabled,
+			Transitions = new TransitionCollection
+			{
+				new EntranceThemeTransition { FromVerticalOffset = 16 }
+			}
 		};
 	}
 

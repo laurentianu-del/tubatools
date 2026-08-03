@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Navigation;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
@@ -102,13 +103,38 @@ public sealed partial class HomePage : Page
         if (_compactMode)
         {
             ToolsGrid.Visibility = Visibility.Collapsed;
+            var wasVisible = CompactGrid.Visibility == Visibility.Visible;
             CompactGrid.Visibility = hasTools ? Visibility.Visible : Visibility.Collapsed;
+            if (hasTools && !wasVisible)
+                PlayGridEntrance(CompactGrid);
         }
         else
         {
+            var wasVisible = ToolsGrid.Visibility == Visibility.Visible;
             ToolsGrid.Visibility = hasTools ? Visibility.Visible : Visibility.Collapsed;
             CompactGrid.Visibility = Visibility.Collapsed;
+            if (hasTools && !wasVisible)
+                PlayGridEntrance(ToolsGrid);
         }
+    }
+
+    private void PlayGridEntrance(GridView grid)
+    {
+        var storyboard = new Storyboard();
+        var duration = TimeSpan.FromMilliseconds(320);
+        var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
+
+        var fade = new DoubleAnimation { From = 0.0, To = 1.0, Duration = duration, EasingFunction = easing };
+        Storyboard.SetTarget(fade, grid);
+        Storyboard.SetTargetProperty(fade, "Opacity");
+        storyboard.Children.Add(fade);
+
+        var slide = new DoubleAnimation { From = 24.0, To = 0.0, Duration = duration, EasingFunction = easing };
+        Storyboard.SetTarget(slide, grid);
+        Storyboard.SetTargetProperty(slide, "(UIElement.RenderTransform).(TranslateTransform.Y)");
+        storyboard.Children.Add(slide);
+
+        storyboard.Begin();
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
