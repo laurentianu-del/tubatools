@@ -45,12 +45,14 @@ public static class BuiltinToolRegistry
             Register(new CommunityToolBuiltinTool());
         Register(new ScreenTestTool());
         Register(new ServiceCenterTool());
+        Register(new OfficialWebsitesTool());
         Register(new DotnetCompletionTool());
         Register(new VideoProcessorTool());
         Register(new LanFileShareTool());
         Register(new QuickDeviceCheckTool());
         Register(new EnergyStarTool());
         Register(new RatingSystemTool());
+        Register(new VolumeShaderTool());
         Register(new StressTestTool());
     }
 
