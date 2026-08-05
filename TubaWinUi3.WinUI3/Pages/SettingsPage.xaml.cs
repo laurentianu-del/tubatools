@@ -205,6 +205,8 @@ public sealed partial class SettingsPage : Page
         {
             SettingsCommunityCard.Visibility = Visibility.Collapsed;
             SettingsCommunitySubmitCard.Visibility = Visibility.Collapsed;
+            ToolsCommunityTitleText.Text = "工具";
+            ToolsCommunityDescText.Text = "配置管理、自定义工具、导出";
         }
     }
 
@@ -467,15 +469,15 @@ public sealed partial class SettingsPage : Page
             var currentVersion = ToolsBundleService.GetCurrentVersion();
             if (currentVersion is not null)
             {
-                ToolsBundleStatusText.Text = $"当前工具包版本 v{currentVersion}";
+                ToolsBundleStatusText.Text = $"当前内核版本 v{currentVersion}";
             }
             else if (!ToolsBundleService.IsToolsBundleReady())
             {
-                ToolsBundleStatusText.Text = "工具包未下载";
+                ToolsBundleStatusText.Text = "内核未下载";
             }
             else
             {
-                ToolsBundleStatusText.Text = "工具包已就绪（版本未知）";
+                ToolsBundleStatusText.Text = "内核已就绪（版本未知）";
             }
         }
         else
@@ -490,7 +492,7 @@ public sealed partial class SettingsPage : Page
         if (_isCheckingToolsBundle) return;
         _isCheckingToolsBundle = true;
         CheckToolsBundleButton.IsEnabled = false;
-        ToolsBundleStatusText.Text = "正在检查工具包更新...";
+        ToolsBundleStatusText.Text = "正在检查内核更新...";
 
         try
         {
@@ -507,12 +509,12 @@ public sealed partial class SettingsPage : Page
                 {
                     var v = ToolsBundleService.GetCurrentVersion();
                     ToolsBundleStatusText.Text = v is not null
-                        ? $"当前工具包版本 v{v}"
-                        : "工具包已就绪";
+                        ? $"当前内核版本 v{v}"
+                        : "内核已就绪";
                 }
                 else
                 {
-                    ToolsBundleStatusText.Text = "工具包未下载";
+                ToolsBundleStatusText.Text = "内核未下载";
                 }
                 return;
             }
@@ -533,23 +535,23 @@ public sealed partial class SettingsPage : Page
                 {
                     var v = ToolsBundleService.GetCurrentVersion();
                     ToolsBundleStatusText.Text = v is not null
-                        ? $"当前工具包版本 v{v}"
-                        : "工具包已就绪";
+                        ? $"当前内核版本 v{v}"
+                        : "内核已就绪";
                 }
                 else
                 {
-                    ToolsBundleStatusText.Text = "点击检查工具包是否有新版本";
+                    ToolsBundleStatusText.Text = "点击检查内核是否有新版本";
                 }
             }
             else if (info is not null)
             {
-                ToolsBundleStatusText.Text = $"当前工具包已是最新版本 (v{info.Version})";
+                ToolsBundleStatusText.Text = $"当前内核已是最新版本 (v{info.Version})";
             }
             else
             {
                 var currentVersion = ToolsBundleService.GetCurrentVersion();
                 ToolsBundleStatusText.Text = currentVersion is not null
-                    ? $"当前工具包版本 v{currentVersion}"
+                    ? $"当前内核版本 v{currentVersion}"
                     : "检查失败，请稍后重试";
             }
         }

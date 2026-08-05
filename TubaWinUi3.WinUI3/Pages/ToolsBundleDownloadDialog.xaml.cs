@@ -44,8 +44,8 @@ public sealed partial class ToolsBundleDownloadDialog : ContentDialog
     {
         var sizeStr = info.Size > 0 ? ToolsBundleService.FormatSize(info.Size) : "";
         DescText.Text = string.IsNullOrEmpty(sizeStr)
-            ? $"发现工具包 v{info.Version}，下载完成后即可使用全部功能。"
-            : $"发现工具包 v{info.Version}（{sizeStr}），下载完成后即可使用全部功能。";
+            ? $"发现内核 v{info.Version}，下载完成后即可使用全部功能。"
+            : $"发现内核 v{info.Version}（{sizeStr}），下载完成后即可使用全部功能。";
     }
 
     private async Task ResolveAndShowAsync()
@@ -57,7 +57,7 @@ public sealed partial class ToolsBundleDownloadDialog : ContentDialog
 
             if (info is null)
             {
-                DescText.Text = "无法获取工具包信息，请检查网络连接后重试。";
+                DescText.Text = $"无法获取内核信息，请检查网络连接后重试。";
                 return;
             }
 
@@ -65,7 +65,7 @@ public sealed partial class ToolsBundleDownloadDialog : ContentDialog
 
             if (!info.HasUpdate)
             {
-                DescText.Text = "当前工具包已是最新版本，无需下载。";
+                DescText.Text = $"当前内核已是最新版本，无需下载。";
                 IsPrimaryButtonEnabled = false;
                 return;
             }
@@ -137,7 +137,7 @@ public sealed partial class ToolsBundleDownloadDialog : ContentDialog
             _updateInfo = await ToolsBundleService.CheckForToolsUpdateAsync();
             if (_updateInfo is null || !_updateInfo.HasUpdate)
             {
-                ErrorBar.Message = "未找到可用的工具包更新。";
+                ErrorBar.Message = $"未找到可用的内核更新。";
                 ErrorBar.IsOpen = true;
                 return;
             }
@@ -158,11 +158,11 @@ public sealed partial class ToolsBundleDownloadDialog : ContentDialog
         var toolsDir = ToolsBundleService.GetToolsBundleDir();
 
         var item = DownloadQueueService.EnqueueWithResolver(
-            displayName: "工具包 " + (_updateInfo.Version ?? ""),
+            displayName: "内核 " + (_updateInfo.Version ?? ""),
             urlResolver: resolver,
             destinationPath: toolsDir,
             postProcessor: new ToolsBundleExtractProcessor(_updateInfo.Version),
-            description: "图吧工具箱完整工具包",
+            description: $"图吧工具箱完整内核",
             glyph: "\uE896");
 
         item.PropertyChanged += (s, e) =>
@@ -187,11 +187,11 @@ public sealed partial class ToolsBundleDownloadDialog : ContentDialog
         switch (item.State)
         {
             case DownloadItemState.Downloading:
-                ProgressLabel.Text = "正在下载工具包...";
+                ProgressLabel.Text = $"正在下载内核...";
                 DownloadProgressBar.IsIndeterminate = false;
                 break;
             case DownloadItemState.Processing:
-                ProgressLabel.Text = "正在解压工具包...";
+                ProgressLabel.Text = $"正在解压内核...";
                 DownloadProgressBar.IsIndeterminate = true;
                 PercentText.Text = "解压中";
                 SpeedText.Text = "--";
@@ -205,7 +205,7 @@ public sealed partial class ToolsBundleDownloadDialog : ContentDialog
                 break;
             case DownloadItemState.Failed:
                 ErrorBar.Message = string.IsNullOrEmpty(item.ErrorMessage)
-                    ? "工具包下载失败，请重试。" : item.ErrorMessage;
+                    ? $"内核下载失败，请重试。" : item.ErrorMessage;
                 ErrorBar.IsOpen = true;
                 IsPrimaryButtonEnabled = true;
                 PrimaryButtonText = "重试";
@@ -274,7 +274,7 @@ public sealed partial class ToolsBundleDownloadDialog : ContentDialog
         var infoStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 4 };
         infoStack.Children.Add(new TextBlock
         {
-            Text = "工具包下载完成！",
+            Text = $"内核下载完成！",
             FontSize = 16,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
         });

@@ -151,7 +151,7 @@
         "硬件检测"
       ],
       "downloadUrl": "gc:Tools/显卡工具/GPUZ",
-      "version": 1
+      "version": 2
     },
     {
       "match": "DDU",

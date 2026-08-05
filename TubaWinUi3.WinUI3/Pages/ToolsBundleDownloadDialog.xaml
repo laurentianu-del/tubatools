@@ -54,16 +54,17 @@
 
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
                     <TextBlock
+                        x:Name="TitleText"
                         FontSize="18"
                         FontWeight="SemiBold"
-                        Text="下载工具包" />
+                        Text="下载内核" />
                     <TextBlock
                         x:Name="DescText"
                         FontSize="12"
                         Opacity="1.0"
                         TextWrapping="Wrap"
                         MaxLines="3"
-                        Text="首次使用需要下载完整工具包，下载完成后即可使用全部功能。" />
+                        Text="首次使用需要下载内核文件，下载完成后即可使用全部功能。" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -75,7 +76,7 @@
             Visibility="Collapsed">
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <ProgressRing Width="18" Height="18" IsActive="True" />
-                <TextBlock FontSize="13" Opacity="1.0" Text="正在检查工具包更新..." />
+                <TextBlock x:Name="ResolvingLabel" FontSize="13" Opacity="1.0" Text="正在检查内核更新..." />
             </StackPanel>
         </StackPanel>
 
@@ -104,7 +105,7 @@
                 x:Name="ProgressLabel"
                 FontSize="13"
                 Opacity="1.0"
-                Text="正在下载工具包..." />
+                    Text="正在下载内核..." />
 
             <ProgressBar
                 x:Name="DownloadProgressBar"

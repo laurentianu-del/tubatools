@@ -170,8 +170,8 @@
                                             <FontIcon FontSize="18" Glyph="&#xE896;" />
                                         </Border>
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                            <TextBlock FontWeight="SemiBold" Text="工具包更新" />
-                                            <TextBlock x:Name="ToolsBundleStatusText" Opacity="1.0" FontSize="13" Text="点击检查工具包是否有新版本" />
+                                            <TextBlock FontWeight="SemiBold" Text="内核更新" />
+                                            <TextBlock x:Name="ToolsBundleStatusText" Opacity="1.0" FontSize="13" Text="点击检查内核是否有新版本" />
                                         </StackPanel>
                                         <Button x:Name="CheckToolsBundleButton" Grid.Column="2" VerticalAlignment="Center" Padding="14,6" Click="CheckToolsBundleButton_Click">
                                             <StackPanel Orientation="Horizontal" Spacing="6">
@@ -862,8 +862,8 @@
                                     <FontIcon FontSize="20" Glyph="&#xE8B7;" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
                                 <StackPanel VerticalAlignment="Center" Spacing="2">
-                                    <TextBlock FontWeight="SemiBold" Text="工具与社区" />
-                                    <TextBlock Opacity="1.0" FontSize="13" Text="配置管理、自定义工具、导出、GitHub" />
+                                    <TextBlock x:Name="ToolsCommunityTitleText" FontWeight="SemiBold" Text="工具与社区" />
+                                    <TextBlock x:Name="ToolsCommunityDescText" Opacity="1.0" FontSize="13" Text="配置管理、自定义工具、导出、GitHub" />
                                 </StackPanel>
                             </StackPanel>
                         </Expander.Header>
