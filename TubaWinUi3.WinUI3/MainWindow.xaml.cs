@@ -730,6 +730,8 @@ public sealed partial class MainWindow : Window
     public void RefreshToolCategories()
     {
         PopulateCategories();
+        if (_isTabMode)
+            PopulateTabItems();
     }
 
     private void OnNavLayoutModeChanged(string mode)

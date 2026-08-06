@@ -83,30 +83,8 @@ public sealed partial class ToolsBundleDownloadDialog : ContentDialog
 
     private void ShowSourceSelection(ToolsBundleUpdateInfo info)
     {
-        var hasGitCode = !string.IsNullOrEmpty(info.GitCodeUrl);
-        var hasGitHub = !string.IsNullOrEmpty(info.GitHubUrl);
-
-        if (hasGitCode && hasGitHub)
-        {
-            SourceSection.Visibility = Visibility.Visible;
-            GitCodeRadio.IsEnabled = true;
-            GitHubRadio.IsEnabled = true;
-            GitCodeRadio.IsChecked = true;
-        }
-        else if (hasGitCode)
-        {
-            SourceSection.Visibility = Visibility.Visible;
-            GitCodeRadio.IsEnabled = true;
-            GitHubRadio.IsEnabled = false;
-            GitCodeRadio.IsChecked = true;
-        }
-        else if (hasGitHub)
-        {
-            SourceSection.Visibility = Visibility.Visible;
-            GitCodeRadio.IsEnabled = false;
-            GitHubRadio.IsEnabled = true;
-            GitHubRadio.IsChecked = true;
-        }
+        // 两个下载源同时竞赛，无需用户手动选择
+        SourceSection.Visibility = Visibility.Visible;
     }
 
     private async void OnPrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)
@@ -146,8 +124,12 @@ public sealed partial class ToolsBundleDownloadDialog : ContentDialog
             return;
         }
 
-        var preferGitCode = GitCodeRadio.IsChecked == true;
-        var resolver = ToolsBundleService.CreateUrlResolver(_updateInfo, preferGitCode);
+        // 默认 GitCode，下载失败时自动切换 GitHub 兜底
+        var resolver = ToolsBundleService.CreateUrlResolver(_updateInfo, preferGitCode: true);
+        var fallbackUrl = !string.IsNullOrEmpty(_updateInfo.GitHubUrl) &&
+                          !string.Equals(_updateInfo.GitHubUrl, _updateInfo.GitCodeUrl, StringComparison.OrdinalIgnoreCase)
+            ? _updateInfo.GitHubUrl
+            : null;
 
         _isBusy = true;
         IsPrimaryButtonEnabled = false;
@@ -163,7 +145,8 @@ public sealed partial class ToolsBundleDownloadDialog : ContentDialog
             destinationPath: toolsDir,
             postProcessor: new ToolsBundleExtractProcessor(_updateInfo.Version),
             description: $"图吧工具箱完整内核",
-            glyph: "\uE896");
+            glyph: "\uE896",
+            fallbackUrl: fallbackUrl);
 
         item.PropertyChanged += (s, e) =>
         {

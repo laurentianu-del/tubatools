@@ -265,6 +265,7 @@ public sealed class DownloadItem : INotifyPropertyChanged
     internal string? DirectUrl { get; }
     internal Func<CancellationToken, Task<ResolvedDownloadUrl>>? UrlResolver { get; }
     internal Func<CancellationToken, Task<List<ResolvedDownloadUrl>>>? MultiFileResolver { get; }
+    internal string? AlternateUrl { get; }
     internal IDownloadPostProcessor? PostProcessor { get; }
     internal CancellationTokenSource? Cts { get; set; }
 
@@ -279,12 +280,14 @@ public sealed class DownloadItem : INotifyPropertyChanged
         Func<CancellationToken, Task<ResolvedDownloadUrl>>? urlResolver,
         Func<CancellationToken, Task<List<ResolvedDownloadUrl>>>? multiFileResolver,
         string destinationPath, IDownloadPostProcessor? postProcessor,
-        string? description, string? glyph, object? tag)
+        string? description, string? glyph, object? tag,
+        string? alternateUrl = null)
     {
         DisplayName = displayName;
         DirectUrl = directUrl;
         UrlResolver = urlResolver;
         MultiFileResolver = multiFileResolver;
+        AlternateUrl = alternateUrl;
         DestinationPath = destinationPath;
         PostProcessor = postProcessor;
         Description = description;
@@ -303,8 +306,9 @@ public sealed class DownloadItem : INotifyPropertyChanged
         Func<CancellationToken, Task<ResolvedDownloadUrl>> urlResolver,
         string destinationPath,
         IDownloadPostProcessor? postProcessor = null,
-        string? description = null, string? glyph = null, object? tag = null)
-        => new(displayName, null, urlResolver, null, destinationPath, postProcessor, description, glyph, tag);
+        string? description = null, string? glyph = null, object? tag = null,
+        string? alternateUrl = null)
+        => new(displayName, null, urlResolver, null, destinationPath, postProcessor, description, glyph, tag, alternateUrl);
 
     public static DownloadItem CreateMultiFile(
         string displayName,
@@ -351,6 +355,10 @@ public sealed class DownloadItem : INotifyPropertyChanged
 
 public sealed class ToolsBundleExtractProcessor : IDownloadPostProcessor
 {
+    private const int MaxAttempts = 3;      // 首次 + 自动重试 2 次
+    private const int RetryDelayMs = 500;
+    private const int CleanupAttempts = 3;
+
     private readonly string? _version;
 
     public string DisplayName => "解压工具包";
@@ -364,64 +372,166 @@ public sealed class ToolsBundleExtractProcessor : IDownloadPostProcessor
         IProgress<string>? statusProgress, CancellationToken ct)
     {
         statusProgress?.Report("正在解压工具包...");
-        await Task.Run(() =>
+        await Task.Run(() => ExtractCore(downloadedFilePath, destinationPath, statusProgress), ct);
+    }
+
+    private void ExtractCore(string downloadedFilePath, string destinationPath,
+        IProgress<string>? statusProgress)
+    {
+        Exception? lastError = null;
+
+        for (var attempt = 1; attempt <= MaxAttempts; attempt++)
         {
+            if (attempt > 1)
+            {
+                statusProgress?.Report($"解压遇到文件占用，正在自动重试（第 {attempt}/{MaxAttempts} 次）...");
+                Thread.Sleep(RetryDelayMs * attempt);
+            }
+
             var extractDir = Path.Combine(Path.GetTempPath(), $"TubaWinUi3_Extract_{Guid.NewGuid():N}");
             try
             {
-                if (!File.Exists(downloadedFilePath))
-                    throw new FileNotFoundException("下载的文件不存在", downloadedFilePath);
-
-                System.IO.Compression.ZipFile.ExtractToDirectory(downloadedFilePath, extractDir, true);
-
-                if (Directory.Exists(destinationPath))
+                ExtractOnce(downloadedFilePath, destinationPath, extractDir, statusProgress,
+                    allowCopyFallback: attempt == MaxAttempts);
+                return;
+            }
+            catch (Exception ex)
+            {
+                lastError = ex;
+                TryDeleteDirectory(extractDir);
+                if (attempt >= MaxAttempts)
                 {
-                    var backupDir = destinationPath + "_bak";
-                    if (Directory.Exists(backupDir))
-                    {
-                        try { Directory.Delete(backupDir, true); } catch { }
-                    }
-                    try { Directory.Move(destinationPath, backupDir); } catch { }
+                    var message = ex.InnerException?.Message ?? ex.Message;
+                    throw new IOException($"解压工具包失败（已自动重试 {MaxAttempts - 1} 次）：{message}", ex);
                 }
+            }
+        }
 
-                try
-                {
-                    Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
-                    Directory.Move(extractDir, destinationPath);
-                }
-                catch
-                {
-                    var backupDir = destinationPath + "_bak";
-                    if (Directory.Exists(backupDir))
-                    {
-                        try { Directory.Move(backupDir, destinationPath); } catch { }
-                    }
-                    throw;
-                }
+        if (lastError is not null) throw lastError;
+    }
 
-                var oldBackup = destinationPath + "_bak";
-                if (Directory.Exists(oldBackup))
-                {
-                    try { Directory.Delete(oldBackup, true); } catch { }
-                }
+    private void ExtractOnce(string downloadedFilePath, string destinationPath, string extractDir,
+        IProgress<string>? statusProgress, bool allowCopyFallback)
+    {
+        if (!File.Exists(downloadedFilePath))
+            throw new FileNotFoundException("下载的文件不存在", downloadedFilePath);
 
-                try { File.Delete(downloadedFilePath); } catch { }
+        try
+        {
+            statusProgress?.Report("正在解压文件...");
+            System.IO.Compression.ZipFile.ExtractToDirectory(downloadedFilePath, extractDir, true);
+        }
+        catch
+        {
+            TryDeleteDirectory(extractDir);
+            throw;
+        }
 
-                if (!string.IsNullOrEmpty(_version))
-                {
-                    Services.AppSettings.Set("ToolsBundleVersion", _version);
-                }
-                Services.ToolCatalog.RefreshToolsRoot();
+        var backupDir = destinationPath + "_bak";
+
+        try
+        {
+            if (Directory.Exists(destinationPath))
+            {
+                TryDeleteDirectory(backupDir);
+                Directory.Move(destinationPath, backupDir);
+            }
+
+            var destParent = Path.GetDirectoryName(destinationPath);
+            if (!string.IsNullOrEmpty(destParent))
+                Directory.CreateDirectory(destParent);
+
+            try
+            {
+                Directory.Move(extractDir, destinationPath);
             }
             catch
             {
-                if (Directory.Exists(extractDir))
-                {
-                    try { Directory.Delete(extractDir, true); } catch { }
-                }
+                TryRestoreDirectory(backupDir, destinationPath);
                 throw;
             }
-        }, ct);
+
+            TryDeleteDirectory(backupDir);
+            try { File.Delete(downloadedFilePath); } catch { }
+            ApplyCompletedState(destinationPath);
+        }
+        catch
+        {
+            if (!allowCopyFallback) throw;
+
+            // 兜底：目录原子替换行不通（文件被占用）时，逐文件复制覆盖
+            statusProgress?.Report("正在使用文件拷贝模式完成安装...");
+            TryRestoreDirectory(backupDir, destinationPath);
+            try
+            {
+                CopyDirectoryContents(extractDir, destinationPath);
+                TryDeleteDirectory(extractDir);
+                try { File.Delete(downloadedFilePath); } catch { }
+                ApplyCompletedState(destinationPath);
+            }
+            catch (Exception fallbackEx)
+            {
+                throw new IOException($"解压工具包失败：{fallbackEx.Message}", fallbackEx);
+            }
+        }
+    }
+
+    private void ApplyCompletedState(string destinationPath)
+    {
+        if (!string.IsNullOrEmpty(_version))
+        {
+            Services.AppSettings.Set("ToolsBundleVersion", _version);
+        }
+
+        Services.ToolCatalog.RefreshToolsRoot();
+
+        // 强制刷新侧边栏 / 标签页的工具分类（MSIX 内核安装完成后立即生效）
+        if (App.MainWindow is MainWindow mainWindow)
+        {
+            mainWindow.DispatcherQueue.TryEnqueue(mainWindow.RefreshToolCategories);
+        }
+    }
+
+    private static void TryDeleteDirectory(string dir)
+    {
+        for (var i = 0; i < CleanupAttempts && Directory.Exists(dir); i++)
+        {
+            try
+            {
+                Directory.Delete(dir, true);
+                return;
+            }
+            catch
+            {
+                if (i < CleanupAttempts - 1) Thread.Sleep(300);
+            }
+        }
+    }
+
+    private static void TryRestoreDirectory(string backupDir, string destinationPath)
+    {
+        if (Directory.Exists(destinationPath) && Directory.Exists(backupDir))
+        {
+            try { Directory.Delete(destinationPath, true); } catch { }
+        }
+        if (Directory.Exists(backupDir) && !Directory.Exists(destinationPath))
+        {
+            try { Directory.Move(backupDir, destinationPath); } catch { }
+        }
+    }
+
+    private static void CopyDirectoryContents(string sourceDir, string destinationPath)
+    {
+        Directory.CreateDirectory(destinationPath);
+        foreach (var file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
+        {
+            var relative = Path.GetRelativePath(sourceDir, file);
+            var target = Path.Combine(destinationPath, relative);
+            var parent = Path.GetDirectoryName(target);
+            if (!string.IsNullOrEmpty(parent))
+                Directory.CreateDirectory(parent);
+            File.Copy(file, target, true);
+        }
     }
 }
 

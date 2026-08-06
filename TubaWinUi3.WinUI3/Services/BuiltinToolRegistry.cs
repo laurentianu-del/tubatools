@@ -54,6 +54,7 @@ public static class BuiltinToolRegistry
         Register(new RatingSystemTool());
         Register(new VolumeShaderTool());
         Register(new StressTestTool());
+        Register(new MemoryManagerTool());
     }
 
     public static IReadOnlyList<string> GetCategories()

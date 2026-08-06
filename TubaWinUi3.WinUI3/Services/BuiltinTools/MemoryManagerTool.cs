@@ -1,0 +1,24 @@
+namespace TubaWinUi3.Services;
+
+public sealed class MemoryManagerTool : IBuiltinTool
+{
+    public string Id => "memory-manager";
+    public string Name => "内存管理";
+    public string Description => "查看物理内存/虚拟内存/系统工作集使用情况, 一键清理待机内存、收紧工作集, 定时自动清理, 支持查看与设置虚拟内存 (分页文件)。";
+    public string Glyph => "\uE963";
+    public string Category => "系统工具";
+    public BuiltinToolKind Kind => BuiltinToolKind.InstantAction;
+
+    public Task ExecuteAsync(BuiltinToolContext context)
+    {
+        context.OnProgress?.Invoke("正在打开内存管理...");
+
+        App.MainWindow?.DispatcherQueue.TryEnqueue(() =>
+        {
+            var window = new TubaWinUi3.Pages.MemoryManagerWindow();
+            window.Activate();
+        });
+
+        return Task.CompletedTask;
+    }
+}

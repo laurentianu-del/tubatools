@@ -85,14 +85,10 @@
             Grid.Row="2"
             Spacing="8"
             Visibility="Collapsed">
-            <TextBlock FontSize="13" Opacity="1.0" Text="选择下载源：" />
-            <RadioButtons
-                x:Name="SourceRadio"
-                MaxColumns="2"
-                SelectedIndex="0">
-                <RadioButton x:Name="GitCodeRadio" Content="GitCode（国内推荐）" />
-                <RadioButton x:Name="GitHubRadio" Content="GitHub" />
-            </RadioButtons>
+            <TextBlock
+                FontSize="13"
+                Opacity="1.0"
+                Text="将优先使用 GitCode 下载，失败时自动切换 GitHub。" />
         </StackPanel>
 
         <StackPanel

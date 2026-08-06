@@ -67,10 +67,11 @@ public static class DownloadQueueService
         IDownloadPostProcessor? postProcessor = null,
         string? description = null,
         string? glyph = null,
-        object? tag = null)
+        object? tag = null,
+        string? fallbackUrl = null)
     {
         var item = DownloadItem.CreateWithResolver(displayName, urlResolver, destinationPath,
-            postProcessor, description, glyph, tag);
+            postProcessor, description, glyph, tag, fallbackUrl);
         AddAndStart(item);
         return item;
     }
@@ -427,17 +428,11 @@ public static class DownloadQueueService
 
                 if (item.State != DownloadItemState.Downloading)
                     DispatchState(item, DownloadItemState.Downloading);
-                var downloadedFile = await DownloadFileAsync(item, ct);
+                var downloadedFile = await DownloadFileWithFallbackAsync(item, ct);
 
                 ct.ThrowIfCancellationRequested();
 
-                if (item.PostProcessor is not null)
-                {
-                    DispatchState(item, DownloadItemState.Processing);
-                    DispatchProcessingStatus(item, item.PostProcessor.DisplayName);
-                    var progress = new Progress<string>(status => DispatchProcessingStatus(item, status));
-                    await item.PostProcessor.ExecuteAsync(downloadedFile, item.DestinationPath, progress, ct);
-                }
+                await RunPostProcessorAsync(item, downloadedFile, ct);
             }
 
             DispatchCompleted(item);
@@ -552,6 +547,120 @@ public static class DownloadQueueService
             var progress = new Progress<string>(status => DispatchProcessingStatus(item, status));
             await item.PostProcessor.ExecuteAsync(item.DestinationPath, item.DestinationPath, progress, ct);
         }
+    }
+
+    private static async Task RunPostProcessorAsync(DownloadItem item, string downloadedFile, CancellationToken ct)
+    {
+        if (item.PostProcessor is null) return;
+        DispatchState(item, DownloadItemState.Processing);
+        DispatchProcessingStatus(item, item.PostProcessor.DisplayName);
+        var progress = new Progress<string>(status => DispatchProcessingStatus(item, status));
+        await item.PostProcessor.ExecuteAsync(downloadedFile, item.DestinationPath, progress, ct);
+    }
+
+    /// <summary>
+    /// 优先使用主下载源（GitCode），失败时先自动重下一次，
+    /// 仍失败则切换备用源（GitHub）重试，并校验 zip 完整性后再交给解压。
+    /// </summary>
+    private static async Task<string> DownloadFileWithFallbackAsync(DownloadItem item, CancellationToken ct)
+    {
+        var alternate = !string.IsNullOrEmpty(item.AlternateUrl) &&
+                        !string.Equals(item.AlternateUrl, item.ResolvedUrl, StringComparison.OrdinalIgnoreCase)
+            ? item.AlternateUrl
+            : null;
+
+        // 第 1 次：主源（默认 GitCode）
+        try
+        {
+            return await DownloadAndValidateAsync(item, ct);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception primaryEx)
+        {
+            // 第 2 次：主源重试一次（网络波动 / 下载到损坏文件常见）
+            DispatchProcessingStatus(item, "下载文件校验失败，正在重新下载...");
+            DeleteDownloadedQuiet(item);
+            try
+            {
+                return await DownloadAndValidateAsync(item, ct);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception retryEx) when (alternate is not null)
+            {
+                // 第 3 次：切换备用源（GitHub）
+                DispatchProcessingStatus(item, "GitCode 下载失败，正在切换 GitHub 重试...");
+                DeleteDownloadedQuiet(item);
+                item.ResolvedUrl = alternate;
+                item.ResumePosition = 0;
+                item.SupportsResume = false;
+                MarkDirty();
+                try
+                {
+                    return await DownloadAndValidateAsync(item, ct);
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception altEx)
+                {
+                    throw new InvalidOperationException(
+                        $"主源下载失败：{primaryEx.InnerException?.Message ?? primaryEx.Message}；重试失败：{retryEx.InnerException?.Message ?? retryEx.Message}；备用源失败：{altEx.InnerException?.Message ?? altEx.Message}",
+                        altEx);
+                }
+            }
+        }
+    }
+
+    private static async Task<string> DownloadAndValidateAsync(DownloadItem item, CancellationToken ct)
+    {
+        var file = await DownloadFileAsync(item, ct);
+        ValidateDownloadedFile(file);
+        return file;
+    }
+
+    /// <summary>
+    /// 若是 zip，校验压缩包完整性（遍历并打开每个条目，验证本地文件头）。
+    /// 损坏则删除并抛异常，触发自动重下 / 切换源。
+    /// </summary>
+    private static void ValidateDownloadedFile(string filePath)
+    {
+        if (!filePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)) return;
+        if (!File.Exists(filePath)) return;
+
+        try
+        {
+            using var archive = System.IO.Compression.ZipFile.OpenRead(filePath);
+            foreach (var entry in archive.Entries)
+            {
+                using var s = entry.Open();
+            }
+        }
+        catch (Exception ex)
+        {
+            try { File.Delete(filePath); } catch { }
+            throw new InvalidDataException($"下载的压缩包已损坏（{ex.Message}）", ex);
+        }
+    }
+
+    private static void DeleteDownloadedQuiet(DownloadItem item)
+    {
+        try
+        {
+            var fileName = item.ResolvedFileName ?? SanitizeFileName(item.DisplayName);
+            var finalPath = Path.Combine(item.DestinationPath, fileName);
+            if (File.Exists(finalPath)) File.Delete(finalPath);
+        }
+        catch { }
+        DeletePartialQuiet(item);
+    }
+
+    private static void DeletePartialQuiet(DownloadItem item)
+    {
+        try
+        {
+            var fileName = item.ResolvedFileName ?? SanitizeFileName(item.DisplayName);
+            var partialPath = Path.Combine(item.DestinationPath, fileName + PartialSuffix);
+            if (File.Exists(partialPath)) File.Delete(partialPath);
+        }
+        catch { }
     }
 
     private static void DispatchState(DownloadItem item, DownloadItemState state)
