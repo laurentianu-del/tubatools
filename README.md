@@ -100,7 +100,7 @@ winget install luolangaga.tubatools
 
 ### Microsoft Store（微软商店）
 
-<a href="https://get.microsoft.com/installer/download/9P15095X7MGB?referrer=appbadge" target="_self">
+<a href="https://apps.microsoft.com/detail/9P15095X7MGB?referrer=appbadge&mode=full" target="_blank" rel="noopener noreferrer">
 	<img src="https://get.microsoft.com/images/zh-cn%20dark.svg" width="200"/>
 </a>
 
