@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Management;
 using LibreHardwareMonitor.Hardware;
 using TubaWinUi3.Models;
@@ -295,31 +296,74 @@ public sealed class LiteMonitorService : IDisposable
     public static List<GpuInfo> GetAvailableGpus()
     {
         var result = new List<GpuInfo>();
+        var lhmGpus = new List<GpuInfo>();
         Instance.EnsureInit();
         lock (s_lock)
         {
-            if (s_computer == null) return result;
-            try
+            if (s_computer != null)
             {
-                foreach (IHardware hw in s_computer.Hardware)
-                    hw.Update();
-                int gpuIdx = 0;
-                foreach (IHardware hw in s_computer.Hardware)
+                try
                 {
-                    if (hw.HardwareType is not (HardwareType.GpuNvidia or HardwareType.GpuAmd or HardwareType.GpuIntel))
-                        continue;
-                    if (IsVirtualGpu(hw.Name)) continue;
-                    result.Add(new GpuInfo
+                    foreach (IHardware hw in s_computer.Hardware)
+                        hw.Update();
+                    int gpuIdx = 0;
+                    foreach (IHardware hw in s_computer.Hardware)
                     {
-                        Index = gpuIdx++,
-                        Name = hw.Name,
-                        Type = hw.HardwareType.ToString()
-                    });
+                        if (hw.HardwareType is not (HardwareType.GpuNvidia or HardwareType.GpuAmd or HardwareType.GpuIntel))
+                            continue;
+                        if (IsVirtualGpu(hw.Name)) continue;
+                        lhmGpus.Add(new GpuInfo
+                        {
+                            Index = gpuIdx++,
+                            Name = hw.Name,
+                            Type = hw.HardwareType.ToString()
+                        });
+                    }
                 }
+                catch { }
             }
-            catch { }
+        }
+
+        // WMI mirrors the 硬件信息 page, so the GPU selection list always matches
+        // what users see there. LibreHardwareMonitor alone often misses adapters.
+        var wmiNames = new List<string>();
+        try
+        {
+            using var searcher = new ManagementObjectSearcher("SELECT Name FROM Win32_VideoController");
+            foreach (ManagementObject obj in searcher.Get())
+            {
+                var name = obj["Name"]?.ToString()?.Trim();
+                if (string.IsNullOrWhiteSpace(name) || IsVirtualGpu(name)) continue;
+                wmiNames.Add(name);
+            }
+        }
+        catch { }
+
+        var gpuList = wmiNames.Count > 0 ? wmiNames : lhmGpus.Select(g => g.Name).ToList();
+        int idx = 0;
+        var added = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var name in gpuList)
+        {
+            if (!added.Add(name)) continue;
+            var lhm = lhmGpus.FirstOrDefault(g => GpuNamesMatch(g.Name, name));
+            result.Add(new GpuInfo
+            {
+                Index = idx++,
+                Name = name,
+                Type = lhm != null ? lhm.Type : ""
+            });
         }
         return result;
+    }
+
+    private static bool GpuNamesMatch(string a, string b)
+    {
+        if (string.Equals(a, b, StringComparison.OrdinalIgnoreCase)) return true;
+        var ta = a.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(t => t.Length > 2).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var tb = b.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(t => t.Length > 2).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return ta.Intersect(tb).Count() >= 2;
     }
 
     private static readonly string[] s_virtualGpuKW =
