@@ -900,7 +900,7 @@
           "arch": "ARM64"
         }
       ],
-      "version": 1
+      "version": 2
     },
     {
       "match": "Everything",
