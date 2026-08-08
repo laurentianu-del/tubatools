@@ -700,7 +700,7 @@ public sealed partial class AiAssistantService
 
             if (tool is not null)
             {
-                Process.Start(new ProcessStartInfo(tool.EffectivePath) { UseShellExecute = true });
+                ToolProcessLauncher.Launch(tool.EffectivePath, tool.EffectiveWorkingDir);
                 message = $"已启动：{tool.Name}";
                 return true;
             }
@@ -1385,7 +1385,7 @@ public sealed partial class AiAssistantService
 
             if (tool is not null)
             {
-                Process.Start(new ProcessStartInfo(tool.EffectivePath) { UseShellExecute = true });
+                ToolProcessLauncher.Launch(tool.EffectivePath, tool.EffectiveWorkingDir);
                 return $"已启动工具：{tool.Name}";
             }
 

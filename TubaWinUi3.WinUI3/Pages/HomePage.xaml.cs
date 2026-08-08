@@ -951,13 +951,7 @@ public sealed partial class HomePage : Page
 
         try
         {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = exePath,
-                WorkingDirectory = tool.EffectiveWorkingDir,
-                UseShellExecute = true,
-                Verb = runAsAdmin ? "runAs" : null
-            });
+            ToolProcessLauncher.Launch(exePath, tool.EffectiveWorkingDir, runAsAdmin);
 
             LaunchHistoryService.RecordLaunch(tool.Path);
             ShowStatus(runAsAdmin ? "已以管理员身份启动" : "已启动", tool.Name, InfoBarSeverity.Success);
@@ -1046,12 +1040,7 @@ public sealed partial class HomePage : Page
         {
             try
             {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = exePath,
-                    WorkingDirectory = Path.GetDirectoryName(exePath),
-                    UseShellExecute = true
-                });
+                ToolProcessLauncher.Launch(exePath, Path.GetDirectoryName(exePath));
                 ShowStatus("已启动", tool.Name, InfoBarSeverity.Success);
             }
             catch (Exception ex)

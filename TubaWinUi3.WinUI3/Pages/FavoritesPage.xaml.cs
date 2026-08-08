@@ -488,13 +488,7 @@ public sealed partial class FavoritesPage : Page
 
         try
         {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = exePath,
-                WorkingDirectory = tool.EffectiveWorkingDir,
-                UseShellExecute = true,
-                Verb = runAsAdmin ? "runAs" : null
-            });
+            ToolProcessLauncher.Launch(exePath, tool.EffectiveWorkingDir, runAsAdmin);
 
             LaunchHistoryService.RecordLaunch(tool.Path);
             ShowStatus(runAsAdmin ? "已以管理员身份启动" : "已启动", tool.Name, InfoBarSeverity.Success);

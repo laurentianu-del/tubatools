@@ -504,7 +504,7 @@ public sealed partial class QuickDeviceCheckPage : Page
             {
                 if (File.Exists(path))
                 {
-                    DiagnosticsProcess.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true });
+                    ToolProcessLauncher.Launch(path, Path.GetDirectoryName(path));
                     SendToast("已打开 DiskInfo", "请查看硬盘通电时间和通电次数");
                     return;
                 }
@@ -513,7 +513,7 @@ public sealed partial class QuickDeviceCheckPage : Page
             var allExes = Directory.GetFiles(toolsRoot, "DiskInfo*.exe", SearchOption.AllDirectories);
             if (allExes.Length > 0)
             {
-                DiagnosticsProcess.Start(new System.Diagnostics.ProcessStartInfo(allExes[0]) { UseShellExecute = true });
+                ToolProcessLauncher.Launch(allExes[0], Path.GetDirectoryName(allExes[0]));
                 SendToast("已打开 DiskInfo", "请查看硬盘通电时间和通电次数");
             }
             else

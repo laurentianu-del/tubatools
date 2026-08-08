@@ -1327,12 +1327,7 @@ public sealed class PcTutorialPage : Page
             var exePath = tool.EffectivePath;
             if (File.Exists(exePath))
             {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = exePath,
-                    WorkingDirectory = tool.EffectiveWorkingDir,
-                    UseShellExecute = true
-                });
+                ToolProcessLauncher.Launch(exePath, tool.EffectiveWorkingDir);
                 LaunchHistoryService.RecordLaunch(tool.Path);
             }
         }
@@ -1345,7 +1340,7 @@ public sealed class PcTutorialPage : Page
             var furmarkExe = PerformanceBenchmarkService.FindFurMarkExe();
             if (furmarkExe is not null && File.Exists(furmarkExe))
             {
-                Process.Start(new ProcessStartInfo(furmarkExe) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(furmarkExe) });
+                ToolProcessLauncher.Launch(furmarkExe, Path.GetDirectoryName(furmarkExe));
                 return;
             }
         }
@@ -1357,12 +1352,7 @@ public sealed class PcTutorialPage : Page
         });
         if (tool is not null && File.Exists(tool.EffectivePath))
         {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = tool.EffectivePath,
-                WorkingDirectory = tool.EffectiveWorkingDir,
-                UseShellExecute = true
-            });
+            ToolProcessLauncher.Launch(tool.EffectivePath, tool.EffectiveWorkingDir);
             LaunchHistoryService.RecordLaunch(tool.Path);
             return;
         }
@@ -1376,7 +1366,7 @@ public sealed class PcTutorialPage : Page
                        ?? matches.FirstOrDefault();
             if (pick is not null && File.Exists(pick))
             {
-                Process.Start(new ProcessStartInfo(pick) { UseShellExecute = true });
+                ToolProcessLauncher.Launch(pick, Path.GetDirectoryName(pick));
             }
         }
     }
