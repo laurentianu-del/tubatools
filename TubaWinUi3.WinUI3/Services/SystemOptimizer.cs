@@ -23,6 +23,7 @@ public static class SystemOptimizer
                     ["visual-desktop-shadow"] = false,
                     ["visual-taskbar-center"] = false,
                     ["visual-taskbar-small"] = false,
+                    ["visual-taskbar-glom"] = false,
                 }
             },
             new VisualPreset
@@ -39,6 +40,7 @@ public static class SystemOptimizer
                     ["visual-desktop-shadow"] = true,
                     ["visual-taskbar-center"] = true,
                     ["visual-taskbar-small"] = true,
+                    ["visual-taskbar-glom"] = true,
                 }
             },
             new VisualPreset
@@ -55,6 +57,7 @@ public static class SystemOptimizer
                     ["visual-desktop-shadow"] = true,
                     ["visual-taskbar-center"] = true,
                     ["visual-taskbar-small"] = true,
+                    ["visual-taskbar-glom"] = true,
                 }
             }
         ];
@@ -113,6 +116,13 @@ public static class SystemOptimizer
                 Hive = "HKCU", KeyPath = @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
                 ValueName = "TaskbarSi", Value = 0, ValueKind = RegistryValueKind.DWord
             },
+            new RegistryAction
+            {
+                Id = "visual-taskbar-glom", Name = "任务栏图标合并", Description = "任务栏同程序窗口始终合并显示",
+                Glyph = "\uE77B", Group = "视觉效果", IsSelected = true, IsDangerous = false, RequiresAdmin = false,
+                Hive = "HKCU", KeyPath = @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
+                ValueName = "TaskbarGlomLevel", Value = 2, ValueKind = RegistryValueKind.DWord
+            },
         ];
     }
 
@@ -161,6 +171,27 @@ public static class SystemOptimizer
                 Glyph = "\uE8B7", Group = "文件管理", IsSelected = true, IsDangerous = false, RequiresAdmin = false,
                 Hive = "HKCU", KeyPath = @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
                 ValueName = "LaunchTo", Value = 1, ValueKind = RegistryValueKind.DWord
+            },
+            new RegistryAction
+            {
+                Id = "file-icons-only", Name = "始终显示图标不显示缩略图", Description = "在资源管理器中用图标替代文件缩略图，提升大目录浏览速度",
+                Glyph = "\uE8B7", Group = "文件管理", IsSelected = false, IsDangerous = false, RequiresAdmin = false,
+                Hive = "HKCU", KeyPath = @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
+                ValueName = "IconsOnly", Value = 1, ValueKind = RegistryValueKind.DWord
+            },
+            new RegistryAction
+            {
+                Id = "file-no-share-wizard", Name = "关闭共享向导", Description = "右键「共享」时直接显示共享对话框而非向导",
+                Glyph = "\uE8B7", Group = "文件管理", IsSelected = false, IsDangerous = false, RequiresAdmin = false,
+                Hive = "HKCU", KeyPath = @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
+                ValueName = "SharingWizard", Value = 0, ValueKind = RegistryValueKind.DWord
+            },
+            new RegistryAction
+            {
+                Id = "file-no-recent", Name = "隐藏最近使用的文件", Description = "在开始菜单和跳转列表中隐藏最近打开的文件记录",
+                Glyph = "\uE8B7", Group = "文件管理", IsSelected = false, IsDangerous = false, RequiresAdmin = false,
+                Hive = "HKCU", KeyPath = @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
+                ValueName = "Start_TrackDocs", Value = 0, ValueKind = RegistryValueKind.DWord
             },
         ];
     }
@@ -239,6 +270,27 @@ public static class SystemOptimizer
                 Hive = "HKLM", KeyPath = @"SYSTEM\CurrentControlSet\Services\SysMain",
                 ValueName = "Start", Value = 4, ValueKind = RegistryValueKind.DWord
             },
+            new RegistryAction
+            {
+                Id = "tune-shutdown-timeout", Name = "缩短关机等待超时", Description = "将关机时等待服务停止的超时从20秒缩短到3秒",
+                Glyph = "\uE945", Group = "系统调优", IsSelected = false, IsDangerous = false, RequiresAdmin = true,
+                Hive = "HKLM", KeyPath = @"SYSTEM\CurrentControlSet\Control",
+                ValueName = "WaitToKillServiceTimeout", Value = 3000, ValueKind = RegistryValueKind.DWord
+            },
+            new RegistryAction
+            {
+                Id = "tune-ntfs-lastaccess", Name = "关闭文件访问时间戳", Description = "禁止NTFS更新最近访问时间，减少磁盘写入(SSD更友好)",
+                Glyph = "\uE945", Group = "系统调优", IsSelected = false, IsDangerous = false, RequiresAdmin = true,
+                Hive = "HKLM", KeyPath = @"SYSTEM\CurrentControlSet\Control\FileSystem",
+                ValueName = "NtfsDisableLastAccessUpdate", Value = 1, ValueKind = RegistryValueKind.DWord
+            },
+            new PowerShellAction
+            {
+                Id = "tune-disable-8dot3", Name = "禁用8.3短文件名", Description = "禁用NTFS 8.3短文件名生成，减少磁盘碎片并提升性能",
+                Glyph = "\uE945", Group = "系统调优", IsSelected = false, IsDangerous = false, RequiresAdmin = true,
+                UseRunAs = true,
+                Script = "fsutil behavior set disable8dot3 1\nWrite-Host \"  已禁用 8.3 短文件名\""
+            },
         ];
     }
 
@@ -259,6 +311,125 @@ public static class SystemOptimizer
                 Glyph = "\uEA18", Group = "安全设置", IsSelected = false, IsDangerous = true, RequiresAdmin = true,
                 Hive = "HKLM", KeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System",
                 ValueName = "ConsentPromptBehaviorAdmin", Value = 0, ValueKind = RegistryValueKind.DWord
+            },
+            new PowerShellAction
+            {
+                Id = "sec-restore-point", Name = "创建系统还原点", Description = "优化前创建系统还原点，便于随时回滚系统设置",
+                Glyph = "\uEA18", Group = "安全设置", IsSelected = true, IsDangerous = false, RequiresAdmin = true,
+                UseRunAs = true,
+                Script = "Checkpoint-Computer -Description '图吧工具箱优化前还原点' -RestorePointType MODIFY_SETTINGS -ErrorAction SilentlyContinue\nWrite-Host \"  系统还原点创建完成\""
+            },
+            new RegistryAction
+            {
+                Id = "sec-disable-smartscreen", Name = "关闭SmartScreen筛选器", Description = "⚠ 高危：关闭SmartScreen网页与应用安全筛选",
+                Glyph = "\uEA18", Group = "安全设置", IsSelected = false, IsDangerous = true, RequiresAdmin = true,
+                Hive = "HKLM", KeyPath = @"SOFTWARE\Policies\Microsoft\Windows\System",
+                ValueName = "EnableSmartScreen", Value = 0, ValueKind = RegistryValueKind.DWord
+            },
+            new RegistryAction
+            {
+                Id = "sec-disable-defender", Name = "关闭Defender实时防护", Description = "⚠ 高危：关闭Windows Defender实时防护(不推荐，仅游戏/调试场景)",
+                Glyph = "\uEA18", Group = "安全设置", IsSelected = false, IsDangerous = true, RequiresAdmin = true,
+                Hive = "HKLM", KeyPath = @"SOFTWARE\Policies\Microsoft\Windows Defender",
+                ValueName = "DisableAntiSpyware", Value = 1, ValueKind = RegistryValueKind.DWord
+            },
+        ];
+    }
+
+    public static List<PcSetupAction> GetGameActions()
+    {
+        return
+        [
+            new RegistryAction
+            {
+                Id = "game-mode", Name = "开启游戏模式", Description = "开启Windows游戏模式，为游戏分配更多系统资源",
+                Glyph = "\uE7FC", Group = "游戏优化", IsSelected = true, IsDangerous = false, RequiresAdmin = true,
+                Hive = "HKLM", KeyPath = @"SOFTWARE\Microsoft\GameBar",
+                ValueName = "AutoGameModeEnabled", Value = 1, ValueKind = RegistryValueKind.DWord
+            },
+            new PowerShellAction
+            {
+                Id = "game-dvr-off", Name = "关闭Xbox后台录制", Description = "关闭游戏录制与后台捕获功能，减少游戏性能损耗",
+                Glyph = "\uE7FC", Group = "游戏优化", IsSelected = true, IsDangerous = false, RequiresAdmin = false,
+                UseRunAs = false,
+                Script = "Set-ItemProperty -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\GameDVR' -Name 'AppCaptureEnabled' -Value 0 -Type DWord -ErrorAction SilentlyContinue\nSet-ItemProperty -Path 'HKCU:\\System\\GameConfigStore' -Name 'GameDVR_Enabled' -Value 0 -Type DWord -ErrorAction SilentlyContinue\nWrite-Host \"  已关闭 Xbox 后台录制\""
+            },
+            new RegistryAction
+            {
+                Id = "game-fse", Name = "禁用全屏优化", Description = "禁用全屏优化，让游戏真正独占全屏获得更低延迟",
+                Glyph = "\uE7FC", Group = "游戏优化", IsSelected = true, IsDangerous = false, RequiresAdmin = false,
+                Hive = "HKCU", KeyPath = @"System\GameConfigStore",
+                ValueName = "GameDVR_FSEBehaviorMode", Value = 2, ValueKind = RegistryValueKind.DWord
+            },
+            new RegistryAction
+            {
+                Id = "game-hw-sched", Name = "开启硬件加速GPU计划", Description = "启用硬件加速GPU调度，降低游戏渲染延迟",
+                Glyph = "\uE7FC", Group = "游戏优化", IsSelected = false, IsDangerous = false, RequiresAdmin = true,
+                Hive = "HKLM", KeyPath = @"SYSTEM\CurrentControlSet\Control\GraphicsDrivers",
+                ValueName = "HwSchMode", Value = 2, ValueKind = RegistryValueKind.DWord
+            },
+            new PowerShellAction
+            {
+                Id = "game-mouse", Name = "关闭鼠标加速", Description = "关闭鼠标指针精确度(加速)，获得1:1的鼠标移动手感",
+                Glyph = "\uE7FC", Group = "游戏优化", IsSelected = true, IsDangerous = false, RequiresAdmin = false,
+                UseRunAs = false,
+                Script = "Set-ItemProperty -Path 'HKCU:\\Control Panel\\Mouse' -Name 'MouseSpeed' -Value '0' -ErrorAction SilentlyContinue\nSet-ItemProperty -Path 'HKCU:\\Control Panel\\Mouse' -Name 'MouseThreshold1' -Value '0' -ErrorAction SilentlyContinue\nSet-ItemProperty -Path 'HKCU:\\Control Panel\\Mouse' -Name 'MouseThreshold2' -Value '0' -ErrorAction SilentlyContinue\nWrite-Host \"  已关闭鼠标加速\""
+            },
+            new PowerShellAction
+            {
+                Id = "game-ultimate-power", Name = "启用卓越性能电源计划", Description = "启用隐藏的卓越性能电源计划并切换生效(笔记本慎用)",
+                Glyph = "\uE945", Group = "游戏优化", IsSelected = false, IsDangerous = false, RequiresAdmin = true,
+                UseRunAs = true,
+                Script = "powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61 2>$null | Out-Null\npowercfg -setactive e9a42b02-d5df-448d-aa00-03f14749eb61\nWrite-Host \"  已切换到卓越性能电源计划\""
+            },
+        ];
+    }
+
+    public static List<PcSetupAction> GetCleanActions()
+    {
+        return
+        [
+            new PowerShellAction
+            {
+                Id = "clean-temp", Name = "清理临时文件", Description = "清理Windows和用户临时文件夹",
+                Glyph = "\uE90F", Group = "资源清理", IsSelected = true, IsDangerous = false, RequiresAdmin = true,
+                UseRunAs = true,
+                Script = "Remove-Item \"$env:TEMP\\*\" -Recurse -Force -ErrorAction SilentlyContinue\nRemove-Item \"$env:LOCALAPPDATA\\Temp\\*\" -Recurse -Force -ErrorAction SilentlyContinue\nRemove-Item \"C:\\Windows\\Temp\\*\" -Recurse -Force -ErrorAction SilentlyContinue\nWrite-Host \"  临时文件清理完成\""
+            },
+            new PowerShellAction
+            {
+                Id = "clean-prefetch", Name = "清理预取缓存", Description = "清理Windows预取(Prefetch)缓存文件",
+                Glyph = "\uE90F", Group = "资源清理", IsSelected = true, IsDangerous = false, RequiresAdmin = true,
+                UseRunAs = true,
+                Script = "Remove-Item \"C:\\Windows\\Prefetch\\*\" -Recurse -Force -ErrorAction SilentlyContinue\nWrite-Host \"  预取缓存清理完成\""
+            },
+            new PowerShellAction
+            {
+                Id = "clean-thumbnail", Name = "清理缩略图缓存", Description = "清理资源管理器缩略图缓存(thumbcache)",
+                Glyph = "\uE90F", Group = "资源清理", IsSelected = true, IsDangerous = false, RequiresAdmin = false,
+                UseRunAs = false,
+                Script = "Remove-Item \"$env:LOCALAPPDATA\\Microsoft\\Windows\\Explorer\\thumbcache_*.db\" -Force -ErrorAction SilentlyContinue\nRemove-Item \"$env:LOCALAPPDATA\\Microsoft\\Windows\\Explorer\\iconcache_*.db\" -Force -ErrorAction SilentlyContinue\nWrite-Host \"  缩略图缓存清理完成\""
+            },
+            new PowerShellAction
+            {
+                Id = "clean-update-cache", Name = "清理Windows更新缓存", Description = "清理Windows Update下载缓存文件夹",
+                Glyph = "\uE90F", Group = "资源清理", IsSelected = false, IsDangerous = false, RequiresAdmin = true,
+                UseRunAs = true,
+                Script = "Stop-Service -Name wuauserv -Force -ErrorAction SilentlyContinue\nRemove-Item \"C:\\Windows\\SoftwareDistribution\\Download\\*\" -Recurse -Force -ErrorAction SilentlyContinue\nStart-Service -Name wuauserv -ErrorAction SilentlyContinue\nWrite-Host \"  更新缓存清理完成\""
+            },
+            new PowerShellAction
+            {
+                Id = "clean-crash-dumps", Name = "清理崩溃转储", Description = "清理系统错误报告和崩溃转储(minidump)文件",
+                Glyph = "\uE90F", Group = "资源清理", IsSelected = false, IsDangerous = false, RequiresAdmin = true,
+                UseRunAs = true,
+                Script = "Remove-Item \"C:\\Windows\\Minidump\\*\" -Force -ErrorAction SilentlyContinue\nRemove-Item \"$env:ProgramData\\Microsoft\\Windows\\WER\\ReportArchive\\*\" -Recurse -Force -ErrorAction SilentlyContinue\nRemove-Item \"$env:ProgramData\\Microsoft\\Windows\\WER\\ReportQueue\\*\" -Recurse -Force -ErrorAction SilentlyContinue\nRemove-Item \"$env:LOCALAPPDATA\\Microsoft\\Windows\\WER\\ReportArchive\\*\" -Recurse -Force -ErrorAction SilentlyContinue\nWrite-Host \"  崩溃转储清理完成\""
+            },
+            new PowerShellAction
+            {
+                Id = "clean-recycle-bin", Name = "清空回收站", Description = "清空所有驱动器的回收站",
+                Glyph = "\uE90F", Group = "资源清理", IsSelected = false, IsDangerous = true, RequiresAdmin = false,
+                UseRunAs = false,
+                Script = "Clear-RecycleBin -Force -ErrorAction SilentlyContinue\nWrite-Host \"  回收站已清空\""
             },
         ];
     }
@@ -309,6 +480,27 @@ public static class SystemOptimizer
                 Hive = "HKCU", KeyPath = @"Software\Microsoft\Input\TIPC",
                 ValueName = "Enabled", Value = 0, ValueKind = RegistryValueKind.DWord
             },
+            new PowerShellAction
+            {
+                Id = "priv-content-delivery", Name = "关闭开始菜单广告与建议", Description = "关闭开始菜单、设置页中的应用推广与个性化建议",
+                Glyph = "\uE72E", Group = "隐私保护", IsSelected = true, IsDangerous = false, RequiresAdmin = false,
+                UseRunAs = false,
+                Script = "$base = 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager'\nforeach ($name in @('SubscribedContent-338389Enabled','SubscribedContent-338388Enabled','SubscribedContent-338393Enabled','SubscribedContent-353694Enabled','SubscribedContent-310093Enabled','SystemPaneSuggestionsEnabled')) {\n    Set-ItemProperty -Path $base -Name $name -Value 0 -Type DWord -ErrorAction SilentlyContinue\n}\nWrite-Host \"  已关闭开始菜单广告与建议\""
+            },
+            new RegistryAction
+            {
+                Id = "priv-settings-sync", Name = "关闭跨设备设置同步", Description = "停止将系统设置同步到其他Windows设备",
+                Glyph = "\uE72E", Group = "隐私保护", IsSelected = false, IsDangerous = false, RequiresAdmin = false,
+                Hive = "HKCU", KeyPath = @"Software\Microsoft\Windows\CurrentVersion\SettingSync",
+                ValueName = "SettingsSynchronizationEnabled", Value = 0, ValueKind = RegistryValueKind.DWord
+            },
+            new RegistryAction
+            {
+                Id = "priv-mru", Name = "清除最近打开文件记录", Description = "关闭开始菜单与任务栏的最近使用项目追踪",
+                Glyph = "\uE72E", Group = "隐私保护", IsSelected = false, IsDangerous = false, RequiresAdmin = false,
+                Hive = "HKCU", KeyPath = @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
+                ValueName = "Start_TrackEnabled", Value = 0, ValueKind = RegistryValueKind.DWord
+            },
         ];
     }
 
@@ -351,6 +543,13 @@ public static class SystemOptimizer
                 Hive = "HKLM", KeyPath = @"SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters",
                 ValueName = "DisabledComponents", Value = 255, ValueKind = RegistryValueKind.DWord
             },
+            new PowerShellAction
+            {
+                Id = "net-dns-cache", Name = "增大DNS缓存容量", Description = "扩大DNS解析缓存容量并延长缓存时间，减少重复解析延迟",
+                Glyph = "\uE704", Group = "网络优化", IsSelected = false, IsDangerous = false, RequiresAdmin = true,
+                UseRunAs = true,
+                Script = "$base = 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Dnscache\\Parameters'\nNew-Item -Path $base -Force | Out-Null\nSet-ItemProperty -Path $base -Name 'CacheHashTableBucketSize' -Value 1 -Type DWord\nSet-ItemProperty -Path $base -Name 'CacheHashTableSize' -Value 384 -Type DWord\nSet-ItemProperty -Path $base -Name 'MaxCacheEntryTtlLimit' -Value 86400 -Type DWord\nSet-ItemProperty -Path $base -Name 'MaxNegativeCacheTtl' -Value 32 -Type DWord\nWrite-Host \"  DNS 缓存已扩容\""
+            },
         ];
     }
 
@@ -362,6 +561,8 @@ public static class SystemOptimizer
         list.AddRange(GetSystemTuneActions());
         list.AddRange(GetPrivacyActions());
         list.AddRange(GetNetworkActions());
+        list.AddRange(GetGameActions());
+        list.AddRange(GetCleanActions());
         list.AddRange(GetSecurityActions());
         return list;
     }
@@ -378,5 +579,99 @@ public static class SystemOptimizer
             if (preset.OptimizeItemStates.TryGetValue(action.Id, out var selected))
                 action.IsSelected = selected;
         }
+    }
+
+    public static void ApplyRecommendedSelection(List<PcSetupAction> actions)
+    {
+        var recommended = new Dictionary<string, bool>
+        {
+            // 视觉效果：平衡挡位
+            ["visual-animation"] = true,
+            ["visual-transparency"] = true,
+            ["visual-shadow"] = false,
+            ["visual-smooth-scroll"] = true,
+            ["visual-desktop-shadow"] = true,
+            ["visual-taskbar-center"] = true,
+            ["visual-taskbar-small"] = true,
+            ["visual-taskbar-glom"] = true,
+            // 文件管理
+            ["file-show-ext"] = true,
+            ["file-show-hidden"] = true,
+            ["file-nav-pane-expand"] = true,
+            ["file-show-fullpath"] = false,
+            ["file-disable-ads"] = true,
+            ["file-quick-access"] = true,
+            ["file-icons-only"] = false,
+            ["file-no-share-wizard"] = false,
+            ["file-no-recent"] = false,
+            // 系统调优
+            ["tune-highperf"] = false,
+            ["tune-no-hibernate"] = false,
+            ["tune-no-restore"] = false,
+            ["tune-disable-startup"] = false,
+            ["tune-disable-cortana"] = true,
+            ["tune-disable-news"] = true,
+            ["tune-disable-chat"] = true,
+            ["tune-disable-clipboard"] = false,
+            ["tune-cleanup-temp"] = true,
+            ["tune-superfetch"] = false,
+            ["tune-shutdown-timeout"] = true,
+            ["tune-ntfs-lastaccess"] = true,
+            ["tune-disable-8dot3"] = false,
+            // 隐私保护
+            ["priv-telemetry"] = true,
+            ["priv-activity"] = true,
+            ["priv-advertising"] = true,
+            ["priv-location"] = true,
+            ["priv-feedback"] = true,
+            ["priv-typing"] = true,
+            ["priv-content-delivery"] = true,
+            ["priv-settings-sync"] = false,
+            ["priv-mru"] = false,
+            // 网络优化
+            ["net-nagle"] = true,
+            ["net-ttl"] = false,
+            ["net-dns-flush"] = true,
+            ["net-reset"] = false,
+            ["net-ipv6"] = false,
+            ["net-dns-cache"] = false,
+            // 游戏优化
+            ["game-mode"] = true,
+            ["game-dvr-off"] = true,
+            ["game-fse"] = true,
+            ["game-hw-sched"] = false,
+            ["game-mouse"] = true,
+            ["game-ultimate-power"] = false,
+            // 资源清理
+            ["clean-temp"] = true,
+            ["clean-prefetch"] = true,
+            ["clean-thumbnail"] = true,
+            ["clean-update-cache"] = true,
+            ["clean-crash-dumps"] = false,
+            ["clean-recycle-bin"] = false,
+            // 安全设置
+            ["sec-no-autoupdate"] = false,
+            ["sec-no-uac"] = false,
+            ["sec-restore-point"] = true,
+            ["sec-disable-smartscreen"] = false,
+            ["sec-disable-defender"] = false,
+        };
+        foreach (var action in actions)
+        {
+            if (recommended.TryGetValue(action.Id, out var selected))
+                action.IsSelected = selected;
+        }
+    }
+
+    public static void SelectAllSafe(List<PcSetupAction> actions)
+    {
+        foreach (var action in actions)
+            action.IsSelected = !action.IsDangerous;
+    }
+
+    public static void DeselectAll(List<PcSetupAction> actions)
+    {
+        foreach (var action in actions)
+            action.IsSelected = false;
     }
 }

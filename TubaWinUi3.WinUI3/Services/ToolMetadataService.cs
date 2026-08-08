@@ -381,7 +381,7 @@ public static class ToolMetadataService
             return FindRoot("Metadata");
 
         var writableDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            RuntimeHelper.GetLocalAppDataRoot(),
             "TubaWinUi3", "Metadata");
 
         if (!Directory.Exists(writableDir))

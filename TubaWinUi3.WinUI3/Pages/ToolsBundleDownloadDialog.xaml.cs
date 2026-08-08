@@ -187,8 +187,7 @@ public sealed partial class ToolsBundleDownloadDialog : ContentDialog
                 _ = ShowSuccessDialogAsync();
                 break;
             case DownloadItemState.Failed:
-                ErrorBar.Message = string.IsNullOrEmpty(item.ErrorMessage)
-                    ? $"内核下载失败，请重试。" : item.ErrorMessage;
+                ErrorBar.Message = LocalizeFailureMessage(item.ErrorMessage);
                 ErrorBar.IsOpen = true;
                 IsPrimaryButtonEnabled = true;
                 PrimaryButtonText = "重试";
@@ -197,6 +196,32 @@ public sealed partial class ToolsBundleDownloadDialog : ContentDialog
                 CloseButtonText = "跳过";
                 break;
         }
+    }
+
+    private static string LocalizeFailureMessage(string? message)
+    {
+        if (string.IsNullOrEmpty(message)) return "内核下载失败，请重试。";
+
+        // 内部异常为 UnauthorizedAccessException 时给出中文提示
+        if (message.Contains("Access to the path", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("UnauthorizedAccessException", StringComparison.OrdinalIgnoreCase))
+        {
+            var path = ExtractQuotedPath(message);
+            return string.IsNullOrEmpty(path)
+                ? "内核安装失败：目标文件被占用或只读，请关闭正在运行的工具（如 DirectX Repair）后重试。"
+                : $"内核安装失败：无法写入 {path}（文件被占用或只读）。请关闭正在运行的工具（如 DirectX Repair）后重试。";
+        }
+
+        return message;
+    }
+
+    private static string? ExtractQuotedPath(string message)
+    {
+        var start = message.IndexOf('\'');
+        if (start < 0) return null;
+        var end = message.IndexOf('\'', start + 1);
+        if (end <= start) return null;
+        return message[(start + 1)..end];
     }
 
     private void OnDownloadItemProgressChanged(DownloadItem item)

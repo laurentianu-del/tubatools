@@ -83,9 +83,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 	private CheckBox _chkMem = null!;
 	private CheckBox _chkDisk = null!;
 	private CheckBox _chkBrowser = null!;
-	private ComboBox _gpuSelector = null!;
-	private List<GpuInfo> _availableGpus = [];
-	private StackPanel _gpuSelectorRow = null!;
+	private List<FurMarkGpuInfo> _availableGpus = [];
 
 	private static readonly Color AccentBlue = Color.FromArgb(byte.MaxValue, 0, 99, 177);
 	private static readonly Color ColorS = Color.FromArgb(byte.MaxValue, 74, 222, 128);
@@ -627,13 +625,6 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		_chkMem = new CheckBox { Content = "内存", IsChecked = true, FontSize = 12.0 };
 		_chkDisk = new CheckBox { Content = "硬盘", IsChecked = true, FontSize = 12.0 };
 		_chkBrowser = new CheckBox { Content = "浏览器", IsChecked = true, FontSize = 12.0 };
-		_gpuSelector = new ComboBox
-		{
-			FontSize = 12.0,
-			MinWidth = 200.0,
-			PlaceholderText = "选择GPU",
-			Visibility = Visibility.Collapsed
-		};
 		StackPanel stackPanel = new()
 		{
 			Orientation = Orientation.Horizontal,
@@ -651,29 +642,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		stackPanel.Children.Add(_chkMem);
 		stackPanel.Children.Add(_chkDisk);
 		stackPanel.Children.Add(_chkBrowser);
-		StackPanel gpuSelectorRow = new()
-		{
-			Orientation = Orientation.Horizontal,
-			Spacing = 8.0,
-			Visibility = Visibility.Collapsed
-		};
-		gpuSelectorRow.Children.Add(new TextBlock
-		{
-			Text = "测试GPU:",
-			FontSize = 12.0,
-			VerticalAlignment = VerticalAlignment.Center,
-			Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
-		});
-		gpuSelectorRow.Children.Add(_gpuSelector);
-		gpuSelectorRow.Children.Add(new TextBlock
-		{
-			Text = "多GPU时选择要测试的显卡",
-			FontSize = 11.0,
-			VerticalAlignment = VerticalAlignment.Center,
-			Foreground = (Brush)Application.Current.Resources["TextFillColorTertiaryBrush"]
-		});
-		_gpuSelectorRow = gpuSelectorRow;
-		LoadAvailableGpus();
+		_ = LoadAvailableGpusAsync();
 		StackPanel stackPanel2 = new()
 		{
 			Orientation = Orientation.Horizontal,
@@ -691,7 +660,6 @@ public sealed partial class PerformanceBenchmarkPage : Page
 			Children =
 			{
 				(UIElement)stackPanel,
-				(UIElement)_gpuSelectorRow,
 				(UIElement)stackPanel2,
 				(UIElement)_globalProgress,
 				(UIElement)_statusText
@@ -719,6 +687,22 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		SetCheckboxesEnabled(false);
 		_cts = new CancellationTokenSource();
 		ResetUI();
+		int gpuIdx = 0;
+		string gpuName = "";
+		if (runGpu)
+		{
+			var picked = await ShowGpuSelectDialogAsync();
+			if (picked == null)
+			{
+				runGpu = false;
+				_statusText.Text = "已取消GPU测试，继续其他项目...";
+			}
+			else
+			{
+				gpuIdx = picked.Value.Index;
+				gpuName = picked.Value.Name;
+			}
+		}
 		try
 		{
 			var result = new PerformanceBenchmarkResult
@@ -773,8 +757,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 			}
 			if (runGpu)
 			{
-				int gpuIdx = _gpuSelector.SelectedIndex >= 0 ? _gpuSelector.SelectedIndex : 0;
-				result.Gpu = await Task.Run(() => PerformanceBenchmarkService.RunGpuBenchmarkFurMark(60, progress, _cts.Token, gpuIdx), _cts.Token);
+				result.Gpu = await Task.Run(() => PerformanceBenchmarkService.RunGpuBenchmarkFurMark(60, progress, _cts.Token, gpuIdx, gpuName), _cts.Token);
 				if (!string.IsNullOrEmpty(result.Gpu.GpuName))
 					result.GpuName = result.Gpu.GpuName;
 				_cts.Token.ThrowIfCancellationRequested();
@@ -828,38 +811,26 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		_chkMem.IsEnabled = enabled;
 		_chkDisk.IsEnabled = enabled;
 		_chkBrowser.IsEnabled = enabled;
-		_gpuSelector.IsEnabled = enabled;
 	}
 
-	private void LoadAvailableGpus()
+	private async Task LoadAvailableGpusAsync()
 	{
 		try
 		{
-			_availableGpus = LiteMonitorService.GetAvailableGpus();
+			_availableGpus = await Task.Run(PerformanceBenchmarkService.GetFurMarkGpus);
 		}
 		catch { _availableGpus = []; }
 
-		_gpuSelector.Items.Clear();
-		if (_availableGpus.Count <= 1)
+		if (_availableGpus.Count == 0)
 		{
-			_gpuSelectorRow.Visibility = Visibility.Collapsed;
-			return;
+			try
+			{
+				_availableGpus = LiteMonitorService.GetAvailableGpus()
+					.Select(g => new FurMarkGpuInfo { Index = g.Index, Name = g.Name })
+					.ToList();
+			}
+			catch { _availableGpus = []; }
 		}
-
-		_gpuSelectorRow.Visibility = Visibility.Visible;
-		for (int i = 0; i < _availableGpus.Count; i++)
-		{
-			var gpu = _availableGpus[i];
-			_gpuSelector.Items.Add($"GPU {i}: {gpu.Name}");
-		}
-		int bestIdx = 0;
-		int bestPri = int.MaxValue;
-		for (int i = 0; i < _availableGpus.Count; i++)
-		{
-			int pri = GpuPriority(_availableGpus[i].Name);
-			if (pri < bestPri) { bestPri = pri; bestIdx = i; }
-		}
-		_gpuSelector.SelectedIndex = bestIdx;
 	}
 
 	private static int GpuPriority(string name)
@@ -870,6 +841,101 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		if (name.Contains("Arc", StringComparison.OrdinalIgnoreCase)) return 1;
 		if (name.Contains("Intel", StringComparison.OrdinalIgnoreCase)) return 3;
 		return 4;
+	}
+
+	private async Task<(int Index, string Name)?> ShowGpuSelectDialogAsync()
+	{
+		if (_availableGpus.Count == 0)
+		{
+			try
+			{
+				_availableGpus = await Task.Run(PerformanceBenchmarkService.GetFurMarkGpus);
+			}
+			catch { _availableGpus = []; }
+			if (_availableGpus.Count == 0)
+			{
+				try
+				{
+					_availableGpus = LiteMonitorService.GetAvailableGpus()
+						.Select(g => new FurMarkGpuInfo { Index = g.Index, Name = g.Name })
+						.ToList();
+				}
+				catch { _availableGpus = []; }
+			}
+			if (_availableGpus.Count == 0)
+				_availableGpus = [new FurMarkGpuInfo { Index = 0, Name = "GPU 0 (自动检测)" }];
+		}
+
+		int bestIdx = 0;
+		int bestPri = int.MaxValue;
+		for (int i = 0; i < _availableGpus.Count; i++)
+		{
+			int pri = GpuPriority(_availableGpus[i].Name);
+			if (pri < bestPri) { bestPri = pri; bestIdx = i; }
+		}
+
+		var radios = new List<RadioButton>();
+		var panel = new StackPanel { Spacing = 6.0 };
+		for (int i = 0; i < _availableGpus.Count; i++)
+		{
+			var gpu = _availableGpus[i];
+			var detail = new List<string>();
+			if (gpu.Index > 0) detail.Add("GPU " + gpu.Index);
+			if (!string.IsNullOrWhiteSpace(gpu.DeviceId)) detail.Add("deviceID: " + gpu.DeviceId);
+			if (!string.IsNullOrWhiteSpace(gpu.Memory)) detail.Add(gpu.Memory);
+			if (!string.IsNullOrWhiteSpace(gpu.Driver)) detail.Add("driver: " + gpu.Driver);
+			var rb = new RadioButton
+			{
+				IsChecked = i == bestIdx,
+				Content = new StackPanel
+				{
+					Spacing = 2.0,
+					Children =
+					{
+						(UIElement)new TextBlock
+						{
+							Text = gpu.Name,
+							FontSize = 13.0,
+							TextWrapping = TextWrapping.Wrap
+						},
+						(UIElement)new TextBlock
+						{
+							Text = string.Join(" · ", detail),
+							FontSize = 11.0,
+							Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+							TextWrapping = TextWrapping.Wrap
+						}
+					}
+				}
+			};
+			radios.Add(rb);
+			panel.Children.Add(rb);
+		}
+
+		var dialog = new ContentDialog
+		{
+			Title = "选择要测试的GPU",
+			Content = new ScrollViewer
+			{
+				Content = panel,
+				MaxHeight = 360.0,
+				VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+			},
+			PrimaryButtonText = "开始测试",
+			CloseButtonText = "取消",
+			XamlRoot = XamlRoot,
+			RequestedTheme = ThemeService.CurrentElementTheme
+		};
+		var result = await dialog.ShowAsync();
+		if (result != ContentDialogResult.Primary) return null;
+		int selIdx = 0;
+		for (int i = 0; i < radios.Count; i++)
+		{
+			if (radios[i].IsChecked == true) { selIdx = i; break; }
+		}
+		string name = _availableGpus[selIdx].Name;
+		if (name == "GPU 0 (自动检测)") name = "";
+		return (selIdx, name);
 	}
 
 	private async Task ShowPostBenchmarkDialogAsync()

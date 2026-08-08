@@ -251,6 +251,7 @@ public sealed class CatalogPackage
     public required string Id { get; init; }
     public required string Name { get; init; }
     public string? Desc { get; init; }
+    public bool IsRecommended { get; init; }
     public bool IsSelected { get; set; }
     public WingetInstallState State { get; set; } = WingetInstallState.NotInstalled;
     public string? StatusText { get; set; }

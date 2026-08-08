@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.IO.Compression;
 using System.Runtime.CompilerServices;
 
 namespace TubaWinUi3.Models;
@@ -91,8 +92,13 @@ public sealed class ArchiveExtractProcessor : IDownloadPostProcessor
         {
             if (File.Exists(downloadedFilePath))
             {
-                System.IO.Compression.ZipFile.ExtractToDirectory(downloadedFilePath, destinationPath, true);
-                File.Delete(downloadedFilePath);
+                var skipped = ZipExtractHelper.ExtractTolerant(
+                    downloadedFilePath, destinationPath, statusProgress);
+                if (skipped.Count > 0)
+                {
+                    statusProgress?.Report($"已跳过 {skipped.Count} 个无法解压的文件（可能被占用或只读）");
+                }
+                try { File.Delete(downloadedFilePath); } catch { }
             }
         }, ct);
     }
@@ -353,6 +359,164 @@ public sealed class DownloadItem : INotifyPropertyChanged
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
 
+internal static class ZipExtractHelper
+{
+    private const int EntryRetryCount = 3;
+    private static readonly TimeSpan EntryRetryDelay = TimeSpan.FromMilliseconds(300);
+
+    /// <summary>
+    /// 容错解压：逐条目处理，重复条目去重、文件/目录同名冲突时先移除冲突文件、
+    /// 写入前清除只读属性、单条目瞬时失败自动重试，个别条目失败仅记录并跳过，
+    /// 不影响其余文件。
+    /// </summary>
+    public static List<string> ExtractTolerant(string zipPath, string destinationDir,
+        IProgress<string>? statusProgress = null)
+    {
+        var skipped = new List<string>();
+        var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        Directory.CreateDirectory(destinationDir);
+
+        using var archive = ZipFile.OpenRead(zipPath);
+        foreach (var entry in archive.Entries)
+        {
+            var isDir = entry.FullName.EndsWith('/') || entry.Name.Length == 0;
+            var fullName = entry.FullName.Replace('/', Path.DirectorySeparatorChar);
+            var targetPath = Path.Combine(destinationDir, fullName);
+
+            if (!IsSafeTarget(destinationDir, targetPath))
+            {
+                skipped.Add(entry.FullName);
+                continue;
+            }
+
+            var dedupeKey = fullName.TrimEnd(Path.DirectorySeparatorChar);
+            if (!seenPaths.Add(dedupeKey))
+                continue;
+
+            try
+            {
+                if (isDir)
+                {
+                    TryCreateDirectory(targetPath);
+                    continue;
+                }
+
+                var parent = Path.GetDirectoryName(targetPath);
+                if (!string.IsNullOrEmpty(parent))
+                    TryCreateDirectory(parent);
+
+                if (!TryExtractEntry(entry, targetPath))
+                    skipped.Add(entry.FullName);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                skipped.Add(entry.FullName);
+            }
+        }
+
+        TryClearReadOnlyAttributes(destinationDir);
+        return skipped;
+    }
+
+    private static bool IsSafeTarget(string root, string target)
+    {
+        try
+        {
+            var rootFull = Path.GetFullPath(root);
+            var targetFull = Path.GetFullPath(target);
+            return targetFull.StartsWith(rootFull, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void TryCreateDirectory(string dir)
+    {
+        if (Directory.Exists(dir)) return;
+
+        // 目标路径被同名文件占用：先移除该文件再建目录
+        if (File.Exists(dir))
+        {
+            TryDeleteFile(dir);
+        }
+
+        Directory.CreateDirectory(dir);
+    }
+
+    private static bool TryExtractEntry(ZipArchiveEntry entry, string targetPath)
+    {
+        for (var attempt = 1; attempt <= EntryRetryCount; attempt++)
+        {
+            try
+            {
+                if (File.Exists(targetPath))
+                    TryClearReadOnlyAttribute(targetPath);
+
+                entry.ExtractToFile(targetPath, overwrite: true);
+                return true;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                if (attempt >= EntryRetryCount) return false;
+                Thread.Sleep(EntryRetryDelay);
+            }
+        }
+        return false;
+    }
+
+    public static void TryClearReadOnlyAttributes(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                TryClearReadOnlyAttribute(path);
+                return;
+            }
+            if (!Directory.Exists(path)) return;
+
+            TryClearReadOnlyAttribute(path);
+            foreach (var file in Directory.EnumerateFiles(path))
+                TryClearReadOnlyAttribute(file);
+            foreach (var dir in Directory.EnumerateDirectories(path))
+                TryClearReadOnlyAttributes(dir);
+        }
+        catch { }
+    }
+
+    public static void TryClearReadOnlyAttribute(string path)
+    {
+        try
+        {
+            var attrs = File.GetAttributes(path);
+            if ((attrs & FileAttributes.ReadOnly) != 0)
+                File.SetAttributes(path, attrs & ~FileAttributes.ReadOnly);
+        }
+        catch { }
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        for (var attempt = 1; attempt <= EntryRetryCount; attempt++)
+        {
+            try
+            {
+                TryClearReadOnlyAttribute(path);
+                File.Delete(path);
+                return;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                if (attempt >= EntryRetryCount) throw;
+                Thread.Sleep(EntryRetryDelay);
+            }
+        }
+    }
+}
+
 public sealed class ToolsBundleExtractProcessor : IDownloadPostProcessor
 {
     private const int MaxAttempts = 3;      // 首次 + 自动重试 2 次
@@ -419,7 +583,11 @@ public sealed class ToolsBundleExtractProcessor : IDownloadPostProcessor
         try
         {
             statusProgress?.Report("正在解压文件...");
-            System.IO.Compression.ZipFile.ExtractToDirectory(downloadedFilePath, extractDir, true);
+            var skipped = ZipExtractHelper.ExtractTolerant(downloadedFilePath, extractDir, statusProgress);
+            if (skipped.Count > 0)
+            {
+                statusProgress?.Report($"已跳过 {skipped.Count} 个无法解压的文件（可能被占用或只读）");
+            }
         }
         catch
         {
@@ -464,7 +632,10 @@ public sealed class ToolsBundleExtractProcessor : IDownloadPostProcessor
             TryRestoreDirectory(backupDir, destinationPath);
             try
             {
-                CopyDirectoryContents(extractDir, destinationPath);
+                var skippedCount = CopyDirectoryContents(extractDir, destinationPath, statusProgress);
+                if (skippedCount >= Directory.GetFiles(extractDir, "*", SearchOption.AllDirectories).Length)
+                    throw new IOException("目标目录不可写，文件拷贝全部失败");
+
                 TryDeleteDirectory(extractDir);
                 try { File.Delete(downloadedFilePath); } catch { }
                 ApplyCompletedState(destinationPath);
@@ -498,6 +669,8 @@ public sealed class ToolsBundleExtractProcessor : IDownloadPostProcessor
         {
             try
             {
+                // 只读文件会导致 Directory.Delete 抛异常，先清除属性
+                ZipExtractHelper.TryClearReadOnlyAttributes(dir);
                 Directory.Delete(dir, true);
                 return;
             }
@@ -512,7 +685,12 @@ public sealed class ToolsBundleExtractProcessor : IDownloadPostProcessor
     {
         if (Directory.Exists(destinationPath) && Directory.Exists(backupDir))
         {
-            try { Directory.Delete(destinationPath, true); } catch { }
+            try
+            {
+                ZipExtractHelper.TryClearReadOnlyAttributes(destinationPath);
+                Directory.Delete(destinationPath, true);
+            }
+            catch { }
         }
         if (Directory.Exists(backupDir) && !Directory.Exists(destinationPath))
         {
@@ -520,18 +698,50 @@ public sealed class ToolsBundleExtractProcessor : IDownloadPostProcessor
         }
     }
 
-    private static void CopyDirectoryContents(string sourceDir, string destinationPath)
+    private static int CopyDirectoryContents(string sourceDir, string destinationPath,
+        IProgress<string>? statusProgress = null)
     {
         Directory.CreateDirectory(destinationPath);
-        foreach (var file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
+        var files = Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories);
+        var skipped = 0;
+        foreach (var file in files)
         {
             var relative = Path.GetRelativePath(sourceDir, file);
             var target = Path.Combine(destinationPath, relative);
             var parent = Path.GetDirectoryName(target);
             if (!string.IsNullOrEmpty(parent))
                 Directory.CreateDirectory(parent);
-            File.Copy(file, target, true);
+
+            if (!TryCopyWithRetry(file, target)) skipped++;
         }
+
+        if (skipped > 0)
+        {
+            statusProgress?.Report($"已跳过 {skipped} 个无法写入的文件（可能被占用或只读）");
+        }
+
+        return skipped;
+    }
+
+    private static bool TryCopyWithRetry(string source, string target)
+    {
+        for (var attempt = 1; attempt <= 3; attempt++)
+        {
+            try
+            {
+                if (File.Exists(target))
+                    ZipExtractHelper.TryClearReadOnlyAttribute(target);
+
+                File.Copy(source, target, true);
+                return true;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                if (attempt >= 3) return false;
+                Thread.Sleep(300);
+            }
+        }
+        return false;
     }
 }
 

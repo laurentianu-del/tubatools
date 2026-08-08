@@ -1,40 +1,29 @@
-using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Media;
 using TubaWinUi3.Pages;
 using Windows.Graphics;
 using Windows.UI;
 
 namespace TubaWinUi3.Services;
 
-public sealed class PcSetupTool : IBuiltinTool
+public sealed class WindowsOptimizeTool : IBuiltinTool
 {
-    public string Id => "pc-setup";
-    public string Name => "新机开荒";
-    public string Description => "引导式新机配置：安装软件、优化系统、烤机测试一步到位。";
-    public string Glyph => "\uE977";
+    public string Id => "windows-optimize";
+    public string Name => "Windows常规优化";
+    public string Description => "系统性能、隐私、网络、游戏与清理优化，一键应用推荐方案。";
+    public string Glyph => "\uE90F";
     public string Category => "系统工具";
     public BuiltinToolKind Kind => BuiltinToolKind.Dialog;
 
-    public async Task ExecuteAsync(BuiltinToolContext context)
+    public Task ExecuteAsync(BuiltinToolContext context)
     {
-        var available = await WingetService.IsWingetAvailableAsync();
-        if (!available)
-        {
-            var errDialog = context.CreateDialog("winget 不可用");
-            errDialog.Content = "未检测到 winget，部分功能（软件安装）将不可用。你可以继续使用系统优化和烤机测试功能。";
-            errDialog.CloseButtonText = "继续";
-            await errDialog.ShowAsync();
-        }
-
         var window = new Window();
-        var page = new PcSetupPage(window);
+        var page = new WindowsOptimizePage();
         page.RequestedTheme = ThemeService.CurrentElementTheme;
 
         window.Content = page;
         BackdropService.ApplyBackdrop(window);
-        window.AppWindow.Title = "新机开荒";
+        window.AppWindow.Title = "Windows常规优化";
 
         try
         {
@@ -42,7 +31,7 @@ public sealed class PcSetupTool : IBuiltinTool
             if (displayArea is not null)
             {
                 var workArea = displayArea.WorkArea;
-                var w = (int)(workArea.Width * 0.82);
+                var w = (int)(workArea.Width * 0.78);
                 var h = (int)(workArea.Height * 0.85);
                 window.AppWindow.Resize(new SizeInt32(w, h));
                 window.AppWindow.Move(new PointInt32(
@@ -52,7 +41,7 @@ public sealed class PcSetupTool : IBuiltinTool
         }
         catch
         {
-            window.AppWindow.Resize(new SizeInt32(1100, 750));
+            window.AppWindow.Resize(new SizeInt32(1050, 750));
             try
             {
                 var mainPos = App.MainWindow?.AppWindow.Position;
@@ -67,6 +56,7 @@ public sealed class PcSetupTool : IBuiltinTool
 
         ApplyTitleBarTheme(window);
         window.Activate();
+        return Task.CompletedTask;
     }
 
     private static void ApplyTitleBarTheme(Window window)
@@ -99,5 +89,6 @@ public sealed class PcSetupTool : IBuiltinTool
         }
 
         tb.ButtonInactiveForegroundColor = Color.FromArgb(255, 160, 160, 160);
+        tb.ButtonInactiveBackgroundColor = Color.FromArgb(0, 255, 255, 255);
     }
 }

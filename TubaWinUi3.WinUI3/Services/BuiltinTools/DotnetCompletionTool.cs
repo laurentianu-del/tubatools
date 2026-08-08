@@ -243,21 +243,13 @@ public sealed class DotnetCompletionWindow : Window
         };
         refreshBtn.Click += async (_, _) => await LoadDataAsync();
 
-        var installMissingBtn = new Button
-        {
-            Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { new FontIcon { Glyph = "\uE896", FontSize = 12 }, new TextBlock { Text = "一键补全" } } }
-        };
-        installMissingBtn.Click += async (_, _) => await InstallAllMissingAsync();
-
         var actionBar = new Grid { ColumnSpacing = 10 };
         actionBar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         actionBar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         actionBar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        actionBar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         actionBar.Children.Add(_filterCombo); Grid.SetColumn(_filterCombo, 0);
         actionBar.Children.Add(_searchBox); Grid.SetColumn(_searchBox, 1);
         actionBar.Children.Add(refreshBtn); Grid.SetColumn(refreshBtn, 2);
-        actionBar.Children.Add(installMissingBtn); Grid.SetColumn(installMissingBtn, 3);
 
         _itemsList = new StackPanel { Spacing = 4 };
 
@@ -602,28 +594,6 @@ public sealed class DotnetCompletionWindow : Window
 
         if (menu.Items.Count > 0)
             menu.ShowAt(sender as FrameworkElement);
-    }
-
-    private async Task InstallAllMissingAsync()
-    {
-        var missing = DotnetCompletionService.Installables.Where(i => i.Status == DotnetInstallStatus.NotInstalled).ToList();
-        if (missing.Count == 0) return;
-
-        var dialog = new ContentDialog
-        {
-            Title = "一键补全",
-            Content = $"即将下载并安装 {missing.Count} 个缺失的 .NET 组件，是否继续？\n（下载任务已加入下载队列，安装需要 UAC 确认）",
-            PrimaryButtonText = "开始安装",
-            CloseButtonText = "取消",
-            XamlRoot = Content.XamlRoot,
-            RequestedTheme = ThemeService.CurrentElementTheme
-        };
-
-        var result = await dialog.ShowAsync();
-        if (result != ContentDialogResult.Primary) return;
-
-        foreach (var item in missing)
-            DotnetCompletionService.EnqueueDownloadAndInstall(item);
     }
 
     private static Border MakeStatCard(string label, TextBlock value, string glyph)

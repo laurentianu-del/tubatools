@@ -72,6 +72,8 @@ public static class PerformanceBenchmarkService
 				ct.ThrowIfCancellationRequested();
 				result.Gpu = await Task.Run(() => RunGpuBenchmarkFurMark(60, progress, cts.Token), cts.Token);
 				ct.ThrowIfCancellationRequested();
+				if (!string.IsNullOrEmpty(result.Gpu.GpuName))
+					result.GpuName = result.Gpu.GpuName;
 				result.Browser = new BrowserBenchmarkResult();
 				result.GamingScore = ComputeGamingScore(result);
 				result.GamingGrade = ComputeGrade(result.GamingScore);
@@ -252,13 +254,23 @@ public static class PerformanceBenchmarkService
 		cpu.Grade = ComputeGrade(cpu.TotalScore);
 	}
 
-	public static GpuBenchmarkResult RunGpuBenchmarkFurMark(int durationSec, IProgress<BenchmarkProgress>? progress, CancellationToken ct, int gpuIndex = 0)
+	public static GpuBenchmarkResult RunGpuBenchmarkFurMark(int durationSec, IProgress<BenchmarkProgress>? progress, CancellationToken ct, int gpuIndex = 0, string? gpuName = null)
 	{
 		var sw = Stopwatch.StartNew();
 		var gpu = new GpuBenchmarkResult { GpuIndex = gpuIndex };
-		var gpus = LiteMonitorService.GetAvailableGpus();
-		if (gpus.Count > 0 && gpuIndex >= 0 && gpuIndex < gpus.Count)
-			gpu.GpuName = gpus[gpuIndex].Name;
+		if (string.IsNullOrWhiteSpace(gpuName))
+		{
+			var gpus = GetFurMarkGpus();
+			if (gpus.Count > 0 && gpuIndex >= 0 && gpuIndex < gpus.Count)
+				gpuName = gpus[gpuIndex].Name;
+		}
+		if (string.IsNullOrWhiteSpace(gpuName))
+		{
+			var gpus = LiteMonitorService.GetAvailableGpus();
+			if (gpus.Count > 0 && gpuIndex >= 0 && gpuIndex < gpus.Count)
+				gpuName = gpus[gpuIndex].Name;
+		}
+		gpu.GpuName = gpuName ?? "";
 		string furMarkExe = FindFurMarkExe()!;
 		if (furMarkExe == null)
 		{
@@ -290,7 +302,7 @@ public static class PerformanceBenchmarkService
 			try { File.Delete(logFile); } catch { }
 		}
 		int durationMs = durationSec * 1000;
-		string arguments = "--demo furmark-vk --width 1920 --height 1080 --fullscreen --benchmark --duration-ms " + durationMs + " --gpu-index " + gpuIndex + " --print-render-speed";
+		string arguments = "--demo furmark-vk --width 1920 --height 1080 --benchmark --duration-ms " + durationMs + " --gpu-index " + gpuIndex + " --print-render-speed";
 		using var process = Process.Start(new ProcessStartInfo(furMarkExe, arguments)
 		{
 			WorkingDirectory = furMarkDir,
@@ -440,6 +452,108 @@ public static class PerformanceBenchmarkService
 		}
 		catch { }
 		return null;
+	}
+
+	public static List<FurMarkGpuInfo> GetFurMarkGpus()
+	{
+		var result = new List<FurMarkGpuInfo>();
+		try
+		{
+			string? exe = FindFurMarkExe();
+			if (exe == null) return result;
+			string dir = Path.GetDirectoryName(exe)!;
+			string infoOutput = RunFurMarkCli(exe, dir, "--gpuinfo");
+			if (string.IsNullOrWhiteSpace(infoOutput)) return result;
+
+			var indexes = new List<int>();
+			var blocks = new Dictionary<int, (string deviceId, string memory, string driver)>();
+			int current = -1;
+			foreach (var rawLine in infoOutput.Split('\n'))
+			{
+				string line = rawLine.Trim();
+				var gpuMatch = Regex.Match(line, @"^GPU\s+(\d+)\s*:$");
+				if (gpuMatch.Success)
+				{
+					current = int.Parse(gpuMatch.Groups[1].Value);
+					indexes.Add(current);
+					blocks[current] = ("", "", "");
+					continue;
+				}
+				if (current < 0) continue;
+				var kv = Regex.Match(line, @"^-?\s*([A-Za-z ]+?)\s*:\s*(.+)$");
+				if (!kv.Success) continue;
+				string key = kv.Groups[1].Value.Trim();
+				string value = kv.Groups[2].Value.Trim();
+				var block = blocks[current];
+				if (key == "deviceID") block.deviceId = value;
+				else if (key == "memory") block.memory = value;
+				else if (key == "driver") block.driver = value;
+				blocks[current] = block;
+			}
+
+			var vkNames = new Dictionary<int, string>();
+			string vkOutput = RunFurMarkCli(exe, dir, "--vkinfo");
+			if (!string.IsNullOrWhiteSpace(vkOutput))
+			{
+				int device = -1;
+				foreach (var rawLine in vkOutput.Split('\n'))
+				{
+					string line = rawLine.Trim();
+					var devMatch = Regex.Match(line, @"^-?\s*\[device\s+(\d+)\]\s*$");
+					if (devMatch.Success)
+					{
+						device = int.Parse(devMatch.Groups[1].Value);
+						continue;
+					}
+					if (device < 0) continue;
+					var nameMatch = Regex.Match(line, @"^-?\s*name\s*:\s*(.+)$");
+					if (nameMatch.Success)
+					{
+						vkNames[device] = nameMatch.Groups[1].Value.Trim();
+						device = -1;
+					}
+				}
+			}
+
+			foreach (var i in indexes)
+			{
+				blocks.TryGetValue(i, out var block);
+				string name = vkNames.TryGetValue(i, out var n) && !string.IsNullOrWhiteSpace(n) ? n : "GPU " + i;
+				result.Add(new FurMarkGpuInfo
+				{
+					Index = i,
+					Name = name,
+					DeviceId = block.deviceId,
+					Memory = block.memory,
+					Driver = block.driver
+				});
+			}
+		}
+		catch { }
+		return result;
+	}
+
+	private static string RunFurMarkCli(string exe, string dir, string arguments)
+	{
+		try
+		{
+			using var process = Process.Start(new ProcessStartInfo(exe, arguments)
+			{
+				WorkingDirectory = dir,
+				UseShellExecute = false,
+				CreateNoWindow = true,
+				RedirectStandardOutput = true,
+				RedirectStandardError = true
+			});
+			if (process == null) return "";
+			var readTask = process.StandardOutput.ReadToEndAsync();
+			if (!process.WaitForExit(20000))
+			{
+				try { process.Kill(entireProcessTree: true); } catch { }
+			}
+			return readTask.Wait(20000) ? readTask.Result : "";
+		}
+		catch { return ""; }
 	}
 
 	public static MemoryBenchmarkResult RunMemoryBenchmark(int durationSec, IProgress<BenchmarkProgress>? progress, CancellationToken ct)

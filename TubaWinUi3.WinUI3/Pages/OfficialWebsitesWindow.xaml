@@ -80,7 +80,6 @@
                     Grid.Row="1"
                     IsItemClickEnabled="True"
                     SelectionMode="None"
-                    ItemClick="SiteList_ItemClick"
                     Padding="0" />
 
                 <Grid x:Name="EmptyState" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">

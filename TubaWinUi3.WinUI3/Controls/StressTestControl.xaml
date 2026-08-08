@@ -100,6 +100,124 @@
                     </StackPanel>
                 </Border>
 
+                <Border BorderThickness="1" CornerRadius="6" Padding="16"
+                        BorderBrush="{ThemeResource SubtleFillColorSecondaryBrush}"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                    <StackPanel Spacing="10">
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock FontSize="14" FontWeight="SemiBold" Text="FurMark GPU 参数设置" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Click="ResetFurMarkSettings_Click" Padding="10,4">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon FontSize="12" Glyph="&#xE72C;" />
+                                    <TextBlock FontSize="12" Text="恢复默认" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                        <Grid ColumnSpacing="12" RowSpacing="10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Spacing="4">
+                                <TextBlock FontSize="12" Opacity="0.8" Text="渲染 API" />
+                                <ComboBox x:Name="ApiBox" HorizontalAlignment="Stretch" SelectedIndex="0" SelectionChanged="FurMarkSetting_Changed">
+                                    <ComboBoxItem Content="OpenGL 3.2 (furmark-gl)" Tag="furmark-gl" />
+                                    <ComboBoxItem Content="Vulkan (furmark-vk)" Tag="furmark-vk" />
+                                    <ComboBoxItem Content="Knot 打结 OpenGL" Tag="furmark-knot-gl" />
+                                    <ComboBoxItem Content="Knot 打结 Vulkan" Tag="furmark-knot-vk" />
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="4">
+                                <TextBlock FontSize="12" Opacity="0.8" Text="分辨率" />
+                                <ComboBox x:Name="ResolutionBox" HorizontalAlignment="Stretch" SelectedIndex="1" SelectionChanged="FurMarkSetting_Changed">
+                                    <ComboBoxItem Content="1280 × 720" Tag="1280,720" />
+                                    <ComboBoxItem Content="1920 × 1080" Tag="1920,1080" />
+                                    <ComboBoxItem Content="2560 × 1440" Tag="2560,1440" />
+                                    <ComboBoxItem Content="3440 × 1440" Tag="3440,1440" />
+                                    <ComboBoxItem Content="3840 × 2160" Tag="3840,2160" />
+                                    <ComboBoxItem Content="2560 × 1080" Tag="2560,1080" />
+                                    <ComboBoxItem Content="3840 × 1080" Tag="3840,1080" />
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Spacing="4">
+                                <TextBlock FontSize="12" Opacity="0.8" Text="MSAA 抗锯齿" />
+                                <ComboBox x:Name="MsaaBox" HorizontalAlignment="Stretch" SelectedIndex="2" SelectionChanged="FurMarkSetting_Changed">
+                                    <ComboBoxItem Content="关闭 (1x)" Tag="1" />
+                                    <ComboBoxItem Content="2x" Tag="2" />
+                                    <ComboBoxItem Content="4x" Tag="4" />
+                                    <ComboBoxItem Content="8x" Tag="8" />
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Grid.Column="3" Spacing="4">
+                                <TextBlock FontSize="12" Opacity="0.8" Text="显存数据量 (VRAM)" />
+                                <ComboBox x:Name="VramBox" HorizontalAlignment="Stretch" SelectedIndex="0" SelectionChanged="FurMarkSetting_Changed">
+                                    <ComboBoxItem Content="默认 (0 GB)" Tag="0" />
+                                    <ComboBoxItem Content="2 GB" Tag="2" />
+                                    <ComboBoxItem Content="4 GB" Tag="4" />
+                                    <ComboBoxItem Content="6 GB" Tag="6" />
+                                    <ComboBoxItem Content="8 GB" Tag="8" />
+                                    <ComboBoxItem Content="10 GB" Tag="10" />
+                                    <ComboBoxItem Content="12 GB" Tag="12" />
+                                    <ComboBoxItem Content="16 GB" Tag="16" />
+                                    <ComboBoxItem Content="20 GB" Tag="20" />
+                                    <ComboBoxItem Content="24 GB" Tag="24" />
+                                </ComboBox>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="1" Spacing="4">
+                                <TextBlock FontSize="12" Opacity="0.8" Text="GPU 索引 (0 起算)" />
+                                <NumberBox x:Name="GpuIndexBox" Value="0" Minimum="0" Maximum="15" SpinButtonPlacementMode="Compact" HorizontalAlignment="Stretch" ValueChanged="FurMarkNumber_Changed" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="1" Spacing="4">
+                                <TextBlock FontSize="12" Opacity="0.8" Text="VSync 垂直同步" />
+                                <ComboBox x:Name="VsyncBox" HorizontalAlignment="Stretch" SelectedIndex="0" SelectionChanged="FurMarkSetting_Changed">
+                                    <ComboBoxItem Content="关闭" Tag="0" />
+                                    <ComboBoxItem Content="开启" Tag="1" />
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="2" Spacing="4">
+                                <TextBlock FontSize="12" Opacity="0.8" Text="动态背景图像" />
+                                <ComboBox x:Name="BkgImgBox" HorizontalAlignment="Stretch" SelectedIndex="0" SelectionChanged="FurMarkSetting_Changed">
+                                    <ComboBoxItem Content="默认 (0)" Tag="0" />
+                                    <ComboBoxItem Content="背景 1" Tag="1" />
+                                    <ComboBoxItem Content="背景 2" Tag="2" />
+                                    <ComboBoxItem Content="背景 3" Tag="3" />
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="3" Spacing="4">
+                                <TextBlock FontSize="12" Opacity="0.8" Text="毛皮颜色图像" />
+                                <ComboBox x:Name="FurImgBox" HorizontalAlignment="Stretch" SelectedIndex="0" SelectionChanged="FurMarkSetting_Changed">
+                                    <ComboBoxItem Content="默认 (0)" Tag="0" />
+                                    <ComboBoxItem Content="图像 1" Tag="1" />
+                                </ComboBox>
+                            </StackPanel>
+
+                            <ToggleSwitch Grid.Row="2" x:Name="FullscreenToggle" Header="显示模式" OnContent="全屏" OffContent="窗口" IsOn="True" Toggled="FurMarkToggle_Changed" />
+                            <ToggleSwitch Grid.Row="2" Grid.Column="1" x:Name="BfcToggle" Header="背面剔除" OnContent="开" OffContent="关" IsOn="True" Toggled="FurMarkToggle_Changed" />
+                            <ToggleSwitch Grid.Row="2" Grid.Column="2" x:Name="Dxt5Toggle" Header="DXT5 压缩纹理" OnContent="开" OffContent="关" IsOn="False" Toggled="FurMarkToggle_Changed" />
+                            <ToggleSwitch Grid.Row="2" Grid.Column="3" x:Name="OsiToggle" Header="OSD 屏幕信息" OnContent="开" OffContent="关" IsOn="True" Toggled="FurMarkToggle_Changed" />
+
+                            <ToggleSwitch Grid.Row="3" x:Name="GpumonToggle" Header="GPU 监控" OnContent="开" OffContent="关" IsOn="True" Toggled="FurMarkToggle_Changed" />
+                            <ToggleSwitch Grid.Row="3" Grid.Column="1" x:Name="GlCoreToggle" Header="OpenGL 核心模式" OnContent="开" OffContent="关" IsOn="False" Toggled="FurMarkToggle_Changed" />
+                            <TextBlock Grid.Row="3" Grid.Column="2" Grid.ColumnSpan="2" FontSize="11" Opacity="0.6" TextWrapping="Wrap" VerticalAlignment="Center"
+                                       Text="显存数据量会大幅提高 VRAM 负载（显存不足时自动按 0 处理）；DXT5 压缩纹理与 OpenGL 核心模式仅对 OpenGL 渲染有效。" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
                 <Grid ColumnSpacing="10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />

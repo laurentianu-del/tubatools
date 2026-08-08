@@ -17,7 +17,7 @@ public static class ConfigManager
     private static ConfigLocation? _cachedLocation;
 
     private static readonly string AppDataDir = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        RuntimeHelper.GetLocalAppDataRoot(),
         "TubaWinUi3");
 
     private static readonly string AppRootDir = Path.Combine(

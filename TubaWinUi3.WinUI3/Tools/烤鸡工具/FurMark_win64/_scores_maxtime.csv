@@ -1,2 +1,4 @@
 date,demo,platform,vendor,renderer,api_version,width,height,fullscreen,antialiasing,max_time,frames,max_gpu_temp,avg_fps,min_fps,max_fps
 2026.07.01@22:20:34,furmark-vk,Windows 64-bit,Intel,Intel(R) Arc(TM) B390 GPU,Vulkan 1.4.348,1280,1440,NO,Off,90,5200,-1,57,23,61
+2026.08.08@02:03:57,furmark-gl,Windows 64-bit,Intel,Intel(R) Arc(TM) B390 GPU,OpenGL 3.2.0 - Build 32.0.101.8509,800,600,NO,8X MSAA,3,82,-1,26,26,28
+2026.08.08@02:04:22,furmark-vk,Windows 64-bit,Intel,Intel(R) Arc(TM) B390 GPU,Vulkan 1.4.335,800,600,NO,4X MSAA,3,76,-1,25,25,27

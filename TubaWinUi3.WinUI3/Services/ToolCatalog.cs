@@ -224,7 +224,7 @@ public static class ToolCatalog
     private static IReadOnlyList<ToolItem>? _cachedAllTools;
     private static readonly object _cacheLock = new();
     private static readonly Dictionary<string, IReadOnlyList<ToolItem>> _toolsCache = new(StringComparer.OrdinalIgnoreCase);
-    private static int _cacheVersion;
+    private static int _cacheVersion = 3; // v3: 工具根目录统一走 RuntimeHelper.GetLocalAppDataRoot()，作废旧版绝对路径缓存
 
     public static int CacheVersion => _cacheVersion;
 
@@ -838,7 +838,7 @@ public static class ToolCatalog
          if (RuntimeHelper.IsMsixPackaged)
          {
              return Path.Combine(
-                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                 RuntimeHelper.GetLocalAppDataRoot(),
                  "TubaWinUi3", "Tools");
          }
 

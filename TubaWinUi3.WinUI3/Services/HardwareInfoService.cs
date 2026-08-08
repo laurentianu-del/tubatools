@@ -2000,17 +2000,23 @@ public static class HardwareInfoService
             var mt = mediaType.Trim().ToUpperInvariant();
             if (mt.Contains("SSD") || mt.Contains("SOLID"))
                 return "SSD";
-            if (mt.Contains("HDD"))
+            if (mt.Contains("HDD") || mt.Contains("HARD DISK DRIVE"))
                 return "HDD";
-            if (mt.Contains("FIXED") || mt.Contains("HARD"))
-                return null;
         }
 
         if (rotationRate == 0
             && !string.IsNullOrWhiteSpace(interfaceType)
             && !interfaceType.Contains("USB", StringComparison.OrdinalIgnoreCase)
-            && !interfaceType.Contains("1394", StringComparison.OrdinalIgnoreCase))
+            && !interfaceType.Contains("1394", StringComparison.OrdinalIgnoreCase)
+            && !interfaceType.Contains("IDE", StringComparison.OrdinalIgnoreCase))
             return "SSD";
+
+        if (!string.IsNullOrWhiteSpace(mediaType))
+        {
+            var mt = mediaType.Trim().ToUpperInvariant();
+            if (mt.Contains("FIXED") || mt.Contains("HARD"))
+                return null;
+        }
 
         return null;
     }

@@ -1,6 +1,8 @@
+using System.Collections.Concurrent;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using TubaWinUi3.Services;
@@ -171,7 +173,7 @@ public sealed partial class OfficialWebsitesWindow : Window
             Height = 40,
             Background = (Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"],
             CornerRadius = new CornerRadius(8),
-            Child = CreateFavicon(site.FaviconUrl)
+            Child = CreateFaviconLayer(site.FaviconUrl)
         };
 
         var name = new TextBlock
@@ -210,17 +212,34 @@ public sealed partial class OfficialWebsitesWindow : Window
         grid.Children.Add(copyBtn);
         Grid.SetColumn(copyBtn, 2);
 
-        return new ListViewItem
+        var item = new ListViewItem
         {
             Content = grid,
             Tag = site,
             Padding = new Thickness(0, 0, 0, 0),
             HorizontalContentAlignment = HorizontalAlignment.Stretch
         };
+        item.Tapped += (_, e) =>
+        {
+            if (e.OriginalSource is not ButtonBase)
+                OpenInBrowser(site.Url);
+        };
+        return item;
     }
 
-    private static Image CreateFavicon(string faviconUrl)
+    private static readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromSeconds(8) };
+    private static readonly ConcurrentDictionary<string, Task<string?>> _faviconCache = new();
+
+    private static Grid CreateFaviconLayer(string faviconUrl)
     {
+        var backdrop = new FontIcon
+        {
+            Glyph = "\uE774",
+            FontSize = 18,
+            Opacity = 0.55,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        };
         var image = new Image
         {
             Width = 22,
@@ -230,35 +249,106 @@ public sealed partial class OfficialWebsitesWindow : Window
             VerticalAlignment = VerticalAlignment.Center
         };
 
-        if (string.IsNullOrEmpty(faviconUrl))
+        var layer = new Grid();
+        layer.Children.Add(backdrop);
+        layer.Children.Add(image);
+
+        if (!string.IsNullOrEmpty(faviconUrl))
+            _ = LoadFaviconAsync(layer, backdrop, image, faviconUrl);
+
+        return layer;
+    }
+
+    private static async Task LoadFaviconAsync(Grid layer, FontIcon backdrop, Image image, string faviconUrl)
+    {
+        try
         {
-            image.Visibility = Visibility.Collapsed;
-            return image;
+            var host = new Uri(faviconUrl).Host;
+            var path = await GetCachedFaviconPathAsync(host);
+            if (path is null)
+                return;
+
+            var bitmap = new BitmapImage(new Uri(path));
+            bitmap.ImageFailed += (s, e) =>
+            {
+                try { File.Delete(path); } catch { }
+            };
+            image.Source = bitmap;
+            backdrop.Visibility = Visibility.Collapsed;
         }
+        catch { }
+    }
+
+    private static Task<string?> GetCachedFaviconPathAsync(string host)
+    {
+        var task = _faviconCache.GetOrAdd(host, static h => DownloadFaviconAsync(h));
+        return GetCachedFaviconPathCoreAsync(host, task);
+    }
+
+    private static async Task<string?> GetCachedFaviconPathCoreAsync(string host, Task<string?> task)
+    {
+        var path = await task;
+        if (path is null)
+            _faviconCache.TryRemove(new KeyValuePair<string, Task<string?>>(host, task));
+        return path;
+    }
+
+    private static async Task<string?> DownloadFaviconAsync(string host)
+    {
+        var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "TubaWinUi3", "FaviconCache");
+        var path = Path.Combine(dir, host + ".ico");
 
         try
         {
-            var bitmap = new BitmapImage(new Uri(faviconUrl));
-            bitmap.ImageFailed += (s, e) => image.Visibility = Visibility.Collapsed;
-            image.Source = bitmap;
+            Directory.CreateDirectory(dir);
+            if (File.Exists(path) && new FileInfo(path).Length > 0)
+                return path;
         }
         catch
         {
-            image.Visibility = Visibility.Collapsed;
+            return null;
         }
 
-        return image;
+        byte[]? bytes = null;
+        foreach (var url in new[]
+                 {
+                     $"https://{host}/favicon.ico",
+                     $"https://www.google.com/s2/favicons?domain={host}&sz=64",
+                     $"https://favicon.im/{host}"
+                 })
+        {
+            try
+            {
+                using var response = await _httpClient
+                    .GetAsync(url, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
+                if (!response.IsSuccessStatusCode) continue;
+                var mediaType = response.Content.Headers.ContentType?.MediaType ?? "";
+                if (!mediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)) continue;
+                bytes = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
+                if (bytes.Length > 0) break;
+            }
+            catch { }
+        }
+
+        if (bytes is null) return null;
+
+        try
+        {
+            var tmp = path + ".tmp";
+            await File.WriteAllBytesAsync(tmp, bytes).ConfigureAwait(false);
+            File.Move(tmp, path, overwrite: true);
+            return path;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
     {
         RefreshSiteList();
-    }
-
-    private void SiteList_ItemClick(object sender, ItemClickEventArgs e)
-    {
-        if (e.ClickedItem is ListViewItem item && item.Tag is OfficialWebsite site)
-            OpenInBrowser(site.Url);
     }
 
     private void CopyButton_Click(object sender, RoutedEventArgs e)

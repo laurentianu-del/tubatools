@@ -132,6 +132,7 @@ public static class AiService
                     var root = doc.RootElement;
 
                     if (root.TryGetProperty("choices", out var choices) &&
+                        choices.ValueKind == JsonValueKind.Array &&
                         choices.GetArrayLength() > 0)
                     {
                         var choice = choices[0];
@@ -145,6 +146,7 @@ public static class AiService
 
                             if (onToolCallDelta is not null &&
                                 delta.TryGetProperty("tool_calls", out var tcDelta) &&
+                                tcDelta.ValueKind == JsonValueKind.Array &&
                                 tcDelta.GetArrayLength() > 0)
                             {
                                 foreach (var tc in tcDelta.EnumerateArray())
@@ -230,11 +232,24 @@ public static class AiService
             using var doc = JsonDocument.Parse(responseBody);
             var root = doc.RootElement;
 
-            var messageObj = root.GetProperty("choices")[0].GetProperty("message");
+            if (!TryGetFirstChoice(root, out var choice))
+            {
+                var errMsg = TryExtractError(responseBody) ?? "响应缺少 choices 字段";
+                return new AiChatResponse { Success = false, Error = errMsg };
+            }
+
+            if (!choice.TryGetProperty("message", out var messageObj))
+            {
+                var errMsg = TryExtractError(responseBody) ?? "响应缺少 message 字段";
+                return new AiChatResponse { Success = false, Error = errMsg };
+            }
+
             var content = messageObj.TryGetProperty("content", out var cp) ? (cp.GetString() ?? "") : "";
 
             List<AiToolCallItem>? toolCalls = null;
-            if (messageObj.TryGetProperty("tool_calls", out var tcProp) && tcProp.GetArrayLength() > 0)
+            if (messageObj.TryGetProperty("tool_calls", out var tcProp) &&
+                tcProp.ValueKind == JsonValueKind.Array &&
+                tcProp.GetArrayLength() > 0)
             {
                 toolCalls = new List<AiToolCallItem>();
                 foreach (var tc in tcProp.EnumerateArray())
@@ -248,7 +263,7 @@ public static class AiService
             }
 
             string? finishReason = null;
-            if (root.GetProperty("choices")[0].TryGetProperty("finish_reason", out var frProp))
+            if (choice.TryGetProperty("finish_reason", out var frProp))
                 finishReason = frProp.GetString();
 
             int? promptTokens = null, completionTokens = null;
@@ -372,6 +387,18 @@ public static class AiService
             ct,
             temperature: 0,
             maxTokens: 10);
+    }
+
+    private static bool TryGetFirstChoice(JsonElement root, out JsonElement choice)
+    {
+        choice = default;
+        if (!root.TryGetProperty("choices", out var choices) ||
+            choices.ValueKind != JsonValueKind.Array ||
+            choices.GetArrayLength() == 0)
+            return false;
+
+        choice = choices[0];
+        return true;
     }
 
     private static string? TryExtractError(string responseBody)

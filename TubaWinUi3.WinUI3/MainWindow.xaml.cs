@@ -29,6 +29,8 @@ public sealed partial class MainWindow : Window
     private Flyout? _downloadFlyout;
     private int _lastBadgeCount;
     private bool _isTabMode;
+    private bool _refreshCategoriesInFlight;
+    private bool _refreshCategoriesPending;
 
     public bool IsTabMode => _isTabMode;
 
@@ -174,8 +176,8 @@ public sealed partial class MainWindow : Window
             try
             {
                 _ = ToolCatalog.ToolsRoot;
-                _ = ToolCatalog.GetCategories();
-                
+                var categories = ToolCatalog.GetCategories().ToList();
+
                 if (!ToolCatalog.IsCacheReady)
                 {
                     await ToolCatalog.GetAllToolsAsync();
@@ -183,7 +185,7 @@ public sealed partial class MainWindow : Window
 
                 DispatcherQueue.TryEnqueue(() =>
                 {
-                    PopulateCategories();
+                    PopulateCategories(categories);
                     ApplyNavLayoutMode();
                     NavLayoutModeService.NavLayoutModeChanged += OnNavLayoutModeChanged;
                 });
@@ -660,15 +662,16 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void PopulateCategories()
+    private int _dynamicMenuItemCount;
+
+    private void PopulateCategories(IReadOnlyList<string> categories)
     {
-        var baseCount = NavView.MenuItems.Count;
-        while (NavView.MenuItems.Count > baseCount)
+        while (_dynamicMenuItemCount > 0)
         {
-            NavView.MenuItems.RemoveAt(baseCount);
+            NavView.MenuItems.RemoveAt(NavView.MenuItems.Count - 1);
+            _dynamicMenuItemCount--;
         }
 
-        var categories = ToolCatalog.GetCategories();
         var otherCategory = categories.FirstOrDefault(c => c.Contains("其他"));
         var restCategories = categories.Where(c => !c.Contains("其他"));
 
@@ -680,6 +683,7 @@ public sealed partial class MainWindow : Window
                 Tag = category,
                 Icon = new FontIcon { Glyph = GetCategoryGlyphStatic(category) }
             });
+            _dynamicMenuItemCount++;
         }
 
         if (otherCategory != null)
@@ -690,6 +694,7 @@ public sealed partial class MainWindow : Window
                 Tag = otherCategory,
                 Icon = new FontIcon { Glyph = GetCategoryGlyphStatic(otherCategory) }
             });
+            _dynamicMenuItemCount++;
         }
     }
 
@@ -729,9 +734,49 @@ public sealed partial class MainWindow : Window
 
     public void RefreshToolCategories()
     {
-        PopulateCategories();
-        if (_isTabMode)
-            PopulateTabItems();
+        if (_refreshCategoriesInFlight)
+        {
+            _refreshCategoriesPending = true;
+            return;
+        }
+        _refreshCategoriesInFlight = true;
+        _ = RefreshToolCategoriesCoreAsync();
+    }
+
+    private async Task RefreshToolCategoriesCoreAsync()
+    {
+        try
+        {
+            var categories = await Task.Run(() => ToolCatalog.GetCategories().ToList());
+
+            if (!DispatcherQueue.TryEnqueue(() =>
+            {
+                try
+                {
+                    PopulateCategories(categories);
+                    if (_isTabMode)
+                        PopulateTabItems(categories);
+                }
+                finally
+                {
+                    _refreshCategoriesInFlight = false;
+                    if (_refreshCategoriesPending)
+                    {
+                        _refreshCategoriesPending = false;
+                        RefreshToolCategories();
+                    }
+                }
+            }))
+            {
+                _refreshCategoriesInFlight = false;
+                _refreshCategoriesPending = false;
+            }
+        }
+        catch
+        {
+            _refreshCategoriesInFlight = false;
+            _refreshCategoriesPending = false;
+        }
     }
 
     private void OnNavLayoutModeChanged(string mode)
@@ -752,7 +797,7 @@ public sealed partial class MainWindow : Window
             NavView.Visibility = Visibility.Collapsed;
             TabModeGrid.Visibility = Visibility.Visible;
             AppTitleBar.IsPaneToggleButtonVisible = false;
-            PopulateTabItems();
+            _ = PopulateTabItemsCoreAsync();
         }
         else
         {
@@ -762,7 +807,20 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void PopulateTabItems()
+    private async Task PopulateTabItemsCoreAsync()
+    {
+        try
+        {
+            var categories = await Task.Run(() => ToolCatalog.GetCategories().ToList());
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                try { PopulateTabItems(categories); } catch { }
+            });
+        }
+        catch { }
+    }
+
+    private void PopulateTabItems(IReadOnlyList<string> categories)
     {
         MainTabView.TabItems.Clear();
 
@@ -813,7 +871,6 @@ public sealed partial class MainWindow : Window
             });
         }
 
-        var categories = ToolCatalog.GetCategories();
         var otherCategory = categories.FirstOrDefault(c => c.Contains("其他"));
         var restCategories = categories.Where(c => !c.Contains("其他"));
 

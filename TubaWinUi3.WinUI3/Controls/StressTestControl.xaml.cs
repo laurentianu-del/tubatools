@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
+using System.Text.Json;
 using LiveChartsCore;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
@@ -18,6 +19,8 @@ public sealed partial class StressTestControl : UserControl
     private const int ChartMaxPoints = 120;
     private const int DownsampleThreshold = 800;
     private const int MaxLogLines = 200;
+
+    private static string FurMarkSettingsPath => Path.Combine(ConfigManager.GetDataDir(), "furmark_settings.json");
 
     private static readonly SKColor TempC = new(248, 113, 113);
     private static readonly SKColor UsageC = new(96, 165, 250);
@@ -57,6 +60,7 @@ public sealed partial class StressTestControl : UserControl
 
     private bool _isRunning;
     private bool _wmiConnected;
+    private bool _settingsReady;
 
     private double _cpuTempPeak, _cpuUsagePeak, _cpuClockPeak, _cpuPowerPeak;
     private double _gpuTempPeak, _gpuClockPeak, _gpuPowerPeak;
@@ -79,9 +83,168 @@ public sealed partial class StressTestControl : UserControl
         InitializeComponent();
         InitCharts();
         CheckAida64Wmi();
+        _settingsReady = true;
+        LoadFurMarkSettings();
+        UpdateDxt5Availability();
     }
 
     public void Cleanup() => StopStress();
+
+    private sealed class FurMarkSettings
+    {
+        public int ApiIndex { get; set; }
+        public int ResolutionIndex { get; set; } = 1;
+        public int MsaaIndex { get; set; } = 2;
+        public int VramIndex { get; set; }
+        public int GpuIndex { get; set; }
+        public int VsyncIndex { get; set; }
+        public int BkgImgIndex { get; set; }
+        public int FurImgIndex { get; set; }
+        public bool Fullscreen { get; set; } = true;
+        public bool BackfaceCulling { get; set; } = true;
+        public bool Dxt5 { get; set; }
+        public bool Osi { get; set; } = true;
+        public bool GpuMonitor { get; set; } = true;
+        public bool GlCoreProfile { get; set; }
+    }
+
+    private void LoadFurMarkSettings()
+    {
+        try
+        {
+            if (File.Exists(FurMarkSettingsPath))
+            {
+                var s = JsonSerializer.Deserialize<FurMarkSettings>(File.ReadAllText(FurMarkSettingsPath));
+                if (s is not null) ApplyFurMarkSettings(s);
+            }
+        }
+        catch { }
+    }
+
+    private void ApplyFurMarkSettings(FurMarkSettings s)
+    {
+        if (ApiBox.Items.Count > s.ApiIndex && s.ApiIndex >= 0) ApiBox.SelectedIndex = s.ApiIndex;
+        if (ResolutionBox.Items.Count > s.ResolutionIndex && s.ResolutionIndex >= 0) ResolutionBox.SelectedIndex = s.ResolutionIndex;
+        if (MsaaBox.Items.Count > s.MsaaIndex && s.MsaaIndex >= 0) MsaaBox.SelectedIndex = s.MsaaIndex;
+        if (VramBox.Items.Count > s.VramIndex && s.VramIndex >= 0) VramBox.SelectedIndex = s.VramIndex;
+        if (VsyncBox.Items.Count > s.VsyncIndex && s.VsyncIndex >= 0) VsyncBox.SelectedIndex = s.VsyncIndex;
+        if (BkgImgBox.Items.Count > s.BkgImgIndex && s.BkgImgIndex >= 0) BkgImgBox.SelectedIndex = s.BkgImgIndex;
+        if (FurImgBox.Items.Count > s.FurImgIndex && s.FurImgIndex >= 0) FurImgBox.SelectedIndex = s.FurImgIndex;
+        GpuIndexBox.Value = Math.Clamp(s.GpuIndex, 0, 15);
+        FullscreenToggle.IsOn = s.Fullscreen;
+        BfcToggle.IsOn = s.BackfaceCulling;
+        Dxt5Toggle.IsOn = s.Dxt5;
+        OsiToggle.IsOn = s.Osi;
+        GpumonToggle.IsOn = s.GpuMonitor;
+        GlCoreToggle.IsOn = s.GlCoreProfile;
+    }
+
+    private void SaveFurMarkSettings()
+    {
+        try
+        {
+            var s = new FurMarkSettings
+            {
+                ApiIndex = ApiBox.SelectedIndex,
+                ResolutionIndex = ResolutionBox.SelectedIndex,
+                MsaaIndex = MsaaBox.SelectedIndex,
+                VramIndex = VramBox.SelectedIndex,
+                GpuIndex = SafeGpuIndex(),
+                VsyncIndex = VsyncBox.SelectedIndex,
+                BkgImgIndex = BkgImgBox.SelectedIndex,
+                FurImgIndex = FurImgBox.SelectedIndex,
+                Fullscreen = FullscreenToggle.IsOn,
+                BackfaceCulling = BfcToggle.IsOn,
+                Dxt5 = Dxt5Toggle.IsOn,
+                Osi = OsiToggle.IsOn,
+                GpuMonitor = GpumonToggle.IsOn,
+                GlCoreProfile = GlCoreToggle.IsOn,
+            };
+            var dir = Path.GetDirectoryName(FurMarkSettingsPath);
+            if (dir is not null) Directory.CreateDirectory(dir);
+            File.WriteAllText(FurMarkSettingsPath, JsonSerializer.Serialize(s));
+        }
+        catch { }
+    }
+
+    private void ResetFurMarkSettings_Click(object sender, RoutedEventArgs e)
+    {
+        ApplyFurMarkSettings(new FurMarkSettings());
+        SaveFurMarkSettings();
+        Log("FurMark 参数已恢复默认");
+    }
+
+    private void FurMarkSetting_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_settingsReady) return;
+        SaveFurMarkSettings();
+        UpdateDxt5Availability();
+    }
+    private void FurMarkToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!_settingsReady) return;
+        SaveFurMarkSettings();
+    }
+    private void FurMarkNumber_Changed(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    {
+        if (!_settingsReady) return;
+        SaveFurMarkSettings();
+    }
+
+    private void UpdateDxt5Availability()
+    {
+        if (ApiBox is null || Dxt5Toggle is null) return;
+        var isGl = ApiBox.SelectedIndex is 0 or 2;
+        Dxt5Toggle.IsEnabled = isGl;
+        GlCoreToggle.IsEnabled = isGl;
+        if (!isGl && Dxt5Toggle.IsOn) Dxt5Toggle.IsOn = false;
+        if (!isGl && GlCoreToggle.IsOn) GlCoreToggle.IsOn = false;
+    }
+
+    private int SafeGpuIndex() => double.IsNaN(GpuIndexBox.Value) ? 0 : Math.Clamp((int)GpuIndexBox.Value, 0, 15);
+
+    private string BuildFurMarkArgs(int minutes)
+    {
+        static string TagOf(ComboBox box) => ((ComboBoxItem)box.SelectedItem).Tag?.ToString() ?? "";
+
+        var api = TagOf(ApiBox);
+        var args = new List<string> { $"--demo {api}" };
+
+        if (FullscreenToggle.IsOn)
+            args.Add("--fullscreen");
+        else
+        {
+            var res = TagOf(ResolutionBox).Split(',');
+            args.Add($"--width {res[0]}");
+            args.Add($"--height {res[1]}");
+        }
+
+        args.Add($"--msaa {TagOf(MsaaBox)}");
+
+        var vram = int.TryParse(TagOf(VramBox), out var v) ? v : 0;
+        if (vram > 0) args.Add($"--furmark-vram-test-gb {vram}");
+
+        var gpuIdx = SafeGpuIndex();
+        if (gpuIdx > 0) args.Add($"--gpu-index {gpuIdx}");
+
+        args.Add($"--vsync {TagOf(VsyncBox)}");
+
+        var bkg = int.TryParse(TagOf(BkgImgBox), out var b) ? b : 0;
+        if (bkg > 0) args.Add($"--furmark-bkg-img-id {bkg}");
+
+        var fur = int.TryParse(TagOf(FurImgBox), out var f) ? f : 0;
+        if (fur > 0) args.Add($"--furmark-fur-img-id {fur}");
+
+        if (!BfcToggle.IsOn) args.Add("--furmark-bfc 0");
+        if (Dxt5Toggle.IsOn && api.Contains("gl")) args.Add("--furmark-dxt5");
+        if (GlCoreToggle.IsOn && api.Contains("gl")) args.Add("--opengl-core-profile 1");
+        if (!OsiToggle.IsOn) args.Add("--no-osi");
+        if (!GpumonToggle.IsOn) args.Add("--no-gpumon");
+
+        args.Add($"--max-time {minutes * 60}");
+        args.Add("--no-score-box");
+        return string.Join(" ", args);
+    }
 
     private void InitCharts()
     {
@@ -606,8 +769,10 @@ h1{{font-size:28px;font-weight:600;margin-bottom:4px}}
         if (furmarkExe is null) { Log("未找到 FurMark (烤鸡工具/FurMark_win64/furmark.exe)"); return; }
         try
         {
-            _furmarkProcess = Process.Start(new ProcessStartInfo { FileName = furmarkExe, Arguments = $"--demo furmark-gl --fullscreen --max-time {minutes * 60} --no-score-box", UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(furmarkExe) });
+            var arguments = BuildFurMarkArgs(minutes);
+            _furmarkProcess = Process.Start(new ProcessStartInfo { FileName = furmarkExe, Arguments = arguments, UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(furmarkExe) });
             Log($"FurMark 已启动 (GPU 压力测试, {minutes} 分钟)");
+            Log($"FurMark 参数: {arguments}");
         }
         catch (Exception ex) { Log($"FurMark 启动失败: {ex.Message}"); }
     }

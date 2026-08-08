@@ -28,6 +28,15 @@ public sealed class GpuInfo
     public string Type { get; init; } = "";
 }
 
+public sealed class FurMarkGpuInfo
+{
+    public int Index { get; init; }
+    public string Name { get; init; } = "";
+    public string DeviceId { get; init; } = "";
+    public string Memory { get; init; } = "";
+    public string Driver { get; init; } = "";
+}
+
 public sealed class FpsSnapshot
 {
     public string ProcessName = "";

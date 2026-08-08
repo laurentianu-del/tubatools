@@ -26,7 +26,7 @@ public static class ToolsBundleService
     };
 
     private static string ToolsBundleDir => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        RuntimeHelper.GetLocalAppDataRoot(),
         "TubaWinUi3", "Tools");
 
     static ToolsBundleService()

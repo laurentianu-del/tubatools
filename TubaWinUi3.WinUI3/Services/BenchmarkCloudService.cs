@@ -446,7 +446,7 @@ public static class BenchmarkCloudService
 	}
 
 	private static string LocalCachePath => Path.Combine(
-		Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+		RuntimeHelper.GetLocalAppDataRoot(),
 		"TubaWinUi3", "benchmark_cache.json");
 
 	private static List<BenchmarkReportEntry> LoadLocalCache()
