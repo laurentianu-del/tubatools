@@ -38,12 +38,22 @@ public sealed partial class LatencyImageQueryPage : Page
 	private TextBlock _errorMessage = null!;
 	private List<BenchmarkCloudService.LatencyImageInfo> _all = [];
 	private string _query = "";
+	private CancellationTokenSource _loadCts = new();
 
 	public LatencyImageQueryPage()
 	{
 		InitializeComponent();
 		Content = BuildContent();
 		Loaded += async (_, _) => await LoadImagesAsync();
+		Unloaded += (_, _) => _loadCts.Cancel();
+	}
+
+	private sealed class CardViews
+	{
+		public required BenchmarkCloudService.LatencyImageInfo Info { get; init; }
+		public required Image Thumb { get; init; }
+		public required ProgressRing Ring { get; init; }
+		public required TextBlock Error { get; init; }
 	}
 
 	private Grid BuildContent()
@@ -135,9 +145,9 @@ public sealed partial class LatencyImageQueryPage : Page
 		};
 		_gridView.ItemClick += (_, e) =>
 		{
-			if (e.ClickedItem is Border border && border.Tag is BenchmarkCloudService.LatencyImageInfo info)
+			if (e.ClickedItem is Border border && border.Tag is CardViews views)
 			{
-				_ = ShowImageDialogAsync(info);
+				_ = ShowImageDialogAsync(views.Info);
 			}
 		};
 
@@ -179,6 +189,9 @@ public sealed partial class LatencyImageQueryPage : Page
 
 	private async Task LoadImagesAsync()
 	{
+		_loadCts.Cancel();
+		_loadCts.Dispose();
+		_loadCts = new();
 		_loadingPanel.Visibility = Visibility.Visible;
 		_errorPanel.Visibility = Visibility.Collapsed;
 		_gridView.Visibility = Visibility.Collapsed;
@@ -207,7 +220,9 @@ public sealed partial class LatencyImageQueryPage : Page
 			.ToList();
 		foreach (BenchmarkCloudService.LatencyImageInfo info in items)
 		{
-			_gridView.Items.Add(BuildCpuCard(info));
+			var border = BuildCpuCard(info);
+			_gridView.Items.Add(border);
+			if (border.Tag is CardViews views) _ = LoadThumbnailAsync(views);
 		}
 		_statusText.Text = string.IsNullOrEmpty(_query)
 			? $"共 {_all.Count} 张图片"
@@ -255,6 +270,29 @@ public sealed partial class LatencyImageQueryPage : Page
 			Spacing = 6.0,
 			Children = { new FontIcon { Glyph = "\ue91b", FontSize = 12, Opacity = 0.6 }, new TextBlock { Text = "点击查看热力图", FontSize = 11, Opacity = 0.6 } }
 		};
+		var thumb = new Image
+		{
+			Width = 192,
+			Height = 108,
+			Stretch = Stretch.Uniform,
+			Visibility = Visibility.Collapsed
+		};
+		var ring = new ProgressRing { Width = 28, Height = 28, IsActive = true };
+		var thumbError = new TextBlock
+		{
+			Text = "图片加载失败",
+			FontSize = 11,
+			Opacity = 0.6,
+			TextAlignment = TextAlignment.Center,
+			TextWrapping = TextWrapping.Wrap,
+			Visibility = Visibility.Collapsed
+		};
+		var thumbArea = new Grid
+		{
+			Width = 192,
+			Height = 108,
+			Children = { thumb, ring, thumbError }
+		};
 		var border = new Border
 		{
 			Width = 220,
@@ -265,10 +303,44 @@ public sealed partial class LatencyImageQueryPage : Page
 			Background = new SolidColorBrush(ThemeColors.CardBg),
 			BorderBrush = new SolidColorBrush(ThemeColors.BorderColor),
 			BorderThickness = new Thickness(1),
-			Child = new StackPanel { Spacing = 6, Children = { cpuText, authorText, iconRow } },
-			Tag = info
+			Child = new StackPanel { Spacing = 6, Children = { thumbArea, cpuText, authorText, iconRow } },
+			Tag = new CardViews { Info = info, Thumb = thumb, Ring = ring, Error = thumbError }
 		};
 		return border;
+	}
+
+	private async Task LoadThumbnailAsync(CardViews views)
+	{
+		var cts = _loadCts;
+		try
+		{
+			byte[] bytes = await Task.Run(() => BenchmarkCloudService.DownloadLatencyImageAsync(views.Info, cts.Token));
+			if (cts.IsCancellationRequested) return;
+			var bmp = new BitmapImage { DecodePixelWidth = 384 };
+			using (var stream = new Windows.Storage.Streams.InMemoryRandomAccessStream())
+			{
+				var writer = new Windows.Storage.Streams.DataWriter(stream);
+				writer.WriteBytes(bytes);
+				await writer.StoreAsync();
+				await writer.FlushAsync();
+				writer.DetachStream();
+				stream.Seek(0);
+				await bmp.SetSourceAsync(stream);
+			}
+			if (cts.IsCancellationRequested) return;
+			views.Thumb.Source = bmp;
+			views.Thumb.Visibility = Visibility.Visible;
+			views.Ring.Visibility = Visibility.Collapsed;
+			views.Error.Visibility = Visibility.Collapsed;
+		}
+		catch (Exception ex)
+		{
+			if (cts.IsCancellationRequested) return;
+			views.Ring.Visibility = Visibility.Collapsed;
+			views.Error.Text = "图片加载失败";
+			ToolTipService.SetToolTip(views.Error, ex.Message);
+			views.Error.Visibility = Visibility.Visible;
+		}
 	}
 
 	private async Task ShowImageDialogAsync(BenchmarkCloudService.LatencyImageInfo info)
@@ -329,11 +401,7 @@ public sealed partial class LatencyImageQueryPage : Page
 	{
 		try
 		{
-			byte[] bytes = await Task.Run(async () =>
-			{
-				using var client = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(60) };
-				return await client.GetByteArrayAsync(new Uri(info.RawUrl));
-			});
+			byte[] bytes = await Task.Run(() => BenchmarkCloudService.DownloadLatencyImageAsync(info, CancellationToken.None));
 			var bmp = new BitmapImage();
 			using (var stream = new Windows.Storage.Streams.InMemoryRandomAccessStream())
 			{
@@ -349,10 +417,16 @@ public sealed partial class LatencyImageQueryPage : Page
 			loadingPanel.Visibility = Visibility.Collapsed;
 			detailPanel.Visibility = Visibility.Visible;
 		}
-		catch
+		catch (Exception ex)
 		{
 			loadingRing?.IsActive = false;
-			loadingPanel.Children.Add(new TextBlock { Text = "图片加载失败，请检查网络或切换数据源重试", FontSize = 12, Opacity = 0.68 });
+			loadingPanel.Children.Add(new TextBlock
+			{
+				Text = "图片加载失败：" + ex.Message,
+				FontSize = 12,
+				Opacity = 0.68,
+				TextWrapping = TextWrapping.Wrap
+			});
 		}
 	}
 }

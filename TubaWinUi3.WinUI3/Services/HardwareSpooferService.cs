@@ -91,42 +91,236 @@ public static class HardwareSpooferService
         catch { return false; }
     }
 
+    private static readonly string[] GpuNameKeywords =
+        ["nvidia", "geforce", "gtx", "rtx", "amd", "radeon", "arc", "iris", "uhd graphics", "hd graphics"];
+
+    private static readonly string[] GpuExcludeKeywords =
+        ["usb", "controller", "host", "xhci", "ehci", "uhci", "chipset", "smbus", "audio", "sound"];
+
+    private static bool ContainsKeyword(string? text, string[] keywords)
+    {
+        if (string.IsNullOrEmpty(text)) return false;
+        var lower = text.ToLowerInvariant();
+        return keywords.Any(kw => lower.Contains(kw, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsGpuName(string? text) => ContainsKeyword(text, GpuNameKeywords);
+
     /// <summary>
-    /// Writes a GPU name to ALL relevant registry locations for maximum coverage.
-    /// Modifies DriverDesc, ProviderName, HardwareInformation.ChipType, SPDIFVendorDesc
-    /// in both Control\Video and Control\Class paths.
+    /// Enumerates Enum\PCI display adapter instances for NVIDIA / AMD / Intel vendors.
+    /// This is the location Windows actually reads for device display names
+    /// (Device Manager / Task Manager / WMI Win32_VideoController).
+    /// </summary>
+    public static List<string> FindGpuEnumKeyPaths()
+    {
+        var results = new List<string>();
+        try
+        {
+            using var enumKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Enum\PCI");
+            if (enumKey is null) return results;
+
+            foreach (var deviceName in enumKey.GetSubKeyNames())
+            {
+                var deviceUpper = deviceName.ToUpperInvariant();
+                if (!deviceUpper.Contains("VEN_10DE") &&
+                    !deviceUpper.Contains("VEN_1002") &&
+                    !deviceUpper.Contains("VEN_8086"))
+                    continue;
+
+                var devicePath = $@"SYSTEM\CurrentControlSet\Enum\PCI\{deviceName}";
+                using var deviceKey = Registry.LocalMachine.OpenSubKey(devicePath);
+                if (deviceKey is null) continue;
+
+                foreach (var instanceName in deviceKey.GetSubKeyNames())
+                {
+                    var instancePath = $@"{devicePath}\{instanceName}";
+                    using var instanceKey = Registry.LocalMachine.OpenSubKey(instancePath);
+                    if (instanceKey is null) continue;
+
+                    var deviceDesc = instanceKey.GetValue("DeviceDesc") as string;
+                    var friendlyName = instanceKey.GetValue("FriendlyName") as string;
+
+                    if (ContainsKeyword(deviceDesc, GpuExcludeKeywords) ||
+                        ContainsKeyword(friendlyName, GpuExcludeKeywords))
+                        continue;
+
+                    var isGpu = false;
+                    var classGuid = instanceKey.GetValue("ClassGUID") as string;
+                    if (classGuid is not null &&
+                        classGuid.Trim().Trim('{', '}').Equals("4D36E968-E325-11CE-BFC1-08002BE10318", StringComparison.OrdinalIgnoreCase))
+                        isGpu = true;
+                    if (!isGpu)
+                        isGpu = IsGpuName(deviceDesc) || IsGpuName(friendlyName);
+
+                    if (isGpu)
+                        results.Add(instancePath);
+                }
+            }
+        }
+        catch { }
+
+        return results;
+    }
+
+    /// <summary>
+    /// Finds the primary (discrete, non-integrated) GPU Enum\PCI instance key.
+    /// </summary>
+    public static string? FindPrimaryGpuEnumKey()
+    {
+        var gpuKeys = FindGpuEnumKeyPaths();
+        if (gpuKeys.Count == 0) return null;
+
+        foreach (var keyPath in gpuKeys)
+        {
+            if (IsIntegratedGpu(keyPath)) continue;
+            return keyPath;
+        }
+        return gpuKeys[0];
+    }
+
+    private static bool IsIntegratedGpu(string instancePath)
+    {
+        try
+        {
+            using var key = Registry.LocalMachine.OpenSubKey(instancePath);
+            var location = key?.GetValue("LocationInformation") as string;
+            if (string.IsNullOrEmpty(location)) return false;
+            var lower = location.ToLowerInvariant();
+            return lower.Contains("internal") || lower.Contains("on board") || lower.Contains("bus 0");
+        }
+        catch { return false; }
+    }
+
+    private static List<string> FindGpuClassKeys()
+    {
+        var results = new List<string>();
+        try
+        {
+            using var classKey = Registry.LocalMachine.OpenSubKey(
+                @"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}");
+            if (classKey is null) return results;
+
+            foreach (var subName in classKey.GetSubKeyNames())
+            {
+                if (!System.Text.RegularExpressions.Regex.IsMatch(subName, @"^00\d+")) continue;
+                var subPath = $@"SYSTEM\CurrentControlSet\Control\Class\{{4d36e968-e325-11ce-bfc1-08002be10318}}\{subName}";
+                using var subKey = Registry.LocalMachine.OpenSubKey(subPath);
+                var desc = subKey?.GetValue("DriverDesc") as string;
+                if (IsGpuName(desc)) results.Add(subPath);
+            }
+        }
+        catch { }
+        return results;
+    }
+
+    private static List<string> FindGpuVideoKeys()
+    {
+        var results = new List<string>();
+        try
+        {
+            using var videoKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Video");
+            if (videoKey is null) return results;
+
+            foreach (var guidName in videoKey.GetSubKeyNames())
+            {
+                var guidPath = $@"SYSTEM\CurrentControlSet\Control\Video\{guidName}";
+                using var guidKey = Registry.LocalMachine.OpenSubKey(guidPath);
+                if (guidKey is null) continue;
+
+                foreach (var subName in guidKey.GetSubKeyNames())
+                {
+                    var subPath = $@"{guidPath}\{subName}";
+                    using var subKey = Registry.LocalMachine.OpenSubKey(subPath);
+                    if (subKey is null) continue;
+                    var text = string.Join(" ", new[]
+                    {
+                        subKey.GetValue("DriverDesc") as string,
+                        subKey.GetValue("DeviceDesc") as string,
+                        subKey.GetValue("Description") as string,
+                        subKey.GetValue("FriendlyName") as string
+                    });
+                    if (IsGpuName(text)) results.Add(subPath);
+                }
+            }
+        }
+        catch { }
+        return results;
+    }
+
+    /// <summary>
+    /// Writes a GPU name to ALL relevant registry locations for maximum coverage,
+    /// mirroring the NexBox approach:
+    /// 1. Enum\PCI — where Windows actually caches the device display name
+    ///    (DeviceDesc, FriendlyName) shown in Device Manager / Task Manager / WMI.
+    /// 2. Control\Class — driver instance keys (DriverDesc, HardwareInformation.*).
+    /// 3. Control\Video — legacy display keys (DriverDesc, DeviceDesc, Description, FriendlyName).
     /// </summary>
     public static bool WriteGpuName(string gpuName, string? providerName)
     {
-        var videoKey = FindPrimaryGpuKey();
-        var classKey = FindPrimaryGpuClassKey();
         var anySuccess = false;
 
         var chipTypeName = gpuName.Contains("Family", StringComparison.OrdinalIgnoreCase)
             ? gpuName
             : gpuName + " Family";
 
-        foreach (var keyPath in new[] { videoKey, classKey })
+        // 1. Enum\PCI — the key location for the displayed GPU name
+        foreach (var keyPath in FindGpuEnumKeyPaths())
         {
-            if (keyPath is null) continue;
             try
             {
                 var hive = GetHive(keyPath, out var subKey);
                 using var key = hive.OpenSubKey(subKey, writable: true);
                 if (key is null) continue;
 
-                // DriverDesc (String) — WMI Win32_VideoController.Name
+                key.SetValue("FriendlyName", gpuName, RegistryValueKind.String);
+
+                var deviceDesc = key.GetValue("DeviceDesc") as string;
+                if (!string.IsNullOrEmpty(deviceDesc))
+                {
+                    var parts = deviceDesc.Split(';', 2);
+                    key.SetValue("DeviceDesc",
+                        parts.Length > 1 ? $"{parts[0]};{gpuName}" : gpuName,
+                        RegistryValueKind.String);
+                }
+
+                anySuccess = true;
+            }
+            catch { }
+        }
+
+        // 2. Control\Class — driver instance keys
+        foreach (var keyPath in FindGpuClassKeys())
+        {
+            try
+            {
+                var hive = GetHive(keyPath, out var subKey);
+                using var key = hive.OpenSubKey(subKey, writable: true);
+                if (key is null) continue;
+
                 key.SetValue("DriverDesc", gpuName, RegistryValueKind.String);
-
-                // HardwareInformation.ChipType (MultiString) — WMI Win32_VideoController.VideoProcessor
                 key.SetValue("HardwareInformation.ChipType", new[] { chipTypeName }, RegistryValueKind.MultiString);
-
-                // HardwareInformation.AdapterString (String) — adapter identifier
                 key.SetValue("HardwareInformation.AdapterString", gpuName, RegistryValueKind.String);
-
-                // ProviderName (String)
                 if (!string.IsNullOrEmpty(providerName))
                     key.SetValue("ProviderName", providerName, RegistryValueKind.String);
+
+                anySuccess = true;
+            }
+            catch { }
+        }
+
+        // 3. Control\Video — legacy display keys
+        foreach (var keyPath in FindGpuVideoKeys())
+        {
+            try
+            {
+                var hive = GetHive(keyPath, out var subKey);
+                using var key = hive.OpenSubKey(subKey, writable: true);
+                if (key is null) continue;
+
+                key.SetValue("DriverDesc", gpuName, RegistryValueKind.String);
+                key.SetValue("DeviceDesc", gpuName, RegistryValueKind.String);
+                key.SetValue("Description", gpuName, RegistryValueKind.String);
+                key.SetValue("FriendlyName", gpuName, RegistryValueKind.String);
 
                 anySuccess = true;
             }
@@ -137,10 +331,20 @@ public static class HardwareSpooferService
     }
 
     /// <summary>
-    /// Reads the current GPU description from any available source.
+    /// Reads the current GPU description, preferring the Enum\PCI display name
+    /// (FriendlyName, then DeviceDesc after the hardware ID prefix).
     /// </summary>
     public static string ReadCurrentGpuDesc()
     {
+        var primary = FindPrimaryGpuEnumKey();
+        if (primary is not null)
+        {
+            var friendly = ReadValue(primary, "FriendlyName");
+            if (!string.IsNullOrEmpty(friendly)) return StripDisplayPrefix(friendly);
+            var desc = ReadValue(primary, "DeviceDesc");
+            if (!string.IsNullOrEmpty(desc)) return StripDisplayPrefix(desc);
+        }
+
         var videoKey = FindPrimaryGpuKey();
         if (videoKey is not null)
         {
@@ -154,6 +358,18 @@ public static class HardwareSpooferService
             if (!string.IsNullOrEmpty(val)) return val;
         }
         return "";
+    }
+
+    /// <summary>
+    /// Strips the hardware-ID / localized-INF prefix from a display name
+    /// (e.g. "@oem30.inf,%token%;Intel(R) Arc(TM) B390 GPU" -> "Intel(R) Arc(TM) B390 GPU").
+    /// </summary>
+    private static string StripDisplayPrefix(string value)
+    {
+        var idx = value.LastIndexOf(';');
+        if (idx < 0) return value;
+        var result = value[(idx + 1)..].Trim();
+        return string.IsNullOrEmpty(result) ? value : result;
     }
 
     public static string ReadCurrentGpuProvider()

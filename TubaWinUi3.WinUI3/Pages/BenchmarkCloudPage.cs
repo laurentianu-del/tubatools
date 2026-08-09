@@ -354,7 +354,7 @@ public sealed partial class BenchmarkCloudPage : Page
 						<ColumnDefinition Width='Auto'/>
 					</Grid.ColumnDefinitions>
 					<TextBlock Text='{Binding Rank}' FontSize='18' FontWeight='SemiBold' VerticalAlignment='Center'
-							   Foreground='{ThemeResource AccentTextFillColorPrimaryBrush}'/>
+							   Foreground='{Binding RankBrush}'/>
 					<StackPanel Grid.Column='1' Spacing='2'>
 						<TextBlock Text='{Binding Report.Author}' FontSize='13' FontWeight='SemiBold'/>
 						<TextBlock FontSize='12' Foreground='{ThemeResource TextFillColorSecondaryBrush}'>
@@ -437,6 +437,7 @@ public sealed partial class BenchmarkCloudPage : Page
 			Visibility = Visibility.Collapsed,
 			ItemTemplate = BuildLeaderboardItemTemplate()
 		};
+		SameHwList.SelectionChanged += SameHwList_SelectionChanged;
 		grid.Children.Add(SameHwList);
 		Grid.SetRow(SameHwList, 2);
 
@@ -993,6 +994,15 @@ public sealed partial class BenchmarkCloudPage : Page
 		if (LeaderboardList.SelectedItem is BenchmarkLeaderboardEntry benchmarkLeaderboardEntry)
 		{
 			ShowReportDetailDialog(benchmarkLeaderboardEntry.Report);
+		}
+	}
+
+	private void SameHwList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+	{
+		if (SameHwList.SelectedItem is BenchmarkLeaderboardEntry benchmarkLeaderboardEntry)
+		{
+			ShowReportDetailDialog(benchmarkLeaderboardEntry.Report);
+			SameHwList.SelectedItem = null;
 		}
 	}
 

@@ -25,10 +25,8 @@ public static class BenchmarkCloudService
 	private const string ReportsPath = "reports";
 	private const string LatencyImagesPath = "reports/latency-images";
 	private const string GitHubApiBase = "https://api.github.com/repos/luolangaga/tubatoolsPlugin";
-	private const string GitCodeRawBase = "https://raw.githubusercontent.com/luolangaga/tubatoolsPlugin/main/reports";
 	private const string LatencyImagesRawBase = "https://raw.githubusercontent.com/luolangaga/tubatoolsPlugin/main/reports/latency-images";
 	private const string GitCodeApiBase = "https://api.gitcode.com/api/v5/repos/luolangaga/tubatoolsPlugin";
-	private const string GitCodeLatencyRawBase = "https://raw.gitcode.com/luolangaga/tubatoolsPlugin/-/raw/main/reports/latency-images";
 	
 	private static readonly string GitHubLeaderboardUrl = "https://raw.githubusercontent.com/luolangaga/tubatoolsPlugin/main/leaderboard.json";
 	private static readonly string GitCodeApiUrl = "https://api.gitcode.com/api/v5/repos/luolangaga/tubatoolsPlugin/contents/leaderboard.json";
@@ -204,7 +202,7 @@ public static class BenchmarkCloudService
 				result.Add(new LatencyImageInfo
 				{
 					Name = name,
-					RawUrl = string.IsNullOrEmpty(downloadUrl) ? $"{GitCodeLatencyRawBase}/{name}" : downloadUrl,
+					RawUrl = downloadUrl,
 					HtmlUrl = string.IsNullOrEmpty(htmlUrl) ? $"https://gitcode.com/luolangaga/tubatoolsPlugin/blob/main/{LatencyImagesPath}/{name}" : htmlUrl
 				});
 			}
@@ -236,6 +234,75 @@ public static class BenchmarkCloudService
 			}
 		}
 		return result.OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase).ToList();
+	}
+
+	/// <summary>
+	/// Downloads a latency heatmap image with fallbacks for the current data source:
+	/// GitHub — direct raw, then GitHub mirror proxies; GitCode — blob URL, then re-resolving
+	/// a fresh download URL from the API. All candidates race; the first success wins.
+	/// </summary>
+	public static async Task<byte[]> DownloadLatencyImageAsync(LatencyImageInfo info, CancellationToken ct)
+	{
+		var candidates = new List<(string Label, string Url)>();
+		if (_currentSource == LeaderboardSource.GitCode)
+		{
+			candidates.Add(("GitCode 直连", info.RawUrl));
+			candidates.Add(("GitCode 接口", await ResolveGitCodeLatencyImageUrlAsync(info.Name, ct) ?? ""));
+		}
+		else
+		{
+			candidates.Add(("GitHub 直连", info.RawUrl));
+			foreach (var proxy in GitHubReleaseService.GitHubProxies.Take(10))
+			{
+				candidates.Add((new Uri(proxy).Host, GitHubReleaseService.ProxyUrl(proxy, info.RawUrl)));
+			}
+		}
+
+		var tasks = candidates
+			.Where(c => !string.IsNullOrEmpty(c.Url))
+			.Select(async c =>
+			{
+				try
+				{
+					using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+					client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-Benchmark");
+					byte[] bytes = await client.GetByteArrayAsync(new Uri(c.Url), ct);
+					return (c.Label, bytes, (string?)null);
+				}
+				catch (Exception ex)
+				{
+					return (c.Label, (byte[]?)null, ex.Message);
+				}
+			})
+			.ToList();
+
+		if (tasks.Count == 0)
+		{
+			throw new InvalidOperationException("图片下载失败：无法获取图片下载地址");
+		}
+
+		var failures = new List<string>();
+		while (tasks.Count > 0)
+		{
+			var done = await Task.WhenAny(tasks);
+			tasks.Remove(done);
+			var (label, bytes, error) = await done;
+			if (bytes is not null) return bytes;
+			failures.Add($"{label}: {error}");
+		}
+		throw new InvalidOperationException("图片下载失败：" + string.Join("；", failures.Take(3)) + (failures.Count > 3 ? "…" : ""));
+	}
+
+	private static async Task<string?> ResolveGitCodeLatencyImageUrlAsync(string name, CancellationToken ct)
+	{
+		try
+		{
+			using var resp = await _apiClient.GetAsync($"{GitCodeApiBase}/contents/{LatencyImagesPath}/{Uri.EscapeDataString(name)}", ct);
+			if (!resp.IsSuccessStatusCode) return null;
+			using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+			return doc.RootElement.TryGetProperty("download_url", out var d) ? d.GetString() : null;
+		}
+		catch { return null; }
 	}
 
 	private static async Task<int> GetLatencyImageNextSeqAsync(string prefix, CancellationToken ct)
