@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Text.RegularExpressions;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
@@ -345,7 +345,7 @@ public static partial class MarkdownTextService
         {
             try
             {
-                TubaWinUi3.Pages.BrowserWindow.Open(sender.NavigateUri.ToString());
+                TubaWinUi3.Pages.BrowserPage.Open(sender.NavigateUri.ToString());
             }
             catch
             {

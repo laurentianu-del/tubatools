@@ -11,14 +11,7 @@ public sealed class VideoProcessorTool : IBuiltinTool
 
     public Task ExecuteAsync(BuiltinToolContext context)
     {
-        context.OnProgress?.Invoke("正在打开视频处理...");
-
-        App.MainWindow?.DispatcherQueue.TryEnqueue(() =>
-        {
-            var window = new TubaWinUi3.Pages.VideoProcessorWindow();
-            window.Activate();
-        });
-
+        App.MainWindow?.NavigateToToolPage(typeof(TubaWinUi3.Pages.VideoProcessorPage));
         return Task.CompletedTask;
     }
 }

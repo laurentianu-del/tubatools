@@ -11,14 +11,7 @@ public sealed class MemoryManagerTool : IBuiltinTool
 
     public Task ExecuteAsync(BuiltinToolContext context)
     {
-        context.OnProgress?.Invoke("正在打开内存管理...");
-
-        App.MainWindow?.DispatcherQueue.TryEnqueue(() =>
-        {
-            var window = new TubaWinUi3.Pages.MemoryManagerWindow();
-            window.Activate();
-        });
-
+        App.MainWindow?.NavigateToToolPage(typeof(TubaWinUi3.Pages.MemoryManagerPage));
         return Task.CompletedTask;
     }
 }

@@ -46,6 +46,7 @@ public sealed partial class RatingSystemPage : Page
 
     public RatingSystemPage()
     {
+        InitializeComponent();
         Content = BuildUI();
         Loaded += OnLoaded;
     }

@@ -73,6 +73,10 @@ The "文件传输" feature spans three pieces with their own toolchains — none
 
 Root `package.json` + `src/docs/` are a **VitePress** site only (`npm run dev` / `npm run build`). `node_modules/` is not referenced by any `.csproj`.
 
+## New official website (separate)
+
+`website-winui3/` is the new official website, built on **WinUIonWeb** (Vue 3 + Web WinUI controls, `npm run dev` / `npm run build`). Docs markdown lives in `website-winui3/src/docs/` (migrated from `src/docs/`), tutorial images in `website-winui3/public/tutorials/images/`. Icon glyphs must exist in `src/assets/Fonts/SEGOEICONS.TTF` (check with `node check-font` against the cmap table).
+
 ## Conventions
 
 - Namespaces: `TubaWinUi3` / `.Pages` / `.Services` / `.Models`. PascalCase; XAML + code-behind pairs.

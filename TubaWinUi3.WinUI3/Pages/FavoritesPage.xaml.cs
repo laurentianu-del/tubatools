@@ -1,4 +1,4 @@
-using Microsoft.UI.Xaml;
+﻿using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Navigation;
@@ -351,7 +351,7 @@ public sealed partial class FavoritesPage : Page
     private void FavMenu_OpenTutorial(object sender, RoutedEventArgs e)
     {
         if (sender is MenuFlyoutItem { DataContext: ToolItem tool } && tool.HasTutorial)
-            BrowserWindow.Open(tool.TutorialUrl!, $"{tool.Name} - 使用教程");
+            BrowserPage.Open(tool.TutorialUrl!, $"{tool.Name} - 使用教程");
     }
 
     private static void OpenToolDirectory(ToolItem tool)
@@ -473,7 +473,7 @@ public sealed partial class FavoritesPage : Page
     {
         if (!string.IsNullOrWhiteSpace(tool.RemoteUrl))
         {
-            Pages.BrowserWindow.Open(tool.RemoteUrl, tool.Name);
+            Pages.BrowserPage.Open(tool.RemoteUrl, tool.Name);
             LaunchHistoryService.RecordLaunch(tool.Path);
             ShowStatus("已打开", tool.Name, InfoBarSeverity.Success);
             return;

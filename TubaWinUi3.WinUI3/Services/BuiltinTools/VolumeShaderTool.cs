@@ -1,4 +1,4 @@
-using Microsoft.UI.Windowing;
+﻿using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using TubaWinUi3.Pages;
 using Windows.Graphics;
@@ -29,7 +29,7 @@ public sealed class VolumeShaderTool : IBuiltinTool
 
             // 使用 file:// 协议打开本地HTML
             var fileUri = new Uri(htmlPath).AbsoluteUri;
-            BrowserWindow.Open(fileUri, "毒蘑菇显卡测试");
+            BrowserPage.Open(fileUri, "毒蘑菇显卡测试");
 
             return Task.CompletedTask;
         }

@@ -1,9 +1,11 @@
 using System.Linq;
 using System.Runtime.InteropServices;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using TubaWinUi3.Pages;
 using Windows.System;
 using Windows.UI;
 
@@ -35,7 +37,7 @@ public sealed class KeyboardTestTool : IBuiltinTool
     private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
     private IntPtr _hookId = IntPtr.Zero;
     private LowLevelKeyboardProc? _hookProc;
-    private ContentDialog? _currentDialog;
+    private Microsoft.UI.Dispatching.DispatcherQueue? _dispatcher;
     private TextBlock? _countText;
     private TextBlock? _lastKeyText;
 
@@ -60,7 +62,7 @@ public sealed class KeyboardTestTool : IBuiltinTool
 
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
-        if (nCode >= 0 && _currentDialog != null)
+        if (nCode >= 0 && _dispatcher != null)
         {
             int lParamValue = Marshal.ReadInt32(lParam);
             int vkCode = lParamValue & 0xFF;
@@ -77,7 +79,7 @@ public sealed class KeyboardTestTool : IBuiltinTool
 
             if (isDown)
             {
-                _currentDialog.DispatcherQueue.TryEnqueue(() =>
+                _dispatcher.TryEnqueue(() =>
                 {
                     HandleKeyDown(key);
                     _keyGrid?.Focus(FocusState.Programmatic);
@@ -85,7 +87,7 @@ public sealed class KeyboardTestTool : IBuiltinTool
             }
             else if (isUp)
             {
-                _currentDialog.DispatcherQueue.TryEnqueue(() =>
+                _dispatcher.TryEnqueue(() =>
                 {
                     HandleKeyUp(key);
                 });
@@ -214,7 +216,7 @@ public sealed class KeyboardTestTool : IBuiltinTool
         }
     }
 
-    public async Task ExecuteAsync(BuiltinToolContext context)
+    public Task ExecuteAsync(BuiltinToolContext context)
     {
         _keyGrid = null;
         _countText = null;
@@ -224,27 +226,28 @@ public sealed class KeyboardTestTool : IBuiltinTool
         _visitedKeys.Clear();
         _totalPressed = 0;
 
-        var dialog = context.CreateDialog("键盘测试");
-        dialog.Resources["ContentDialogMaxWidth"] = 1080;
-        dialog.Resources["ContentDialogMaxHeight"] = 680;
+        _dispatcher = App.MainWindow?.DispatcherQueue;
 
         var content = BuildDialogContent();
-        dialog.Content = content;
-        _currentDialog = dialog;
-
-        dialog.Opened += (_, _) =>
+        content.Loaded += (_, _) =>
         {
             _keyGrid?.Focus(FocusState.Programmatic);
             InstallHook();
         };
 
-        dialog.Closing += (_, e) =>
+        App.MainWindow?.NavigateToToolPage(typeof(ToolContentPage), new ToolContentPageParam
         {
-            RemoveHook();
-            _currentDialog = null;
-        };
+            Title = "键盘测试",
+            Description = "依次按下键盘上的按键，检测每个键位是否正常工作",
+            Content = content,
+            OnClose = () =>
+            {
+                RemoveHook();
+                _dispatcher = null;
+            }
+        });
 
-        await dialog.ShowAsync();
+        return Task.CompletedTask;
     }
 
     private ScrollViewer BuildDialogContent()
@@ -370,7 +373,14 @@ public sealed class KeyboardTestTool : IBuiltinTool
         root.Children.Add(actionBar);
         root.Children.Add(keyGrid);
 
-        return new ScrollViewer { Content = root, MaxWidth = 1080, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        return new ScrollViewer
+        {
+            Content = root,
+            MaxWidth = 1080,
+            Padding = new Thickness(24, 0, 24, 24),
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
     }
 
     private void ResetState()

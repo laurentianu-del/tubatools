@@ -9,9 +9,8 @@ using Windows.UI;
 
 namespace TubaWinUi3.Pages;
 
-public sealed class CpuRankingPage : Page
+public sealed partial class CpuRankingPage : Page
 {
-    private readonly Window _window;
     private string _category = "desktop";
     private string _brand = "全部";
     private string _keyword = "";
@@ -42,9 +41,9 @@ public sealed class CpuRankingPage : Page
     private FrameworkElement _filterRow = null!;
     private FrameworkElement _statsRow = null!;
 
-    public CpuRankingPage(Window window)
+    public CpuRankingPage()
     {
-        _window = window;
+        InitializeComponent();
         CpuRankingService.Load();
         LoadBrandLogos();
 

@@ -11,14 +11,7 @@ public sealed class NetworkAdapterProxyTool : IBuiltinTool
 
     public Task ExecuteAsync(BuiltinToolContext context)
     {
-        context.OnProgress?.Invoke("正在打开网络调度器...");
-
-        App.MainWindow?.DispatcherQueue.TryEnqueue(() =>
-        {
-            var window = new TubaWinUi3.Pages.NetworkAdapterProxyWindow();
-            window.Activate();
-        });
-
+        App.MainWindow?.NavigateToToolPage(typeof(TubaWinUi3.Pages.NetworkAdapterProxyPage));
         return Task.CompletedTask;
     }
 }

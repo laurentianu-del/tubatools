@@ -374,7 +374,7 @@ public sealed class BuiltinToolViewModel
     public string Category => Tool.Category;
     public string KindText => Tool.Kind switch
     {
-        BuiltinToolKind.Dialog => "弹窗",
+        BuiltinToolKind.Dialog => "页面",
         BuiltinToolKind.BackgroundTask => "后台任务",
         BuiltinToolKind.ProgressTask => "进度任务",
         BuiltinToolKind.InstantAction => "即时操作",

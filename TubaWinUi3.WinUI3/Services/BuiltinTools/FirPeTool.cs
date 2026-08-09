@@ -1,12 +1,10 @@
 using System.Collections.Specialized;
 using System.ComponentModel;
-using Microsoft.UI;
-using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using TubaWinUi3.Models;
-using Windows.Graphics;
+using TubaWinUi3.Pages;
 using Windows.UI;
 
 namespace TubaWinUi3.Services;
@@ -31,48 +29,9 @@ public sealed class FirPeTool : IBuiltinTool
     {
         App.MainWindow?.DispatcherQueue.TryEnqueue(() =>
         {
-            var window = new Window();
             var state = new WindowState();
 
-            var content = BuildDialogContent(window, state);
-
-            var page = new Page { Content = content };
-            page.RequestedTheme = ThemeService.CurrentElementTheme;
-
-            window.Content = page;
-            BackdropService.ApplyBackdrop(window);
-            window.AppWindow.Title = "FirPE 下载";
-
-            try
-            {
-                var displayArea = DisplayArea.GetFromWindowId(window.AppWindow.Id, DisplayAreaFallback.Primary);
-                if (displayArea is not null)
-                {
-                    var workArea = displayArea.WorkArea;
-                    var w = (int)(workArea.Width * 0.82);
-                    var h = (int)(workArea.Height * 0.85);
-                    window.AppWindow.Resize(new SizeInt32(w, h));
-                    window.AppWindow.Move(new PointInt32(
-                        workArea.X + (int)((workArea.Width - w) / 2),
-                        workArea.Y + (int)((workArea.Height - h) / 2)));
-                }
-            }
-            catch
-            {
-                window.AppWindow.Resize(new SizeInt32(1100, 750));
-                try
-                {
-                    var mainPos = App.MainWindow?.AppWindow.Position;
-                    if (mainPos is not null)
-                        window.AppWindow.Move(new PointInt32(mainPos.Value.X + 50, mainPos.Value.Y + 50));
-                }
-                catch { }
-            }
-
-            window.AppWindow.TitleBar.ExtendsContentIntoTitleBar = true;
-            window.AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
-
-            ApplyTitleBarTheme(window);
+            var content = BuildDialogContent(state);
 
             DownloadQueueService.Queue.CollectionChanged += state.OnQueueChanged;
             foreach (var qi in DownloadQueueService.Queue)
@@ -80,13 +39,17 @@ public sealed class FirPeTool : IBuiltinTool
 
             SyncExistingQueueItems(state);
 
-            window.Closed += (_, _) =>
+            App.MainWindow?.NavigateToToolPage(typeof(ToolContentPage), new ToolContentPageParam
             {
-                DownloadQueueService.Queue.CollectionChanged -= state.OnQueueChanged;
-                state.UnsubscribeQueueItems();
-            };
-
-            window.Activate();
+                Title = "FirPE 下载",
+                Description = "下载 FirPE 微型 Windows PE 系统，支持安装程序和 ISO 镜像",
+                Content = content,
+                OnClose = () =>
+                {
+                    DownloadQueueService.Queue.CollectionChanged -= state.OnQueueChanged;
+                    state.UnsubscribeQueueItems();
+                }
+            });
         });
 
         return Task.CompletedTask;
@@ -208,46 +171,8 @@ public sealed class FirPeTool : IBuiltinTool
         return $"{(int)remaining.Value.TotalHours}时{remaining.Value.Minutes}分";
     }
 
-    private ScrollViewer BuildDialogContent(Window window, WindowState state)
+    private ScrollViewer BuildDialogContent(WindowState state)
     {
-        var headerIcon = new Border
-        {
-            Width = 40,
-            Height = 40,
-            Background = new SolidColorBrush(Color.FromArgb(255, 0, 120, 215)),
-            CornerRadius = new CornerRadius(8),
-            Child = new FontIcon
-            {
-                FontSize = 20,
-                Foreground = new SolidColorBrush(Colors.White),
-                Glyph = "\uE896"
-            }
-        };
-
-        var titleText = new TextBlock
-        {
-            FontSize = 22,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Text = "FirPE 下载"
-        };
-        var descText = new TextBlock
-        {
-            FontSize = 12,
-            Opacity = 1.0,
-            Text = "微型 Windows PE 系统，可用于系统维护、数据恢复等场景"
-        };
-
-        var headerPanel = new StackPanel { Spacing = 2 };
-        headerPanel.Children.Add(titleText);
-        headerPanel.Children.Add(descText);
-
-        var headerGrid = new Grid { ColumnSpacing = 12 };
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        headerGrid.Children.Add(headerIcon);
-        headerGrid.Children.Add(headerPanel);
-        Grid.SetColumn(headerPanel, 1);
-
         var infoBar = new InfoBar
         {
             Title = "FirPE 说明",
@@ -289,12 +214,17 @@ public sealed class FirPeTool : IBuiltinTool
         cardsPanel.Children.Add(exeCard);
         cardsPanel.Children.Add(isoCard);
 
-        var root = new StackPanel { Spacing = 14, Padding = new Thickness(24, 48, 24, 24) };
-        root.Children.Add(headerGrid);
+        var root = new StackPanel { Spacing = 14, Padding = new Thickness(24, 0, 24, 24) };
         root.Children.Add(infoBar);
         root.Children.Add(cardsPanel);
 
-        return new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        return new ScrollViewer
+        {
+            Content = root,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            MaxWidth = 1080
+        };
     }
 
     private Border CreateDownloadCard(
@@ -464,38 +394,6 @@ public sealed class FirPeTool : IBuiltinTool
             CornerRadius = new CornerRadius(8),
             Child = grid
         };
-    }
-
-    private static void ApplyTitleBarTheme(Window window)
-    {
-        var tb = window.AppWindow.TitleBar;
-        var isDark = ThemeService.CurrentTheme == AppTheme.Dark ||
-                     (ThemeService.CurrentTheme == AppTheme.Default && Application.Current.RequestedTheme == ApplicationTheme.Dark);
-
-        if (isDark)
-        {
-            tb.ButtonForegroundColor = Color.FromArgb(255, 255, 255, 255);
-            tb.ButtonBackgroundColor = Color.FromArgb(0, 255, 255, 255);
-            tb.ButtonHoverForegroundColor = Color.FromArgb(255, 255, 255, 255);
-            tb.ButtonHoverBackgroundColor = Color.FromArgb(255, 50, 50, 50);
-            tb.ButtonPressedForegroundColor = Color.FromArgb(255, 180, 180, 180);
-            tb.ButtonPressedBackgroundColor = Color.FromArgb(255, 30, 30, 30);
-            tb.BackgroundColor = Color.FromArgb(255, 32, 32, 32);
-            tb.InactiveBackgroundColor = Color.FromArgb(255, 32, 32, 32);
-        }
-        else
-        {
-            tb.ButtonForegroundColor = Color.FromArgb(255, 30, 30, 30);
-            tb.ButtonBackgroundColor = Color.FromArgb(0, 255, 255, 255);
-            tb.ButtonHoverForegroundColor = Color.FromArgb(255, 30, 30, 30);
-            tb.ButtonHoverBackgroundColor = Color.FromArgb(255, 230, 230, 230);
-            tb.ButtonPressedForegroundColor = Color.FromArgb(255, 100, 100, 100);
-            tb.ButtonPressedBackgroundColor = Color.FromArgb(255, 210, 210, 210);
-            tb.BackgroundColor = Color.FromArgb(0, 255, 255, 255);
-            tb.InactiveBackgroundColor = Color.FromArgb(0, 255, 255, 255);
-        }
-
-        tb.ButtonInactiveForegroundColor = Color.FromArgb(255, 160, 160, 160);
     }
 
     private sealed class WindowState

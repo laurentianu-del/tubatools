@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -10,9 +10,8 @@ using Windows.UI;
 
 namespace TubaWinUi3.Pages;
 
-public sealed class BatteryAnalyzerPage : Page
+public sealed partial class BatteryAnalyzerPage : Page
 {
-    private readonly Window _window;
     private DispatcherTimer? _realtimeTimer;
     private DispatcherTimer? _chartAnimTimer;
     private CancellationTokenSource? _loadCts;
@@ -69,20 +68,19 @@ public sealed class BatteryAnalyzerPage : Page
     private static readonly Color AccentGreen = Color.FromArgb(255, 74, 222, 128);
     private static readonly Color AccentBlue = Color.FromArgb(255, 96, 165, 250);
     private static readonly Color AccentOrange = Color.FromArgb(255, 251, 191, 36);
-    private static readonly Color AccentRed = Color.FromArgb(255, 248, 113, 113);
-    private static readonly Color AccentPurple = Color.FromArgb(255, 167, 139, 250);
+    private static readonly Color AccentRed = Color.FromArgb(255, 248, 113, 113);    private static readonly Color AccentPurple = Color.FromArgb(255, 167, 139, 250);
     private static readonly Color ChartGreen = Color.FromArgb(255, 52, 211, 153);
     private static readonly Color ChartBlue = Color.FromArgb(255, 96, 165, 250);
 
-    public BatteryAnalyzerPage(Window window)
+    public BatteryAnalyzerPage()
     {
-        _window = window;
-        _window.Closed += OnWindowClosed;
+        InitializeComponent();
+        Unloaded += (_, _) => OnPageClosed();
         Content = BuildUI();
         _ = LoadAllDataAsync();
     }
 
-    private void OnWindowClosed(object sender, WindowEventArgs args)
+    private void OnPageClosed()
     {
         _loadCts?.Cancel();
         _realtimeTimer?.Stop();
@@ -91,7 +89,7 @@ public sealed class BatteryAnalyzerPage : Page
 
     private ScrollViewer BuildUI()
     {
-        var mainStack = new StackPanel { Spacing = 16, Padding = new Thickness(28, 48, 28, 20) };
+        var mainStack = new StackPanel { Spacing = 16, Padding = new Thickness(28, 20, 28, 20) };
 
         mainStack.Children.Add(BuildHeader());
 
@@ -500,13 +498,13 @@ public sealed class BatteryAnalyzerPage : Page
         {
             if (_sprReport != null && !string.IsNullOrEmpty(_sprReport.HtmlPath) && File.Exists(_sprReport.HtmlPath))
             {
-                BrowserWindow.Open(_sprReport.HtmlPath, "系统电源报告");
+                BrowserPage.Open(_sprReport.HtmlPath, "系统电源报告");
             }
             else
             {
                 var path = await BatteryAnalyzerService.ExportSprHtmlReportAsync();
                 if (!string.IsNullOrEmpty(path))
-                    BrowserWindow.Open(path, "系统电源报告");
+                    BrowserPage.Open(path, "系统电源报告");
                 else
                 {
                     _infoBar.Title = "查看失败";
@@ -1522,7 +1520,7 @@ public sealed class BatteryAnalyzerPage : Page
         var path = await BatteryReportService.ExportHtmlReportAsync();
         if (!string.IsNullOrEmpty(path))
         {
-            BrowserWindow.Open(path, "电池详细报告");
+            BrowserPage.Open(path, "电池详细报告");
         }
         else
         {

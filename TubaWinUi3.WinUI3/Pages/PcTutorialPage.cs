@@ -18,9 +18,8 @@ using Windows.UI;
 
 namespace TubaWinUi3.Pages;
 
-public sealed class PcTutorialPage : Page
+public sealed partial class PcTutorialPage : Page
 {
-    private readonly Window _window;
     private ListView _navList = null!;
     private ScrollViewer _contentScroll = null!;
     private StackPanel _contentPanel = null!;
@@ -63,9 +62,9 @@ public sealed class PcTutorialPage : Page
         ("\uE7BA", "辟谣专区", "那些年信过的谎言", "qna"),
     ];
 
-    public PcTutorialPage(Window window)
+    public PcTutorialPage()
     {
-        _window = window;
+        InitializeComponent();
         LoadProgress();
         try
         {
@@ -842,7 +841,7 @@ public sealed class PcTutorialPage : Page
             if (nCode >= 0 && (wParam == (IntPtr)0x0100 || wParam == (IntPtr)0x0104))
             {
                 var vkCode = Marshal.ReadInt32(lParam);
-                _ = _window.DispatcherQueue.TryEnqueue(() =>
+                _ = DispatcherQueue.TryEnqueue(() =>
                 {
                     var pressed = KeyToString(vkCode);
                     var target = guide.ShortcutKey;
@@ -852,7 +851,7 @@ public sealed class PcTutorialPage : Page
                         _completedExperiences.Add(guide.Id);
                         SaveProgress();
 
-                        _window.DispatcherQueue.TryEnqueue(() =>
+                        DispatcherQueue.TryEnqueue(() =>
                         {
                             UninstallKeyboardHook();
                             checkIcon.Visibility = Visibility.Visible;

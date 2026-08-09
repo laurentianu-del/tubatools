@@ -1,8 +1,8 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using TubaWinUi3.Pages;
 using Windows.UI;
-using TubaWinUi3.Services;
 
 namespace TubaWinUi3.Services;
 
@@ -18,18 +18,20 @@ public sealed class WifiPasswordTool : IBuiltinTool
     private static readonly Color AccentBlue = Color.FromArgb(255, 96, 165, 250);
     private static readonly Color AccentGreen = Color.FromArgb(255, 74, 222, 128);
 
-    public async Task ExecuteAsync(BuiltinToolContext context)
+    public Task ExecuteAsync(BuiltinToolContext context)
     {
-        var dialog = context.CreateDialog("WiFi 密码查看");
-        dialog.Resources["ContentDialogMaxWidth"] = 860;
-        dialog.Resources["ContentDialogMaxHeight"] = 700;
-
         var content = BuildDialogContent();
-        dialog.Content = content;
+
+        App.MainWindow?.NavigateToToolPage(typeof(ToolContentPage), new ToolContentPageParam
+        {
+            Title = "WiFi 密码查看",
+            Description = "查看本机已连接过的 WiFi 网络名称和密码，密码默认隐藏，点击眼睛图标显示",
+            Content = content
+        });
 
         _ = LoadNetworksAsync(content);
 
-        await dialog.ShowAsync();
+        return Task.CompletedTask;
     }
 
     private async Task LoadNetworksAsync(ScrollViewer root)
@@ -263,19 +265,19 @@ public sealed class WifiPasswordTool : IBuiltinTool
         };
 
         var rootStack = new StackPanel { Spacing = 14, MaxWidth = 800 };
-        rootStack.Children.Add(new TextBlock
-        {
-            Text = "查看本机已连接过的 WiFi 网络名称和密码，密码默认隐藏，点击眼睛图标显示",
-            FontSize = 12,
-            Foreground = new SolidColorBrush(ThemeColors.DimText)
-        });
         rootStack.Children.Add(statsGrid);
         rootStack.Children.Add(actionBar);
         rootStack.Children.Add(loadingPanel);
         rootStack.Children.Add(emptyPanel);
         rootStack.Children.Add(listScroll);
 
-        var scrollViewer = new ScrollViewer { Content = rootStack, MaxWidth = 860 };
+        var scrollViewer = new ScrollViewer
+        {
+            Content = rootStack,
+            MaxWidth = 860,
+            Padding = new Thickness(24, 0, 24, 24),
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
         scrollViewer.Tag = new WifiPasswordState
         {
             NetworkCountText = networkCountText,

@@ -11,14 +11,7 @@ public sealed class HostsEditorTool : IBuiltinTool
 
     public Task ExecuteAsync(BuiltinToolContext context)
     {
-        context.OnProgress?.Invoke("正在打开 Hosts 编辑...");
-
-        App.MainWindow?.DispatcherQueue.TryEnqueue(() =>
-        {
-            var window = new TubaWinUi3.Pages.HostsEditorWindow();
-            window.Activate();
-        });
-
+        App.MainWindow?.NavigateToToolPage(typeof(TubaWinUi3.Pages.HostsEditorPage));
         return Task.CompletedTask;
     }
 }

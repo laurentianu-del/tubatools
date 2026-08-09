@@ -1,9 +1,6 @@
-using Microsoft.UI;
-using Microsoft.UI.Windowing;
-using Microsoft.UI.Xaml;
+﻿using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
-using Windows.Graphics;
 using Windows.UI;
 
 namespace TubaWinUi3.Services;
@@ -19,16 +16,12 @@ public sealed class LanFileShareTool : IBuiltinTool
 
     public Task ExecuteAsync(BuiltinToolContext context)
     {
-        App.MainWindow?.DispatcherQueue.TryEnqueue(() =>
-        {
-            var window = new LanFileShareWindow();
-            window.Activate();
-        });
+        App.MainWindow?.NavigateToToolPage(typeof(LanFileSharePage));
         return Task.CompletedTask;
     }
 }
 
-public sealed class LanFileShareWindow : Window
+public sealed partial class LanFileSharePage : Page
 {
     private WebView2? _webView;
     private StackPanel _controlBar = null!;
@@ -51,34 +44,18 @@ public sealed class LanFileShareWindow : Window
     private Button _retryBtn = null!;
     private bool _closed;
 
-    public LanFileShareWindow()
+    public LanFileSharePage()
     {
-        AppWindow.Title = "局域网文件分享";
-        AppWindow.Resize(new SizeInt32(1100, 780));
-        AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"));
+        InitializeComponent();
+        Content = BuildContent();
 
-        try
-        {
-            var mainPos = App.MainWindow?.AppWindow.Position;
-            if (mainPos is not null)
-                AppWindow.Move(new PointInt32(mainPos.Value.X + 40, mainPos.Value.Y + 40));
-        }
-        catch { }
-
-        AppWindow.TitleBar.ExtendsContentIntoTitleBar = true;
-        AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
-        ApplyTitleBarTheme();
-        BackdropService.ApplyBackdrop(this);
-
-        var page = new Page { Content = BuildContent() };
-        page.RequestedTheme = ThemeService.CurrentElementTheme;
-        Content = page;
-
-        Closed += OnClosed;
+        Unloaded += OnPageUnloaded;
 
         LanFileShareService.StateChanged += OnStateChanged;
         UpdateUI();
     }
+
+    private void OnPageUnloaded(object sender, RoutedEventArgs e) => OnClosed(sender, e);
 
     private Grid BuildContent()
     {
@@ -87,17 +64,29 @@ public sealed class LanFileShareWindow : Window
             Width = 40, Height = 40,
             Background = new SolidColorBrush(Color.FromArgb(255, 0, 95, 184)),
             CornerRadius = new CornerRadius(8),
-            Child = new FontIcon { FontSize = 20, Glyph = "\uE8F1", Foreground = new SolidColorBrush(Colors.White) }
+            Child = new FontIcon { FontSize = 20, Glyph = "\uE8F1", Foreground = new SolidColorBrush(Microsoft.UI.Colors.White) }
         };
 
         var titleText = new TextBlock { Text = "局域网文件分享", FontSize = 22, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
         var subtitleText = new TextBlock { Text = "在局域网内创建HTTP文件分享服务，其他设备可通过浏览器访问和下载文件", FontSize = 12, Opacity = 0.68 };
         var titleStack = new StackPanel { Spacing = 2, Children = { titleText, subtitleText } };
 
-        var closeBtn = new Button { Content = "关闭" };
-        closeBtn.Click += (_, _) => Close();
+        var closeBtn = new Button
+        {
+            Content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 6,
+                Children =
+                {
+                    new FontIcon { Glyph = "\uE72B", FontSize = 12 },
+                    new TextBlock { Text = "返回" }
+                }
+            }
+        };
+        closeBtn.Click += (_, _) => App.MainWindow?.NavigateBack();
 
-        var titleBar = new Grid { Padding = new Thickness(24, 48, 24, 12), ColumnSpacing = 12 };
+        var titleBar = new Grid { Padding = new Thickness(24, 0, 24, 12), ColumnSpacing = 12 };
         titleBar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         titleBar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         titleBar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -332,39 +321,10 @@ public sealed class LanFileShareWindow : Window
         _portBox.IsEnabled = !running;
     }
 
-    private void OnClosed(object sender, WindowEventArgs args)
+    private void OnClosed(object sender, RoutedEventArgs e)
     {
         _closed = true;
         LanFileShareService.StateChanged -= OnStateChanged;
         LanFileShareService.Stop();
-    }
-
-    private void ApplyTitleBarTheme()
-    {
-        var tb = AppWindow.TitleBar;
-        var isDark = ThemeService.CurrentTheme == AppTheme.Dark || (ThemeService.CurrentTheme == AppTheme.Default && Application.Current.RequestedTheme == ApplicationTheme.Dark);
-        if (isDark)
-        {
-            tb.ButtonForegroundColor = Color.FromArgb(255, 255, 255, 255);
-            tb.ButtonBackgroundColor = Color.FromArgb(0, 255, 255, 255);
-            tb.ButtonHoverForegroundColor = Color.FromArgb(255, 255, 255, 255);
-            tb.ButtonHoverBackgroundColor = Color.FromArgb(255, 50, 50, 50);
-            tb.ButtonPressedForegroundColor = Color.FromArgb(255, 180, 180, 180);
-            tb.ButtonPressedBackgroundColor = Color.FromArgb(255, 30, 30, 30);
-            tb.BackgroundColor = Color.FromArgb(255, 32, 32, 32);
-            tb.InactiveBackgroundColor = Color.FromArgb(255, 32, 32, 32);
-        }
-        else
-        {
-            tb.ButtonForegroundColor = Color.FromArgb(255, 30, 30, 30);
-            tb.ButtonBackgroundColor = Color.FromArgb(0, 255, 255, 255);
-            tb.ButtonHoverForegroundColor = Color.FromArgb(255, 30, 30, 30);
-            tb.ButtonHoverBackgroundColor = Color.FromArgb(255, 230, 230, 230);
-            tb.ButtonPressedForegroundColor = Color.FromArgb(255, 100, 100, 100);
-            tb.ButtonPressedBackgroundColor = Color.FromArgb(255, 210, 210, 210);
-            tb.BackgroundColor = Color.FromArgb(0, 255, 255, 255);
-            tb.InactiveBackgroundColor = Color.FromArgb(0, 255, 255, 255);
-        }
-        tb.ButtonInactiveForegroundColor = Color.FromArgb(255, 160, 160, 160);
     }
 }

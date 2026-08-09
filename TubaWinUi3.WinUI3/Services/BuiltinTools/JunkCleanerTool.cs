@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using TubaWinUi3.Pages;
 using Windows.UI;
 
 namespace TubaWinUi3.Services;
@@ -60,17 +61,27 @@ public sealed class JunkCleanerTool : IBuiltinTool
     private CancellationTokenSource? _cts;
     private bool _aiFullScan;
 
-    public async Task ExecuteAsync(BuiltinToolContext context)
+    public Task ExecuteAsync(BuiltinToolContext context)
     {
-        var dialog = context.CreateDialog("垃圾清理");
-        dialog.Resources["ContentDialogMaxWidth"] = 920;
-        dialog.Resources["ContentDialogMaxHeight"] = 720;
-        dialog.Closing += (_, _) => _cts?.Cancel();
-
         var content = BuildDialogContent();
-        dialog.Content = content;
+        var scroll = new ScrollViewer
+        {
+            Content = content,
+            Padding = new Thickness(24, 0, 24, 24),
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            MaxWidth = 1080
+        };
 
-        await dialog.ShowAsync();
+        App.MainWindow?.NavigateToToolPage(typeof(ToolContentPage), new ToolContentPageParam
+        {
+            Title = "垃圾清理",
+            Description = "扫描并清理系统临时文件、浏览器缓存、回收站等垃圾文件",
+            Content = scroll,
+            OnClose = () => _cts?.Cancel()
+        });
+
+        return Task.CompletedTask;
     }
 
     private StackPanel BuildDialogContent()

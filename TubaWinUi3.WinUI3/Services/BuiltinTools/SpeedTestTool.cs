@@ -1,4 +1,4 @@
-namespace TubaWinUi3.Services;
+﻿namespace TubaWinUi3.Services;
 
 public sealed class SpeedTestTool : IBuiltinTool
 {
@@ -13,7 +13,7 @@ public sealed class SpeedTestTool : IBuiltinTool
 
     public Task ExecuteAsync(BuiltinToolContext context)
     {
-        TubaWinUi3.Pages.BrowserWindow.Open(SpeedTestUrl, "网速测试");
+        TubaWinUi3.Pages.BrowserPage.Open(SpeedTestUrl, "网速测试");
         return Task.CompletedTask;
     }
 }

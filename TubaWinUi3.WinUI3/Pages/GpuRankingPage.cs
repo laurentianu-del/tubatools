@@ -9,9 +9,8 @@ using Windows.UI;
 
 namespace TubaWinUi3.Pages;
 
-public sealed class GpuRankingPage : Page
+public sealed partial class GpuRankingPage : Page
 {
-    private readonly Window _window;
     private string _category = "desktop";
     private string _brand = "全部";
     private string _keyword = "";
@@ -44,9 +43,9 @@ public sealed class GpuRankingPage : Page
     private FrameworkElement _filterRow = null!;
     private FrameworkElement _statsRow = null!;
 
-    public GpuRankingPage(Window window)
+    public GpuRankingPage()
     {
-        _window = window;
+        InitializeComponent();
         GpuRankingService.Load();
         LoadBrandLogos();
 

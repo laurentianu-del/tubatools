@@ -15,14 +15,7 @@ public sealed class EnergyStarTool : IBuiltinTool
 
     public Task ExecuteAsync(BuiltinToolContext context)
     {
-        context.OnProgress?.Invoke("正在打开后台节流省电神器...");
-
-        App.MainWindow?.DispatcherQueue.TryEnqueue(() =>
-        {
-            var window = new TubaWinUi3.Pages.EnergyStarWindow();
-            window.Activate();
-        });
-
+        App.MainWindow?.NavigateToToolPage(typeof(TubaWinUi3.Pages.EnergyStarPage));
         return Task.CompletedTask;
     }
 }

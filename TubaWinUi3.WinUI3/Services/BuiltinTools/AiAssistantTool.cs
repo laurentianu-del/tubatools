@@ -1,11 +1,10 @@
 using System.Diagnostics;
-using Microsoft.UI;
-using Microsoft.UI.Windowing;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
-using Windows.Graphics;
+using TubaWinUi3.Pages;
 using Windows.UI;
 
 namespace TubaWinUi3.Services;
@@ -21,56 +20,23 @@ public sealed class AiAssistantTool : IBuiltinTool
 
     public Task ExecuteAsync(BuiltinToolContext context)
     {
-        var window = new Window();
-        var state = new AssistantState();
-        var content = BuildDialogContent(state, window);
-
-        var page = new Page { Content = content };
-        page.RequestedTheme = ThemeService.CurrentElementTheme;
-
-        window.Content = page;
-        BackdropService.ApplyBackdrop(window);
-        window.AppWindow.Title = "AI 助手";
-
-        try
+        var state = new AssistantState
         {
-            var displayArea = DisplayArea.GetFromWindowId(window.AppWindow.Id, DisplayAreaFallback.Primary);
-            if (displayArea is not null)
-            {
-                var workArea = displayArea.WorkArea;
-                var w = (int)(workArea.Width * 0.82);
-                var h = (int)(workArea.Height * 0.85);
-                window.AppWindow.Resize(new SizeInt32(w, h));
-                window.AppWindow.Move(new PointInt32(
-                    workArea.X + (int)((workArea.Width - w) / 2),
-                    workArea.Y + (int)((workArea.Height - h) / 2)));
-            }
-        }
-        catch
-        {
-            window.AppWindow.Resize(new SizeInt32(1100, 750));
-            try
-            {
-                var mainPos = App.MainWindow?.AppWindow.Position;
-                if (mainPos is not null)
-                    window.AppWindow.Move(new PointInt32(mainPos.Value.X + 50, mainPos.Value.Y + 50));
-            }
-            catch { }
-        }
-
-        window.AppWindow.TitleBar.ExtendsContentIntoTitleBar = true;
-        window.AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
-
-        ApplyTitleBarTheme(window);
-
-        state.Window = window;
-        window.Closed += (_, _) =>
-        {
-            state.Cts.Cancel();
-            state.Cts.Dispose();
+            Dispatcher = App.MainWindow?.DispatcherQueue
         };
+        var content = BuildDialogContent(state);
 
-        window.Activate();
+        App.MainWindow?.NavigateToToolPage(typeof(ToolContentPage), new ToolContentPageParam
+        {
+            Title = "AI 助手",
+            Description = "智能系统助手，可诊断问题、优化配置、推荐软件并执行操作",
+            Content = content,
+            OnClose = () =>
+            {
+                state.Cts.Cancel();
+                state.Cts.Dispose();
+            }
+        });
 
         if (AiService.IsUsingDefaultModel)
         {
@@ -82,7 +48,7 @@ public sealed class AiAssistantTool : IBuiltinTool
         return Task.CompletedTask;
     }
 
-    private static ScrollViewer BuildDialogContent(AssistantState state, Window window)
+    private static ScrollViewer BuildDialogContent(AssistantState state)
     {
         var logList = new StackPanel
         {
@@ -204,7 +170,9 @@ public sealed class AiAssistantTool : IBuiltinTool
         {
             Content = rootGrid,
             VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            HorizontalScrollMode = ScrollMode.Disabled
+            HorizontalScrollMode = ScrollMode.Disabled,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            MaxWidth = 1120
         };
 
         sendBtn.Click += (_, _) => SendMessage(state);
@@ -237,7 +205,7 @@ public sealed class AiAssistantTool : IBuiltinTool
         }
 
         var toolSteps = new List<ToolStep>();
-        var dq = state.Window.DispatcherQueue;
+        var dq = state.Dispatcher!;
 
         var (streamingBubble, streamingTb) = CreateStreamingBubble();
         state.LogList.Children.Add(streamingBubble);
@@ -366,7 +334,7 @@ public sealed class AiAssistantTool : IBuiltinTool
             $"[ACTION_CONFIRMED]\n{sb}"));
 
         var toolSteps = new List<ToolStep>();
-        var dq = state.Window.DispatcherQueue;
+        var dq = state.Dispatcher!;
 
         var (streamingBubble, streamingTb) = CreateStreamingBubble();
         state.LogList.Children.Add(streamingBubble);
@@ -773,49 +741,16 @@ public sealed class AiAssistantTool : IBuiltinTool
 
     private static void SmartScroll(AssistantState state)
     {
-        state.Window.DispatcherQueue.TryEnqueue(() =>
+        state.Dispatcher!.TryEnqueue(() =>
         {
             var sv = state.LogScroll;
             if (sv.ScrollableHeight <= 0) return;
             var distFromBottom = sv.ScrollableHeight - sv.VerticalOffset;
             if (distFromBottom < 80)
             {
-                sv.ChangeView(null, sv.ScrollableHeight, null);
+                 sv.ChangeView(null, sv.ScrollableHeight, null);
             }
         });
-    }
-
-    private static void ApplyTitleBarTheme(Window window)
-    {
-        var tb = window.AppWindow.TitleBar;
-        var isDark = ThemeService.CurrentTheme == AppTheme.Dark ||
-                     (ThemeService.CurrentTheme == AppTheme.Default && Application.Current.RequestedTheme == ApplicationTheme.Dark);
-
-        if (isDark)
-        {
-            tb.ButtonForegroundColor = Color.FromArgb(255, 255, 255, 255);
-            tb.ButtonBackgroundColor = Color.FromArgb(0, 255, 255, 255);
-            tb.ButtonHoverForegroundColor = Color.FromArgb(255, 255, 255, 255);
-            tb.ButtonHoverBackgroundColor = Color.FromArgb(255, 50, 50, 50);
-            tb.ButtonPressedForegroundColor = Color.FromArgb(255, 180, 180, 180);
-            tb.ButtonPressedBackgroundColor = Color.FromArgb(255, 30, 30, 30);
-            tb.BackgroundColor = Color.FromArgb(255, 32, 32, 32);
-            tb.InactiveBackgroundColor = Color.FromArgb(255, 32, 32, 32);
-        }
-        else
-        {
-            tb.ButtonForegroundColor = Color.FromArgb(255, 30, 30, 30);
-            tb.ButtonBackgroundColor = Color.FromArgb(0, 255, 255, 255);
-            tb.ButtonHoverForegroundColor = Color.FromArgb(255, 30, 30, 30);
-            tb.ButtonHoverBackgroundColor = Color.FromArgb(255, 230, 230, 230);
-            tb.ButtonPressedForegroundColor = Color.FromArgb(255, 100, 100, 100);
-            tb.ButtonPressedBackgroundColor = Color.FromArgb(255, 210, 210, 210);
-            tb.BackgroundColor = Color.FromArgb(0, 255, 255, 255);
-            tb.InactiveBackgroundColor = Color.FromArgb(0, 255, 255, 255);
-        }
-
-        tb.ButtonInactiveForegroundColor = Color.FromArgb(255, 160, 160, 160);
-        tb.ButtonInactiveBackgroundColor = Color.FromArgb(0, 255, 255, 255);
     }
 }
 
@@ -823,7 +758,7 @@ internal sealed record ToolStep(string CallInfo, string? Result);
 
 internal sealed class AssistantState
 {
-    public Window Window = null!;
+    public DispatcherQueue? Dispatcher;
     public StackPanel LogList = null!;
     public ScrollViewer LogScroll = null!;
     public AutoSuggestBox InputBox = null!;

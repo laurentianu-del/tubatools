@@ -19,7 +19,6 @@ namespace TubaWinUi3.Pages;
 
 public sealed partial class QuickDeviceCheckPage : Page
 {
-    private readonly Window _window;
     private int _currentStep;
     private const int TotalSteps = 8;
 
@@ -39,7 +38,7 @@ public sealed partial class QuickDeviceCheckPage : Page
         "外设检查",
         "摄像头检测",
         "音频测试",
-        "双烤压力测试"
+        "三烤压力测试"
     ];
 
     private static readonly string[] StepGlyphs =
@@ -56,13 +55,12 @@ public sealed partial class QuickDeviceCheckPage : Page
         "测试键盘和硬盘是否正常",
         "确认摄像头能否正常工作",
         "确认扬声器能否正常播放",
-        "CPU+GPU 双烤，验证系统稳定性"
+        "CPU+GPU+网卡 三烤，验证系统稳定性"
     ];
 
-    public QuickDeviceCheckPage(Window window)
+    public QuickDeviceCheckPage()
     {
         InitializeComponent();
-        _window = window;
         _currentStep = 0;
         UpdateStepUI();
         Loaded += OnLoaded;
@@ -916,7 +914,6 @@ public sealed partial class QuickDeviceCheckPage : Page
     {
         _stressControl = new Controls.StressTestControl
         {
-            OwnerWindow = _window,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch
         };
@@ -972,8 +969,10 @@ public sealed partial class QuickDeviceCheckPage : Page
     {
         try
         {
-            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(_window);
-            _window.AppWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
+            var mainWindow = App.MainWindow;
+            if (mainWindow is null) return;
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(mainWindow);
+            mainWindow.AppWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
             ShowWindow(hwnd, SW_SHOW);
             BringWindowToTop(hwnd);
             SetForegroundWindow(hwnd);
@@ -990,7 +989,7 @@ public sealed partial class QuickDeviceCheckPage : Page
         StepDescText.Visibility = Visibility.Visible;
         NextButton.Visibility = Visibility.Visible;
         BackButton.Visibility = _currentStep > 0 ? Visibility.Visible : Visibility.Collapsed;
-        try { _window.AppWindow.SetPresenter(AppWindowPresenterKind.Default); } catch { }
+        try { App.MainWindow?.AppWindow.SetPresenter(AppWindowPresenterKind.Default); } catch { }
     }
 
     #endregion
@@ -1002,8 +1001,8 @@ public sealed partial class QuickDeviceCheckPage : Page
         if (_currentStep >= TotalSteps - 1)
         {
             Cleanup();
-            try { _window.AppWindow.SetPresenter(AppWindowPresenterKind.Default); } catch { }
-            _window.Close();
+            try { App.MainWindow?.AppWindow.SetPresenter(AppWindowPresenterKind.Default); } catch { }
+            App.MainWindow?.NavigateBack();
             return;
         }
 

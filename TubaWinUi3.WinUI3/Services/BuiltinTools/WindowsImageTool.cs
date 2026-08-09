@@ -13,12 +13,7 @@ public sealed class WindowsImageTool : IBuiltinTool
 
     public Task ExecuteAsync(BuiltinToolContext context)
     {
-        App.MainWindow?.DispatcherQueue.TryEnqueue(() =>
-        {
-            var window = new TubaWinUi3.Pages.WindowsImageWindow();
-            window.Activate();
-        });
-
+        App.MainWindow?.NavigateToToolPage(typeof(TubaWinUi3.Pages.WindowsImagePage));
         return Task.CompletedTask;
     }
 }

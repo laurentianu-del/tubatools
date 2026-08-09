@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -547,7 +547,7 @@ public static partial class AiMarkdownRenderer
         };
         openBtn.Click += (_, _) =>
         {
-            try { Pages.BrowserWindow.Open((string)openBtn.Tag); } catch { }
+            try { Pages.BrowserPage.Open((string)openBtn.Tag); } catch { }
         };
         grid.Children.Add(openBtn); Grid.SetColumn(openBtn, 2);
 

@@ -1,10 +1,8 @@
-using Microsoft.UI;
-using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using TubaWinUi3.Models;
-using Windows.Graphics;
+using TubaWinUi3.Pages;
 using Windows.UI;
 
 namespace TubaWinUi3.Services;
@@ -24,54 +22,23 @@ public sealed class CertBlockTool : IBuiltinTool
     {
         CertBlockService.LoadAsync();
 
-        var window = new Window();
         var content = BuildDialogContent();
-
-        var page = new Page { Content = content };
-        page.RequestedTheme = ThemeService.CurrentElementTheme;
-
-        window.Content = page;
-        BackdropService.ApplyBackdrop(window);
-        window.AppWindow.Title = "恶意软件拦截器";
-
-        try
-        {
-            var displayArea = DisplayArea.GetFromWindowId(window.AppWindow.Id, DisplayAreaFallback.Primary);
-            if (displayArea is not null)
-            {
-                var workArea = displayArea.WorkArea;
-                var w = (int)(workArea.Width * 0.82);
-                var h = (int)(workArea.Height * 0.85);
-                window.AppWindow.Resize(new SizeInt32(w, h));
-                window.AppWindow.Move(new PointInt32(
-                    workArea.X + (int)((workArea.Width - w) / 2),
-                    workArea.Y + (int)((workArea.Height - h) / 2)));
-            }
-        }
-        catch
-        {
-            window.AppWindow.Resize(new SizeInt32(1100, 750));
-            try
-            {
-                var mainPos = App.MainWindow?.AppWindow.Position;
-                if (mainPos is not null)
-                    window.AppWindow.Move(new PointInt32(mainPos.Value.X + 50, mainPos.Value.Y + 50));
-            }
-            catch { }
-        }
-
-        window.AppWindow.TitleBar.ExtendsContentIntoTitleBar = true;
-        window.AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
-
-        ApplyTitleBarTheme(window);
 
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         timer.Tick += (_, _) => RefreshUI();
         timer.Start();
 
-        window.Closed += (_, _) => { timer.Stop(); _state = null; };
-
-        window.Activate();
+        App.MainWindow?.NavigateToToolPage(typeof(ToolContentPage), new ToolContentPageParam
+        {
+            Title = "恶意软件拦截器",
+            Description = "通过将软件厂商证书加入系统不信任列表，阻止流氓软件安装和运行",
+            Content = content,
+            OnClose = () =>
+            {
+                timer.Stop();
+                _state = null;
+            }
+        });
 
         return Task.CompletedTask;
     }
@@ -149,7 +116,7 @@ public sealed class CertBlockTool : IBuiltinTool
         contentGrid.Children.Add(loadingPanel); Grid.SetRow(loadingPanel, 3);
         contentGrid.Children.Add(listScroll); Grid.SetRow(listScroll, 3);
 
-        var root = new StackPanel { Spacing = 14, Padding = new Thickness(24, 48, 24, 16) };
+        var root = new StackPanel { Spacing = 14, Padding = new Thickness(24, 0, 24, 16) };
         root.Children.Add(new TextBlock
         {
             Text = "Malware-Patch 恶意软件拦截引擎 · 将厂商证书加入系统不信任列表",
@@ -172,7 +139,13 @@ public sealed class CertBlockTool : IBuiltinTool
             UnblockAllBtn = unblockAllBtn
         };
 
-        return new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        return new ScrollViewer
+        {
+            Content = root,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            MaxWidth = 1080
+        };
     }
 
     private void RefreshUI()
@@ -353,38 +326,6 @@ public sealed class CertBlockTool : IBuiltinTool
             CornerRadius = new CornerRadius(6),
             Child = grid
         };
-    }
-
-    private static void ApplyTitleBarTheme(Window window)
-    {
-        var tb = window.AppWindow.TitleBar;
-        var isDark = ThemeService.CurrentTheme == AppTheme.Dark ||
-                     (ThemeService.CurrentTheme == AppTheme.Default && Application.Current.RequestedTheme == ApplicationTheme.Dark);
-
-        if (isDark)
-        {
-            tb.ButtonForegroundColor = Color.FromArgb(255, 255, 255, 255);
-            tb.ButtonBackgroundColor = Color.FromArgb(0, 255, 255, 255);
-            tb.ButtonHoverForegroundColor = Color.FromArgb(255, 255, 255, 255);
-            tb.ButtonHoverBackgroundColor = Color.FromArgb(255, 50, 50, 50);
-            tb.ButtonPressedForegroundColor = Color.FromArgb(255, 180, 180, 180);
-            tb.ButtonPressedBackgroundColor = Color.FromArgb(255, 30, 30, 30);
-            tb.BackgroundColor = Color.FromArgb(255, 32, 32, 32);
-            tb.InactiveBackgroundColor = Color.FromArgb(255, 32, 32, 32);
-        }
-        else
-        {
-            tb.ButtonForegroundColor = Color.FromArgb(255, 30, 30, 30);
-            tb.ButtonBackgroundColor = Color.FromArgb(0, 255, 255, 255);
-            tb.ButtonHoverForegroundColor = Color.FromArgb(255, 30, 30, 30);
-            tb.ButtonHoverBackgroundColor = Color.FromArgb(255, 230, 230, 230);
-            tb.ButtonPressedForegroundColor = Color.FromArgb(255, 100, 100, 100);
-            tb.ButtonPressedBackgroundColor = Color.FromArgb(255, 210, 210, 210);
-            tb.BackgroundColor = Color.FromArgb(0, 255, 255, 255);
-            tb.InactiveBackgroundColor = Color.FromArgb(0, 255, 255, 255);
-        }
-
-        tb.ButtonInactiveForegroundColor = Color.FromArgb(255, 160, 160, 160);
     }
 
     private sealed class DialogState

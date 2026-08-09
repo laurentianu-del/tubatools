@@ -18,7 +18,7 @@ using Windows.UI;
 
 namespace TubaWinUi3.Pages;
 
-public sealed class BenchmarkCloudPage : Page
+public sealed partial class BenchmarkCloudPage : Page
 {
 	private List<BenchmarkReportEntry> _allReports = new List<BenchmarkReportEntry>();
 
@@ -114,6 +114,7 @@ public sealed class BenchmarkCloudPage : Page
 
 	public BenchmarkCloudPage()
 	{
+		InitializeComponent();
 		Content = BuildUI();
 		Loaded += OnLoaded;
 	}

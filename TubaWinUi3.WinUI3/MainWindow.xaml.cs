@@ -957,6 +957,25 @@ public sealed partial class MainWindow : Window
         frame.Navigate(typeof(PerformanceBenchmarkPage));
     }
 
+    public void NavigateToToolPage(Type pageType, object? parameter = null)
+    {
+        var frame = _isTabMode ? TabNavFrame : NavFrame;
+        frame.Navigate(pageType, parameter);
+    }
+
+    public void NavigateBack()
+    {
+        var frame = _isTabMode ? TabNavFrame : NavFrame;
+        if (frame.CanGoBack)
+            frame.GoBack();
+    }
+
+    public bool CanNavigateBack()
+    {
+        var frame = _isTabMode ? TabNavFrame : NavFrame;
+        return frame.CanGoBack;
+    }
+
     private void PopulateSearchSuggestions()
     {
         var items = UnifiedSearchService.GetQuickPanelItems();

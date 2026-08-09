@@ -10,14 +10,12 @@ namespace TubaWinUi3.Pages;
 
 public sealed partial class AntiMotionSicknessWindow : Page
 {
-    private readonly Window _window;
     private AntiMotionSicknessConfig _cfg;
     private bool _suppressEvents = true;
     private bool _liteMode = false;
 
-    public AntiMotionSicknessWindow(Window window)
+    public AntiMotionSicknessWindow()
     {
-        _window = window;
         InitializeComponent();
 
         _cfg = AntiMotionSicknessConfig.Load();
@@ -26,10 +24,10 @@ public sealed partial class AntiMotionSicknessWindow : Page
 
         _suppressEvents = false;
 
-        _window.Closed += OnWindowClosed;
+        Unloaded += OnPageUnloaded;
     }
 
-    private void OnWindowClosed(object sender, WindowEventArgs args)
+    private void OnPageUnloaded(object sender, RoutedEventArgs e)
     {
         if (!_liteMode)
         {
@@ -234,7 +232,6 @@ public sealed partial class AntiMotionSicknessWindow : Page
         {
             SaveConfigFromUI();
             TrayIconService.Show();
-            _window.Close();
             App.MainWindow?.Close();
         }
     }

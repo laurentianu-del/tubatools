@@ -1,11 +1,8 @@
-using System.Diagnostics;
-using Microsoft.UI;
-using Microsoft.UI.Windowing;
+﻿using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using TubaWinUi3.Models;
-using Windows.Graphics;
 using Windows.UI;
 
 namespace TubaWinUi3.Services;
@@ -21,16 +18,12 @@ public sealed class DotnetCompletionTool : IBuiltinTool
 
     public Task ExecuteAsync(BuiltinToolContext context)
     {
-        App.MainWindow?.DispatcherQueue.TryEnqueue(() =>
-        {
-            var window = new DotnetCompletionWindow();
-            window.Activate();
-        });
+        App.MainWindow?.NavigateToToolPage(typeof(DotnetCompletionPage));
         return Task.CompletedTask;
     }
 }
 
-public sealed class DotnetCompletionWindow : Window
+public sealed partial class DotnetCompletionPage : Page
 {
     private StackPanel _loadingPanel = null!;
     private ProgressRing _loadingRing = null!;
@@ -49,30 +42,12 @@ public sealed class DotnetCompletionWindow : Window
     private readonly Dictionary<string, bool> _expandedStates = new();
     private bool _syncingQueue;
 
-    public DotnetCompletionWindow()
+    public DotnetCompletionPage()
     {
-        AppWindow.Title = ".NET 环境补全";
-        AppWindow.Resize(new SizeInt32(960, 780));
-        AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"));
+        InitializeComponent();
+        Content = BuildContent();
 
-        try
-        {
-            var mainPos = App.MainWindow?.AppWindow.Position;
-            if (mainPos is not null)
-                AppWindow.Move(new PointInt32(mainPos.Value.X + 40, mainPos.Value.Y + 40));
-        }
-        catch { }
-
-        AppWindow.TitleBar.ExtendsContentIntoTitleBar = true;
-        AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
-        ApplyTitleBarTheme();
-        BackdropService.ApplyBackdrop(this);
-
-        var page = new Page { Content = BuildContent() };
-        page.RequestedTheme = ThemeService.CurrentElementTheme;
-        Content = page;
-
-        Closed += (_, _) =>
+        Unloaded += (_, _) =>
         {
             DotnetCompletionService.DataChanged -= OnDataChanged;
             DownloadQueueService.Queue.CollectionChanged -= OnQueueChanged;
@@ -174,7 +149,7 @@ public sealed class DotnetCompletionWindow : Window
             Width = 40, Height = 40,
             Background = new SolidColorBrush(Color.FromArgb(255, 80, 120, 200)),
             CornerRadius = new CornerRadius(8),
-            Child = new FontIcon { FontSize = 20, Glyph = "\uE950", Foreground = new SolidColorBrush(Colors.White) }
+            Child = new FontIcon { FontSize = 20, Glyph = "\uE950", Foreground = new SolidColorBrush(Microsoft.UI.Colors.White) }
         };
 
         var titleText = new TextBlock { Text = ".NET 环境补全", FontSize = 22, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
@@ -190,7 +165,7 @@ public sealed class DotnetCompletionWindow : Window
         helpBtn.Click += OnHelpClick;
         ToolTipService.SetToolTip(helpBtn, "查看 Runtime / SDK / Framework 区别说明");
 
-        var titleBar = new Grid { Padding = new Thickness(24, 48, 24, 12), ColumnSpacing = 12 };
+        var titleBar = new Grid { Padding = new Thickness(24, 0, 24, 12), ColumnSpacing = 12 };
         titleBar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         titleBar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         titleBar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -199,8 +174,20 @@ public sealed class DotnetCompletionWindow : Window
         titleBar.Children.Add(titleStack); Grid.SetColumn(titleStack, 1);
         titleBar.Children.Add(helpBtn); Grid.SetColumn(helpBtn, 2);
 
-        var closeBtn = new Button { Content = "关闭" };
-        closeBtn.Click += (_, _) => Close();
+        var closeBtn = new Button
+        {
+            Content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 6,
+                Children =
+                {
+                    new FontIcon { Glyph = "\uE72B", FontSize = 12 },
+                    new TextBlock { Text = "返回" }
+                }
+            }
+        };
+        closeBtn.Click += (_, _) => App.MainWindow?.NavigateBack();
         titleBar.Children.Add(closeBtn); Grid.SetColumn(closeBtn, 3);
 
         _archText = new TextBlock { FontSize = 22, FontWeight = Microsoft.UI.Text.FontWeights.Bold };
@@ -612,34 +599,5 @@ public sealed class DotnetCompletionWindow : Window
         grid.Children.Add(iconBorder);
         grid.Children.Add(stack); Grid.SetColumn(stack, 1);
         return new Border { Padding = new Thickness(12), Background = new SolidColorBrush(ThemeColors.CardBg), BorderBrush = new SolidColorBrush(ThemeColors.BorderColor), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Child = grid };
-    }
-
-    private void ApplyTitleBarTheme()
-    {
-        var tb = AppWindow.TitleBar;
-        var isDark = ThemeService.CurrentTheme == AppTheme.Dark || (ThemeService.CurrentTheme == AppTheme.Default && Application.Current.RequestedTheme == ApplicationTheme.Dark);
-        if (isDark)
-        {
-            tb.ButtonForegroundColor = Color.FromArgb(255, 255, 255, 255);
-            tb.ButtonBackgroundColor = Color.FromArgb(0, 255, 255, 255);
-            tb.ButtonHoverForegroundColor = Color.FromArgb(255, 255, 255, 255);
-            tb.ButtonHoverBackgroundColor = Color.FromArgb(255, 50, 50, 50);
-            tb.ButtonPressedForegroundColor = Color.FromArgb(255, 180, 180, 180);
-            tb.ButtonPressedBackgroundColor = Color.FromArgb(255, 30, 30, 30);
-            tb.BackgroundColor = Color.FromArgb(255, 32, 32, 32);
-            tb.InactiveBackgroundColor = Color.FromArgb(255, 32, 32, 32);
-        }
-        else
-        {
-            tb.ButtonForegroundColor = Color.FromArgb(255, 30, 30, 30);
-            tb.ButtonBackgroundColor = Color.FromArgb(0, 255, 255, 255);
-            tb.ButtonHoverForegroundColor = Color.FromArgb(255, 30, 30, 30);
-            tb.ButtonHoverBackgroundColor = Color.FromArgb(255, 230, 230, 230);
-            tb.ButtonPressedForegroundColor = Color.FromArgb(255, 100, 100, 100);
-            tb.ButtonPressedBackgroundColor = Color.FromArgb(255, 210, 210, 210);
-            tb.BackgroundColor = Color.FromArgb(0, 255, 255, 255);
-            tb.InactiveBackgroundColor = Color.FromArgb(0, 255, 255, 255);
-        }
-        tb.ButtonInactiveForegroundColor = Color.FromArgb(255, 160, 160, 160);
     }
 }

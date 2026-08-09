@@ -28,35 +28,34 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <Button x:Name="DualStressBtn" Click="DualStress_Click" Style="{ThemeResource AccentButtonStyle}">
+                        <CheckBox x:Name="CpuSelBox" IsChecked="True" Content="CPU 烤机" MinWidth="96" />
+                        <CheckBox x:Name="GpuSelBox" Grid.Column="1" IsChecked="True" Content="GPU 烤机" MinWidth="96" />
+                        <CheckBox x:Name="NetSelBox" Grid.Column="2" IsChecked="False" Content="网卡烤机" MinWidth="96" />
+                        <Button x:Name="TripleStressBtn" Grid.Column="3" Click="TripleStress_Click">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon FontSize="12" Glyph="&#xECAD;" />
-                                <TextBlock Text="一键双烤" />
+                                <TextBlock Text="一键三烤" />
                             </StackPanel>
                         </Button>
-                        <Button x:Name="CpuStressBtn" Grid.Column="1" Click="CpuStress_Click">
+                        <Button x:Name="StartStressBtn" Grid.Column="4" Click="StartStress_Click" Style="{ThemeResource AccentButtonStyle}">
                             <StackPanel Orientation="Horizontal" Spacing="6">
-                                <FontIcon FontSize="12" Glyph="&#xEEA1;" />
-                                <TextBlock Text="CPU 单烤" />
+                                <FontIcon FontSize="12" Glyph="&#xE768;" />
+                                <TextBlock Text="开始烤机" />
                             </StackPanel>
                         </Button>
-                        <Button x:Name="GpuStressBtn" Grid.Column="2" Click="GpuStress_Click">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <FontIcon FontSize="12" Glyph="&#xF211;" />
-                                <TextBlock Text="GPU 单烤" />
-                            </StackPanel>
-                        </Button>
-                        <Button x:Name="ExportBtn" Grid.Column="4" Click="Export_Click" IsEnabled="False">
+                        <Button x:Name="ExportBtn" Grid.Column="6" Click="Export_Click" IsEnabled="False">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon FontSize="12" Glyph="&#xEDE1;" />
                                 <TextBlock Text="导出报告" />
                             </StackPanel>
                         </Button>
-                        <Button x:Name="StopBtn" Grid.Column="5" Click="Stop_Click" IsEnabled="False">
+                        <Button x:Name="StopBtn" Grid.Column="7" Click="Stop_Click" IsEnabled="False">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon FontSize="12" Glyph="&#xE71A;" />
                                 <TextBlock Text="停止" />
@@ -77,25 +76,25 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Spacing="4">
-                                <TextBlock FontSize="12" Opacity="0.8" Text="CPU 单烤时长 (分钟)" />
+                                <TextBlock FontSize="12" Opacity="0.8" Text="CPU 烤机时长 (分钟)" />
                                 <NumberBox x:Name="CpuDurationBox" Value="15" Minimum="1" Maximum="1440" SpinButtonPlacementMode="Compact" Width="140" />
                             </StackPanel>
                             <StackPanel Grid.Column="1" Spacing="4">
-                                <TextBlock FontSize="12" Opacity="0.8" Text="GPU 单烤时长 (分钟)" />
+                                <TextBlock FontSize="12" Opacity="0.8" Text="GPU 烤机时长 (分钟)" />
                                 <NumberBox x:Name="GpuDurationBox" Value="15" Minimum="1" Maximum="1440" SpinButtonPlacementMode="Compact" Width="140" />
                             </StackPanel>
                             <StackPanel Grid.Column="2" Spacing="4">
-                                <TextBlock FontSize="12" Opacity="0.8" Text="双烤时长 (分钟)" />
-                                <NumberBox x:Name="DualDurationBox" Value="15" Minimum="1" Maximum="1440" SpinButtonPlacementMode="Compact" Width="140" />
+                                <TextBlock FontSize="12" Opacity="0.8" Text="网卡烤机时长 (分钟)" />
+                                <NumberBox x:Name="NetDurationBox" Value="15" Minimum="1" Maximum="1440" SpinButtonPlacementMode="Compact" Width="140" />
                             </StackPanel>
                         </Grid>
                         <TextBlock FontSize="11" Opacity="0.6" TextWrapping="Wrap">
                             <Run FontWeight="SemiBold" Text="时长含义：" />
-                            <Run Text="CPU 单烤 15 分钟 — 快速验证 CPU 散热与稳定性；30 分钟 — 常规稳定性测试；1 小时+ — 深度烤机。" />
+                            <Run Text="15 分钟 — 快速验证散热与稳定性；30 分钟 — 常规稳定性测试；1 小时+ — 深度烤机。" />
                             <LineBreak />
-                            <Run Text="GPU 单烤 15 分钟 — 快速验证 GPU 散热；30 分钟 — 常规测试；1 小时+ — 长时间压力测试。" />
+                            <Run Text="可自由勾选要烤的部件（CPU / GPU / 网卡），多选时各部件按自己的时长运行，全部结束后自动停止。" />
                             <LineBreak />
-                            <Run Text="双烤 15 分钟 — 快速检验整机散热能力；30 分钟 — 常规双负载测试；1 小时+ — 极限散热与电源验证。" />
+                            <Run Text="网卡烤机配合上方“每秒数据量”按设定速率持续发送，到时自动停止。" />
                         </TextBlock>
                     </StackPanel>
                 </Border>
@@ -218,6 +217,49 @@
                     </StackPanel>
                 </Border>
 
+                <Border BorderThickness="1" CornerRadius="6" Padding="16"
+                        BorderBrush="{ThemeResource SubtleFillColorSecondaryBrush}"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                    <StackPanel Spacing="10">
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock FontSize="14" FontWeight="SemiBold" Text="网卡烤机参数设置" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Click="ResetNetSettings_Click" Padding="10,4">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon FontSize="12" Glyph="&#xE72C;" />
+                                    <TextBlock FontSize="12" Text="恢复默认" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Spacing="4" MaxWidth="240" HorizontalAlignment="Left">
+                                <TextBlock FontSize="12" Opacity="0.8" Text="每秒数据量 (MB/s)" />
+                                <NumberBox x:Name="NetDataRateBox" Value="100" Minimum="1" Maximum="10000" SpinButtonPlacementMode="Compact" Width="200" HorizontalAlignment="Left" ValueChanged="NetSetting_NumberChanged" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="4">
+                                <TextBlock FontSize="12" Opacity="0.8" Text="测试目标模式" />
+                                <ComboBox x:Name="NetTargetModeBox" SelectedIndex="0" HorizontalAlignment="Left" MinWidth="320" SelectionChanged="NetSetting_Changed">
+                                    <ComboBoxItem Content="自动（有线→广播全双工，无线→单播路由器）" />
+                                    <ComboBoxItem Content="单播 · 路由器（发送优先）" />
+                                    <ComboBoxItem Content="广播 · 局域网（收发均衡）" />
+                                </ComboBox>
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock x:Name="NetRefText" FontSize="11" Opacity="0.7" TextWrapping="Wrap" />
+                        <TextBlock FontSize="11" Opacity="0.6" TextWrapping="Wrap">
+                            <Run FontWeight="SemiBold" Text="说明：" />
+                            <Run Text="单播模式向路由器发送，速率最高（WiFi 实测约为链路的 50%，有线千兆 100+ MB/s），但接收为 0（路由器不回包）；广播模式由交换机/AP 把帧回环到本机网卡，收发双工，有线千兆可全双工跑满，WiFi 上会被 AP 限速到几 MB/s。" />
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
                 <Grid ColumnSpacing="10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -288,6 +330,43 @@
                         <StackPanel Spacing="2">
                             <TextBlock FontSize="11" Opacity="0.8" Text="已运行" />
                             <TextBlock x:Name="ElapsedText" FontSize="22" FontWeight="Bold" Text="0:00" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <Grid ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Padding="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
+                        <StackPanel Spacing="2">
+                            <TextBlock FontSize="11" Opacity="0.8" Text="网卡发送速率" />
+                            <TextBlock x:Name="NetTxRateText" FontSize="22" FontWeight="Bold" Text="--" />
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="1" Padding="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
+                        <StackPanel Spacing="2">
+                            <TextBlock FontSize="11" Opacity="0.8" Text="网卡接收速率" />
+                            <TextBlock x:Name="NetRxRateText" FontSize="22" FontWeight="Bold" Text="--" />
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="2" Padding="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
+                        <StackPanel Spacing="2">
+                            <TextBlock FontSize="11" Opacity="0.8" Text="已发送数据" />
+                            <TextBlock x:Name="NetSentText" FontSize="22" FontWeight="Bold" Text="--" />
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="3" Padding="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
+                        <StackPanel Spacing="2">
+                            <TextBlock FontSize="11" Opacity="0.8" Text="链路速率" />
+                            <TextBlock x:Name="NetLinkText" FontSize="22" FontWeight="Bold" Text="--" />
                         </StackPanel>
                     </Border>
                 </Grid>
@@ -387,6 +466,45 @@
                                     </Grid.RowDefinitions>
                                     <TextBlock FontSize="10" Opacity="0.6" Text="功耗 (W)" HorizontalAlignment="Center" />
                                     <lvc:CartesianChart x:Name="GpuPowerChart" Grid.Row="1" Background="Transparent" />
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Border BorderThickness="1" CornerRadius="6" Padding="12"
+                        BorderBrush="{ThemeResource SubtleFillColorSecondaryBrush}"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                    <StackPanel Spacing="8">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock FontSize="14" FontWeight="SemiBold" Text="网卡监控曲线" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Border Width="10" Height="10" CornerRadius="2" Background="#38BDF8" VerticalAlignment="Center" />
+                                    <TextBlock FontSize="11" Opacity="0.8" Text="发送 (MB/s)" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Border Width="10" Height="10" CornerRadius="2" Background="#FB7185" VerticalAlignment="Center" />
+                                    <TextBlock FontSize="11" Opacity="0.8" Text="接收 (MB/s)" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+                        <Grid ColumnSpacing="8" Height="120">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border BorderBrush="{ThemeResource SubtleFillColorSecondaryBrush}" BorderThickness="1" CornerRadius="4" Padding="4">
+                                <Grid RowSpacing="2">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock FontSize="10" Opacity="0.6" Text="吞吐 (MB/s)" HorizontalAlignment="Center" />
+                                    <lvc:CartesianChart x:Name="NetChart" Grid.Row="1" Background="Transparent" />
                                 </Grid>
                             </Border>
                         </Grid>
