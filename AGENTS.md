@@ -53,6 +53,7 @@ dotnet test --filter "FullyQualifiedName~ToolCatalogTests"        # one class / 
 - `FpsService` uses an ETW `DxgKrnl` trace session (`Microsoft.Diagnostics.Tracing.TraceEvent`) — needs admin for kernel tracing.
 - `ConfigManager` supports two data locations — AppData (`%LocalAppData%/TubaWinUi3/`) or AppRoot (`<appdir>/Data/`) — selected by a `.config_location` marker file.
 - `Package.appxmanifest` declares `runFullTrust` and `systemAIModels`.
+- **Bundled icon cache**: `ToolIconService` prefers `<appdir>/IconCache/` (ships inside the package, read-only) over the writable `DataDir/IconCache`; missing/stale icons are copied from the bundled cache or extracted at runtime. `build-icon-cache.ps1` generates it (same SHA256 `{ToolsRoot}\<relative>` key scheme); a `GenerateBundledIconCache` MSBuild target runs it automatically before every `dotnet publish` (skipped when `ExcludeToolsFromPublish=true`). The `IconCache/` folder is gitignored — never commit it.
 
 ## File-transfer subsystem (separate from the .NET app)
 

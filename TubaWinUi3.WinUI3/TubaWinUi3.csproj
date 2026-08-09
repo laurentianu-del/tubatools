@@ -40,6 +40,10 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </Content>
+    <Content Include="IconCache\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>
@@ -99,4 +103,12 @@
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
   </PropertyGroup>
+
+  <!--
+    Pre-build the bundled icon cache (IconCache/) before publish so first launch
+    does not need to extract icons. Up-to-date files are skipped by the script.
+  -->
+  <Target Name="GenerateBundledIconCache" BeforeTargets="Publish" Condition="'$(ExcludeToolsFromPublish)' != 'true'">
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\build-icon-cache.ps1&quot; -ToolsRoot &quot;$(MSBuildProjectDirectory)\Tools&quot; -OutputDir &quot;$(MSBuildProjectDirectory)\IconCache&quot;" />
+  </Target>
 </Project>

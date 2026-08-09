@@ -11,6 +11,8 @@ public static class ToolIconService
 {
     private static string CacheRoot => ConfigManager.GetIconCacheDir();
 
+    private static string BundledCacheRoot => Path.Combine(ToolCatalog.AppDirectory, "IconCache");
+
     private static readonly TimeSpan CacheMaxAge = TimeSpan.FromDays(90);
     private const long MaxCacheSizeBytes = 50 * 1024 * 1024;
     private const int MaxCacheFiles = 2000;
@@ -51,6 +53,13 @@ public static class ToolIconService
 
         if (_memoryCache.TryGetValue(cacheKey, out var cachedPath))
             return cachedPath;
+
+        var bundledIconPath = Path.Combine(BundledCacheRoot, $"{cacheKey}.png");
+        if (File.Exists(bundledIconPath) && !IsSourceStale(toolPath, bundledIconPath))
+        {
+            _memoryCache.Set(cacheKey, bundledIconPath);
+            return bundledIconPath;
+        }
 
         Directory.CreateDirectory(CacheRoot);
         var iconPath = Path.Combine(CacheRoot, $"{cacheKey}.png");
@@ -104,6 +113,18 @@ public static class ToolIconService
 
                 try { File.Delete(iconPath); } catch { }
                 _memoryCache.Remove(cacheKey);
+            }
+
+            var bundledIconPath = Path.Combine(BundledCacheRoot, $"{cacheKey}.png");
+            if (File.Exists(bundledIconPath) && !IsSourceStale(toolPath, bundledIconPath))
+            {
+                try
+                {
+                    File.Copy(bundledIconPath, iconPath, true);
+                    _memoryCache.Set(cacheKey, iconPath);
+                    return iconPath;
+                }
+                catch { }
             }
 
             try
