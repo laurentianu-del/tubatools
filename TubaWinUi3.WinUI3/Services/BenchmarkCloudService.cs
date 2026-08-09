@@ -23,8 +23,12 @@ public static class BenchmarkCloudService
 	private const string UpstreamOwner = "luolangaga";
 	private const string UpstreamRepo = "tubatoolsPlugin";
 	private const string ReportsPath = "reports";
+	private const string LatencyImagesPath = "reports/latency-images";
 	private const string GitHubApiBase = "https://api.github.com/repos/luolangaga/tubatoolsPlugin";
 	private const string GitCodeRawBase = "https://raw.githubusercontent.com/luolangaga/tubatoolsPlugin/main/reports";
+	private const string LatencyImagesRawBase = "https://raw.githubusercontent.com/luolangaga/tubatoolsPlugin/main/reports/latency-images";
+	private const string GitCodeApiBase = "https://api.gitcode.com/api/v5/repos/luolangaga/tubatoolsPlugin";
+	private const string GitCodeLatencyRawBase = "https://raw.gitcode.com/luolangaga/tubatoolsPlugin/-/raw/main/reports/latency-images";
 	
 	private static readonly string GitHubLeaderboardUrl = "https://raw.githubusercontent.com/luolangaga/tubatoolsPlugin/main/leaderboard.json";
 	private static readonly string GitCodeApiUrl = "https://api.gitcode.com/api/v5/repos/luolangaga/tubatoolsPlugin/contents/leaderboard.json";
@@ -92,7 +96,7 @@ public static class BenchmarkCloudService
 		SaveLocalCache(reports);
 	}
 
-	public static async Task<string> UploadReportAsync(PerformanceBenchmarkResult result, IProgress<string>? progress, CancellationToken ct)
+	public static async Task<string> UploadReportAsync(PerformanceBenchmarkResult result, IProgress<string>? progress, CancellationToken ct, string? latencyImagePath = null)
 	{
 		if (!GitHubAuthService.IsLoggedIn)
 		{
@@ -125,8 +129,164 @@ public static class BenchmarkCloudService
 		progress?.Report("正在上传报告...");
 		string path = $"{ReportsPath}/{entry.Author}/{entry.Id}.json";
 		await CreateFileAsync(forkOwner, "tubatoolsPlugin", path, branchName, json, token, ct);
+		string? latencyImageName = null;
+		if (!string.IsNullOrEmpty(latencyImagePath) && File.Exists(latencyImagePath))
+		{
+			progress?.Report("正在上传核间延迟热力图...");
+			string safeCpu = SanitizeFileName(result.CpuName);
+			if (string.IsNullOrEmpty(safeCpu)) safeCpu = "Unknown-CPU";
+			string prefix = $"{safeCpu}-{entry.Author}";
+			latencyImageName = await UploadLatencyImageWithRetryAsync(forkOwner, branchName, prefix, latencyImagePath, token, ct);
+		}
 		progress?.Report("正在创建 PR...");
-		return await CreatePullRequestAsync(branchName, forkOwner, entry, token, ct);
+		return await CreatePullRequestAsync(branchName, forkOwner, entry, token, ct, latencyImageName);
+	}
+
+	public sealed class LatencyImageInfo
+	{
+		public string Name { get; init; } = "";
+		public string RawUrl { get; init; } = "";
+		public string HtmlUrl { get; init; } = "";
+	}
+
+	/// <summary>Uploads only a core-to-core latency heatmap image (no benchmark report), for the standalone latency test.</summary>
+	public static async Task<string> UploadLatencyImageOnlyAsync(string cpuName, string latencyImagePath, IProgress<string>? progress, CancellationToken ct)
+	{
+		if (!GitHubAuthService.IsLoggedIn)
+		{
+			throw new InvalidOperationException("请先登录 GitHub 账号");
+		}
+		string token = GitHubAuthService.GetToken() ?? throw new InvalidOperationException("GitHub Token 无效");
+		var user = (await GitHubAuthService.GetCurrentUserAsync(ct)) ?? throw new InvalidOperationException("无法获取 GitHub 用户信息");
+		progress?.Report("正在 Fork 仓库...");
+		string forkOwner = await EnsureForkAsync(token, ct);
+		progress?.Report("正在同步 Fork...");
+		await SyncForkWithUpstreamAsync(forkOwner, token, ct);
+		string branchName = $"latency/{user.Login}-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
+		progress?.Report("正在创建分支...");
+		string mainSha = (await GetRefShaAsync(forkOwner, "tubatoolsPlugin", "heads/main", token, ct))!;
+		if (mainSha == null)
+		{
+			throw new InvalidOperationException("无法获取 main 分支 SHA");
+		}
+		await CreateRefAsync(forkOwner, "tubatoolsPlugin", "refs/heads/" + branchName, mainSha, token, ct);
+		progress?.Report("正在上传核间延迟热力图...");
+		string safeCpu = SanitizeFileName(cpuName);
+		if (string.IsNullOrEmpty(safeCpu)) safeCpu = "Unknown-CPU";
+		string prefix = $"{safeCpu}-{user.Login}";
+		string imgName = await UploadLatencyImageWithRetryAsync(forkOwner, branchName, prefix, latencyImagePath, token, ct);
+		progress?.Report("正在创建 PR...");
+		return await CreateLatencyPullRequestAsync(branchName, forkOwner, cpuName, user.Login, imgName, token, ct);
+	}
+
+	/// <summary>Lists all uploaded core-to-core latency heatmap images, following the current data source (GitHub / GitCode).</summary>
+	public static async Task<List<LatencyImageInfo>> GetLatencyImagesAsync(CancellationToken ct)
+	{
+		var result = new List<LatencyImageInfo>();
+		if (_currentSource == LeaderboardSource.GitCode)
+		{
+			using var gcResp = await _apiClient.GetAsync($"{GitCodeApiBase}/contents/{LatencyImagesPath}", ct);
+			if (gcResp.StatusCode == System.Net.HttpStatusCode.NotFound)
+			{
+				return [];
+			}
+			if (!gcResp.IsSuccessStatusCode)
+			{
+				throw new InvalidOperationException($"获取核间延迟图片列表失败：{(int)gcResp.StatusCode}");
+			}
+			using var gcDoc = JsonDocument.Parse(await gcResp.Content.ReadAsStringAsync(ct));
+			foreach (var item in gcDoc.RootElement.EnumerateArray())
+			{
+				string name = item.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+				if (!name.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) continue;
+				string downloadUrl = item.TryGetProperty("download_url", out var d) ? d.GetString() ?? "" : "";
+				string htmlUrl = item.TryGetProperty("html_url", out var h) ? h.GetString() ?? "" : "";
+				result.Add(new LatencyImageInfo
+				{
+					Name = name,
+					RawUrl = string.IsNullOrEmpty(downloadUrl) ? $"{GitCodeLatencyRawBase}/{name}" : downloadUrl,
+					HtmlUrl = string.IsNullOrEmpty(htmlUrl) ? $"https://gitcode.com/luolangaga/tubatoolsPlugin/blob/main/{LatencyImagesPath}/{name}" : htmlUrl
+				});
+			}
+		}
+		else
+		{
+			using var resp = await _apiClient.GetAsync($"{GitHubApiBase}/contents/{LatencyImagesPath}", ct);
+			if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
+			{
+				return [];
+			}
+			if (!resp.IsSuccessStatusCode)
+			{
+				throw new InvalidOperationException($"获取核间延迟图片列表失败：{(int)resp.StatusCode}");
+			}
+			using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+			foreach (var item in doc.RootElement.EnumerateArray())
+			{
+				string name = item.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+				if (!name.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) continue;
+				string downloadUrl = item.TryGetProperty("download_url", out var d) ? d.GetString() ?? "" : "";
+				string htmlUrl = item.TryGetProperty("html_url", out var h) ? h.GetString() ?? "" : "";
+				result.Add(new LatencyImageInfo
+				{
+					Name = name,
+					RawUrl = string.IsNullOrEmpty(downloadUrl) ? $"{LatencyImagesRawBase}/{name}" : downloadUrl,
+					HtmlUrl = htmlUrl
+				});
+			}
+		}
+		return result.OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase).ToList();
+	}
+
+	private static async Task<int> GetLatencyImageNextSeqAsync(string prefix, CancellationToken ct)
+	{
+		try
+		{
+			using var client = GitHubAuthService.IsLoggedIn ? GitHubAuthService.CreateAuthenticatedClient() : _apiClient;
+			using var resp = await client.GetAsync($"{GitHubApiBase}/contents/{LatencyImagesPath}", ct);
+			if (resp.StatusCode == System.Net.HttpStatusCode.NotFound) return 1;
+			if (!resp.IsSuccessStatusCode) return 0;
+			using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+			int maxSeq = 0;
+			foreach (var item in doc.RootElement.EnumerateArray())
+			{
+				string name = item.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+				if (!name.StartsWith(prefix + "-", StringComparison.OrdinalIgnoreCase)) continue;
+				string numPart = name[prefix.Length..];
+				if (!numPart.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) continue;
+				numPart = numPart[..^4];
+				if (int.TryParse(numPart, out int seq) && seq > maxSeq) maxSeq = seq;
+			}
+			return maxSeq + 1;
+		}
+		catch { return 0; }
+	}
+
+	/// <summary>Uploads a latency heatmap PNG, retrying with the next sequence number when the target file already exists (422).</summary>
+	private static async Task<string> UploadLatencyImageWithRetryAsync(string forkOwner, string branchName, string prefix, string localPath, string token, CancellationToken ct)
+	{
+		int seq = await GetLatencyImageNextSeqAsync(prefix, ct);
+		if (seq < 1) seq = 1;
+		for (int attempt = 0; attempt < 30; attempt++)
+		{
+			string imgName = $"{prefix}-{seq}.png";
+			try
+			{
+				await CreateBinaryFileAsync(forkOwner, "tubatoolsPlugin", $"{LatencyImagesPath}/{imgName}", branchName, localPath, token, ct);
+				return imgName;
+			}
+			catch (Exception ex) when (ex.Message.Contains("422", StringComparison.Ordinal))
+			{
+				seq++;
+			}
+		}
+		throw new InvalidOperationException("上传核间延迟热力图失败：无法分配唯一的文件名，请稍后重试");
+	}
+
+	private static string SanitizeFileName(string name)
+	{
+		var chars = name.Where(c => !Path.GetInvalidFileNameChars().Contains(c)).ToArray();
+		return new string(chars).Trim();
 	}
 
 	private static BenchmarkReportEntry ToReportEntry(PerformanceBenchmarkResult result, string author)
@@ -722,13 +882,56 @@ public static class BenchmarkCloudService
 		}
 	}
 
-	private static async Task<string> CreatePullRequestAsync(string branch, string forkOwner, BenchmarkReportEntry entry, string token, CancellationToken ct)
+	private static async Task CreateBinaryFileAsync(string owner, string repo, string path, string branch, string localFilePath, string token, CancellationToken ct)
+	{
+		using var client = GitHubAuthService.CreateAuthenticatedClient();
+		byte[] bytes = await File.ReadAllBytesAsync(localFilePath, ct);
+		string base64Content = Convert.ToBase64String(bytes);
+		var requestContent = new StringContent(JsonSerializer.Serialize(new
+		{
+			message = "benchmark: upload latency image - " + Path.GetFileName(path),
+			content = base64Content,
+			branch = branch
+		}), Encoding.UTF8, "application/json");
+		var resp = await client.PutAsync($"https://api.github.com/repos/{owner}/{repo}/contents/{path}", requestContent, ct);
+		if (!resp.IsSuccessStatusCode)
+		{
+			string body = await resp.Content.ReadAsStringAsync(ct);
+			throw new InvalidOperationException($"上传核间延迟热力图失败：{(int)resp.StatusCode}\n{body}");
+		}
+	}
+
+	private static async Task<string> CreatePullRequestAsync(string branch, string forkOwner, BenchmarkReportEntry entry, string token, CancellationToken ct, string? latencyImageName = null)
 	{
 		using var client = GitHubAuthService.CreateAuthenticatedClient();
 		string body = $"## 性能测试报告上传\n\n- **CPU**：{entry.CpuName}\n- **GPU**：{entry.GpuName}\n- **游戏性能**：{entry.GamingScore} ({entry.GamingGrade})\n- **办公性能**：{entry.OfficeScore} ({entry.OfficeGrade})\n- **提交者**：@{entry.Author}\n";
+		if (!string.IsNullOrEmpty(latencyImageName))
+		{
+			body += $"- **核间延迟热力图**：[{latencyImageName}]({LatencyImagesRawBase}/{latencyImageName})\n";
+		}
 		var content = new StringContent(JsonSerializer.Serialize(new
 		{
 			title = "[性能报告] " + entry.CpuName + " / " + entry.GpuName,
+			head = forkOwner + ":" + branch,
+			@base = "main",
+			body = body
+		}), Encoding.UTF8, "application/json");
+		var resp = await client.PostAsync("https://api.github.com/repos/luolangaga/tubatoolsPlugin/pulls", content, ct);
+		if (!resp.IsSuccessStatusCode)
+		{
+			string respBody = await resp.Content.ReadAsStringAsync(ct);
+			throw new InvalidOperationException($"创建 PR 失败：{(int)resp.StatusCode}\n{respBody}");
+		}
+		return JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct)).RootElement.GetProperty("html_url").GetString() ?? "";
+	}
+
+	private static async Task<string> CreateLatencyPullRequestAsync(string branch, string forkOwner, string cpuName, string author, string imgName, string token, CancellationToken ct)
+	{
+		using var client = GitHubAuthService.CreateAuthenticatedClient();
+		string body = $"## 核间延迟热力图上传\n\n- **CPU**：{cpuName}\n- **热力图**：[{imgName}]({LatencyImagesRawBase}/{imgName})\n- **提交者**：@{author}\n";
+		var content = new StringContent(JsonSerializer.Serialize(new
+		{
+			title = "[核间延迟] " + cpuName,
 			head = forkOwner + ":" + branch,
 			@base = "main",
 			body = body

@@ -76,6 +76,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 	private Button _historyBtn = null!;
 	private Button _uploadBtn = null!;
 	private Button _rankingBtn = null!;
+	private Button _latencyOnlyBtn = null!;
 	private ProgressBar _globalProgress = null!;
 	private TextBlock _statusText = null!;
 	private CheckBox _chkCpu = null!;
@@ -608,6 +609,22 @@ public sealed partial class PerformanceBenchmarkPage : Page
 			Padding = new Thickness(12.0, 8.0, 12.0, 8.0)
 		};
 		_rankingBtn.Click += OnRankingClick;
+		_latencyOnlyBtn = new Button
+		{
+			Content = new StackPanel
+			{
+				Orientation = Orientation.Horizontal,
+				Spacing = 6.0,
+				Children =
+				{
+					(UIElement)new FontIcon { Glyph = "\ue9d9", FontSize = 14.0 },
+					(UIElement)new TextBlock { Text = "单独测核间延迟", FontSize = 13.0 }
+				}
+			},
+			CornerRadius = new CornerRadius(6.0),
+			Padding = new Thickness(12.0, 8.0, 12.0, 8.0)
+		};
+		_latencyOnlyBtn.Click += OnLatencyOnlyClick;
 		_globalProgress = new ProgressBar
 		{
 			Value = 0.0,
@@ -654,6 +671,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		stackPanel2.Children.Add(_historyBtn);
 		stackPanel2.Children.Add(_uploadBtn);
 		stackPanel2.Children.Add(_rankingBtn);
+		stackPanel2.Children.Add(_latencyOnlyBtn);
 		return new StackPanel
 		{
 			Spacing = 8.0,
@@ -988,13 +1006,15 @@ public sealed partial class PerformanceBenchmarkPage : Page
 
 	private async Task<(string csv, string stderr)> ShowCoreToCoreLatencyDialog(string exePath)
 	{
+		bool isC2CLatency = string.Equals(Path.GetFileName(exePath), "C2CLatency.exe", StringComparison.OrdinalIgnoreCase);
+		string toolName = isC2CLatency ? "C2CLatency" : "core-to-core-latency";
 		TextBlock outputText = new()
 		{
 			FontFamily = new FontFamily("Consolas"),
 			FontSize = 12.0,
 			TextWrapping = TextWrapping.Wrap,
 			IsTextSelectionEnabled = true,
-			Text = "正在运行 core-to-core-latency...\n"
+			Text = $"正在运行 {toolName}...\n"
 		};
 		ScrollViewer scroll = new()
 		{
@@ -1004,7 +1024,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		};
 		ContentDialog dialog = new()
 		{
-			Title = "核间延迟测试 — core-to-core-latency",
+			Title = $"核间延迟测试 — {toolName}",
 			Content = scroll,
 			CloseButtonText = "取消",
 			XamlRoot = XamlRoot,
@@ -1014,13 +1034,22 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		var stderrBuilder = new StringBuilder();
 		var tcs = new TaskCompletionSource<(string csv, string stderr)>();
 		bool procExited = false;
+		bool dialogShown = false;
+		string BuildCsv()
+		{
+			string csv = csvBuilder.ToString();
+			if (isC2CLatency)
+				csv = PerformanceBenchmarkService.ConvertC2CLatencyTextToCsv(stderrBuilder.ToString(), Math.Min(Environment.ProcessorCount, 64));
+			return csv;
+		}
 		ProcessStartInfo startInfo = new()
 		{
 			FileName = exePath,
-			Arguments = "--csv",
+			Arguments = isC2CLatency ? "" : "--csv",
 			UseShellExecute = false,
 			RedirectStandardOutput = true,
 			RedirectStandardError = true,
+			RedirectStandardInput = isC2CLatency,
 			CreateNoWindow = true,
 			StandardOutputEncoding = Encoding.UTF8,
 			StandardErrorEncoding = Encoding.UTF8
@@ -1031,8 +1060,13 @@ public sealed partial class PerformanceBenchmarkPage : Page
 			proc = Process.Start(startInfo)!;
 			if (proc == null)
 			{
-				outputText.Text = "无法启动 core-to-core-latency";
+				outputText.Text = $"无法启动 {toolName}";
 				return (csv: "", stderr: "");
+			}
+			if (isC2CLatency)
+			{
+				proc.StandardInput.WriteLine();
+				proc.StandardInput.Flush();
 			}
 			proc.OutputDataReceived += (_, e) =>
 			{
@@ -1050,6 +1084,15 @@ public sealed partial class PerformanceBenchmarkPage : Page
 						textBlock.Text = textBlock.Text + captured + "\n";
 						scroll.ChangeView(null, scroll.ScrollableHeight, null);
 					});
+					if (isC2CLatency && captured.Contains("Testing completed successfully", StringComparison.Ordinal))
+					{
+						try
+						{
+							proc.StandardInput.WriteLine();
+							proc.StandardInput.Flush();
+						}
+						catch { }
+					}
 				}
 			};
 			proc.BeginOutputReadLine();
@@ -1064,9 +1107,12 @@ public sealed partial class PerformanceBenchmarkPage : Page
 					scroll.ChangeView(null, scroll.ScrollableHeight, null);
 					if (!tcs.Task.IsCompleted)
 					{
-						tcs.SetResult((csvBuilder.ToString(), stderrBuilder.ToString()));
+						tcs.SetResult((BuildCsv(), stderrBuilder.ToString()));
 					}
-					dialog.Hide();
+					if (dialogShown)
+					{
+						try { dialog.Hide(); } catch { }
+					}
 				});
 			};
 		}
@@ -1075,8 +1121,20 @@ public sealed partial class PerformanceBenchmarkPage : Page
 			outputText.Text = "启动失败: " + ex.Message;
 			return (csv: "", stderr: "");
 		}
-		_ = dialog.ShowAsync().AsTask().ContinueWith(_ =>
+		Task<ContentDialogResult> showTask;
+		try
 		{
+			showTask = dialog.ShowAsync().AsTask();
+			dialogShown = true;
+		}
+		catch (Exception ex)
+		{
+			outputText.Text = "对话框打开失败: " + ex.Message;
+			return (csv: "", stderr: "");
+		}
+		_ = showTask.ContinueWith(_ =>
+		{
+			dialogShown = false;
 			if (!procExited && proc != null)
 			{
 				try { if (!proc.HasExited) proc.Kill(); } catch { }
@@ -1085,11 +1143,13 @@ public sealed partial class PerformanceBenchmarkPage : Page
 			{
 				if (!tcs.Task.IsCompleted)
 				{
-					tcs.SetResult((csvBuilder.ToString(), stderrBuilder.ToString()));
+					tcs.SetResult((BuildCsv(), stderrBuilder.ToString()));
 				}
 			});
-		});
-		return await tcs.Task;
+		}, TaskScheduler.Default);
+		(var csv, var stderr) = await tcs.Task;
+		try { await Task.WhenAny(showTask, Task.Delay(500)); } catch { }
+		return (csv, stderr);
 	}
 
 	private async Task RunBrowserTestsAsync(PerformanceBenchmarkResult result, int gpuSec, CancellationToken ct)
@@ -1500,7 +1560,12 @@ public sealed partial class PerformanceBenchmarkPage : Page
 
 	private async void OnUploadClick(object sender, RoutedEventArgs e)
 	{
-		if (_result == null)
+		List<PerformanceBenchmarkResult> candidates = PerformanceBenchmarkService.LoadHistory()
+			.OrderByDescending(h => h.TestTime)
+			.ToList();
+		if (_result != null && !candidates.Any(c => c.TestTime == _result.TestTime))
+			candidates.Insert(0, _result);
+		if (candidates.Count == 0)
 		{
 			await new ContentDialog
 			{
@@ -1531,10 +1596,36 @@ public sealed partial class PerformanceBenchmarkPage : Page
 				return;
 			}
 		}
+		PerformanceBenchmarkResult? selected = candidates.Count == 1
+			? candidates[0]
+			: await PickReportToUploadAsync(candidates);
+		if (selected == null) return;
+		var confirmContent = new StackPanel
+		{
+			Spacing = 8.0,
+			Children =
+			{
+				new TextBlock
+				{
+					Text = $"将上传以下测试报告：\n\nCPU: {selected.CpuName}\nGPU: {selected.GpuName}\n游戏: {selected.GamingScore} ({selected.GamingGrade})\n办公: {selected.OfficeScore} ({selected.OfficeGrade})\n测试时间: {selected.TestTime:yyyy-MM-dd HH:mm}\n\n报告将通过 PR 提交到社区仓库，合并后出现在排行榜。",
+					TextWrapping = TextWrapping.Wrap
+				}
+			}
+		};
+		CheckBox? chkHeatmap = null;
+		if (selected.Cpu.LatencyMatrix != null)
+		{
+			chkHeatmap = new CheckBox
+			{
+				Content = "同时上传核间延迟热力图（可在核间延迟查询工具中查看）",
+				IsChecked = true
+			};
+			confirmContent.Children.Add(chkHeatmap);
+		}
 		if (await new ContentDialog
 		{
 			Title = "上传测试报告",
-			Content = $"将上传当前测试报告：\n\nCPU: {_result.CpuName}\nGPU: {_result.GpuName}\n游戏: {_result.GamingScore} ({_result.GamingGrade})\n办公: {_result.OfficeScore} ({_result.OfficeGrade})\n\n报告将通过 PR 提交到社区仓库，合并后出现在排行榜。",
+			Content = confirmContent,
 			PrimaryButtonText = "上传",
 			CloseButtonText = "取消",
 			XamlRoot = XamlRoot,
@@ -1550,7 +1641,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 			XamlRoot = XamlRoot,
 			RequestedTheme = ThemeService.CurrentElementTheme
 		};
-		_ = progressDlg.ShowAsync();
+		var progressShowTask = progressDlg.ShowAsync().AsTask();
 		try
 		{
 			var progress = new Progress<string>(msg =>
@@ -1568,8 +1659,14 @@ public sealed partial class PerformanceBenchmarkPage : Page
 					};
 				});
 			});
-			string prUrl = await BenchmarkCloudService.UploadReportAsync(_result, progress, CancellationToken.None);
+			string? heatmapPath = null;
+			if (chkHeatmap?.IsChecked == true && selected.Cpu.LatencyMatrix != null)
+			{
+				heatmapPath = PerformanceBenchmarkService.GenerateLatencyHeatmap(selected.Cpu.LatencyMatrix);
+			}
+			string prUrl = await BenchmarkCloudService.UploadReportAsync(selected, progress, CancellationToken.None, heatmapPath);
 			progressDlg.Hide();
+			try { await progressShowTask; } catch { }
 			if (await new ContentDialog
 			{
 				Title = "上传成功",
@@ -1586,6 +1683,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		catch (Exception ex)
 		{
 			progressDlg.Hide();
+			try { await progressShowTask; } catch { }
 			await new ContentDialog
 			{
 				Title = "上传失败",
@@ -1597,10 +1695,193 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		}
 	}
 
+	private async Task<PerformanceBenchmarkResult?> PickReportToUploadAsync(List<PerformanceBenchmarkResult> candidates)
+	{
+		ListView listView = new()
+		{
+			MaxHeight = 360.0,
+			SelectionMode = ListViewSelectionMode.Single
+		};
+		foreach (PerformanceBenchmarkResult c in candidates)
+		{
+			listView.Items.Add(new ListViewItem
+			{
+				Content = new StackPanel
+				{
+					Spacing = 2.0,
+					Children =
+					{
+						new TextBlock
+						{
+							Text = $"{c.TestTime:yyyy-MM-dd HH:mm}  {c.CpuName}",
+							FontWeight = FontWeights.SemiBold
+						},
+						new TextBlock
+						{
+							Text = $"GPU: {c.GpuName}   游戏: {c.GamingScore} ({c.GamingGrade})   办公: {c.OfficeScore} ({c.OfficeGrade})",
+							FontSize = 12.0,
+							Opacity = 0.7
+						}
+					}
+				}
+			});
+		}
+		if (listView.Items.Count > 0) listView.SelectedIndex = 0;
+		ContentDialog dialog = new()
+		{
+			Title = "选择要上传的报告",
+			Content = listView,
+			PrimaryButtonText = "下一步",
+			CloseButtonText = "取消",
+			IsPrimaryButtonEnabled = listView.Items.Count > 0,
+			XamlRoot = XamlRoot,
+			RequestedTheme = ThemeService.CurrentElementTheme
+		};
+		listView.SelectionChanged += (_, _) => dialog.IsPrimaryButtonEnabled = listView.SelectedIndex >= 0;
+		if (await dialog.ShowAsync() != ContentDialogResult.Primary) return null;
+		int idx = listView.SelectedIndex;
+		return idx >= 0 && idx < candidates.Count ? candidates[idx] : null;
+	}
+
 	private void OnRankingClick(object sender, RoutedEventArgs e)
 	{
 		var tool = new BenchmarkCloudTool();
 		var context = new BuiltinToolContext { XamlRoot = XamlRoot };
 		tool.ExecuteAsync(context);
+	}
+
+	private async void OnLatencyOnlyClick(object sender, RoutedEventArgs e)
+	{
+		if (_isRunning) return;
+		string? coreToCoreExe = PerformanceBenchmarkService.FindCoreToCoreLatencyExe();
+		if (coreToCoreExe == null)
+		{
+			await new ContentDialog
+			{
+				Title = "未找到测试工具",
+				Content = "未找到核间延迟测试程序（C2CLatency.exe），请确认 Tools/处理器工具/C2CLatency 目录完整。",
+				CloseButtonText = "确定",
+				XamlRoot = XamlRoot,
+				RequestedTheme = ThemeService.CurrentElementTheme
+			}.ShowAsync();
+			return;
+		}
+		_isRunning = true;
+		_latencyOnlyBtn.IsEnabled = false;
+		_startBtn.IsEnabled = false;
+		SetCheckboxesEnabled(false);
+		try
+		{
+			_statusText.Text = "正在运行核间延迟测试...";
+			var (csv, _) = await ShowCoreToCoreLatencyDialog(coreToCoreExe);
+			if (string.IsNullOrEmpty(csv))
+			{
+				_statusText.Text = "核间延迟测试未完成";
+				return;
+			}
+			int maxCores = Math.Min(Environment.ProcessorCount, 64);
+			var matrix = PerformanceBenchmarkService.ParseCoreToCoreCsv(csv, maxCores);
+			string? heatmapPath = PerformanceBenchmarkService.GenerateLatencyHeatmap(matrix);
+			_latencyHeatmapPath = heatmapPath;
+			DispatcherQueue.TryEnqueue(() =>
+			{
+				ShowLatencyHeatmap(_latencyHeatmapPath);
+				UpdateScoreRow(_cpuLatencyScoreText, PerformanceBenchmarkService.NormalizeLatency(matrix.AverageNs));
+			});
+			var ask = new ContentDialog
+			{
+				Title = "核间延迟测试完成",
+				Content = "测试完成！是否将核间延迟热力图上传到社区，供其他用户查看对比？",
+				PrimaryButtonText = "上传",
+				CloseButtonText = "不传",
+				XamlRoot = XamlRoot,
+				RequestedTheme = ThemeService.CurrentElementTheme
+			};
+			if (await ask.ShowAsync() != ContentDialogResult.Primary)
+			{
+				_statusText.Text = "核间延迟测试完成，热力图已生成（未上传）";
+				return;
+			}
+			if (!GitHubAuthService.IsLoggedIn)
+			{
+				try
+				{
+					await GitHubAuthService.EnsureAuthenticatedAsync(XamlRoot, CancellationToken.None);
+				}
+				catch
+				{
+					_statusText.Text = "未登录，取消上传";
+					return;
+				}
+			}
+			var tmp = new PerformanceBenchmarkResult();
+			PerformanceBenchmarkService.PopulateHardwareInfo(tmp);
+			ContentDialog progressDlg = new()
+			{
+				Title = "正在上传",
+				Content = new ProgressBar { IsIndeterminate = true },
+				XamlRoot = XamlRoot,
+				RequestedTheme = ThemeService.CurrentElementTheme
+			};
+			var progressShowTask = progressDlg.ShowAsync().AsTask();
+			try
+			{
+				var progress = new Progress<string>(msg =>
+				{
+					DispatcherQueue.TryEnqueue(() =>
+					{
+						progressDlg.Content = new StackPanel
+						{
+							Spacing = 8.0,
+							Children =
+							{
+								(UIElement)new TextBlock { Text = msg },
+								(UIElement)new ProgressBar { IsIndeterminate = true }
+							}
+						};
+					});
+				});
+				string prUrl = await BenchmarkCloudService.UploadLatencyImageOnlyAsync(tmp.CpuName, heatmapPath!, progress, CancellationToken.None);
+				progressDlg.Hide();
+				try { await progressShowTask; } catch { }
+				_statusText.Text = "核间延迟热力图上传成功";
+				if (await new ContentDialog
+				{
+					Title = "上传成功",
+					Content = "核间延迟热力图已通过 PR 提交，合并后可在核间延迟查询中查看。\n\nPR 链接：" + prUrl,
+					PrimaryButtonText = "打开 PR",
+					CloseButtonText = "关闭",
+					XamlRoot = XamlRoot,
+					RequestedTheme = ThemeService.CurrentElementTheme
+				}.ShowAsync() == ContentDialogResult.Primary)
+				{
+					await Launcher.LaunchUriAsync(new Uri(prUrl));
+				}
+			}
+			catch (Exception ex)
+			{
+				progressDlg.Hide();
+				try { await progressShowTask; } catch { }
+				await new ContentDialog
+				{
+					Title = "上传失败",
+					Content = ex.Message,
+					CloseButtonText = "确定",
+					XamlRoot = XamlRoot,
+					RequestedTheme = ThemeService.CurrentElementTheme
+				}.ShowAsync();
+			}
+		}
+		catch (Exception ex)
+		{
+			_statusText.Text = "核间延迟测试出错: " + ex.Message;
+		}
+		finally
+		{
+			_isRunning = false;
+			_latencyOnlyBtn.IsEnabled = true;
+			_startBtn.IsEnabled = true;
+			SetCheckboxesEnabled(true);
+		}
 	}
 }

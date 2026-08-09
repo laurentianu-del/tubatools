@@ -722,17 +722,45 @@ public static class PerformanceBenchmarkService
 	{
 		try
 		{
-			string toolsRoot = ToolCatalog.ToolsRoot;
-			if (!string.IsNullOrEmpty(toolsRoot))
+			string[] folders = { ToolCatalog.ToolsRoot, Path.Combine(AppContext.BaseDirectory, "Tools") };
+			foreach (string root in folders)
 			{
-				string exe = Path.Combine(toolsRoot, "处理器工具", "C2CLatency", "core-to-core-latency.exe");
+				if (string.IsNullOrEmpty(root)) continue;
+				string dir = Path.Combine(root, "处理器工具", "C2CLatency");
+				string exe = Path.Combine(dir, "C2CLatency.exe");
 				if (File.Exists(exe)) return exe;
+				string exeOld = Path.Combine(dir, "core-to-core-latency.exe");
+				if (File.Exists(exeOld)) return exeOld;
 			}
-			string exe2 = Path.Combine(AppContext.BaseDirectory, "Tools", "处理器工具", "C2CLatency", "core-to-core-latency.exe");
-			if (File.Exists(exe2)) return exe2;
 		}
 		catch { }
 		return null;
+	}
+
+	/// <summary>
+	/// Converts the "X to Y: Z ns" lines printed by C2CLatency.exe (on stderr) into
+	/// the same CSV matrix format emitted by core-to-core-latency.exe --csv,
+	/// so that <see cref="ParseCoreToCoreCsv"/> can consume it unchanged.
+	/// </summary>
+	public static string ConvertC2CLatencyTextToCsv(string text, int maxCores)
+	{
+		int coreCount = Math.Max(2, Math.Min(maxCores, Environment.ProcessorCount));
+		var rows = new string[coreCount];
+		for (int i = 0; i < coreCount; i++)
+			rows[i] = string.Join(',', Enumerable.Repeat("", coreCount));
+		foreach (string raw in text.Split('\n'))
+		{
+			var m = Regex.Match(raw.Trim(), @"^(\d+)\s+to\s+(\d+):\s+([\d.]+)\s+ns$");
+			if (!m.Success) continue;
+			if (!int.TryParse(m.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int a)) continue;
+			if (!int.TryParse(m.Groups[2].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int b)) continue;
+			if (a < 0 || a >= coreCount || b < 0 || b >= coreCount) continue;
+			if (!double.TryParse(m.Groups[3].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out double v)) continue;
+			var cols = rows[a].Split(',');
+			cols[b] = v.ToString("0.######", CultureInfo.InvariantCulture);
+			rows[a] = string.Join(',', cols);
+		}
+		return string.Join('\n', rows);
 	}
 
 	public static InterCoreLatencyMatrix ParseCoreToCoreCsv(string csv, int maxCores)
@@ -917,7 +945,7 @@ public static class PerformanceBenchmarkService
 		return Math.Max(0, (int)(rawScore / 8351.0 * 100.0));
 	}
 
-	private static int NormalizeLatency(double ns)
+	public static int NormalizeLatency(double ns)
 	{
 		if (ns <= 0.0) return 50;
 		if (ns <= 20.0) return 100;

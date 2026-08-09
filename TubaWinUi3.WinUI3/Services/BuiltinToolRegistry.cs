@@ -38,6 +38,7 @@ public static class BuiltinToolRegistry
         Register(new AiAssistantTool());
         Register(new PerformanceBenchmarkTool());
         Register(new BenchmarkCloudTool());
+        Register(new LatencyImageQueryTool());
         Register(new WindowsImageTool());
         Register(new FirPeTool());
         Register(new PcTutorialTool());

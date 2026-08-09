@@ -1449,7 +1449,7 @@ public sealed partial class BenchmarkCloudPage : Page
 			XamlRoot = XamlRoot,
 			RequestedTheme = ThemeService.CurrentElementTheme
 		};
-		_ = progressDlg.ShowAsync();
+		var progressShowTask = progressDlg.ShowAsync().AsTask();
 		try
 		{
 			Progress<string> progress = new Progress<string>(delegate(string msg)
@@ -1475,6 +1475,7 @@ public sealed partial class BenchmarkCloudPage : Page
 			});
 			string prUrl = await BenchmarkCloudService.UploadReportAsync(latest, progress, CancellationToken.None);
 			progressDlg.Hide();
+			try { await progressShowTask; } catch { }
 			if (await new ContentDialog
 			{
 				Title = "上传成功",
@@ -1493,6 +1494,7 @@ public sealed partial class BenchmarkCloudPage : Page
 		catch (Exception ex)
 		{
 			progressDlg.Hide();
+			try { await progressShowTask; } catch { }
 			await new ContentDialog
 			{
 				Title = "上传失败",
