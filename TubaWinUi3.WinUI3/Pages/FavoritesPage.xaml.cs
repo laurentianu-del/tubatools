@@ -128,10 +128,21 @@ public sealed partial class FavoritesPage : Page
         {
             Width = 36,
             Height = 36,
-            Stretch = Microsoft.UI.Xaml.Media.Stretch.Uniform,
-            Source = tool.IconPath is not null ? new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(tool.IconPath)) : null,
-            Visibility = tool.IconPath is not null ? Visibility.Visible : Visibility.Collapsed
+            Stretch = Microsoft.UI.Xaml.Media.Stretch.Uniform
         };
+        image.SetBinding(Image.SourceProperty, new Microsoft.UI.Xaml.Data.Binding
+        {
+            Path = new PropertyPath(nameof(ToolItem.IconPath)),
+            Source = tool,
+            Mode = Microsoft.UI.Xaml.Data.BindingMode.OneWay
+        });
+        image.SetBinding(Image.VisibilityProperty, new Microsoft.UI.Xaml.Data.Binding
+        {
+            Path = new PropertyPath(nameof(ToolItem.IconPath)),
+            Source = tool,
+            Mode = Microsoft.UI.Xaml.Data.BindingMode.OneWay,
+            Converter = (Microsoft.UI.Xaml.Data.IValueConverter)Resources["NullToCollapse"]
+        });
         var fontIcon = new FontIcon
         {
             FontSize = 24,

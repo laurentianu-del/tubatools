@@ -61,6 +61,12 @@ public static class BenchmarkCloudService
 	private static DateTimeOffset _leaderboardCacheTime;
 	private static readonly Dictionary<string, int> _pagedTotalPages = new();
 	private static readonly Dictionary<string, int> _pagedTotalEntries = new();
+	private static readonly TimeSpan LatencyListCacheTtl = TimeSpan.FromMinutes(10);
+	private static List<LatencyImageInfo>? _latencyListCache;
+	private static DateTimeOffset _latencyListCacheTime;
+	private static readonly ConcurrentDictionary<string, Task<byte[]>> _latencyInflight = new();
+
+	private static string LatencyImageCacheDir => Path.Combine(ConfigManager.GetDataDir(), "Cache", "latency-images");
 
 	static BenchmarkCloudService()
 	{
@@ -78,6 +84,8 @@ public static class BenchmarkCloudService
 		_cacheTime = DateTimeOffset.MinValue;
 		_leaderboardCache = null;
 		_leaderboardCacheTime = DateTimeOffset.MinValue;
+		_latencyListCache = null;
+		_latencyListCacheTime = DateTimeOffset.MinValue;
 		_pagedTotalPages.Clear();
 		_pagedTotalEntries.Clear();
 	}
@@ -145,6 +153,7 @@ public static class BenchmarkCloudService
 		public string Name { get; init; } = "";
 		public string RawUrl { get; init; } = "";
 		public string HtmlUrl { get; init; } = "";
+		public string Sha { get; init; } = "";
 	}
 
 	/// <summary>Uploads only a core-to-core latency heatmap image (no benchmark report), for the standalone latency test.</summary>
@@ -177,8 +186,20 @@ public static class BenchmarkCloudService
 		return await CreateLatencyPullRequestAsync(branchName, forkOwner, cpuName, user.Login, imgName, token, ct);
 	}
 
-	/// <summary>Lists all uploaded core-to-core latency heatmap images, following the current data source (GitHub / GitCode).</summary>
-	public static async Task<List<LatencyImageInfo>> GetLatencyImagesAsync(CancellationToken ct)
+	/// <summary>Lists all uploaded core-to-core latency heatmap images, following the current data source (GitHub / GitCode). Results are cached for 10 minutes.</summary>
+	public static async Task<List<LatencyImageInfo>> GetLatencyImagesAsync(CancellationToken ct, bool refresh = false)
+	{
+		if (!refresh && _latencyListCache != null && DateTimeOffset.UtcNow - _latencyListCacheTime < LatencyListCacheTtl)
+		{
+			return _latencyListCache;
+		}
+		var result = await FetchLatencyImagesAsync(ct);
+		_latencyListCache = result;
+		_latencyListCacheTime = DateTimeOffset.UtcNow;
+		return result;
+	}
+
+	private static async Task<List<LatencyImageInfo>> FetchLatencyImagesAsync(CancellationToken ct)
 	{
 		var result = new List<LatencyImageInfo>();
 		if (_currentSource == LeaderboardSource.GitCode)
@@ -199,11 +220,13 @@ public static class BenchmarkCloudService
 				if (!name.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) continue;
 				string downloadUrl = item.TryGetProperty("download_url", out var d) ? d.GetString() ?? "" : "";
 				string htmlUrl = item.TryGetProperty("html_url", out var h) ? h.GetString() ?? "" : "";
+				string sha = item.TryGetProperty("sha", out var s) ? s.GetString() ?? "" : "";
 				result.Add(new LatencyImageInfo
 				{
 					Name = name,
 					RawUrl = downloadUrl,
-					HtmlUrl = string.IsNullOrEmpty(htmlUrl) ? $"https://gitcode.com/luolangaga/tubatoolsPlugin/blob/main/{LatencyImagesPath}/{name}" : htmlUrl
+					HtmlUrl = string.IsNullOrEmpty(htmlUrl) ? $"https://gitcode.com/luolangaga/tubatoolsPlugin/blob/main/{LatencyImagesPath}/{name}" : htmlUrl,
+					Sha = sha
 				});
 			}
 		}
@@ -225,11 +248,13 @@ public static class BenchmarkCloudService
 				if (!name.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) continue;
 				string downloadUrl = item.TryGetProperty("download_url", out var d) ? d.GetString() ?? "" : "";
 				string htmlUrl = item.TryGetProperty("html_url", out var h) ? h.GetString() ?? "" : "";
+				string sha = item.TryGetProperty("sha", out var s) ? s.GetString() ?? "" : "";
 				result.Add(new LatencyImageInfo
 				{
 					Name = name,
 					RawUrl = string.IsNullOrEmpty(downloadUrl) ? $"{LatencyImagesRawBase}/{name}" : downloadUrl,
-					HtmlUrl = htmlUrl
+					HtmlUrl = htmlUrl,
+					Sha = sha
 				});
 			}
 		}
@@ -237,44 +262,52 @@ public static class BenchmarkCloudService
 	}
 
 	/// <summary>
-	/// Downloads a latency heatmap image with fallbacks for the current data source:
-	/// GitHub — direct raw, then GitHub mirror proxies; GitCode — blob URL, then re-resolving
-	/// a fresh download URL from the API. All candidates race; the first success wins.
+	/// Downloads a latency heatmap image with fallbacks for the current data source.
+	/// GitHub — direct raw, GitHub mirror proxies, then the official git/blobs API.
+	/// GitCode — raw blob URL, the official git/blobs API (docs.atomgit.com), then a fresh
+	/// download URL re-resolved from the contents API. All candidates race; the first success wins.
 	/// </summary>
 	public static async Task<byte[]> DownloadLatencyImageAsync(LatencyImageInfo info, CancellationToken ct)
 	{
-		var candidates = new List<(string Label, string Url)>();
+		var candidates = new List<(string Label, Func<CancellationToken, Task<byte[]?>> Fetch)>();
 		if (_currentSource == LeaderboardSource.GitCode)
 		{
-			candidates.Add(("GitCode 直连", info.RawUrl));
-			candidates.Add(("GitCode 接口", await ResolveGitCodeLatencyImageUrlAsync(info.Name, ct) ?? ""));
+			candidates.Add(("GitCode 直连", token => DownloadBytesAsync(info.RawUrl, token)));
+			if (!string.IsNullOrEmpty(info.Sha))
+			{
+				candidates.Add(("GitCode Blob 接口", token => FetchBlobApiBytesAsync($"{GitCodeApiBase}/git/blobs/{info.Sha}", token)));
+			}
+			candidates.Add(("GitCode 接口重试", async token =>
+			{
+				string? fresh = await ResolveGitCodeLatencyImageUrlAsync(info.Name, token);
+				return string.IsNullOrEmpty(fresh) ? null : await DownloadBytesAsync(fresh, token);
+			}));
 		}
 		else
 		{
-			candidates.Add(("GitHub 直连", info.RawUrl));
+			candidates.Add(("GitHub 直连", token => DownloadBytesAsync(info.RawUrl, token)));
 			foreach (var proxy in GitHubReleaseService.GitHubProxies.Take(10))
 			{
-				candidates.Add((new Uri(proxy).Host, GitHubReleaseService.ProxyUrl(proxy, info.RawUrl)));
+				candidates.Add((new Uri(proxy).Host, token => DownloadBytesAsync(GitHubReleaseService.ProxyUrl(proxy, info.RawUrl), token)));
+			}
+			if (!string.IsNullOrEmpty(info.Sha))
+			{
+				candidates.Add(("GitHub Blob 接口", token => FetchBlobApiBytesAsync($"{GitHubApiBase}/git/blobs/{info.Sha}", token)));
 			}
 		}
 
-		var tasks = candidates
-			.Where(c => !string.IsNullOrEmpty(c.Url))
-			.Select(async c =>
+		var tasks = candidates.Select(async c =>
+		{
+			try
 			{
-				try
-				{
-					using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
-					client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-Benchmark");
-					byte[] bytes = await client.GetByteArrayAsync(new Uri(c.Url), ct);
-					return (c.Label, bytes, (string?)null);
-				}
-				catch (Exception ex)
-				{
-					return (c.Label, (byte[]?)null, ex.Message);
-				}
-			})
-			.ToList();
+				byte[]? bytes = await c.Fetch(ct);
+				return (c.Label, bytes, (string?)null);
+			}
+			catch (Exception ex)
+			{
+				return (c.Label, (byte[]?)null, ex.Message);
+			}
+		}).ToList();
 
 		if (tasks.Count == 0)
 		{
@@ -288,9 +321,83 @@ public static class BenchmarkCloudService
 			tasks.Remove(done);
 			var (label, bytes, error) = await done;
 			if (bytes is not null) return bytes;
-			failures.Add($"{label}: {error}");
+			failures.Add($"{label}: {error ?? "失败"}");
 		}
 		throw new InvalidOperationException("图片下载失败：" + string.Join("；", failures.Take(3)) + (failures.Count > 3 ? "…" : ""));
+	}
+
+	/// <summary>
+	/// Returns a latency heatmap image's bytes, reading from the local disk cache
+	/// (keyed by the blob SHA) when available, otherwise downloading through
+	/// <see cref="DownloadLatencyImageAsync"/> and caching the result. Concurrent
+	/// requests for the same image share a single in-flight download.
+	/// </summary>
+	public static async Task<byte[]> GetLatencyImageBytesAsync(LatencyImageInfo info, CancellationToken ct)
+	{
+		string key = !string.IsNullOrEmpty(info.Sha) ? info.Sha : ComputeSha(info.RawUrl);
+		string cachedPath = Path.Combine(LatencyImageCacheDir, key + ".png");
+		try
+		{
+			if (File.Exists(cachedPath))
+			{
+				return await File.ReadAllBytesAsync(cachedPath, ct);
+			}
+		}
+		catch { }
+
+		if (_latencyInflight.TryGetValue(key, out var inflight))
+		{
+			return await inflight;
+		}
+		var task = DownloadLatencyImageAndCacheAsync(info, cachedPath, ct);
+		_latencyInflight[key] = task;
+		try
+		{
+			return await task;
+		}
+		finally
+		{
+			_latencyInflight.TryRemove(key, out _);
+		}
+	}
+
+	private static async Task<byte[]> DownloadLatencyImageAndCacheAsync(LatencyImageInfo info, string cachedPath, CancellationToken ct)
+	{
+		byte[] bytes = await DownloadLatencyImageAsync(info, ct);
+		try
+		{
+			var dir = Path.GetDirectoryName(cachedPath);
+			if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+			await File.WriteAllBytesAsync(cachedPath, bytes, ct);
+		}
+		catch { }
+		return bytes;
+	}
+
+	private static string ComputeSha(string value)
+	{
+		return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+	}
+
+	private static async Task<byte[]?> DownloadBytesAsync(string url, CancellationToken ct)
+	{
+		if (string.IsNullOrEmpty(url)) return null;
+		using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+		client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-Benchmark");
+		return await client.GetByteArrayAsync(new Uri(url), ct);
+	}
+
+	private static async Task<byte[]?> FetchBlobApiBytesAsync(string url, CancellationToken ct)
+	{
+		using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+		client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-Benchmark");
+		string json = await client.GetStringAsync(url, ct);
+		using var doc = JsonDocument.Parse(json);
+		if (!doc.RootElement.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.String)
+		{
+			return null;
+		}
+		return Convert.FromBase64String(content.GetString()!);
 	}
 
 	private static async Task<string?> ResolveGitCodeLatencyImageUrlAsync(string name, CancellationToken ct)

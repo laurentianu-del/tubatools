@@ -182,10 +182,29 @@ public sealed partial class HomePage : Page
             _highlightToolPath = null;
         }
 
-        if (_category is null && ToolCatalog.CacheVersion != _tagBarCacheVersion)
-            _ = PopulateTagBarAsync();
-        else if (_category is not null)
+        if (_category is null)
+        {
+            if (ToolCatalog.CacheVersion != _tagBarCacheVersion || TagBarPanel.Children.Count == 0)
+                _ = PopulateTagBarAsync();
+            else
+            {
+                TagBarScrollViewer.Visibility = Visibility.Visible;
+                SyncTagBarSelection();
+            }
+        }
+        else
+        {
             TagBarScrollViewer.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void SyncTagBarSelection()
+    {
+        foreach (var child in TagBarPanel.Children)
+        {
+            if (child is RadioButton rb)
+                rb.IsChecked = rb.Tag is null;
+        }
     }
 
     private async Task PopulateTagBarAsync()
