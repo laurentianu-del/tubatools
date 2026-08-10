@@ -48,12 +48,14 @@ public sealed class AiAssistantTool : IBuiltinTool
         return Task.CompletedTask;
     }
 
-    private static ScrollViewer BuildDialogContent(AssistantState state)
+    private static Grid BuildDialogContent(AssistantState state)
     {
         var logList = new StackPanel
         {
             Spacing = 8,
-            Orientation = Orientation.Vertical
+            Orientation = Orientation.Vertical,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            MaxWidth = 1000
         };
 
         var logScroll = new ScrollViewer
@@ -114,7 +116,7 @@ public sealed class AiAssistantTool : IBuiltinTool
         var topBar = new Grid
         {
             ColumnSpacing = 8,
-            Padding = new Thickness(16, 6, 150, 6),
+            Padding = new Thickness(16, 6, 16, 6),
             Background = (Brush)Application.Current.Resources["LayerFillColorDefaultBrush"]
         };
         topBar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -147,7 +149,9 @@ public sealed class AiAssistantTool : IBuiltinTool
         var inputBar = new Grid
         {
             ColumnSpacing = 8,
-            Padding = new Thickness(16, 0, 16, 12)
+            Padding = new Thickness(16, 0, 16, 12),
+            MaxWidth = 1000,
+            HorizontalAlignment = HorizontalAlignment.Center
         };
         inputBar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         inputBar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -166,15 +170,6 @@ public sealed class AiAssistantTool : IBuiltinTool
         rootGrid.Children.Add(logScroll); Grid.SetRow(logScroll, 1);
         rootGrid.Children.Add(inputBar); Grid.SetRow(inputBar, 2);
 
-        var scrollViewer = new ScrollViewer
-        {
-            Content = rootGrid,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            HorizontalScrollMode = ScrollMode.Disabled,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            MaxWidth = 1120
-        };
-
         sendBtn.Click += (_, _) => SendMessage(state);
         inputBox.QuerySubmitted += (_, e) =>
         {
@@ -182,7 +177,7 @@ public sealed class AiAssistantTool : IBuiltinTool
                 SendMessage(state);
         };
 
-        return scrollViewer;
+        return rootGrid;
     }
 
     private static async void SendMessage(AssistantState state)
@@ -272,7 +267,7 @@ public sealed class AiAssistantTool : IBuiltinTool
                             {
                                 ContinueAfterActions(state, results);
                             });
-                            card.MaxWidth = 720;
+                            card.MaxWidth = 860;
                             state.LogList.Children.Add(card);
                             SmartScroll(state);
                         });
@@ -400,7 +395,7 @@ public sealed class AiAssistantTool : IBuiltinTool
                             {
                                 ContinueAfterActions(state, results);
                             });
-                            card.MaxWidth = 720;
+                            card.MaxWidth = 860;
                             state.LogList.Children.Add(card);
                             SmartScroll(state);
                         });
@@ -468,7 +463,7 @@ public sealed class AiAssistantTool : IBuiltinTool
             Background = (Brush)Application.Current.Resources["CardBackgroundFillColorSecondaryBrush"],
             CornerRadius = new CornerRadius(12, 12, 12, 4),
             Padding = new Thickness(16, 10, 16, 10),
-            MaxWidth = 720,
+            MaxWidth = 860,
             Child = stack
         };
 
@@ -485,7 +480,7 @@ public sealed class AiAssistantTool : IBuiltinTool
         if (string.IsNullOrWhiteSpace(fullContent)) return;
 
         var rendered = AiMarkdownRenderer.Render(fullContent);
-        rendered.MaxWidth = 720;
+        rendered.MaxWidth = 860;
 
         var border = new Border
         {
@@ -552,7 +547,7 @@ public sealed class AiAssistantTool : IBuiltinTool
             CornerRadius = new CornerRadius(4),
             Padding = new Thickness(8, 4, 8, 4),
             Margin = new Thickness(16, 0, 0, 0),
-            MaxWidth = 700,
+            MaxWidth = 860,
             Child = new ScrollViewer
             {
                 Content = tb,
@@ -579,6 +574,8 @@ public sealed class AiAssistantTool : IBuiltinTool
     {
         var border = new Border
         {
+            HorizontalAlignment = HorizontalAlignment.Left,
+            MaxWidth = 860,
             Background = (Brush)Application.Current.Resources["CardBackgroundFillColorSecondaryBrush"],
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(16, 10, 16, 10),
@@ -602,7 +599,7 @@ public sealed class AiAssistantTool : IBuiltinTool
             Background = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
             CornerRadius = new CornerRadius(12, 12, 4, 12),
             Padding = new Thickness(16, 10, 16, 10),
-            MaxWidth = 500,
+            MaxWidth = 600,
             Child = new TextBlock
             {
                 Text = text,
@@ -703,7 +700,7 @@ public sealed class AiAssistantTool : IBuiltinTool
                 if (string.IsNullOrWhiteSpace(cleanContent)) continue;
 
                 var rendered = AiMarkdownRenderer.Render(cleanContent);
-                rendered.MaxWidth = 720;
+                rendered.MaxWidth = 860;
 
                 var border = new Border
                 {
@@ -726,7 +723,7 @@ public sealed class AiAssistantTool : IBuiltinTool
             Background = new SolidColorBrush(Color.FromArgb(40, 196, 43, 28)),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(16, 10, 16, 10),
-            MaxWidth = 600,
+            MaxWidth = 860,
             Child = new TextBlock
             {
                 Text = text,

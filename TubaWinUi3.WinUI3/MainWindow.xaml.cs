@@ -492,6 +492,16 @@ public sealed partial class MainWindow : Window
         _downloadFlyout.ShowAt(DownloadQueueButton);
     }
 
+    private void AiQuickButton_Click(object sender, RoutedEventArgs e)
+    {
+        var flyout = new Flyout
+        {
+            Content = new AiQuickAskFlyout(),
+            Placement = FlyoutPlacementMode.BottomEdgeAlignedRight
+        };
+        flyout.ShowAt(AiQuickButton);
+    }
+
     private void OnBackdropChanged()
     {
         DispatcherQueue.TryEnqueue(() => BackdropService.ApplyBackdrop(this));
@@ -961,6 +971,16 @@ public sealed partial class MainWindow : Window
     {
         var frame = _isTabMode ? TabNavFrame : NavFrame;
         frame.Navigate(pageType, parameter);
+    }
+
+    public void NavigateToSettings(string? highlightSettingKey = null)
+    {
+        var frame = _isTabMode ? TabNavFrame : NavFrame;
+        frame.Navigate(typeof(SettingsPage),
+            highlightSettingKey is null
+                ? null
+                : new SearchNavigationTarget { HighlightSettingKey = highlightSettingKey });
+        SyncNavSelection("settings");
     }
 
     public void NavigateBack()

@@ -214,27 +214,43 @@
                         </Popup>
                     </Grid>
 
-                    <Button
-                        x:Name="DownloadQueueButton"
+                    <StackPanel
                         Grid.Column="2"
-                        Click="DownloadQueueButton_Click"
+                        Orientation="Horizontal"
                         VerticalAlignment="Center"
-                        Width="34" Height="30"
-                        Padding="0"
-                        BorderThickness="0"
-                        Background="Transparent"
-                        AutomationProperties.Name="下载队列">
-                        <Grid>
-                            <FontIcon FontSize="14" Glyph="&#xE896;" />
-                            <InfoBadge
-                                x:Name="DownloadQueueBadge"
-                                Value="0"
-                                Visibility="Collapsed"
-                                VerticalAlignment="Top"
-                                HorizontalAlignment="Right"
-                                Margin="0,-4,-4,0" />
-                        </Grid>
-                    </Button>
+                        Spacing="6">
+                        <Button
+                            x:Name="AiQuickButton"
+                            Click="AiQuickButton_Click"
+                            Width="34" Height="30"
+                            Padding="0"
+                            BorderThickness="0"
+                            Background="Transparent"
+                            ToolTipService.ToolTip="AI 助手"
+                            AutomationProperties.Name="AI 助手">
+                            <FontIcon FontSize="14" Glyph="&#xE99A;" />
+                        </Button>
+
+                        <Button
+                            x:Name="DownloadQueueButton"
+                            Click="DownloadQueueButton_Click"
+                            Width="34" Height="30"
+                            Padding="0"
+                            BorderThickness="0"
+                            Background="Transparent"
+                            AutomationProperties.Name="下载队列">
+                            <Grid>
+                                <FontIcon FontSize="14" Glyph="&#xE896;" />
+                                <InfoBadge
+                                    x:Name="DownloadQueueBadge"
+                                    Value="0"
+                                    Visibility="Collapsed"
+                                    VerticalAlignment="Top"
+                                    HorizontalAlignment="Right"
+                                    Margin="0,-4,-4,0" />
+                            </Grid>
+                        </Button>
+                    </StackPanel>
                 </Grid>
             </TitleBar.Content>
         </TitleBar>

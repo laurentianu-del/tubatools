@@ -51,9 +51,8 @@ public sealed partial class ToolContentPage : Page
 
         _contentHost = new Grid
         {
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Top,
-            MaxWidth = 1120
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Top
         };
 
         var root = new Grid();
