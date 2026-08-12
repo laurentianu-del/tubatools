@@ -28,6 +28,8 @@ public sealed partial class PerformanceBenchmarkPage : Page
 	private CancellationTokenSource _cts;
 	private PerformanceBenchmarkResult? _result;
 	private bool _isRunning;
+	private bool _uploadInProgress;
+	private bool _historyInProgress;
 	private Brush cardBg = null!;
 	private Brush cardBorderBrush = null!;
 	private TextBlock _gamingScoreText = null!;
@@ -989,7 +991,8 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		if (chkDontShow.IsChecked == true)
 			AppSettings.Set("BenchmarkPostPromptDisabled", true);
 		if (result == ContentDialogResult.Primary)
-			OnUploadClick(this, null!);
+			// 延迟到下一帧再打开上传流程，确保"测试完成"对话框已完全关闭
+			DispatcherQueue.TryEnqueue(() => OnUploadClick(this, null!));
 		else if (result == ContentDialogResult.Secondary)
 		{
 			var tool = new RatingSystemTool();
@@ -1448,6 +1451,20 @@ public sealed partial class PerformanceBenchmarkPage : Page
 
 	private async void OnHistoryClick(object sender, RoutedEventArgs e)
 	{
+		if (_historyInProgress) return;
+		_historyInProgress = true;
+		try
+		{
+			await OnHistoryClickCoreAsync();
+		}
+		finally
+		{
+			_historyInProgress = false;
+		}
+	}
+
+	private async Task OnHistoryClickCoreAsync()
+	{
 		List<PerformanceBenchmarkResult> list = PerformanceBenchmarkService.LoadHistory();
 		if (list.Count == 0)
 		{
@@ -1560,6 +1577,23 @@ public sealed partial class PerformanceBenchmarkPage : Page
 
 	private async void OnUploadClick(object sender, RoutedEventArgs e)
 	{
+		// 防止重复触发导致两个 ContentDialog 同时打开（WinUI 3 只允许一个对话框）
+		if (_uploadInProgress) return;
+		_uploadInProgress = true;
+		_uploadBtn.IsEnabled = false;
+		try
+		{
+			await OnUploadClickCoreAsync();
+		}
+		finally
+		{
+			_uploadInProgress = false;
+			_uploadBtn.IsEnabled = true;
+		}
+	}
+
+	private async Task OnUploadClickCoreAsync()
+	{
 		List<PerformanceBenchmarkResult> candidates = PerformanceBenchmarkService.LoadHistory()
 			.OrderByDescending(h => h.TestTime)
 			.ToList();
@@ -1596,6 +1630,8 @@ public sealed partial class PerformanceBenchmarkPage : Page
 				return;
 			}
 		}
+		// 若刚完成登录，等登录对话框完全关闭后再弹下一个对话框，避免 "Only a single ContentDialog can be open"
+		await Task.Yield();
 		PerformanceBenchmarkResult? selected = candidates.Count == 1
 			? candidates[0]
 			: await PickReportToUploadAsync(candidates);
@@ -1802,6 +1838,8 @@ public sealed partial class PerformanceBenchmarkPage : Page
 				_statusText.Text = "核间延迟测试完成，热力图已生成（未上传）";
 				return;
 			}
+			// 等询问对话框完全关闭后再继续，避免紧接着弹出的对话框发生冲突
+			await Task.Yield();
 			if (!GitHubAuthService.IsLoggedIn)
 			{
 				try
