@@ -6,8 +6,8 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using TubaWinUi3.Pages;
 using TubaWinUi3.Services;
+using TubaWinUi3.Services.Agent;
 using TubaWinUi3.Models;
-
 namespace TubaWinUi3;
 
 public partial class App : Application
@@ -29,6 +29,7 @@ public partial class App : Application
         AppSettings.Load();
         
         BuiltinToolRegistry.RegisterDefaults();
+        AgentToolRegistry.RegisterDefaults();
 
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
@@ -86,6 +87,7 @@ public partial class App : Application
         _window = new MainWindow();
         _window.Activate();
         ToolItem.SetUIDispatcher(_window.DispatcherQueue);
+        BrowserAutomationService.Initialize(_window.DispatcherQueue);
 
         _ = RunStartupSequenceAsync();
     }

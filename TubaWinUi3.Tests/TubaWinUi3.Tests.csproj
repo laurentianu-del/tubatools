@@ -24,4 +24,11 @@
     <ProjectReference Include="..\TubaWinUi3.WinUI3\TubaWinUi3.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- CLI 工具文档：与主项目同源链接，保证测试环境 CliToolboxCatalog.Default 可读 -->
+    <Content Include="..\CLI工具使用文档.md" Link="Metadata\CLI工具使用文档.md">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

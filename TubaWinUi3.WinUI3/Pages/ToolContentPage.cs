@@ -52,7 +52,7 @@ public sealed partial class ToolContentPage : Page
         _contentHost = new Grid
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Top
+            VerticalAlignment = VerticalAlignment.Stretch
         };
 
         var root = new Grid();

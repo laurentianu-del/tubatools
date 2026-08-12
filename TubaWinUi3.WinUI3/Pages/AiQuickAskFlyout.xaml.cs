@@ -3,23 +3,29 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using TubaWinUi3.Controls.AgentChat;
 using TubaWinUi3.Services;
+using TubaWinUi3.Services.Agent;
 using Windows.UI;
 
 namespace TubaWinUi3.Pages;
 
+/// <summary>
+/// 标题栏快捷问询面板（轻量版）：与完整版共享 AgentSession 引擎。
+/// 保留紧凑的代码构建 UI，支持流式输出、步骤指示与危险操作确认卡片。
+/// </summary>
 public sealed partial class AiQuickAskFlyout : UserControl
 {
     private readonly DispatcherQueue _dq;
     private readonly StackPanel _chatList;
-    private readonly List<AiChatMessage> _history = [];
+    private AgentSession? _session;
     private CancellationTokenSource _cts = new();
     private bool _isProcessing;
+    private bool _awaitingConfirmation;
     private Border? _streamingBubble;
     private TextBlock? _streamingTb;
     private StringBuilder? _streamingContent;
-    private string _conversationId = Guid.NewGuid().ToString("N")[..12];
-    private string _conversationTitle = "新对话";
+    private IReadOnlyList<AgentConfirmationRequest>? _pendingRequests;
 
     public AiQuickAskFlyout()
     {
@@ -44,6 +50,41 @@ public sealed partial class AiQuickAskFlyout : UserControl
         }
     }
 
+    private AgentSession CreateSession()
+    {
+        var session = AgentSession.CreateNew();
+        HookSession(session);
+        return session;
+    }
+
+    private void HookSession(AgentSession session)
+    {
+        session.TextChunk += chunk => _dq.TryEnqueue(() => SafeInvoke(() => AppendChunk(chunk)));
+        session.StepStarted += step => _dq.TryEnqueue(() => SafeInvoke(() => AddToolCallIndicator(step)));
+        session.StepCompleted += step => _dq.TryEnqueue(() => SafeInvoke(() => AddToolResultIndicator(step)));
+        session.ConfirmationsRequested += requests => _dq.TryEnqueue(() => SafeInvoke(() => OnConfirmations(requests)));
+        session.Error += error => _dq.TryEnqueue(() => SafeInvoke(() =>
+        {
+            FinalizeStreaming();
+            AddErrorMessage(error);
+        }));
+        session.RunCompleted += () => _dq.TryEnqueue(() => SafeInvoke(FinalizeStreaming));
+    }
+
+    /// <summary>UI 线程回调安全壳：异常转为错误提示，防止 XAML 崩溃。</summary>
+    private void SafeInvoke(Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception ex)
+        {
+            AgentDebugLog.Error("快捷面板 UI 回调异常", ex);
+            try { AddErrorMessage($"界面处理出错：{ex.Message}"); } catch { }
+        }
+    }
+
     private void LoadLatestConversation()
     {
         var conversations = AiAssistantService.ListConversations();
@@ -53,37 +94,57 @@ public sealed partial class AiQuickAskFlyout : UserControl
             return;
         }
 
-        _history.Clear();
-        _conversationId = Guid.NewGuid().ToString("N")[..12];
-        _conversationTitle = "新对话";
+        _session?.Dispose();
+        _session = CreateSession();
         AddSystemMessage("你好！我是图吧助手，可以快速提问。\n\n例如：新电脑怎么验机、电脑卡顿怎么办、最新处理器性能对比…");
     }
 
     private void LoadConversation(ConversationMeta meta, bool scrollToBottom = true)
     {
-        var messages = AiAssistantService.LoadConversation(meta.Id);
-
-        _conversationId = meta.Id;
-        _conversationTitle = meta.Title;
-        _history.Clear();
-        _history.AddRange(messages);
-
+        _session?.Dispose();
+        _session = AgentSession.Load(meta);
+        HookSession(_session);
+        _awaitingConfirmation = false;
         _chatList.Children.Clear();
 
-        foreach (var msg in messages)
+        // 展示记录（文本 + 步骤链按原始顺序恢复）；旧会话无记录时回退到协议消息
+        var display = AiAssistantService.LoadConversationDisplay(meta.Id);
+        if (display.Count > 0)
         {
-            if (msg.Role == "system") continue;
-            if (msg.Role == "user")
+            foreach (var item in display)
             {
-                if (msg.Content.StartsWith("[ACTION_CONFIRMED]", StringComparison.OrdinalIgnoreCase)) continue;
-                if (msg.Content.StartsWith("[TOOL_RESULT]", StringComparison.OrdinalIgnoreCase)) continue;
-                AddUserMessage(msg.Content, scrollToBottom: false);
+                if (item.Type == "meta") continue; // token 统计条目，不渲染
+                if (item.Type == "steps")
+                {
+                    AddPersistedStepChain(item);
+                }
+                else if (item.Role == "user")
+                {
+                    AddUserMessage(item.Content, scrollToBottom: false);
+                }
+                else if (item.Role == "assistant" && !string.IsNullOrWhiteSpace(item.Content))
+                {
+                    AddAssistantBubble(item.Content, scrollToBottom: false);
+                }
             }
-            else if (msg.Role == "assistant")
+        }
+        else
+        {
+            foreach (var msg in AiAssistantService.LoadConversation(meta.Id))
             {
-                var cleanContent = msg.Content;
-                if (string.IsNullOrWhiteSpace(cleanContent)) continue;
-                AddAssistantBubble(cleanContent, scrollToBottom: false);
+                if (msg.Role == "system") continue;
+                if (msg.Role == "user")
+                {
+                    if (msg.Content.StartsWith("[ACTION_CONFIRMED]", StringComparison.OrdinalIgnoreCase)) continue;
+                    if (msg.Content.StartsWith("[TOOL_RESULT]", StringComparison.OrdinalIgnoreCase)) continue;
+                    AddUserMessage(msg.Content, scrollToBottom: false);
+                }
+                else if (msg.Role == "assistant")
+                {
+                    var cleanContent = msg.Content;
+                    if (string.IsNullOrWhiteSpace(cleanContent)) continue;
+                    AddAssistantBubble(cleanContent, scrollToBottom: false);
+                }
             }
         }
 
@@ -96,19 +157,40 @@ public sealed partial class AiQuickAskFlyout : UserControl
             ScrollToBottom();
     }
 
+    /// <summary>从展示记录恢复步骤链节点（折叠态）。</summary>
+    private void AddPersistedStepChain(ConversationDisplayItem item)
+    {
+        var chain = new StepChainControl
+        {
+            Margin = new Thickness(0, 0, 0, 8),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MaxWidth = 368
+        };
+        var run = new RunVm();
+        foreach (var snap in item.Steps)
+            run.Steps.Add(new StepRowVm(snap.ToAgentStep()));
+        run.SummaryText = string.IsNullOrWhiteSpace(item.SummaryText)
+            ? $"{item.Steps.Count} 步完成"
+            : item.SummaryText;
+        run.IsExpanded = false;
+        chain.RunVm = run;
+        chain.ShowCollapsed();
+        _chatList.Children.Add(chain);
+    }
+
     private void NewConversationButton_Click(object sender, RoutedEventArgs e)
     {
-        SaveCurrentConversation();
-        _history.Clear();
-        _conversationId = Guid.NewGuid().ToString("N")[..12];
-        _conversationTitle = "新对话";
+        if (_isProcessing) return;
+        _session?.Dispose();
+        _session = CreateSession();
+        _awaitingConfirmation = false;
         _chatList.Children.Clear();
         AddSystemMessage("新对话已开始。请输入你的问题。");
     }
 
     private void HistoryButton_Click(object sender, RoutedEventArgs e)
     {
-        SaveCurrentConversation();
+        _session?.Save();
 
         var flyout = new MenuFlyout();
         var conversations = AiAssistantService.ListConversations();
@@ -136,19 +218,6 @@ public sealed partial class AiQuickAskFlyout : UserControl
         }
 
         flyout.ShowAt(sender as FrameworkElement);
-    }
-
-    private void SaveCurrentConversation()
-    {
-        if (_history.Count == 0) return;
-        try
-        {
-            AiAssistantService.SaveConversation(
-                _conversationId,
-                _conversationTitle,
-                _history);
-        }
-        catch { }
     }
 
     private void QuickQuestion_Click(object sender, RoutedEventArgs e)
@@ -183,20 +252,16 @@ public sealed partial class AiQuickAskFlyout : UserControl
 
     private async void SendAsync(string text)
     {
-        if (_isProcessing) return;
+        if (_isProcessing || _awaitingConfirmation) return;
         if (string.IsNullOrWhiteSpace(text)) return;
 
+        _session ??= CreateSession();
         InputBox.Text = "";
         _isProcessing = true;
         SetInputEnabled(false);
 
         AddUserMessage(text);
 
-        if (_history.Count <= 1)
-        {
-            _conversationTitle = text.Length > 30 ? text.Substring(0, 30) + "..." : text;
-        }
-
         _cts = new CancellationTokenSource();
         var ct = _cts.Token;
 
@@ -204,49 +269,7 @@ public sealed partial class AiQuickAskFlyout : UserControl
 
         try
         {
-            await Task.Run(async () =>
-            {
-                await AiAssistantService.ProcessUserMessageStreamAsync(
-                    text,
-                    _history,
-                    onTextChunk: chunk => _dq.TryEnqueue(() => AppendChunk(chunk)),
-                    onToolCall: toolInfo => _dq.TryEnqueue(() => AddToolCallIndicator(toolInfo)),
-                    onToolResult: result => _dq.TryEnqueue(() => AddToolResultIndicator(result)),
-                    onActions: actions =>
-                    {
-                        _dq.TryEnqueue(() =>
-                        {
-                            FinalizeStreaming();
-                            var actionContent = "[ACTION]\n" + System.Text.Json.JsonSerializer.Serialize(actions.Select(a => new
-                            {
-                                kind = a.Kind switch
-                                {
-                                    AiActionKind.RunCommand => "run_command",
-                                    AiActionKind.ModifyConfig => "write_reg",
-                                    AiActionKind.LaunchTool => "launch_tool",
-                                    AiActionKind.ReadConfig => "read_reg",
-                                    _ => "info"
-                                },
-                                description = a.Description,
-                                detail = a.Detail,
-                                reason = a.Reason,
-                                timeout = a.TimeoutSeconds
-                            }));
-                            var card = AiMarkdownRenderer.CreateActionCard(actionContent, onAllResolved: ContinueAfterActions);
-                            card.MaxWidth = 368;
-                            _chatList.Children.Add(card);
-                            ScrollToBottom();
-                        });
-                    },
-                    onToolRecommendations: _ => { },
-                    onError: error => _dq.TryEnqueue(() =>
-                    {
-                        FinalizeStreaming();
-                        AddErrorMessage(error);
-                    }),
-                    ct: ct);
-            }, ct);
-
+            await Task.Run(() => _session.SendAsync(text), ct);
             FinalizeStreaming();
         }
         catch (OperationCanceledException)
@@ -257,88 +280,73 @@ public sealed partial class AiQuickAskFlyout : UserControl
         catch (Exception ex)
         {
             FinalizeStreaming();
-            AddErrorMessage($"发生错误：{ex.Message}");
+            AddErrorMessage(AgentErrorPolicy.FormatApiError(ex));
         }
         finally
         {
             _isProcessing = false;
             SetInputEnabled(true);
-            SaveCurrentConversation();
+            _session.Save();
         }
     }
 
-    private async void ContinueAfterActions(List<(AiActionStep action, bool confirmed, string result)> results)
+    private void OnConfirmations(IReadOnlyList<AgentConfirmationRequest> requests)
     {
-        if (_isProcessing) return;
+        FinalizeStreaming();
+        _awaitingConfirmation = true;
+        _pendingRequests = requests;
+
+        // 复用旧确认卡片（[ACTION] 协议文本 → CreateActionCard）
+        var actionContent = "[ACTION]\n" + System.Text.Json.JsonSerializer.Serialize(requests.Select(a => new
+        {
+            kind = a.Kind switch
+            {
+                "run_command" => "run_command",
+                "write_reg" => "write_reg",
+                "write_file" => "write_reg",
+                "delete_file" => "run_command",
+                "move_file" => "run_command",
+                "copy_file" => "run_command",
+                "download_file" => "run_command",
+                "launch_tool" => "launch_tool",
+                _ => "info"
+            },
+            description = $"{a.DisplayName}：{a.Summary}",
+            detail = a.Detail,
+            reason = a.Reason,
+            timeout = 60
+        }));
+
+        var card = AiMarkdownRenderer.CreateActionCard(actionContent, onAllResolved: results =>
+        {
+            var decisions = new List<AgentConfirmationDecision>();
+            for (var i = 0; i < results.Count && i < _pendingRequests?.Count; i++)
+            {
+                decisions.Add(new AgentConfirmationDecision
+                {
+                    Request = _pendingRequests[i],
+                    Confirmed = results[i].confirmed
+                });
+            }
+            _ = ResumeAfterConfirmationsAsync(decisions);
+        });
+        card.MaxWidth = 368;
+        _chatList.Children.Add(card);
+        ScrollToBottom();
+    }
+
+    private async Task ResumeAfterConfirmationsAsync(IReadOnlyList<AgentConfirmationDecision> decisions)
+    {
+        if (_session is null || !_awaitingConfirmation || decisions.Count == 0) return;
+        _awaitingConfirmation = false;
         _isProcessing = true;
         SetInputEnabled(false);
 
-        var sb = new StringBuilder();
-        foreach (var (action, confirmed, result) in results)
-        {
-            if (confirmed)
-            {
-                sb.AppendLine($"✓ 已确认执行：{action.Description}");
-                sb.AppendLine($"执行结果：\n{result}");
-            }
-            else
-            {
-                sb.AppendLine($"✗ 用户拒绝执行：{action.Description}");
-            }
-            sb.AppendLine();
-        }
-
-        _history.Add(AiChatMessage.User($"[ACTION_CONFIRMED]\n{sb}"));
-
-        _cts = new CancellationTokenSource();
-        var ct = _cts.Token;
-
         BeginStreaming();
 
         try
         {
-            await Task.Run(async () =>
-            {
-                await AiAssistantService.ContinueConversationStreamAsync(
-                    _history,
-                    onTextChunk: chunk => _dq.TryEnqueue(() => AppendChunk(chunk)),
-                    onToolCall: toolInfo => _dq.TryEnqueue(() => AddToolCallIndicator(toolInfo)),
-                    onToolResult: result => _dq.TryEnqueue(() => AddToolResultIndicator(result)),
-                    onActions: actions =>
-                    {
-                        _dq.TryEnqueue(() =>
-                        {
-                            FinalizeStreaming();
-                            var actionContent = "[ACTION]\n" + System.Text.Json.JsonSerializer.Serialize(actions.Select(a => new
-                            {
-                                kind = a.Kind switch
-                                {
-                                    AiActionKind.RunCommand => "run_command",
-                                    AiActionKind.ModifyConfig => "write_reg",
-                                    AiActionKind.LaunchTool => "launch_tool",
-                                    AiActionKind.ReadConfig => "read_reg",
-                                    _ => "info"
-                                },
-                                description = a.Description,
-                                detail = a.Detail,
-                                reason = a.Reason,
-                                timeout = a.TimeoutSeconds
-                            }));
-                            var card = AiMarkdownRenderer.CreateActionCard(actionContent, onAllResolved: ContinueAfterActions);
-                            card.MaxWidth = 368;
-                            _chatList.Children.Add(card);
-                            ScrollToBottom();
-                        });
-                    },
-                    onToolRecommendations: _ => { },
-                    onError: error => _dq.TryEnqueue(() =>
-                    {
-                        FinalizeStreaming();
-                        AddErrorMessage(error);
-                    }),
-                    ct: ct);
-            }, ct);
-
+            await Task.Run(() => _session.ResumeConfirmationsAsync(decisions));
             FinalizeStreaming();
         }
         catch (OperationCanceledException)
@@ -349,15 +357,17 @@ public sealed partial class AiQuickAskFlyout : UserControl
         catch (Exception ex)
         {
             FinalizeStreaming();
-            AddErrorMessage($"发生错误：{ex.Message}");
+            AddErrorMessage(AgentErrorPolicy.FormatApiError(ex));
         }
         finally
         {
             _isProcessing = false;
             SetInputEnabled(true);
-            SaveCurrentConversation();
+            _session.Save();
         }
     }
+
+    // ---------- 气泡构建（保持原有紧凑样式） ----------
 
     private void BeginStreaming()
     {
@@ -504,12 +514,18 @@ public sealed partial class AiQuickAskFlyout : UserControl
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(16, 10, 16, 10),
             MaxWidth = 368,
-            Child = new TextBlock
+            Child = new ScrollViewer
             {
-                Text = text,
-                TextWrapping = TextWrapping.Wrap,
-                FontSize = 13,
-                Foreground = new SolidColorBrush(Color.FromArgb(255, 196, 43, 28))
+                MaxHeight = 180,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                Content = new TextBlock
+                {
+                    Text = text,
+                    TextWrapping = TextWrapping.Wrap,
+                    FontSize = 13,
+                    IsTextSelectionEnabled = true,
+                    Foreground = new SolidColorBrush(Color.FromArgb(255, 196, 43, 28))
+                }
             }
         };
 
@@ -517,25 +533,28 @@ public sealed partial class AiQuickAskFlyout : UserControl
         ScrollToBottom();
     }
 
-    private void AddToolCallIndicator(string toolInfo)
+    private void AddToolCallIndicator(AgentStep step)
     {
         var stack = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         stack.Children.Add(new FontIcon
         {
-            Glyph = "\uE74C",
+            Glyph = step.Glyph,
             FontSize = 12,
             Foreground = (Brush)Application.Current.Resources["AccentTextFillColorPrimaryBrush"]
         });
 
-        var isSearch = toolInfo.Contains("web_search", StringComparison.OrdinalIgnoreCase);
-        var displayText = isSearch ? $"搜索：{ExtractQueryFromToolInfo(toolInfo)}" : $"调用工具：{toolInfo}";
+        var displayText = string.IsNullOrWhiteSpace(step.Summary)
+            ? $"调用工具：{step.DisplayName}"
+            : $"{step.DisplayName}：{step.Summary}";
 
         stack.Children.Add(new TextBlock
         {
             Text = displayText,
             FontSize = 12,
             Foreground = (Brush)Application.Current.Resources["AccentTextFillColorPrimaryBrush"],
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxWidth = 300
         });
 
         var border = new Border
@@ -551,9 +570,17 @@ public sealed partial class AiQuickAskFlyout : UserControl
         ScrollToBottom();
     }
 
-    private void AddToolResultIndicator(string result)
+    private void AddToolResultIndicator(AgentStep step)
     {
-        var truncated = result.Length > 300 ? result.Substring(0, 300) + "..." : result;
+        var text = step.Status == AgentStepStatus.Failed
+            ? (step.Error ?? "执行失败")
+            : step.Status == AgentStepStatus.Rejected
+                ? "（用户已拒绝）"
+                : step.Result;
+
+        if (string.IsNullOrWhiteSpace(text)) return;
+
+        var truncated = text.Length > 300 ? text.Substring(0, 300) + "..." : text;
 
         var tb = new TextBlock
         {
@@ -582,16 +609,6 @@ public sealed partial class AiQuickAskFlyout : UserControl
 
         _chatList.Children.Add(border);
         ScrollToBottom();
-    }
-
-    private static string ExtractQueryFromToolInfo(string toolInfo)
-    {
-        var idx = toolInfo.IndexOf("query=", StringComparison.OrdinalIgnoreCase);
-        if (idx < 0) return toolInfo;
-        var start = idx + "query=".Length;
-        var end = toolInfo.IndexOf('|', start);
-        if (end < 0) end = toolInfo.Length;
-        return toolInfo.Substring(start, end - start).Trim();
     }
 
     private void ScrollToBottom()

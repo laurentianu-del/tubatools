@@ -51,6 +51,11 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </Content>
+    <!-- CLI 工具文档单一事实来源：仓库根目录（AI Agent 解析用） -->
+    <Content Include="..\CLI工具使用文档.md" Link="Metadata\CLI工具使用文档.md">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </Content>
     <Content Include="CertBlock\Certificates\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
@@ -80,6 +85,8 @@
     <PackageReference Include="LiveChartsCore.SkiaSharpView.WinUI" Version="2.0.4" />
 
     <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" Version="3.2.2" />
+
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.8.3" />
 
     <PackageReference Include="Microsoft.Toolkit.Uwp.Notifications" Version="7.1.3" />
 

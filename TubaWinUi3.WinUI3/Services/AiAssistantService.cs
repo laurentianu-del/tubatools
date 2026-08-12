@@ -641,9 +641,34 @@ public sealed partial class AiAssistantService
         catch { }
     }
 
-    public static List<ConversationMeta> ListConversations()
+    /// <summary>保存会话展示记录（文本气泡 + 步骤链，按顺序恢复界面）。</summary>
+    public static void SaveConversationDisplay(string id, List<Agent.ConversationDisplayItem> items)
     {
-        var result = new List<ConversationMeta>();
+        try
+        {
+            if (items.Count == 0) return;
+            Directory.CreateDirectory(HistoryDir);
+            var path = Path.Combine(HistoryDir, $"{id}.display.json");
+            File.WriteAllText(path, JsonSerializer.Serialize(items, JsonOpts));
+        }
+        catch { }
+    }
+
+    /// <summary>读取会话展示记录；不存在或为空返回空列表（调用方回退到旧渲染路径）。</summary>
+    public static List<Agent.ConversationDisplayItem> LoadConversationDisplay(string id)
+    {
+        try
+        {
+            var path = Path.Combine(HistoryDir, $"{id}.display.json");
+            if (!File.Exists(path)) return [];
+            var json = File.ReadAllText(path);
+            return JsonSerializer.Deserialize<List<Agent.ConversationDisplayItem>>(json, JsonOpts) ?? [];
+        }
+        catch { return []; }
+    }
+
+    public static List<ConversationMeta> ListConversations()
+    {        var result = new List<ConversationMeta>();
         try
         {
             Directory.CreateDirectory(HistoryDir);

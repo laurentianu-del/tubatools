@@ -752,7 +752,7 @@
           "arch": "ARM64"
         }
       ],
-      "version": 2
+      "version": 3
     },
     {
       "match": "HWMonitor",
