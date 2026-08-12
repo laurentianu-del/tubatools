@@ -68,7 +68,9 @@ public sealed partial class AiAgentPage : UserControl
         _suppressToggleEvent = true;
         FullAccessToggle.IsOn = AgentToolContext.IsFullAccess;
         _suppressToggleEvent = false;
-        UpdateTokenUsage();        BuildQuickPills();
+        UpdateTokenUsage();
+        UpdateRunState();
+        BuildQuickPills();
         UpdateServiceStatus();
         LoadLatestConversation();
     }
@@ -209,6 +211,7 @@ public sealed partial class AiAgentPage : UserControl
     {
         if (_suppressToggleEvent) return;
         AgentToolContext.IsFullAccess = FullAccessToggle.IsOn;
+        UpdateRunState();
         if (FullAccessToggle.IsOn)
             AddSystemBubble("⚠️ 已开启完全访问模式：AI 可直接执行命令、修改注册表等操作，不再逐项确认。");
     }
@@ -610,6 +613,7 @@ public sealed partial class AiAgentPage : UserControl
             }
         };
         MsgPanel.Children.Add(bubble);
+        AnimateMessageIn(bubble, fromX: 18);
     }
 
     private AssistantBubble BeginAssistantBubble(bool streaming = true)
@@ -704,6 +708,7 @@ public sealed partial class AiAgentPage : UserControl
         bubble.Root = root;
 
         MsgPanel.Children.Add(root);
+        AnimateMessageIn(root, fromX: -18);
         return bubble;
     }
 
@@ -726,6 +731,7 @@ public sealed partial class AiAgentPage : UserControl
             }
         };
         MsgPanel.Children.Add(bubble);
+        AnimateMessageIn(bubble, fromY: 10);
     }
 
     private void AddErrorBubble(string text)
@@ -795,6 +801,55 @@ public sealed partial class AiAgentPage : UserControl
             }
         };
         MsgPanel.Children.Add(bubble);
+        AnimateMessageIn(bubble, fromY: 10);
+    }
+
+    private static void AnimateMessageIn(UIElement element, double fromX = 0, double fromY = 0)
+    {
+        element.Opacity = 0;
+        element.RenderTransform = new TranslateTransform { X = fromX, Y = fromY };
+
+        var sb = new Storyboard();
+        var opacity = new DoubleAnimation
+        {
+            From = 0,
+            To = 1,
+            Duration = new Duration(TimeSpan.FromMilliseconds(220)),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        Storyboard.SetTarget(opacity, element);
+        Storyboard.SetTargetProperty(opacity, "Opacity");
+        sb.Children.Add(opacity);
+
+        if (Math.Abs(fromX) > 0.1)
+        {
+            var translateX = new DoubleAnimation
+            {
+                From = fromX,
+                To = 0,
+                Duration = new Duration(TimeSpan.FromMilliseconds(240)),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+            Storyboard.SetTarget(translateX, element);
+            Storyboard.SetTargetProperty(translateX, "(UIElement.RenderTransform).(TranslateTransform.X)");
+            sb.Children.Add(translateX);
+        }
+
+        if (Math.Abs(fromY) > 0.1)
+        {
+            var translateY = new DoubleAnimation
+            {
+                From = fromY,
+                To = 0,
+                Duration = new Duration(TimeSpan.FromMilliseconds(240)),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+            Storyboard.SetTarget(translateY, element);
+            Storyboard.SetTargetProperty(translateY, "(UIElement.RenderTransform).(TranslateTransform.Y)");
+            sb.Children.Add(translateY);
+        }
+
+        sb.Begin();
     }
 
     // ---------- UI 辅助 ----------
@@ -872,19 +927,40 @@ public sealed partial class AiAgentPage : UserControl
         SendButton.IsEnabled = !busy;
         SendButton.Visibility = _isProcessing ? Visibility.Collapsed : Visibility.Visible;
         StopButton.Visibility = _isProcessing ? Visibility.Visible : Visibility.Collapsed;
+        UpdateRunState();
     }
 
     /// <summary>发送按钮旁的气泡：实时展示本会话累计 token 消耗（多轮累加）。</summary>
     private void UpdateTokenUsage()
     {
         var tokens = _session?.TotalTokens ?? 0;
+        HeaderTokenText.Text = tokens <= 0 ? "0 tokens" : $"{FormatTokens(tokens)} tokens";
         if (tokens <= 0)
         {
             TokenUsageBubble.Visibility = Visibility.Collapsed;
             return;
         }
         TokenUsageBubble.Visibility = Visibility.Visible;
-        TokenUsageText.Text = $"已消耗 {FormatTokens(tokens)} tokens";
+        TokenUsageText.Text = $"{FormatTokens(tokens)} tokens";
+    }
+
+    private void UpdateRunState()
+    {
+        if (_awaitingConfirmation)
+        {
+            RunStateText.Text = "等待确认";
+            RunStateText.Foreground = (Brush)Application.Current.Resources["SystemFillColorCautionBrush"];
+        }
+        else if (_isProcessing)
+        {
+            RunStateText.Text = "执行中";
+            RunStateText.Foreground = (Brush)Application.Current.Resources["SystemFillColorSuccessBrush"];
+        }
+        else
+        {
+            RunStateText.Text = AgentToolContext.IsFullAccess ? "完全访问" : "受控执行";
+            RunStateText.Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
+        }
     }
 
     private static string FormatTokens(int tokens)

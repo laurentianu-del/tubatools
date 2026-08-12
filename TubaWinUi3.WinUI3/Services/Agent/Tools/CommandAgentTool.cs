@@ -11,6 +11,8 @@ namespace TubaWinUi3.Services.Agent;
 /// </summary>
 public static class CommandAgentTool
 {
+    private const int MaxResultChars = 12000;
+
     public static void Register()
     {
         Add("run_command", "执行命令", "\uE756", (Func<string, string, int?, CancellationToken, Task<string>>)RunCommandAsync);
@@ -31,7 +33,7 @@ public static class CommandAgentTool
             var result = await ScriptRunnerService.RunAsync(new ScriptRunRequest
             {
                 FileName = "cmd.exe",
-                Arguments = $"/c {cmd}",
+                Arguments = $"/d /s /c \"{cmd}\"",
                 OutputEncoding = Encoding.UTF8
             }, ct: timeoutCts.Token);
 
@@ -92,11 +94,34 @@ public static class CommandAgentTool
     {
         var sb = new StringBuilder();
         if (!string.IsNullOrWhiteSpace(result.Output))
-            sb.AppendLine(result.Output.Trim());
+            AppendBounded(sb, result.Output.Trim(), MaxResultChars);
         if (!string.IsNullOrWhiteSpace(result.Error))
-            sb.AppendLine($"[stderr] {result.Error.Trim()}");
-        sb.AppendLine($"退出码：{result.ExitCode}");
-        return sb.ToString();
+        {
+            if (sb.Length > 0) sb.AppendLine();
+            sb.Append("[stderr] ");
+            AppendBounded(sb, result.Error.Trim(), MaxResultChars - Math.Min(sb.Length, MaxResultChars));
+        }
+        sb.AppendLine();
+        sb.AppendLine($"退出码：{result.ExitCode} · 耗时：{result.Duration.TotalSeconds:F1}s");
+        return sb.ToString().TrimEnd();
+    }
+
+    private static void AppendBounded(StringBuilder sb, string text, int remainingBudget)
+    {
+        if (remainingBudget <= 0)
+        {
+            sb.AppendLine("…输出已截断");
+            return;
+        }
+
+        if (text.Length <= remainingBudget)
+        {
+            sb.AppendLine(text);
+            return;
+        }
+
+        sb.AppendLine(text[..remainingBudget]);
+        sb.AppendLine($"…输出已截断（原始 {text.Length:N0} 字符，仅展示前 {remainingBudget:N0} 字符）");
     }
 
     private static void Add(string name, string displayName, string glyph, Delegate method)
