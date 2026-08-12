@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Media.Animation;
 using TubaWinUi3.Controls.AgentChat;
 using TubaWinUi3.Services;
 using TubaWinUi3.Services.Agent;
+using TubaWinUi3.Services.Ai;
 
 namespace TubaWinUi3.Pages;
 
@@ -37,6 +38,7 @@ public sealed partial class AiAgentPage : UserControl
     private bool _isProcessing;
     private bool _awaitingConfirmation;
     private bool _suppressToggleEvent;
+    private bool _syncingCombos;
     private string? _lastUserText;
 
     /// <summary>API 请求发出后超过该时长仍无首个 chunk，视为排队中。</summary>
@@ -71,7 +73,7 @@ public sealed partial class AiAgentPage : UserControl
         UpdateTokenUsage();
         UpdateRunState();
         BuildQuickPills();
-        UpdateServiceStatus();
+        RefreshProviderCombos();
         LoadLatestConversation();
     }
 
@@ -905,17 +907,86 @@ public sealed partial class AiAgentPage : UserControl
         }
     }
 
+    // ---------- 提供商 / 模型切换 ----------
+
+    /// <summary>同步顶栏提供商/模型下拉框与当前选中状态（选中状态全局持久化）。</summary>
+    private void RefreshProviderCombos()
+    {
+        _syncingCombos = true;
+        try
+        {
+            var providers = AiProviderStore.GetProviders();
+            var selectedId = AiProviderStore.SelectedProviderId;
+            // 传副本（见 SettingsPage.RefreshAiProviderList：活列表原地修改会导致
+            // ItemsSourceView 快照过期，同步设置 SelectedItem 抛 E_INVALIDARG）
+            ProviderCombo.ItemsSource = providers.ToList();
+            ProviderCombo.SelectedItem = providers.FirstOrDefault(p => p.Id == selectedId) ?? providers.FirstOrDefault();
+
+            var provider = AiProviderStore.SelectedProvider;
+            var modelId = AiProviderStore.SelectedModelId;
+            ModelCombo.ItemsSource = provider.Models.ToList();
+            ModelCombo.SelectedItem = provider.Models.FirstOrDefault(m => m.Id.Equals(modelId, StringComparison.OrdinalIgnoreCase))
+                                      ?? provider.Models.FirstOrDefault();
+        }
+        finally
+        {
+            _syncingCombos = false;
+        }
+        UpdateServiceStatus();
+    }
+
+    private void ProviderCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingCombos || _isProcessing) return;
+        if (ProviderCombo.SelectedItem is not AiProvider provider) return;
+
+        var prevId = AiProviderStore.SelectedProviderId;
+        if (provider.Id == prevId) return;
+
+        AiProviderStore.SetSelected(provider.Id);
+        RefreshProviderCombos();
+        NotifyModelSwitch(provider.Name, AiProviderStore.SelectedModelId);
+    }
+
+    private void ModelCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingCombos || _isProcessing) return;
+        if (ProviderCombo.SelectedItem is not AiProvider provider) return;
+        if (ModelCombo.SelectedItem is not AiModelOption model) return;
+
+        var prev = AiProviderStore.SelectedModelId;
+        if (model.Id.Equals(prev, StringComparison.OrdinalIgnoreCase)) return;
+
+        AiProviderStore.SetSelected(provider.Id, model.Id);
+        UpdateServiceStatus();
+        NotifyModelSwitch(provider.Name, model.Id);
+    }
+
+    /// <summary>跳转设置页 AI 服务配置（提供商 / API Key / 模型）。</summary>
+    private void AiSettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        App.MainWindow?.NavigateToSettings("AiApiEndpoint");
+    }
+
+    /// <summary>会话已有内容时，切换后提示新模型从下一条消息生效。</summary>
+    private void NotifyModelSwitch(string providerName, string modelId)
+    {
+        if (_session is null || _session.TotalTokens <= 0) return;
+        AddSystemBubble($"已切换到 {providerName} · {modelId}，后续消息将使用该模型。");
+    }
+
     private void UpdateServiceStatus()
     {
         if (AiService.IsUsingDefaultModel)
         {
-            ModelStatusText.Text = "默认模型（建议配置自定义 AI 服务）";
+            ModelStatusText.Text = "默认模型（建议在设置中配置 AI 服务）";
             ModelStatusText.Foreground = (Brush)Application.Current.Resources["SystemFillColorCautionBrush"];
         }
         else
         {
+            var provider = AiProviderStore.SelectedProvider;
             var (_, model, _) = AiService.GetConfig();
-            ModelStatusText.Text = $"已连接 AI 服务 · {model}";
+            ModelStatusText.Text = $"已连接 {provider.Name} · {model}";
             ModelStatusText.Foreground = (Brush)Application.Current.Resources["SystemFillColorSuccessBrush"];
         }
     }
@@ -925,6 +996,8 @@ public sealed partial class AiAgentPage : UserControl
         var busy = _isProcessing || _awaitingConfirmation;
         InputBox.IsEnabled = !busy;
         SendButton.IsEnabled = !busy;
+        ProviderCombo.IsEnabled = !busy;
+        ModelCombo.IsEnabled = !busy;
         SendButton.Visibility = _isProcessing ? Visibility.Collapsed : Visibility.Visible;
         StopButton.Visibility = _isProcessing ? Visibility.Visible : Visibility.Collapsed;
         UpdateRunState();

@@ -3,15 +3,18 @@ using System.Net;
 using LiveChartsCore;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
 using Microsoft.UI.Xaml.Shapes;
 using SkiaSharp;
 using TubaWinUi3.Services;
 using Microsoft.UI.Text;
+using Windows.Graphics;
 
 namespace TubaWinUi3.Pages;
 
@@ -72,6 +75,7 @@ public sealed partial class TrafficMonitorPage : Page
         base.OnNavigatedFrom(e);
         TrafficMonitorService.Tick -= OnServiceTick;
         TrafficMonitorService.Stop();
+        ClosePopoutWindows();
         _disposed = true;
     }
 
@@ -208,6 +212,9 @@ public sealed partial class TrafficMonitorPage : Page
             seen.Add(info.Key);
             if (_rows.TryGetValue(info.Key, out var row))
             {
+                // 域名可能异步解析出来后更新
+                row.RemoteMainText.Text = RemoteMainText(info);
+                row.RemoteSubText.Text = RemoteSubText(info);
                 row.TotalInText.Text = NetworkAdapterProxyService.FormatBytes(info.TotalIn);
                 row.TotalOutText.Text = NetworkAdapterProxyService.FormatBytes(info.TotalOut);
                 row.SpeedInText.Text = $"{NetworkAdapterProxyService.FormatBytes(info.SpeedIn)}/s";
@@ -236,6 +243,130 @@ public sealed partial class TrafficMonitorPage : Page
         var row = MakeRow(info, frozen);
         _rows[info.Key] = row;
         ConnPanel.Children.Add(row.Root);
+    }
+
+    #endregion
+
+    #region 独立窗口
+
+    private Window? _connWindow;
+    private Window? _chartWindow;
+
+    private void ConnPopOut_Click(object sender, RoutedEventArgs e)
+    {
+        if (_connWindow is not null) return;
+        ConnContentHost.Children.Remove(ConnListContent);
+        ConnListContent.RequestedTheme = ThemeService.CurrentElementTheme;
+
+        _connWindow = CreatePopoutWindow("流量监控器 - 在线连接", 560, 760);
+        _connWindow.Content = ConnListContent;
+        _connWindow.Activate();
+
+        ConnPopoutPlaceholder.Visibility = Visibility.Visible;
+        ConnPopOutBtn.IsEnabled = false;
+    }
+
+    private void RestoreConnections_Click(object sender, RoutedEventArgs e) => RestoreConnections();
+
+    private void RestoreConnections()
+    {
+        var w = _connWindow;
+        _connWindow = null; // 先置空，避免 Closed 事件里递归关闭
+        if (w is not null)
+        {
+            w.Content = null;
+            w.Close();
+        }
+        if (ConnListContent.Parent is not null) return; // 已回到主页面
+        ConnListContent.RequestedTheme = ElementTheme.Default;
+        ConnContentHost.Children.Add(ConnListContent);
+        ConnPopoutPlaceholder.Visibility = Visibility.Collapsed;
+        ConnPopOutBtn.IsEnabled = true;
+    }
+
+    private void ChartPopOut_Click(object sender, RoutedEventArgs e)
+    {
+        if (_chartWindow is not null) return;
+        ChartContentHost.Children.Remove(ChartListContent);
+        ChartListContent.RequestedTheme = ThemeService.CurrentElementTheme;
+
+        _chartWindow = CreatePopoutWindow("流量监控器 - 吞吐折线", 640, 420);
+        _chartWindow.Content = ChartListContent;
+        _chartWindow.Activate();
+
+        ChartPopoutPlaceholder.Visibility = Visibility.Visible;
+        ChartPopOutBtn.IsEnabled = false;
+    }
+
+    private void RestoreChart_Click(object sender, RoutedEventArgs e) => RestoreChart();
+
+    private void RestoreChart()
+    {
+        var w = _chartWindow;
+        _chartWindow = null; // 先置空，避免 Closed 事件里递归关闭
+        if (w is not null)
+        {
+            w.Content = null;
+            w.Close();
+        }
+        if (ChartListContent.Parent is not null) return;
+        ChartListContent.RequestedTheme = ElementTheme.Default;
+        ChartContentHost.Children.Add(ChartListContent);
+        ChartPopoutPlaceholder.Visibility = Visibility.Collapsed;
+        ChartPopOutBtn.IsEnabled = true;
+    }
+
+    private void ClosePopoutWindows()
+    {
+        var cw = _connWindow;
+        _connWindow = null;
+        if (cw is not null)
+        {
+            cw.Content = null;
+            cw.Close();
+        }
+        var chw = _chartWindow;
+        _chartWindow = null;
+        if (chw is not null)
+        {
+            chw.Content = null;
+            chw.Close();
+        }
+        // 内容未移回时直接挂回主页面，避免导航离开后元素丢失
+        if (ConnListContent.Parent is null)
+        {
+            ConnListContent.RequestedTheme = ElementTheme.Default;
+            ConnContentHost.Children.Add(ConnListContent);
+        }
+        if (ChartListContent.Parent is null)
+        {
+            ChartListContent.RequestedTheme = ElementTheme.Default;
+            ChartContentHost.Children.Add(ChartListContent);
+        }
+        ConnPopoutPlaceholder.Visibility = Visibility.Collapsed;
+        ChartPopoutPlaceholder.Visibility = Visibility.Collapsed;
+        ConnPopOutBtn.IsEnabled = true;
+        ChartPopOutBtn.IsEnabled = true;
+    }
+
+    private Window CreatePopoutWindow(string title, int width, int height)
+    {
+        var window = new Window();
+        window.SystemBackdrop = new MicaBackdrop(); // 亚克力/云母材质背景
+        window.AppWindow.Title = title;
+        window.AppWindow.Resize(new SizeInt32(width, height));
+        if (window.AppWindow.Presenter is OverlappedPresenter presenter)
+        {
+            presenter.IsResizable = true;
+            presenter.IsMaximizable = true;
+        }
+        // 关闭窗口时自动收回内容
+        window.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(window, _connWindow)) { _connWindow = null; RestoreConnections(); }
+            else if (ReferenceEquals(window, _chartWindow)) { _chartWindow = null; RestoreChart(); }
+        };
+        return window;
     }
 
     #endregion
@@ -419,6 +550,8 @@ public sealed partial class TrafficMonitorPage : Page
 
     private void MarkerCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
     {
+        // Canvas 不参与布局，手动同步 Marker 竖线高度
+        MarkerLine.Height = e.NewSize.Height;
         if (_reviewing) UpdateMarker((int)SnapshotSlider.Value);
     }
 
@@ -475,16 +608,18 @@ public sealed partial class TrafficMonitorPage : Page
 
         var remoteText = new TextBlock
         {
-            Text = info.DisplayRemote,
+            Text = RemoteMainText(info),
             FontSize = 12.5,
+            FontWeight = FontWeights.SemiBold,
             TextTrimming = TextTrimming.CharacterEllipsis,
-            MaxWidth = 210
+            MaxWidth = 240
         };
         var localText = new TextBlock
         {
-            Text = $"{info.Protocol} · 本地 {info.LocalAddress}:{info.LocalPort}",
+            Text = RemoteSubText(info),
             FontSize = 10.5,
-            Opacity = 0.55
+            Opacity = 0.55,
+            TextTrimming = TextTrimming.CharacterEllipsis
         };
         var addrPanel = new StackPanel { Spacing = 0, VerticalAlignment = VerticalAlignment.Center };
         addrPanel.Children.Add(remoteText);
@@ -528,12 +663,23 @@ public sealed partial class TrafficMonitorPage : Page
         {
             Root = grid,
             RemoteIp = info.RemoteAddress,
+            RemoteMainText = remoteText,
+            RemoteSubText = localText,
             TotalInText = totalIn,
             TotalOutText = totalOut,
             SpeedInText = speedIn,
             SpeedOutText = speedOut,
             LatencyText = latency
         };
+    }
+
+    private static string RemoteMainText(TrafficConnectionInfo info)
+        => info.RemoteDomain.Length > 0 ? $"{info.RemoteDomain}:{info.RemotePort}" : info.DisplayRemote;
+
+    private static string RemoteSubText(TrafficConnectionInfo info)
+    {
+        var local = $"本地 {info.LocalAddress}:{info.LocalPort}";
+        return info.RemoteDomain.Length > 0 ? $"{info.DisplayRemote} · {local}" : local;
     }
 
     private static TextBlock MakeValueText(string text) => new() { Text = text, FontSize = 12.5 };
@@ -566,6 +712,8 @@ public sealed partial class TrafficMonitorPage : Page
     {
         public required Grid Root { get; init; }
         public required string RemoteIp { get; init; }
+        public required TextBlock RemoteMainText { get; init; }
+        public required TextBlock RemoteSubText { get; init; }
         public required TextBlock TotalInText { get; init; }
         public required TextBlock TotalOutText { get; init; }
         public required TextBlock SpeedInText { get; init; }

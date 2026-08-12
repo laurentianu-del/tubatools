@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -9,6 +10,7 @@ using System.Drawing.Text;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using TubaWinUi3.Services;
+using TubaWinUi3.Services.Ai;
 using TubaWinUi3.Models;
 using Windows.UI;
 using static TubaWinUi3.Services.ConfigManager;
@@ -38,6 +40,7 @@ public sealed partial class SettingsPage : Page
     private bool _cpuzBusy;
     private bool _aiSettingsInitializing;
     private bool _aiTesting;
+    private bool _zenBusy;
     private bool _proxySettingsInitializing;
     private bool _proxyTesting;
 
@@ -1298,18 +1301,103 @@ public sealed partial class SettingsPage : Page
     private void InitAiSettings()
     {
         _aiSettingsInitializing = true;
+        try
+        {
+            RefreshAiProviderList();
+            LoadAiProviderIntoUi(null);
 
-        AiEndpointTextBox.Text = AppSettings.Get("AiApiEndpoint") ?? "";
-        AiModelTextBox.Text = AppSettings.Get("AiModelName") ?? "";
+            SearchApiKeyBox.Password = AppSettings.Get("SearchApiKey") ?? "";
+        }
+        finally
+        {
+            _aiSettingsInitializing = false;
+        }
+    }
 
-        var apiKey = AppSettings.Get("AiApiKey") ?? "";
-        AiApiKeyBox.Password = apiKey;
+    private AiProvider? CurrentAiProvider() => AiProviderCombo.SelectedItem as AiProvider;
 
-        SearchApiKeyBox.Password = AppSettings.Get("SearchApiKey") ?? "";
+    private void RefreshAiProviderList()
+    {
+        var providers = AiProviderStore.GetProviders();
+        var selectedId = AiProviderStore.SelectedProviderId;
+        // 必须传副本：传活列表实例时，列表被原地修改后 ItemsSourceView 快照不刷新，
+        // 同步设置 SelectedItem 会抛 E_INVALIDARG（Value does not fall within the expected range）
+        AiProviderCombo.ItemsSource = providers.ToList();
+        AiProviderCombo.SelectedItem = providers.FirstOrDefault(p => p.Id == selectedId) ?? providers.FirstOrDefault();
+    }
+
+    /// <summary>把指定提供商（null = 当前选中）加载到编辑器控件。</summary>
+    private void LoadAiProviderIntoUi(string? providerId)
+    {
+        var provider = providerId is null
+            ? CurrentAiProvider() ?? AiProviderStore.SelectedProvider
+            : AiProviderStore.GetProvider(providerId) ?? AiProviderStore.SelectedProvider;
+
+        AiEndpointTextBox.Text = provider.BaseUrl ?? "";
+        AiEndpointTextBox.IsEnabled = !provider.EndpointLocked;
+        AiApiKeyBox.Password = provider.ApiKey ?? "";
+
+        // ItemsSource 用同一份列表实例，保证 SelectedItem 引用一致
+        var models = provider.Models.ToList();
+        AiModelsList.ItemsSource = models;
+        AiDefaultModelCombo.ItemsSource = models;
+        AiDefaultModelCombo.SelectedItem = models
+            .FirstOrDefault(m => m.Id.Equals(provider.DefaultModel, StringComparison.OrdinalIgnoreCase))
+            ?? models.FirstOrDefault();
+
+        var isZen = provider.Id == AiProviderStore.OpenCodeZenProviderId;
+        AiZenSection.Visibility = isZen ? Visibility.Visible : Visibility.Collapsed;
+        AiKeyLinkButton.Visibility = string.IsNullOrWhiteSpace(provider.KeyHintUrl) ? Visibility.Collapsed : Visibility.Visible;
+        AiApiKeyHintText.Text = isZen
+            ? "API Key（可选）：留空使用匿名免费模型（额度低）；登录获取 Key 后额度大幅提升"
+            : "API 密钥，将安全保存在本地";
+
+        if (isZen)
+        {
+            AiZenStatusText.Text = string.IsNullOrWhiteSpace(provider.ApiKey)
+                ? "未配置 Key（匿名额度较低）"
+                : $"已配置 Key：{MaskAiKey(provider.ApiKey)}（额度更高）";
+        }
 
         UpdateAiConfigStatus();
+    }
 
-        _aiSettingsInitializing = false;
+    private static string MaskAiKey(string key)
+        => key.Length <= 12 ? key : $"{key[..7]}…{key[^4..]}";
+
+    private async void AiZenLoginButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_zenBusy) return;
+        _zenBusy = true;
+        AiZenLoginButton.IsEnabled = false;
+        AiZenRefreshButton.IsEnabled = false;
+        AiZenLoginText.Text = "等待登录...";
+        AiZenLoginIcon.Glyph = "\uE895";
+        try
+        {
+            var key = await OpenCodeZenLoginWindow.ShowAsync();
+            if (string.IsNullOrWhiteSpace(key)) return;
+
+            var provider = AiProviderStore.GetProvider(AiProviderStore.OpenCodeZenProviderId);
+            if (provider is not null)
+            {
+                provider.ApiKey = key;
+                AiProviderStore.Save();
+            }
+        }
+        catch (Exception ex)
+        {
+            AiZenStatusText.Text = $"获取 Key 失败：{ex.Message}";
+        }
+        finally
+        {
+            _zenBusy = false;
+            AiZenLoginButton.IsEnabled = true;
+            AiZenRefreshButton.IsEnabled = true;
+            AiZenLoginText.Text = "登录并获取 Key";
+            AiZenLoginIcon.Glyph = "\uE77B";
+            LoadAiProviderIntoUi(null);
+        }
     }
 
     private void UpdateAiConfigStatus()
@@ -1319,37 +1407,143 @@ public sealed partial class SettingsPage : Page
             AiConfigStatusText.Text = "⚠️ 使用自带默认模型，可能出现排队/限额满速，质量低下等问题。推荐使用 DeepSeek V4 Pro。";
             AiConfigStatusText.Foreground = new SolidColorBrush(Color.FromArgb(255, 251, 191, 36));
         }
-        else if (AiService.IsConfigured)
-        {
-            AiConfigStatusText.Text = "AI 服务已配置，可在支持 AI 的功能中使用";
-            AiConfigStatusText.Foreground = new SolidColorBrush(Microsoft.UI.Colors.Green);
-        }
         else
         {
-            AiConfigStatusText.Text = "未配置 — 配置 OpenAI 兼容 API 后可启用 AI 智能功能";
-            AiConfigStatusText.Foreground = new SolidColorBrush(ThemeColors.DimText);
+            var provider = AiProviderStore.SelectedProvider;
+            AiConfigStatusText.Text = $"已配置：{provider.Name} · {AiProviderStore.SelectedModelId}";
+            AiConfigStatusText.Foreground = new SolidColorBrush(Microsoft.UI.Colors.Green);
         }
+    }
+
+    private void AiProviderCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_aiSettingsInitializing) return;
+        if (CurrentAiProvider() is not { } provider) return;
+
+        AiProviderStore.SetSelected(provider.Id);
+        LoadAiProviderIntoUi(provider.Id);
+    }
+
+    private void AiAddProviderButton_Click(object sender, RoutedEventArgs e)
+    {
+        var provider = AiProviderStore.AddCustomProvider();
+        RefreshAiProviderList();
+        LoadAiProviderIntoUi(provider.Id);
+    }
+
+    private void AiResetProviderButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (CurrentAiProvider() is not { } provider) return;
+        AiProviderStore.ResetProviderDefaults(provider.Id);
+        LoadAiProviderIntoUi(provider.Id);
     }
 
     private void AiEndpointTextBox_TextChanged(object sender, TextChangedEventArgs e)
     {
         if (_aiSettingsInitializing) return;
-        AppSettings.Set("AiApiEndpoint", AiEndpointTextBox.Text.Trim());
-        UpdateAiConfigStatus();
-    }
-
-    private void AiModelTextBox_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        if (_aiSettingsInitializing) return;
-        AppSettings.Set("AiModelName", AiModelTextBox.Text.Trim());
+        if (CurrentAiProvider() is not { } provider) return;
+        provider.BaseUrl = AiEndpointTextBox.Text.Trim();
+        AiProviderStore.Save();
         UpdateAiConfigStatus();
     }
 
     private void AiApiKeyBox_PasswordChanged(object sender, RoutedEventArgs e)
     {
         if (_aiSettingsInitializing) return;
-        AppSettings.Set("AiApiKey", AiApiKeyBox.Password);
+        if (CurrentAiProvider() is not { } provider) return;
+        provider.ApiKey = AiApiKeyBox.Password.Trim();
+        AiProviderStore.Save();
         UpdateAiConfigStatus();
+    }
+
+    private void AiKeyLinkButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (CurrentAiProvider() is not { } provider) return;
+        if (string.IsNullOrWhiteSpace(provider.KeyHintUrl)) return;
+        try
+        {
+            Process.Start(new ProcessStartInfo(provider.KeyHintUrl) { UseShellExecute = true });
+        }
+        catch { }
+    }
+
+    private void AiModelDelete_Click(object sender, RoutedEventArgs e)
+    {
+        if (CurrentAiProvider() is not { } provider) return;
+        if ((sender as Button)?.Tag is not AiModelOption model) return;
+
+        provider.Models.Remove(model);
+        if (string.IsNullOrWhiteSpace(provider.DefaultModel) || provider.DefaultModel == model.Id)
+            provider.DefaultModel = provider.Models.FirstOrDefault()?.Id ?? "";
+
+        AiProviderStore.Save();
+        LoadAiProviderIntoUi(provider.Id);
+    }
+
+    private void AiAddModelButton_Click(object sender, RoutedEventArgs e) => AddAiModel();
+
+    private void AiNewModelBox_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            e.Handled = true;
+            AddAiModel();
+        }
+    }
+
+    private void AddAiModel()
+    {
+        if (CurrentAiProvider() is not { } provider) return;
+
+        var id = AiNewModelBox.Text.Trim();
+        if (id.Length == 0) return;
+
+        provider.AddModel(id);
+        if (string.IsNullOrWhiteSpace(provider.DefaultModel))
+            provider.DefaultModel = id;
+
+        AiProviderStore.Save();
+        AiNewModelBox.Text = "";
+        LoadAiProviderIntoUi(provider.Id);
+    }
+
+    private void AiDefaultModelCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_aiSettingsInitializing) return;
+        if (CurrentAiProvider() is not { } provider) return;
+        if (AiDefaultModelCombo.SelectedItem is not AiModelOption model) return;
+
+        provider.DefaultModel = model.Id;
+        AiProviderStore.Save();
+        UpdateAiConfigStatus();
+    }
+
+    private async void AiZenRefreshButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_zenBusy) return;
+        _zenBusy = true;
+        AiZenRefreshButton.IsEnabled = false;
+        AiZenRefreshText.Text = "刷新中...";
+        AiZenRefreshIcon.Glyph = "\uE895";
+        try
+        {
+            var (count, error) = await OpenCodeZenAuthService.RefreshFreeModelsAsync();
+            AiZenStatusText.Text = error is null
+                ? $"已刷新 {count} 个免费模型"
+                : $"刷新失败：{error}";
+        }
+        catch (Exception ex)
+        {
+            AiZenStatusText.Text = $"刷新失败：{ex.Message}";
+        }
+        finally
+        {
+            _zenBusy = false;
+            AiZenRefreshButton.IsEnabled = true;
+            AiZenRefreshText.Text = "刷新免费模型";
+            AiZenRefreshIcon.Glyph = "\uE72C";
+            LoadAiProviderIntoUi(null);
+        }
     }
 
     private void SearchApiKeyBox_PasswordChanged(object sender, RoutedEventArgs e)
@@ -1368,7 +1562,11 @@ public sealed partial class SettingsPage : Page
 
         try
         {
-            var result = await AiService.TestConnectionAsync();
+            var provider = CurrentAiProvider();
+            var result = await AiService.TestConnectionAsync(
+                endpoint: provider?.BaseUrl,
+                model: provider?.DefaultModel,
+                apiKey: provider?.ApiKey);
 
             if (result.Success)
             {

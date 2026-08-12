@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using TubaWinUi3.Services.Ai;
 
 namespace TubaWinUi3.Services;
 
@@ -56,27 +57,53 @@ public static class AiService
     public const string DefaultModel = "auto";
     public const string DefaultApiKey = "sk-tuba-default";
 
-    public static bool IsUsingDefaultModel =>
-        string.IsNullOrWhiteSpace(AppSettings.Get("AiApiEndpoint")) &&
-        string.IsNullOrWhiteSpace(AppSettings.Get("AiModelName")) &&
-        string.IsNullOrWhiteSpace(AppSettings.Get("AiApiKey"));
+    /// <summary>是否使用自带默认模型（选中自定义提供商且未填写地址/Key，行为与旧版未配置一致）。</summary>
+    public static bool IsUsingDefaultModel
+    {
+        get
+        {
+            var provider = AiProviderStore.SelectedProvider;
+            if (provider.Id != AiProviderStore.CustomProviderId) return false;
+            return string.IsNullOrWhiteSpace(provider.BaseUrl) && string.IsNullOrWhiteSpace(provider.ApiKey);
+        }
+    }
 
     public static bool IsConfigured => true;
 
+    /// <summary>当前选中提供商/模型的请求配置（自定义提供商留空时回退自带默认）。</summary>
     public static (string Endpoint, string Model, string ApiKey) GetConfig()
     {
-        return (
-            AppSettings.Get("AiApiEndpoint")?.Trim() is { Length: > 0 } e ? e : DefaultEndpoint,
-            AppSettings.Get("AiModelName")?.Trim() is { Length: > 0 } m ? m : DefaultModel,
-            AppSettings.Get("AiApiKey")?.Trim() is { Length: > 0 } k ? k : DefaultApiKey
-        );
+        var (endpoint, model, apiKey) = AiProviderStore.GetSelectedConfig();
+
+        var provider = AiProviderStore.SelectedProvider;
+        if (provider.Id == AiProviderStore.CustomProviderId)
+        {
+            if (string.IsNullOrWhiteSpace(endpoint)) endpoint = DefaultEndpoint;
+            if (string.IsNullOrWhiteSpace(model)) model = DefaultModel;
+            if (string.IsNullOrWhiteSpace(apiKey)) apiKey = DefaultApiKey;
+        }
+
+        return (endpoint, model, apiKey);
     }
 
+    /// <summary>兼容旧调用：写入自定义提供商（SettingsPage 已改为直接操作提供商存储）。</summary>
     public static void SetConfig(string? endpoint, string? model, string? apiKey)
     {
-        if (endpoint is not null) AppSettings.Set("AiApiEndpoint", endpoint);
-        if (model is not null) AppSettings.Set("AiModelName", model);
-        if (apiKey is not null) AppSettings.Set("AiApiKey", apiKey);
+        var provider = AiProviderStore.GetProvider(AiProviderStore.CustomProviderId);
+        if (provider is null) return;
+
+        if (endpoint is not null) provider.BaseUrl = endpoint.Trim();
+        if (model is not null)
+        {
+            var m = model.Trim();
+            if (m.Length > 0)
+            {
+                provider.AddModel(m);
+                provider.DefaultModel = m;
+            }
+        }
+        if (apiKey is not null) provider.ApiKey = apiKey.Trim();
+        AiProviderStore.Save();
     }
 
     public static async Task ChatStreamAsync(
@@ -195,16 +222,26 @@ public static class AiService
         }
     }
 
+    /// <summary>
+    /// 非流式工具调用（AI 垃圾清理等）。
+    /// endpoint/model/apiKey 可选覆盖：默认使用当前选中提供商配置。
+    /// </summary>
     public static async Task<AiChatResponse> ChatWithToolsAsync(
         List<AiChatMessage> messages,
         List<AiToolDefinition>? tools = null,
+        string? endpoint = null,
+        string? model = null,
+        string? apiKey = null,
         CancellationToken ct = default,
         double temperature = 0.3,
         int? maxTokens = null)
     {
-        var (endpoint, model, apiKey) = GetConfig();
+        var (ep, m, key) = GetConfig();
+        if (!string.IsNullOrWhiteSpace(endpoint)) ep = endpoint.Trim();
+        if (!string.IsNullOrWhiteSpace(model)) m = model.Trim();
+        if (!string.IsNullOrWhiteSpace(apiKey)) key = apiKey.Trim();
 
-        var url = endpoint.TrimEnd('/') + "/chat/completions";
+        var url = ep.TrimEnd('/') + "/chat/completions";
         var body = BuildRequestBody(messages, temperature, false, maxTokens, tools);
 
         var json = JsonSerializer.Serialize(body, new JsonSerializerOptions
@@ -218,7 +255,7 @@ public static class AiService
             {
                 Content = new StringContent(json, Encoding.UTF8, "application/json")
             };
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
 
             using var response = await _http.SendAsync(request, ct);
             var responseBody = await response.Content.ReadAsStringAsync(ct);
@@ -368,6 +405,9 @@ public static class AiService
     public static async Task<AiChatResponse> ChatSingleAsync(
         string systemPrompt,
         string userMessage,
+        string? endpoint = null,
+        string? model = null,
+        string? apiKey = null,
         CancellationToken ct = default,
         double temperature = 0.3,
         int? maxTokens = null)
@@ -376,15 +416,20 @@ public static class AiService
         [
             AiChatMessage.System(systemPrompt),
             AiChatMessage.User(userMessage)
-        ], tools: null, ct: ct, temperature: temperature, maxTokens: maxTokens);
+        ], tools: null, endpoint: endpoint, model: model, apiKey: apiKey,
+        ct: ct, temperature: temperature, maxTokens: maxTokens);
     }
 
-    public static async Task<AiChatResponse> TestConnectionAsync(CancellationToken ct = default)
+    /// <summary>测试连接（默认测试当前选中提供商；可传参指定其它提供商配置）。</summary>
+    public static async Task<AiChatResponse> TestConnectionAsync(
+        string? endpoint = null, string? model = null, string? apiKey = null,
+        CancellationToken ct = default)
     {
         return await ChatSingleAsync(
             "You are a helpful assistant. Reply with exactly: OK",
             "Hello, please confirm you are working.",
-            ct,
+            endpoint: endpoint, model: model, apiKey: apiKey,
+            ct: ct,
             temperature: 0,
             maxTokens: 10);
     }

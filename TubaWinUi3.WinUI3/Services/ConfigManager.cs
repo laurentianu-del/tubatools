@@ -136,6 +136,7 @@ public static class ConfigManager
     }
 
     public static string GetSettingsPath() => Path.Combine(GetDataDir(), "settings.json");
+    public static string GetAiProvidersPath() => Path.Combine(GetDataDir(), "ai_providers.json");
     public static string GetFavoritesPath() => Path.Combine(GetDataDir(), "favorites.json");
     public static string GetLaunchHistoryPath() => Path.Combine(GetDataDir(), "launch_history.json");
     public static string GetPopupSettingsPath() => Path.Combine(GetDataDir(), "popup_settings.json");

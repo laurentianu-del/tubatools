@@ -3,6 +3,8 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace TubaWinUi3.Services;
 
@@ -17,6 +19,8 @@ public sealed class TrafficConnectionInfo
     public string RemoteAddress { get; init; } = "";
     public int RemotePort { get; init; }
     public string Protocol { get; init; } = "TCP";
+    /// <summary>远程域名（来自系统 DNS 缓存或 PTR 反向解析；无则空串）。</summary>
+    public string RemoteDomain { get; init; } = "";
     /// <summary>该连接自建立以来累计下行字节数。</summary>
     public long TotalIn { get; init; }
     /// <summary>该连接自建立以来累计上行字节数。</summary>
@@ -216,6 +220,8 @@ public static class TrafficMonitorService
         _cts = new CancellationTokenSource();
         var token = _cts.Token;
 
+        // 不向 Task.Run 传 token：避免任务尚未开始即被取消时产生未观察的 Canceled 任务；
+        // 循环内部通过 Task.Delay(token) 响应取消，且整体 try/catch 保证任务总是正常完成。
         _ = Task.Run(async () =>
         {
             AdapterScope? scope = ResolveScope(ifIndex);
@@ -256,6 +262,8 @@ public static class TrafficMonitorService
                     var (conns, next) = BuildConnections(scope, prevStats, StatsCap, DisplayCap);
                     prevStats = next;
 
+                    RefreshDomains(conns, token);
+
                     var sample = new TrafficSnapshot
                     {
                         Time = DateTime.Now,
@@ -271,7 +279,7 @@ public static class TrafficMonitorService
                 catch (OperationCanceledException) { break; }
                 catch { }
             }
-        }, token);
+        });
     }
 
     public static void Stop()
@@ -303,6 +311,157 @@ public static class TrafficMonitorService
             .Take(cap)
             .ToList();
     }
+
+    #region 域名解析
+
+    // 域名来源优先级：系统 DNS 缓存表（ipconfig /displaydns）> PTR 反向解析
+    private const int DnsTableRefreshEveryTicks = 5; // 每 5 秒刷一次系统 DNS 缓存表
+    private static readonly Dictionary<string, string> s_domainCache = new(); // ip -> 域名（缓存表）
+    private static readonly Dictionary<string, string> s_ptrCache = new();   // ip -> 域名（PTR 结果）
+    private static readonly HashSet<string> s_ptrPending = new();             // 正在 PTR 解析的 ip
+    private static readonly object s_domainLock = new();
+    private static int s_dnsTick;
+
+    /// <summary>查询远程 IP 的已知域名（缓存表优先，其次 PTR），无则返回 null。</summary>
+    public static string? GetDomainForIp(string? ip)
+    {
+        if (string.IsNullOrEmpty(ip)) return null;
+        var key = ip.Split('%')[0]; // 去掉 IPv6 链路本地 scope
+        lock (s_domainLock)
+        {
+            if (s_domainCache.TryGetValue(key, out var d)) return d;
+            if (s_ptrCache.TryGetValue(key, out var p)) return p;
+            return null;
+        }
+    }
+
+    private static void RefreshDomains(IReadOnlyList<TrafficConnectionInfo> conns, CancellationToken token)
+    {
+        // 定期刷新系统 DNS 缓存表（ipconfig /displaydns，无需权限）
+        if (++s_dnsTick % DnsTableRefreshEveryTicks == 1)
+        {
+            try { RefreshDnsCacheTable(); } catch { }
+        }
+
+        // 对缓存表未命中的 IP 异步发起 PTR 反向解析（限并发、失败不重试）
+        foreach (var c in conns)
+        {
+            var ip = c.RemoteAddress.Split('%')[0];
+            if (string.IsNullOrEmpty(ip)) continue;
+
+            lock (s_domainLock)
+            {
+                if (s_domainCache.ContainsKey(ip) || s_ptrCache.ContainsKey(ip) || s_ptrPending.Contains(ip)) continue;
+                s_ptrPending.Add(ip);
+            }
+
+            _ = Task.Run(async () =>
+            {
+                string? domain = null;
+                try
+                {
+                    if (IPAddress.TryParse(ip, out var addr))
+                    {
+                        var hostTask = Dns.GetHostEntryAsync(addr);
+                        // 显式观察原始任务异常，避免超时/取消后其异常成为未观察异常（finalizer 线程重抛）
+                        _ = hostTask.ContinueWith(t => _ = t.Exception, CancellationToken.None,
+                            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                            TaskScheduler.Default);
+                        var done = await Task.WhenAny(hostTask, Task.Delay(2000, token));
+                        if (done == hostTask)
+                        {
+                            var entry = await hostTask;
+                            domain = entry.HostName;
+                        }
+                    }
+                }
+                catch { }
+
+                lock (s_domainLock)
+                {
+                    s_ptrPending.Remove(ip);
+                    if (!string.IsNullOrWhiteSpace(domain)) s_ptrCache[ip] = domain;
+                    else s_ptrCache[ip] = ip; // 占位防重试：解析失败记原 IP
+                }
+            });
+        }
+    }
+
+    /// <summary>解析 ipconfig /displaydns 输出：域名块 -> A/AAAA 记录 IP。纯函数，可测试。</summary>
+    public static Dictionary<string, string> ParseDisplayDnsOutput(string output)
+    {
+        var result = new Dictionary<string, string>();
+        string? currentName = null;
+
+        foreach (var rawLine in output.Split('\n'))
+        {
+            var line = rawLine.Trim();
+            var nameMatch = Regex.Match(line, @"(?:记录名称|Record Name)[\s.]*:\s*(\S+)", RegexOptions.IgnoreCase);
+            if (nameMatch.Success)
+            {
+                currentName = nameMatch.Groups[1].Value;
+                continue;
+            }
+            if (currentName is null) continue;
+
+            var aMatch = Regex.Match(line, @"(?:A \(主机\)记录|A \(Host\) Record)[\s.]*:\s*(\d+\.\d+\.\d+\.\d+)", RegexOptions.IgnoreCase);
+            if (aMatch.Success)
+            {
+                result.TryAdd(aMatch.Groups[1].Value, currentName);
+                currentName = null;
+                continue;
+            }
+
+            var aaaaMatch = Regex.Match(line, @"(?:AAAA 记录|AAAA Record)[\s.]*:\s*([0-9a-fA-F:]+)", RegexOptions.IgnoreCase);
+            if (aaaaMatch.Success)
+            {
+                result.TryAdd(aaaaMatch.Groups[1].Value, currentName);
+                currentName = null;
+            }
+        }
+        return result;
+    }
+
+    private static void RefreshDnsCacheTable()
+    {
+        using var proc = new Process
+        {
+            StartInfo = new ProcessStartInfo("ipconfig", "/displaydns")
+            {
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                StandardOutputEncoding = GetOemEncoding()
+            }
+        };
+        proc.Start();
+        var output = proc.StandardOutput.ReadToEnd();
+        proc.WaitForExit(3000);
+
+        var map = ParseDisplayDnsOutput(output);
+        lock (s_domainLock)
+        {
+            s_domainCache.Clear();
+            foreach (var kv in map) s_domainCache[kv.Key] = kv.Value;
+        }
+    }
+
+    /// <summary>ipconfig 输出使用系统 OEM/ANSI 代码页（中文系统 GBK）；.NET 内置不含这些代码页，需注册提供程序。</summary>
+    private static Encoding GetOemEncoding()
+    {
+        try
+        {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            return Encoding.GetEncoding(System.Globalization.CultureInfo.CurrentCulture.TextInfo.ANSICodePage);
+        }
+        catch
+        {
+            return Encoding.UTF8;
+        }
+    }
+
+    #endregion
 
     #region 后台实现
 
@@ -405,6 +564,7 @@ public static class TrafficMonitorService
             RemoteAddress = c.RemoteAddress,
             RemotePort = c.RemotePort,
             Protocol = c.IsV6 ? "TCP6" : "TCP",
+            RemoteDomain = GetDomainForIp(c.RemoteAddress) ?? "",
             TotalIn = totalIn,
             TotalOut = totalOut,
             SpeedIn = speedIn,

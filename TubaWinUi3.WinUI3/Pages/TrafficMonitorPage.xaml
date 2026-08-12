@@ -6,6 +6,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:lvc="using:LiveChartsCore.SkiaSharpView.WinUI"
+    xmlns:local="using:TubaWinUi3.Pages"
     mc:Ignorable="d">
 
     <Page.Resources>
@@ -23,8 +24,8 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" MinHeight="200" />
-            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" MinHeight="160" />
+            <RowDefinition Height="200" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
@@ -119,7 +120,6 @@
             <Grid RowSpacing="6">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <Grid ColumnSpacing="10">
@@ -127,15 +127,35 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <TextBlock FontSize="14" FontWeight="SemiBold" Text="在线连接" />
                     <TextBlock x:Name="ConnCountText" Grid.Column="1" VerticalAlignment="Center" FontSize="12" Opacity="0.6" Text="0 条" />
                     <TextBlock x:Name="ReviewBannerText" Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" Opacity="0.8" Visibility="Collapsed" Text="快照查看中 — 拖动下方滑条浏览历史，点「返回实时」恢复" />
+                    <Button x:Name="ConnPopOutBtn" Grid.Column="3" Padding="8,3" FontSize="11.5" Click="ConnPopOut_Click" ToolTipService.ToolTip="弹出到独立窗口">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <FontIcon Glyph="&#xE8A7;" FontSize="12" />
+                            <TextBlock Text="弹出" />
+                        </StackPanel>
+                    </Button>
                 </Grid>
-                <Grid x:Name="ConnHeaderGrid" Grid.Row="1" ColumnSpacing="8" />
-                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
-                    <StackPanel x:Name="ConnPanel" Spacing="2" />
-                </ScrollViewer>
+                <Grid x:Name="ConnContentHost" Grid.Row="1">
+                    <Grid x:Name="ConnListContent">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Grid x:Name="ConnHeaderGrid" Grid.Row="0" ColumnSpacing="8" />
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
+                            <StackPanel x:Name="ConnPanel" Spacing="2" />
+                        </ScrollViewer>
+                    </Grid>
+                    <StackPanel x:Name="ConnPopoutPlaceholder" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+                        <FontIcon Glyph="&#xE8A7;" FontSize="28" Opacity="0.4" HorizontalAlignment="Center" />
+                        <TextBlock FontSize="12" Opacity="0.6" Text="连接列表已弹出到独立窗口" HorizontalAlignment="Center" />
+                        <Button Content="收回" FontSize="11.5" HorizontalAlignment="Center" Click="RestoreConnections_Click" />
+                    </StackPanel>
+                </Grid>
             </Grid>
         </Border>
 
@@ -150,6 +170,7 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <TextBlock FontSize="14" FontWeight="SemiBold" Text="整卡吞吐折线（MB/s）" />
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="14">
@@ -162,12 +183,25 @@
                             <TextBlock Text="上传" FontSize="12" Opacity="0.7" />
                         </StackPanel>
                     </StackPanel>
+                    <Button x:Name="ChartPopOutBtn" Grid.Column="2" Padding="8,3" FontSize="11.5" Margin="10,0,0,0" Click="ChartPopOut_Click" ToolTipService.ToolTip="弹出到独立窗口">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <FontIcon Glyph="&#xE8A7;" FontSize="12" />
+                            <TextBlock Text="弹出" />
+                        </StackPanel>
+                    </Button>
                 </Grid>
-                <Grid Grid.Row="1" Height="190">
-                    <lvc:CartesianChart x:Name="TrafficChart" />
-                    <Canvas x:Name="MarkerCanvas" Visibility="Collapsed" IsHitTestVisible="False" SizeChanged="MarkerCanvas_SizeChanged">
-                        <Rectangle x:Name="MarkerLine" Width="2" Height="190" Fill="#3B82F6" Opacity="0.65" />
-                    </Canvas>
+                <Grid x:Name="ChartContentHost" Grid.Row="1">
+                    <Grid x:Name="ChartListContent">
+                        <lvc:CartesianChart x:Name="TrafficChart" Background="Transparent" />
+                        <Canvas x:Name="MarkerCanvas" Visibility="Collapsed" IsHitTestVisible="False" SizeChanged="MarkerCanvas_SizeChanged">
+                            <Rectangle x:Name="MarkerLine" Width="2" Fill="#3B82F6" Opacity="0.65" />
+                        </Canvas>
+                    </Grid>
+                    <StackPanel x:Name="ChartPopoutPlaceholder" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+                        <FontIcon Glyph="&#xE8A7;" FontSize="28" Opacity="0.4" HorizontalAlignment="Center" />
+                        <TextBlock FontSize="12" Opacity="0.6" Text="折线图已弹出到独立窗口" HorizontalAlignment="Center" />
+                        <Button Content="收回" FontSize="11.5" HorizontalAlignment="Center" Click="RestoreChart_Click" />
+                    </StackPanel>
                 </Grid>
             </Grid>
         </Border>

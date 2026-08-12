@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Media;
 using TubaWinUi3.Controls.AgentChat;
 using TubaWinUi3.Services;
 using TubaWinUi3.Services.Agent;
+using TubaWinUi3.Services.Ai;
 using Windows.UI;
 
 namespace TubaWinUi3.Pages;
@@ -16,6 +17,7 @@ namespace TubaWinUi3.Pages;
 /// </summary>
 public sealed partial class AiQuickAskFlyout : UserControl
 {
+    private bool _syncingModelCombo;
     private readonly DispatcherQueue _dq;
     private readonly StackPanel _chatList;
     private AgentSession? _session;
@@ -34,19 +36,54 @@ public sealed partial class AiQuickAskFlyout : UserControl
         _chatList = ChatList;
 
         UpdateServiceStatus();
+        InitModelCombo();
         LoadLatestConversation();
+    }
+
+    /// <summary>同步模型下拉框与当前选中模型（全局持久化，切换对下一条消息生效）。</summary>
+    private void InitModelCombo()
+    {
+        _syncingModelCombo = true;
+        try
+        {
+            var provider = AiProviderStore.SelectedProvider;
+            var modelId = AiProviderStore.SelectedModelId;
+            var models = provider.Models.ToList();
+            FlyoutModelCombo.ItemsSource = models;
+            FlyoutModelCombo.SelectedItem = models
+                .FirstOrDefault(m => m.Id.Equals(modelId, StringComparison.OrdinalIgnoreCase))
+                ?? models.FirstOrDefault();
+        }
+        finally
+        {
+            _syncingModelCombo = false;
+        }
+    }
+
+    private void FlyoutModelCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingModelCombo) return;
+        if (FlyoutModelCombo.SelectedItem is not AiModelOption model) return;
+
+        var provider = AiProviderStore.SelectedProvider;
+        var prev = AiProviderStore.SelectedModelId;
+        if (model.Id.Equals(prev, StringComparison.OrdinalIgnoreCase)) return;
+
+        AiProviderStore.SetSelected(provider.Id, model.Id);
+        UpdateServiceStatus();
     }
 
     private void UpdateServiceStatus()
     {
         if (AiService.IsUsingDefaultModel)
         {
-            ServiceStatusText.Text = "自带模型（可在设置中配置自定义 AI 服务）";
+            ServiceStatusText.Text = "自带模型（可在设置中配置 AI 服务）";
         }
         else
         {
-            var (endpoint, model, _) = AiService.GetConfig();
-            ServiceStatusText.Text = $"已连接 AI 服务 · {model}";
+            var provider = AiProviderStore.SelectedProvider;
+            var (_, model, _) = AiService.GetConfig();
+            ServiceStatusText.Text = $"已连接 {provider.Name} · {model}";
         }
     }
 

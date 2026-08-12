@@ -74,4 +74,66 @@ public class TrafficMonitorServiceTests
         Assert.Null(recorder.Latest);
         Assert.False(recorder.TryGet(0, out _));
     }
+
+    [Fact]
+    public void ParseDisplayDnsOutput_ParsesChineseBlocks()
+    {
+        const string output = """
+            Windows IP 配置
+
+                记录名称. . . . . . . : passets-ec.pinterest.com
+                ----------------------------------------
+                没有 AAAA 类型的记录
+
+
+                记录名称. . . . . . . : example.com
+                记录类型. . . . . . . : 1
+                生存时间. . . . . . . : 348826
+                数据长度. . . . . . . : 4
+                部分. . . . . . . . . : 答案
+                A (主机)记录  . . . . : 93.184.216.34
+
+
+                记录名称. . . . . . . : ipv6.example.com
+                记录类型. . . . . . . : 28
+                生存时间. . . . . . . : 100
+                数据长度. . . . . . . : 16
+                部分. . . . . . . . . : 答案
+                AAAA 记录  . . . . : 2001:db8::1
+            """;
+
+        var map = TrafficMonitorService.ParseDisplayDnsOutput(output);
+
+        Assert.Equal(2, map.Count);
+        Assert.Equal("example.com", map["93.184.216.34"]);
+        Assert.Equal("ipv6.example.com", map["2001:db8::1"]);
+        // 无 A 记录的块不产生映射
+        Assert.False(map.ContainsKey("pinterest.com"));
+    }
+
+    [Fact]
+    public void ParseDisplayDnsOutput_ParsesEnglishBlocks()
+    {
+        const string output = """
+            Windows IP Configuration
+
+                Record Name. . . . . : www.bing.com
+                Record Type. . . . . : 1
+                Time To Live. . . . . : 300
+                Data Length. . . . . : 4
+                Section. . . . . . . : Answer
+                A (Host) Record. . . : 13.107.21.200
+            """;
+
+        var map = TrafficMonitorService.ParseDisplayDnsOutput(output);
+
+        Assert.Equal("www.bing.com", map["13.107.21.200"]);
+    }
+
+    [Fact]
+    public void ParseDisplayDnsOutput_EmptyInput_ReturnsEmpty()
+    {
+        Assert.Empty(TrafficMonitorService.ParseDisplayDnsOutput(""));
+        Assert.Empty(TrafficMonitorService.ParseDisplayDnsOutput("没有输出\n乱码"));
+    }
 }

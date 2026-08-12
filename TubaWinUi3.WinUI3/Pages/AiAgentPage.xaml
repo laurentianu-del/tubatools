@@ -54,6 +54,12 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <ComboBox x:Name="ProviderCombo" MinWidth="128" MaxWidth="168" Padding="10,5" FontSize="12"
+                              DisplayMemberPath="Name" VerticalAlignment="Center" SelectionChanged="ProviderCombo_SelectionChanged"
+                              ToolTipService.ToolTip="切换 AI 服务提供商（可在 设置 → AI 服务 中管理）" />
+                    <ComboBox x:Name="ModelCombo" MinWidth="150" MaxWidth="210" Padding="10,5" FontSize="12"
+                              DisplayMemberPath="DisplayText" VerticalAlignment="Center" SelectionChanged="ModelCombo_SelectionChanged"
+                              ToolTipService.ToolTip="切换当前提供商的模型（下一条消息生效）" />
                     <ToggleSwitch x:Name="FullAccessToggle" MinWidth="0" Padding="0"
                                   OnContent="完全访问" OffContent="受控执行"
                                   FontSize="12" VerticalAlignment="Center"
@@ -70,6 +76,10 @@
                             <FontIcon Glyph="&#xE81C;" FontSize="12" />
                             <TextBlock Text="历史" FontSize="12" />
                         </StackPanel>
+                    </Button>
+                    <Button x:Name="AiSettingsButton" Padding="12,7" CornerRadius="8" Click="AiSettingsButton_Click"
+                            ToolTipService.ToolTip="AI 服务设置（提供商 / API Key / 模型）">
+                        <FontIcon Glyph="&#xE713;" FontSize="14" />
                     </Button>
                 </StackPanel>
             </Grid>
