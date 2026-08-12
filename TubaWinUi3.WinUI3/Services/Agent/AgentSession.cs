@@ -52,6 +52,9 @@ public sealed class AgentSession : IDisposable
     /// <summary>本轮正常完成（无待确认）。</summary>
     public event Action? RunCompleted;
 
+    /// <summary>新一轮 API 请求开始（UI 据此重置「思考/排队」状态）。</summary>
+    public event Action? RoundStarted;
+
     /// <summary>整条步骤链完成（UI 据此折叠为摘要节点）。</summary>
     public event Action<AgentStepGroupSummary>? StepGroupCompleted;
 
@@ -229,6 +232,7 @@ public sealed class AgentSession : IDisposable
                 _groupCompletionTokens = 0;
                 _groupTimer = System.Diagnostics.Stopwatch.StartNew();
             }
+            RoundStarted?.Invoke();
         },
         OnStepStarted = step =>
         {

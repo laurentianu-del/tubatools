@@ -116,7 +116,7 @@ public sealed partial class ServiceCenterPage : Page
 
             try
             {
-                await WebView.EnsureCoreWebView2Async();
+                await WebView.EnsureCoreWebView2Async(await WebView2EnvironmentService.GetAsync());
                 WebView.CoreWebView2.Navigate(brand.ServiceUrl);
             }
             catch

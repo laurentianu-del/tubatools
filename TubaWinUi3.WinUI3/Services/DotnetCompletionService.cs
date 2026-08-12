@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -123,8 +124,15 @@ public static class DotnetCompletionService
 
         await Task.Run(() =>
         {
-            ScanDotnetInstallDirs(runtimes, sdks);
-            RunDotnetCli(runtimes, sdks);
+            var dotnetRoots = FindDotnetRoots();
+
+            // 优先通过 .NET CLI 探测（权威来源）：dotnet --list-runtimes / --list-sdks
+            var cliOk = RunDotnetCli(runtimes, sdks, dotnetRoots);
+
+            // CLI 不可用（机器上没有 dotnet.exe / 未加入 PATH 且不在常见安装目录）时才退回目录扫描
+            if (!cliOk)
+                ScanDotnetInstallDirs(runtimes, sdks, dotnetRoots);
+
             DetectDotnetFrameworkFromRegistry(frameworkVersions);
         });
 
@@ -133,7 +141,33 @@ public static class DotnetCompletionService
         _installedFrameworkVersions = frameworkVersions;
     }
 
-    private static void ScanDotnetInstallDirs(HashSet<string> runtimes, HashSet<string> sdks)
+    private static List<string> FindDotnetRoots()
+    {
+        var roots = new List<string>();
+
+        var dotnetRoot = Environment.GetEnvironmentVariable("DOTNET_ROOT");
+        if (!string.IsNullOrEmpty(dotnetRoot))
+            roots.Add(dotnetRoot);
+
+        var pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        var pfx86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+        var arch = RuntimeInformation.ProcessArchitecture;
+
+        if (arch == Architecture.X86)
+            roots.Add(Path.Combine(pfx86, "dotnet"));
+        else
+        {
+            roots.Add(Path.Combine(pf, "dotnet"));
+            roots.Add(Path.Combine(pfx86, "dotnet"));
+        }
+
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        roots.Add(Path.Combine(localAppData, "Microsoft", "dotnet"));
+
+        return roots.Where(Directory.Exists).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private static void ScanDotnetInstallDirs(HashSet<string> runtimes, HashSet<string> sdks, IReadOnlyList<string> roots)
     {
         void ScanPath(string? path)
         {
@@ -160,73 +194,82 @@ public static class DotnetCompletionService
             catch { }
         }
 
-        var dotnetRoot = Environment.GetEnvironmentVariable("DOTNET_ROOT");
-        if (!string.IsNullOrEmpty(dotnetRoot))
-            ScanPath(dotnetRoot);
-
-        var pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-        var pfx86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-        var arch = RuntimeInformation.ProcessArchitecture;
-
-        if (arch == Architecture.X86)
-            ScanPath(Path.Combine(pfx86, "dotnet"));
-        else
-        {
-            ScanPath(Path.Combine(pf, "dotnet"));
-            ScanPath(Path.Combine(pfx86, "dotnet"));
-        }
-
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        ScanPath(Path.Combine(localAppData, "Microsoft", "dotnet"));
+        foreach (var root in roots)
+            ScanPath(root);
     }
 
-    private static void RunDotnetCli(HashSet<string> runtimes, HashSet<string> sdks)
+    /// <summary>
+    /// 通过 .NET CLI 探测已安装组件。优先使用 PATH 中的 dotnet，
+    /// 其次使用已知安装目录中的 dotnet.exe。CLI 成功执行即视为权威结果。
+    /// </summary>
+    private static bool RunDotnetCli(HashSet<string> runtimes, HashSet<string> sdks, IReadOnlyList<string> dotnetRoots)
     {
-        try
+        var candidates = new List<string> { "dotnet" };
+        foreach (var root in dotnetRoots)
         {
-            using var proc = new Process
+            var exe = Path.Combine(root, "dotnet.exe");
+            if (File.Exists(exe) && !candidates.Contains(exe, StringComparer.OrdinalIgnoreCase))
+                candidates.Add(exe);
+        }
+
+        foreach (var candidate in candidates)
+        {
+            try
             {
-                StartInfo = new ProcessStartInfo
+                var cliAvailable = false;
+
+                if (TryRunDotnetList(candidate, "--list-runtimes", out var runtimeOutput))
                 {
-                    FileName = "dotnet",
-                    Arguments = "--list-runtimes",
-                    RedirectStandardOutput = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
+                    cliAvailable = true;
+                    foreach (var line in runtimeOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        var parts = line.Trim().Split(' ', 2);
+                        if (parts.Length >= 2)
+                            runtimes.Add($"{parts[0]}/{parts[1].Split(' ')[0]}");
+                    }
                 }
-            };
-            proc.Start();
-            var output = proc.StandardOutput.ReadToEnd();
-            proc.WaitForExit(5000);
-            foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+
+                if (TryRunDotnetList(candidate, "--list-sdks", out var sdkOutput))
+                {
+                    cliAvailable = true;
+                    foreach (var line in sdkOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        var sdkVer = line.Trim().Split(' ')[0];
+                        if (sdkVer.Length > 0)
+                            sdks.Add(sdkVer);
+                    }
+                }
+
+                if (cliAvailable)
+                    return true;
+            }
+            catch (Win32Exception)
             {
-                var parts = line.Trim().Split(' ', 2);
-                if (parts.Length >= 2)
-                    runtimes.Add($"{parts[0]}/{parts[1].Split(' ')[0]}");
+                // 该 dotnet 不存在或无法启动，尝试下一个候选
             }
         }
-        catch { }
 
-        try
+        return false;
+    }
+
+    private static bool TryRunDotnetList(string dotnetPath, string arguments, out string output)
+    {
+        output = "";
+        using var proc = new Process
         {
-            using var proc = new Process
+            StartInfo = new ProcessStartInfo
             {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "dotnet",
-                    Arguments = "--list-sdks",
-                    RedirectStandardOutput = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
-            };
-            proc.Start();
-            var output = proc.StandardOutput.ReadToEnd();
-            proc.WaitForExit(5000);
-            foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-                sdks.Add(line.Trim().Split(' ')[0]);
-        }
-        catch { }
+                FileName = dotnetPath,
+                Arguments = arguments,
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            }
+        };
+        proc.Start();
+        output = proc.StandardOutput.ReadToEnd();
+        proc.WaitForExit(5000);
+        return proc.ExitCode == 0;
     }
 
     private static void DetectDotnetFrameworkFromRegistry(Dictionary<string, string> result)
@@ -282,13 +325,14 @@ public static class DotnetCompletionService
     {
         if (_installedRuntimes is null) return null;
         var prefix = $"{name}/";
+        var channelPrefix = $"{channelVersion}.";
         string? best = null;
         foreach (var installed in _installedRuntimes)
         {
             if (installed.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {
                 var ver = installed.Substring(prefix.Length);
-                if (ver.Split('.')[0] == channelVersion)
+                if (ver == channelVersion || ver.StartsWith(channelPrefix, StringComparison.OrdinalIgnoreCase))
                 {
                     if (best is null || CompareVersions(ver, best) > 0)
                         best = ver;
@@ -301,10 +345,11 @@ public static class DotnetCompletionService
     public static string? GetInstalledSdkVersion(string channelVersion)
     {
         if (_installedSdks is null) return null;
+        var channelPrefix = $"{channelVersion}.";
         string? best = null;
         foreach (var installed in _installedSdks)
         {
-            if (installed.Split('.')[0] == channelVersion)
+            if (installed == channelVersion || installed.StartsWith(channelPrefix, StringComparison.OrdinalIgnoreCase))
             {
                 if (best is null || CompareVersions(installed, best) > 0)
                     best = installed;

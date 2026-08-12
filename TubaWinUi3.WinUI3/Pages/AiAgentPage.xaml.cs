@@ -10,13 +10,15 @@ using TubaWinUi3.Services.Agent;
 namespace TubaWinUi3.Pages;
 
 /// <summary>
-/// 一条助手消息的构建状态（流式文本 / 内容宿主）。
+/// 一条助手消息的构建状态（流式文本 / 思考指示 / 内容宿主）。
 /// </summary>
 internal sealed class AssistantBubble
 {
     public required Border Root { get; set; }
     public required TextBlock StreamingText { get; init; }
     public required StackPanel StreamingRow { get; init; }
+    public required StackPanel ThinkingRow { get; init; }
+    public required TextBlock StatusText { get; init; }
     public required ContentControl ContentHost { get; init; }
 }
 
@@ -36,6 +38,13 @@ public sealed partial class AiAgentPage : UserControl
     private bool _awaitingConfirmation;
     private bool _suppressToggleEvent;
     private string? _lastUserText;
+
+    /// <summary>API 请求发出后超过该时长仍无首个 chunk，视为排队中。</summary>
+    private static readonly TimeSpan QueueThreshold = TimeSpan.FromSeconds(10);
+    private DispatcherTimer? _queueTimer;
+    private DispatcherTimer? _dotsTimer;
+    private int _dots;
+    private bool _roundHasText;
 
     private static readonly (string Text, string Glyph)[] QuickQuestions =
     [
@@ -78,6 +87,7 @@ public sealed partial class AiAgentPage : UserControl
     /// <summary>页面卸载（内置工具关闭时调用）：保存并释放会话。</summary>
     public void Unload()
     {
+        StopQueueWatch();
         _session?.Dispose();
         _session = null;
     }
@@ -98,7 +108,8 @@ public sealed partial class AiAgentPage : UserControl
         session.StepCompleted += step => _dq.TryEnqueue(() => SafeInvoke(() => OnStepCompleted(step)));
         session.ConfirmationsRequested += requests => _dq.TryEnqueue(() => SafeInvoke(() => OnConfirmations(requests)));
         session.Error += error => _dq.TryEnqueue(() => SafeInvoke(() => OnError(error)));
-        session.RunCompleted += () => _dq.TryEnqueue(() => SafeInvoke(FinalizeStreaming));
+        session.RunCompleted += () => _dq.TryEnqueue(() => SafeInvoke(() => { StopQueueWatch(); FinalizeStreaming(); }));
+        session.RoundStarted += () => _dq.TryEnqueue(() => SafeInvoke(StartQueueWatch));
         session.StepGroupCompleted += summary => _dq.TryEnqueue(() => SafeInvoke(() => OnStepGroupCompleted(summary)));
     }
 
@@ -117,6 +128,62 @@ public sealed partial class AiAgentPage : UserControl
             AgentDebugLog.Error("UI 回调异常", ex);
             try { AddErrorBubble($"界面处理出错：{ex.Message}"); } catch { }
         }
+    }
+
+    // ---------- 排队检测（API 请求发出后久无响应 → 「正在排队」+ 动画） ----------
+
+    /// <summary>新一轮 API 请求开始：重置状态为「正在思考…」，并启动排队定时器。</summary>
+    private void StartQueueWatch()
+    {
+        StopQueueWatch();
+        _roundHasText = false;
+        // 多轮运行中上一轮的气泡可能已被定稿（_streamingBubble = null），
+        // 这里只复位仍在使用的气泡；迟到的排队提示会在 QueueTimer_Tick 里自建气泡。
+        if (_streamingBubble is not null)
+        {
+            _streamingBubble.ThinkingRow.Visibility = Visibility.Visible;
+            SetStreamingStatus("正在思考…");
+        }
+
+        _queueTimer = new DispatcherTimer { Interval = QueueThreshold };
+        _queueTimer.Tick += QueueTimer_Tick;
+        _queueTimer.Start();
+    }
+
+    /// <summary>超过阈值仍无首个 chunk → 切换为「正在排队等待响应」+ 点号动画。</summary>
+    private void QueueTimer_Tick(object? sender, object e)
+    {
+        _queueTimer?.Stop();
+        if (_roundHasText) return;
+
+        // 气泡可能尚未创建（如工具步骤后的新一轮）→ 先建气泡再显示排队状态
+        if (_streamingBubble is null)
+            _streamingBubble = BeginAssistantBubble();
+        _streamingBubble.ThinkingRow.Visibility = Visibility.Visible;
+
+        _dots = 0;
+        SetStreamingStatus("正在排队等待响应");
+        _dotsTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
+        _dotsTimer.Tick += (_, _) =>
+        {
+            _dots = (_dots + 1) % 4;
+            SetStreamingStatus("正在排队等待响应" + new string('·', _dots));
+        };
+        _dotsTimer.Start();
+    }
+
+    private void StopQueueWatch()
+    {
+        _queueTimer?.Stop();
+        _queueTimer = null;
+        _dotsTimer?.Stop();
+        _dotsTimer = null;
+    }
+
+    private void SetStreamingStatus(string text)
+    {
+        if (_streamingBubble is null) return;
+        _streamingBubble.StatusText.Text = text;
     }
 
     // ---------- 发送 / 停止 ----------
@@ -170,6 +237,7 @@ public sealed partial class AiAgentPage : UserControl
         }
         catch (OperationCanceledException)
         {
+            FinalizeStreaming(); // 清理排队/思考中的空气泡
             AddSystemBubble("已取消");
         }
         catch (Exception ex)
@@ -178,6 +246,7 @@ public sealed partial class AiAgentPage : UserControl
         }
         finally
         {
+            StopQueueWatch();
             _isProcessing = false;
             UpdateInputState();
             _session.Save();
@@ -216,6 +285,7 @@ public sealed partial class AiAgentPage : UserControl
         }
         catch (OperationCanceledException)
         {
+            FinalizeStreaming(); // 清理排队/思考中的空气泡
             AddSystemBubble("已取消");
         }
         catch (Exception ex)
@@ -224,6 +294,7 @@ public sealed partial class AiAgentPage : UserControl
         }
         finally
         {
+            StopQueueWatch();
             _isProcessing = false;
             UpdateInputState();
             _session.Save();
@@ -241,6 +312,16 @@ public sealed partial class AiAgentPage : UserControl
         {
             _streamingBubble = BeginAssistantBubble();
         }
+
+        // 首个 chunk 到达：本轮未排队，停止排队检测并收起思考指示
+        if (!_roundHasText)
+        {
+            _roundHasText = true;
+            StopQueueWatch();
+            if (_streamingBubble.ThinkingRow is { } row)
+                row.Visibility = Visibility.Collapsed;
+        }
+
         _streamingBubble.StreamingText.Text += chunk;
         SmartScroll();
     }
@@ -279,6 +360,7 @@ public sealed partial class AiAgentPage : UserControl
 
     private void OnConfirmations(IReadOnlyList<AgentConfirmationRequest> requests)
     {
+        StopQueueWatch();
         FinalizeStreaming();
         _awaitingConfirmation = true;
         UpdateInputState();
@@ -309,6 +391,7 @@ public sealed partial class AiAgentPage : UserControl
 
     private void OnError(string error)
     {
+        StopQueueWatch();
         FinalizeStreaming();
         AddErrorBubble(error);
         SmartScroll();
@@ -555,12 +638,18 @@ public sealed partial class AiAgentPage : UserControl
             Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
         };
 
-        // 流式文本 + 思考指示
+        // 流式文本 + 思考指示（ProgressRing + 状态文字；排队时文字变「正在排队等待响应…」）
         var streamingText = new TextBlock
         {
             FontSize = 14,
             TextWrapping = TextWrapping.Wrap,
             IsTextSelectionEnabled = true
+        };
+        var statusText = new TextBlock
+        {
+            Text = streaming ? "正在思考…" : "",
+            FontSize = 12,
+            Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
         };
         var thinkingRow = new StackPanel
         {
@@ -569,12 +658,7 @@ public sealed partial class AiAgentPage : UserControl
             Children =
             {
                 new ProgressRing { Width = 14, Height = 14, IsActive = true },
-                new TextBlock
-                {
-                    Text = streaming ? "正在思考…" : "",
-                    FontSize = 12,
-                    Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
-                }
+                statusText
             }
         };
         var streamingRow = new StackPanel { Spacing = 4, Children = { streamingText, thinkingRow } };
@@ -590,6 +674,8 @@ public sealed partial class AiAgentPage : UserControl
             Root = null!,
             StreamingText = streamingText,
             StreamingRow = streamingRow,
+            ThinkingRow = thinkingRow,
+            StatusText = statusText,
             ContentHost = contentHost
         };
 

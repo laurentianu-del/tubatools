@@ -1,219 +1,77 @@
-(02:04:06:055)	FurMark 2.10.2.0 (build: Oct 22 2025@12:39:49)
-(02:04:06:055)	(c)2007-2025 Geeks3D
-(02:04:06:055)	homepage: https://www.geeks3d.com/furmark/
-(02:04:06:055)	discord server : https://geeks3d.com/discord/
-(02:04:06:055)	FurMark (GeeXLab engine) initialization...
-(02:04:06:055)	command line: C:\Users\luolan\Desktop\tubawinui3\TubaWinUi3.WinUI3\Tools\烤鸡工具\FurMark_win64\furmark.exe --demo furmark-vk --width 800 --height 600 --msaa 4 --furmark-vram-test-gb 4 --vsync 0 --max-time 3 --no-score-box --no-osi --no-gpumon 
-(02:04:06:055)	FurMark home directory: C:\Users\luolan\Desktop\tubawinui3\TubaWinUi3.WinUI3\Tools\烤鸡工具\FurMark_win64\
-(02:04:06:055)	[stb] STB image loader. Supported formats: *.JPEG, *.PNG, *.TGA, *.BMP, *.PSD, *.GIF, *.HDR, *.PIC
-(02:04:06:055)	[tinyexr] EXR image loader.
-(02:04:06:055)	[lib3ds] Lib3ds loader (core plugin).
-(02:04:06:055)	[ObjLoaderV1] OBJ 3D loader (core plugin).
-(02:04:06:056)	[ObjLoaderV2] OBJ loader based on Tiny OBJ Loader (core plugin).
-(02:04:06:056)	[STL] STL (StereoLithography) 3D loader (core plugin).
-(02:04:06:056)	[glTF] glTF 3D loader (core plugin).
-(02:04:06:056)	[SQLite3] SQLite3 version 3.50.4
-(02:04:06:056)	GraphX Core 0.60.1.0 (codename: Dirac) initialization ok.
-(02:04:06:056)	Windows version: Windows 11 build 26200
-(02:04:06:056)	HW platform type: PC
-(02:04:06:056)	SW platform type: Windows 64-bit
-(02:04:06:057)	[GpuMonitor] Operating system detected: Windows 11 build 26200
-(02:04:06:126)	[GpuMonitor] Intel - num adapters: 1 
-(02:04:06:126)	[GpuMonitor]       - driver version: 32.0.101.8509
-(02:04:06:126)	[GpuMonitor]       - firmware version: 26.0.61
-(02:04:06:126)	[GpuMonitor]       - frequency: 2500
-(02:04:06:126)	[GpuMonitor]       - GPU configuration:
-(02:04:06:126)	[GpuMonitor]       -   Intel(R) Arc(TM) B390 GPU
-(02:04:06:126)	[GpuMonitor]       -   6 Xe cores
-(02:04:06:126)	[GpuMonitor]       -   96 EUs
-(02:04:06:126)	[GpuMonitor]       -   2 slices / 6 sub slices per slice / 8 EUs per sub slice
-(02:04:06:126)	[GpuMonitor]       -   768 ALUs
-(02:04:06:126)	[GpuMonitor]       -   6 ray tracing cores
-(02:04:06:127)	[GpuMonitor]       - Resizable bar: supported: NO
-(02:04:06:127)	[GpuMonitor]       - ctlEnumMemoryModules - MemoryHandlerCount: 1
-(02:04:06:354)	[GpuMonitor]       - VRAM type: _UNKNOWN_
-(02:04:06:354)	[GpuMonitor]       - VRAM size: 18413 MB
-(02:04:06:422)	[GpuMonitor] Num GPUs detected: 4
-(02:04:06:422)	[GpuMonitor] > GPU0
-(02:04:06:422)	[GpuMonitor]   - name: Intel(R) Arc(TM) B390 GPU
-(02:04:06:422)	[GpuMonitor]   - PCI codes: 0x8086-0xB080
-(02:04:06:422)	[GpuMonitor]   - Bus ID: 0
-(02:04:06:422)	[GpuMonitor]   - VBIOS: 26.0.61
-(02:04:06:422)	[GpuMonitor]   - driver: 32.0.101.8509
-(02:04:06:423)	[GpuMonitor] > GPU1
-(02:04:06:423)	[GpuMonitor]   - name: IddDesk Device
-(02:04:06:423)	[GpuMonitor]   - PCI codes: 0xDFD4-0x110D5559
-(02:04:06:423)	[GpuMonitor]   - driver: 25.0.0.5 (10-28-2025)
-(02:04:06:423)	[GpuMonitor] > GPU2
-(02:04:06:423)	[GpuMonitor]   - name: GameViewer Virtual Display Adapter
-(02:04:06:423)	[GpuMonitor]   - PCI codes: 0x1002E-0xDEC2
-(02:04:06:423)	[GpuMonitor]   - driver: 15.6.5.199 (2-28-2026)
-(02:04:06:423)	[GpuMonitor] > GPU3
-(02:04:06:423)	[GpuMonitor]   - name: Honor Virtual Display Device
-(02:04:06:423)	[GpuMonitor]   - PCI codes: 0xEDB5-0xB5E2
-(02:04:06:423)	[GpuMonitor]   - driver: 1.0.23.3 (7-4-2024)
-(02:04:06:427)	[Vulkan2] Vulkan renderer plugin (Windows, Linux)
-(02:04:06:452)	[Vulkan2] instance API version: 4198400 (Vulkan 1.1)
-(02:04:06:491)	[Vulkan2] [ GPU 0 ]--------------------------------------
-(02:04:06:491)	[Vulkan2] - name: Intel(R) Arc(TM) B390 GPU
-(02:04:06:491)	[Vulkan2] - PCI-ID: 8086-B080
-(02:04:06:491)	[Vulkan2] - Vulkan API version: 1.4.335
-(02:04:06:491)	[Vulkan2] - Device extensions: 161
-(02:04:06:492)	[Vulkan2] [ GPU 1 ]--------------------------------------
-(02:04:06:492)	[Vulkan2] - name: Intel(R) Arc(TM) B390 GPU
-(02:04:06:492)	[Vulkan2] - PCI-ID: 8086-B080
-(02:04:06:492)	[Vulkan2] - Vulkan API version: 1.4.335
-(02:04:06:492)	[Vulkan2] - Device extensions: 161
-(02:04:06:492)	[Vulkan2] [ GPU 2 ]--------------------------------------
-(02:04:06:492)	[Vulkan2] - name: Intel(R) Arc(TM) B390 GPU
-(02:04:06:492)	[Vulkan2] - PCI-ID: 8086-B080
-(02:04:06:492)	[Vulkan2] - Vulkan API version: 1.4.335
-(02:04:06:492)	[Vulkan2] - Device extensions: 161
-(02:04:06:492)	[Vulkan2] [ GPU 3 ]--------------------------------------
-(02:04:06:492)	[Vulkan2] - name: Intel(R) Arc(TM) B390 GPU
-(02:04:06:492)	[Vulkan2] - PCI-ID: 8086-B080
-(02:04:06:493)	[Vulkan2] - Vulkan API version: 1.4.335
-(02:04:06:493)	[Vulkan2] - Device extensions: 161
-(02:04:06:557)	FurMark (GeeXLab engine) started ok.
-(02:04:06:557)	system DPI: 96
-(02:04:06:632)	3D window size: 826 x 671
-(02:04:06:731)	current DPI: xdpi(192), ydpi(192) - DPI scale: 2.0
-(02:04:06:736)	[Vulkan2] Vulkan renderer plugin (Windows, Linux)
-(02:04:06:748)	[Vulkan2] instance API version: 4198400 (Vulkan 1.1)
-(02:04:06:795)	[Vulkan2] [ GPU 0 ]--------------------------------------
-(02:04:06:795)	[Vulkan2] - name: Intel(R) Arc(TM) B390 GPU
-(02:04:06:795)	[Vulkan2] - PCI-ID: 8086-B080
-(02:04:06:795)	[Vulkan2] - Vulkan API version: 1.4.335
-(02:04:06:795)	[Vulkan2] - Device extensions: 161
-(02:04:06:795)	[Vulkan2] [ GPU 1 ]--------------------------------------
-(02:04:06:795)	[Vulkan2] - name: Intel(R) Arc(TM) B390 GPU
-(02:04:06:795)	[Vulkan2] - PCI-ID: 8086-B080
-(02:04:06:795)	[Vulkan2] - Vulkan API version: 1.4.335
-(02:04:06:795)	[Vulkan2] - Device extensions: 161
-(02:04:06:795)	[Vulkan2] [ GPU 2 ]--------------------------------------
-(02:04:06:795)	[Vulkan2] - name: Intel(R) Arc(TM) B390 GPU
-(02:04:06:795)	[Vulkan2] - PCI-ID: 8086-B080
-(02:04:06:795)	[Vulkan2] - Vulkan API version: 1.4.335
-(02:04:06:795)	[Vulkan2] - Device extensions: 161
-(02:04:06:795)	[Vulkan2] [ GPU 3 ]--------------------------------------
-(02:04:06:795)	[Vulkan2] - name: Intel(R) Arc(TM) B390 GPU
-(02:04:06:795)	[Vulkan2] - PCI-ID: 8086-B080
-(02:04:06:795)	[Vulkan2] - Vulkan API version: 1.4.335
-(02:04:06:795)	[Vulkan2] - Device extensions: 161
-(02:04:06:897)	[ArtifactScanner] Artifact scanner for GPU stability checking.
-(02:04:06:945)	uploading data in GPU mem: 0 % (VRAM load: 16.0 MB)
-(02:04:07:014)	uploading data in GPU mem: 1 % (VRAM load: 48.0 MB)
-(02:04:07:086)	uploading data in GPU mem: 2 % (VRAM load: 80.0 MB)
-(02:04:07:186)	uploading data in GPU mem: 3 % (VRAM load: 128.0 MB)
-(02:04:07:251)	uploading data in GPU mem: 4 % (VRAM load: 160.0 MB)
-(02:04:07:321)	uploading data in GPU mem: 5 % (VRAM load: 192.0 MB)
-(02:04:07:429)	uploading data in GPU mem: 6 % (VRAM load: 240.0 MB)
-(02:04:07:495)	uploading data in GPU mem: 7 % (VRAM load: 272.0 MB)
-(02:04:07:590)	uploading data in GPU mem: 8 % (VRAM load: 320.0 MB)
-(02:04:07:654)	uploading data in GPU mem: 9 % (VRAM load: 352.0 MB)
-(02:04:07:724)	uploading data in GPU mem: 10 % (VRAM load: 384.0 MB)
-(02:04:07:829)	uploading data in GPU mem: 11 % (VRAM load: 432.0 MB)
-(02:04:07:893)	uploading data in GPU mem: 12 % (VRAM load: 464.0 MB)
-(02:04:07:990)	uploading data in GPU mem: 13 % (VRAM load: 512.0 MB)
-(02:04:08:057)	uploading data in GPU mem: 14 % (VRAM load: 544.0 MB)
-(02:04:08:131)	uploading data in GPU mem: 15 % (VRAM load: 576.0 MB)
-(02:04:08:247)	uploading data in GPU mem: 16 % (VRAM load: 624.0 MB)
-(02:04:08:311)	uploading data in GPU mem: 17 % (VRAM load: 656.0 MB)
-(02:04:08:411)	uploading data in GPU mem: 18 % (VRAM load: 704.0 MB)
-(02:04:08:483)	uploading data in GPU mem: 19 % (VRAM load: 736.0 MB)
-(02:04:08:548)	uploading data in GPU mem: 20 % (VRAM load: 768.0 MB)
-(02:04:08:654)	uploading data in GPU mem: 21 % (VRAM load: 816.0 MB)
-(02:04:08:724)	uploading data in GPU mem: 22 % (VRAM load: 848.0 MB)
-(02:04:08:823)	uploading data in GPU mem: 23 % (VRAM load: 896.0 MB)
-(02:04:08:899)	uploading data in GPU mem: 24 % (VRAM load: 928.0 MB)
-(02:04:08:963)	uploading data in GPU mem: 25 % (VRAM load: 960.0 MB)
-(02:04:09:061)	uploading data in GPU mem: 26 % (VRAM load: 1008.0 MB)
-(02:04:09:124)	uploading data in GPU mem: 27 % (VRAM load: 1040.0 MB)
-(02:04:09:223)	uploading data in GPU mem: 28 % (VRAM load: 1088.0 MB)
-(02:04:09:288)	uploading data in GPU mem: 29 % (VRAM load: 1120.0 MB)
-(02:04:09:351)	uploading data in GPU mem: 30 % (VRAM load: 1152.0 MB)
-(02:04:09:453)	uploading data in GPU mem: 31 % (VRAM load: 1200.0 MB)
-(02:04:09:522)	uploading data in GPU mem: 32 % (VRAM load: 1232.0 MB)
-(02:04:09:648)	uploading data in GPU mem: 33 % (VRAM load: 1280.0 MB)
-(02:04:09:726)	uploading data in GPU mem: 34 % (VRAM load: 1312.0 MB)
-(02:04:09:794)	uploading data in GPU mem: 35 % (VRAM load: 1344.0 MB)
-(02:04:09:895)	uploading data in GPU mem: 36 % (VRAM load: 1392.0 MB)
-(02:04:09:964)	uploading data in GPU mem: 37 % (VRAM load: 1424.0 MB)
-(02:04:10:144)	uploading data in GPU mem: 38 % (VRAM load: 1472.0 MB)
-(02:04:10:204)	uploading data in GPU mem: 39 % (VRAM load: 1504.0 MB)
-(02:04:10:262)	uploading data in GPU mem: 40 % (VRAM load: 1536.0 MB)
-(02:04:10:365)	uploading data in GPU mem: 41 % (VRAM load: 1584.0 MB)
-(02:04:10:430)	uploading data in GPU mem: 42 % (VRAM load: 1616.0 MB)
-(02:04:10:516)	uploading data in GPU mem: 43 % (VRAM load: 1664.0 MB)
-(02:04:10:572)	uploading data in GPU mem: 44 % (VRAM load: 1696.0 MB)
-(02:04:10:636)	uploading data in GPU mem: 45 % (VRAM load: 1728.0 MB)
-(02:04:10:730)	uploading data in GPU mem: 46 % (VRAM load: 1776.0 MB)
-(02:04:10:790)	uploading data in GPU mem: 47 % (VRAM load: 1808.0 MB)
-(02:04:10:874)	uploading data in GPU mem: 48 % (VRAM load: 1856.0 MB)
-(02:04:10:929)	uploading data in GPU mem: 49 % (VRAM load: 1888.0 MB)
-(02:04:10:993)	uploading data in GPU mem: 50 % (VRAM load: 1920.0 MB)
-(02:04:11:081)	uploading data in GPU mem: 51 % (VRAM load: 1968.0 MB)
-(02:04:11:138)	uploading data in GPU mem: 52 % (VRAM load: 2000.0 MB)
-(02:04:11:262)	uploading data in GPU mem: 53 % (VRAM load: 2048.0 MB)
-(02:04:11:322)	uploading data in GPU mem: 54 % (VRAM load: 2080.0 MB)
-(02:04:11:378)	uploading data in GPU mem: 55 % (VRAM load: 2112.0 MB)
-(02:04:11:495)	uploading data in GPU mem: 56 % (VRAM load: 2160.0 MB)
-(02:04:11:545)	uploading data in GPU mem: 57 % (VRAM load: 2192.0 MB)
-(02:04:11:714)	uploading data in GPU mem: 58 % (VRAM load: 2240.0 MB)
-(02:04:11:771)	uploading data in GPU mem: 59 % (VRAM load: 2272.0 MB)
-(02:04:11:823)	uploading data in GPU mem: 60 % (VRAM load: 2304.0 MB)
-(02:04:11:937)	uploading data in GPU mem: 61 % (VRAM load: 2352.0 MB)
-(02:04:12:095)	uploading data in GPU mem: 62 % (VRAM load: 2384.0 MB)
-(02:04:15:623)	uploading data in GPU mem: 63 % (VRAM load: 2432.0 MB)
-(02:04:15:670)	uploading data in GPU mem: 64 % (VRAM load: 2464.0 MB)
-(02:04:15:726)	uploading data in GPU mem: 65 % (VRAM load: 2496.0 MB)
-(02:04:15:798)	uploading data in GPU mem: 66 % (VRAM load: 2544.0 MB)
-(02:04:15:847)	uploading data in GPU mem: 67 % (VRAM load: 2576.0 MB)
-(02:04:15:919)	uploading data in GPU mem: 68 % (VRAM load: 2624.0 MB)
-(02:04:15:964)	uploading data in GPU mem: 69 % (VRAM load: 2656.0 MB)
-(02:04:16:016)	uploading data in GPU mem: 70 % (VRAM load: 2688.0 MB)
-(02:04:16:094)	uploading data in GPU mem: 71 % (VRAM load: 2736.0 MB)
-(02:04:16:150)	uploading data in GPU mem: 72 % (VRAM load: 2768.0 MB)
-(02:04:16:219)	uploading data in GPU mem: 73 % (VRAM load: 2816.0 MB)
-(02:04:16:264)	uploading data in GPU mem: 74 % (VRAM load: 2848.0 MB)
-(02:04:16:309)	uploading data in GPU mem: 75 % (VRAM load: 2880.0 MB)
-(02:04:16:378)	uploading data in GPU mem: 76 % (VRAM load: 2928.0 MB)
-(02:04:16:430)	uploading data in GPU mem: 77 % (VRAM load: 2960.0 MB)
-(02:04:16:504)	uploading data in GPU mem: 78 % (VRAM load: 3008.0 MB)
-(02:04:16:556)	uploading data in GPU mem: 79 % (VRAM load: 3040.0 MB)
-(02:04:16:612)	uploading data in GPU mem: 80 % (VRAM load: 3072.0 MB)
-(02:04:16:705)	uploading data in GPU mem: 81 % (VRAM load: 3120.0 MB)
-(02:04:16:756)	uploading data in GPU mem: 82 % (VRAM load: 3152.0 MB)
-(02:04:16:856)	uploading data in GPU mem: 83 % (VRAM load: 3200.0 MB)
-(02:04:16:908)	uploading data in GPU mem: 84 % (VRAM load: 3232.0 MB)
-(02:04:16:959)	uploading data in GPU mem: 85 % (VRAM load: 3264.0 MB)
-(02:04:17:025)	uploading data in GPU mem: 86 % (VRAM load: 3312.0 MB)
-(02:04:17:077)	uploading data in GPU mem: 87 % (VRAM load: 3344.0 MB)
-(02:04:17:173)	uploading data in GPU mem: 88 % (VRAM load: 3392.0 MB)
-(02:04:17:226)	uploading data in GPU mem: 89 % (VRAM load: 3424.0 MB)
-(02:04:17:273)	uploading data in GPU mem: 90 % (VRAM load: 3456.0 MB)
-(02:04:17:341)	uploading data in GPU mem: 91 % (VRAM load: 3504.0 MB)
-(02:04:17:397)	uploading data in GPU mem: 92 % (VRAM load: 3536.0 MB)
-(02:04:17:459)	uploading data in GPU mem: 93 % (VRAM load: 3584.0 MB)
-(02:04:17:511)	uploading data in GPU mem: 94 % (VRAM load: 3616.0 MB)
-(02:04:17:557)	uploading data in GPU mem: 95 % (VRAM load: 3648.0 MB)
-(02:04:17:625)	uploading data in GPU mem: 96 % (VRAM load: 3696.0 MB)
-(02:04:17:671)	uploading data in GPU mem: 97 % (VRAM load: 3728.0 MB)
-(02:04:17:727)	uploading data in GPU mem: 98 % (VRAM load: 3776.0 MB)
-(02:04:17:768)	uploading data in GPU mem: 99 % (VRAM load: 3808.0 MB)
-(02:04:17:803)	uploading data in GPU mem: 100 % (VRAM load: 3840.0 MB)
-(02:04:21:253)	[ Demo Quick Stats ]
-(02:04:21:253)	- demo                 : FurMark (VK) (built-in: YES)
-(02:04:21:253)	- renderer             : Intel(R) Arc(TM) B390 GPU
-(02:04:21:253)	- 3D API               : Vulkan 1.4.335
-(02:04:21:253)	- resolution           : 800x600
-(02:04:21:253)	- frames               : 76
-(02:04:21:253)	- duration             : 3009 ms
-(02:04:21:253)	- FPS (min/avg/max)    : 25 / 26 / 27
-(02:04:21:253)	- GPU 0: Intel(R) Arc(TM) B390 GPU [8086-B080]
-(02:04:21:253)	- GPU 1: IddDesk Device [DFD4-110D5559]
-(02:04:21:254)	- GPU 2: GameViewer Virtual Display Adapter [1002E-DEC2]
-(02:04:21:254)	- GPU 3: Honor Virtual Display Device [EDB5-B5E2]
-(02:04:23:782)	FurMark (GeeXLab engine) is shutting down...
-(02:04:23:801)	GraphX Core stopped ok.
-(02:04:23:801)	FurMark (GeeXLab engine) shutdown ok.
+(16:43:53:739)	FurMark 2.10.2.0 (build: Oct 22 2025@12:39:49)
+(16:43:53:739)	(c)2007-2025 Geeks3D
+(16:43:53:739)	homepage: https://www.geeks3d.com/furmark/
+(16:43:53:739)	discord server : https://geeks3d.com/discord/
+(16:43:53:739)	FurMark (GeeXLab engine) initialization...
+(16:43:53:739)	command line: C:\Users\luolan\Desktop\tubawinui3\TubaWinUi3.WinUI3\Tools\烤鸡工具\FurMark_win64\furmark.exe --demolist 
+(16:43:53:739)	FurMark home directory: C:\Users\luolan\Desktop\tubawinui3\TubaWinUi3.WinUI3\Tools\烤鸡工具\FurMark_win64\
+(16:43:53:739)	[stb] STB image loader. Supported formats: *.JPEG, *.PNG, *.TGA, *.BMP, *.PSD, *.GIF, *.HDR, *.PIC
+(16:43:53:739)	[tinyexr] EXR image loader.
+(16:43:53:739)	[lib3ds] Lib3ds loader (core plugin).
+(16:43:53:739)	[ObjLoaderV1] OBJ 3D loader (core plugin).
+(16:43:53:739)	[ObjLoaderV2] OBJ loader based on Tiny OBJ Loader (core plugin).
+(16:43:53:739)	[STL] STL (StereoLithography) 3D loader (core plugin).
+(16:43:53:739)	[glTF] glTF 3D loader (core plugin).
+(16:43:53:739)	[SQLite3] SQLite3 version 3.50.4
+(16:43:53:739)	GraphX Core 0.60.1.0 (codename: Dirac) initialization ok.
+(16:43:53:739)	Windows version: Windows 11 build 26200
+(16:43:53:739)	HW platform type: PC
+(16:43:53:739)	SW platform type: Windows 64-bit
+(16:43:53:740)	[GpuMonitor] Operating system detected: Windows 11 build 26200
+(16:43:53:805)	[GpuMonitor] Intel - num adapters: 1 
+(16:43:53:806)	[GpuMonitor]       - driver version: 32.0.101.8509
+(16:43:53:806)	[GpuMonitor]       - firmware version: 26.0.61
+(16:43:53:806)	[GpuMonitor]       - frequency: 2500
+(16:43:53:806)	[GpuMonitor]       - GPU configuration:
+(16:43:53:806)	[GpuMonitor]       -   Intel(R) Arc(TM) B390 GPU
+(16:43:53:806)	[GpuMonitor]       -   6 Xe cores
+(16:43:53:806)	[GpuMonitor]       -   96 EUs
+(16:43:53:806)	[GpuMonitor]       -   2 slices / 6 sub slices per slice / 8 EUs per sub slice
+(16:43:53:806)	[GpuMonitor]       -   768 ALUs
+(16:43:53:806)	[GpuMonitor]       -   6 ray tracing cores
+(16:43:53:806)	[GpuMonitor]       - Resizable bar: supported: NO
+(16:43:53:806)	[GpuMonitor]       - ctlEnumMemoryModules - MemoryHandlerCount: 1
+(16:43:54:021)	[GpuMonitor]       - VRAM type: _UNKNOWN_
+(16:43:54:021)	[GpuMonitor]       - VRAM size: 18413 MB
+(16:43:54:091)	[GpuMonitor] Num GPUs detected: 3
+(16:43:54:091)	[GpuMonitor] > GPU0
+(16:43:54:091)	[GpuMonitor]   - name: Intel(R) Arc(TM) B390 GPU
+(16:43:54:091)	[GpuMonitor]   - PCI codes: 0x8086-0xB080
+(16:43:54:091)	[GpuMonitor]   - Bus ID: 0
+(16:43:54:091)	[GpuMonitor]   - VBIOS: 26.0.61
+(16:43:54:091)	[GpuMonitor]   - driver: 32.0.101.8509
+(16:43:54:091)	[GpuMonitor] > GPU1
+(16:43:54:091)	[GpuMonitor]   - name: IddDesk Device
+(16:43:54:091)	[GpuMonitor]   - PCI codes: 0xDFD4-0x110D5559
+(16:43:54:091)	[GpuMonitor]   - driver: 25.0.0.5 (10-28-2025)
+(16:43:54:091)	[GpuMonitor] > GPU2
+(16:43:54:091)	[GpuMonitor]   - name: GameViewer Virtual Display Adapter
+(16:43:54:091)	[GpuMonitor]   - PCI codes: 0x1002E-0xDEC2
+(16:43:54:091)	[GpuMonitor]   - driver: 15.6.5.199 (2-28-2026)
+(16:43:54:092)	[Vulkan2] Vulkan renderer plugin (Windows, Linux)
+(16:43:54:102)	[Vulkan2] instance API version: 4198400 (Vulkan 1.1)
+(16:43:54:123)	[Vulkan2] [ GPU 0 ]--------------------------------------
+(16:43:54:123)	[Vulkan2] - name: Intel(R) Arc(TM) B390 GPU
+(16:43:54:123)	[Vulkan2] - PCI-ID: 8086-B080
+(16:43:54:124)	[Vulkan2] - Vulkan API version: 1.4.335
+(16:43:54:124)	[Vulkan2] - Device extensions: 161
+(16:43:54:124)	[Vulkan2] [ GPU 1 ]--------------------------------------
+(16:43:54:124)	[Vulkan2] - name: Intel(R) Arc(TM) B390 GPU
+(16:43:54:124)	[Vulkan2] - PCI-ID: 8086-B080
+(16:43:54:124)	[Vulkan2] - Vulkan API version: 1.4.335
+(16:43:54:124)	[Vulkan2] - Device extensions: 161
+(16:43:54:124)	[Vulkan2] [ GPU 2 ]--------------------------------------
+(16:43:54:124)	[Vulkan2] - name: Intel(R) Arc(TM) B390 GPU
+(16:43:54:124)	[Vulkan2] - PCI-ID: 8086-B080
+(16:43:54:124)	[Vulkan2] - Vulkan API version: 1.4.335
+(16:43:54:124)	[Vulkan2] - Device extensions: 161
+(16:43:54:178)	FurMark (GeeXLab engine) started ok.
+(16:43:54:178)	system DPI: 96
+(16:43:54:179)	Demos list:
+(16:43:54:179)	"furmark-gl" : GPU stress test - OpenGL 3.2
+(16:43:54:179)	"furmark-vk" : GPU stress test - Vulkan
+(16:43:54:179)	"furmark-knot-gl" : GPU stress test - OpenGL 3.2
+(16:43:54:179)	"furmark-knot-vk" : GPU stress test - Vulkan
+(16:43:54:283)	FurMark (GeeXLab engine) is shutting down...
+(16:43:54:293)	GraphX Core stopped ok.
+(16:43:54:293)	FurMark (GeeXLab engine) shutdown ok.

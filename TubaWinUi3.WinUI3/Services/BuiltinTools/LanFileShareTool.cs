@@ -236,7 +236,7 @@ public sealed partial class LanFileSharePage : Page
 
         try
         {
-            await _webView.EnsureCoreWebView2Async();
+            await _webView.EnsureCoreWebView2Async(await WebView2EnvironmentService.GetAsync());
             var url = $"http://127.0.0.1:{LanFileShareService.Port}/";
             _webView.CoreWebView2.Navigate(url);
         }

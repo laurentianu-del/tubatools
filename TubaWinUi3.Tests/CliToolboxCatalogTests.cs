@@ -18,7 +18,8 @@ public class CliToolboxCatalogTests
         var catalog = CreateCatalog();
         var tools = catalog.Index;
 
-        Assert.Equal(21, tools.Count);
+        // 实测后移除 CLI 不可用工具（GpuTest/UltraISO）：19 个
+        Assert.Equal(19, tools.Count);
         Assert.All(tools, t =>
         {
             Assert.False(string.IsNullOrWhiteSpace(t.Name));
@@ -86,14 +87,17 @@ public class CliToolboxCatalogTests
     }
 
     [Fact]
-    public void BuildIndexContext_ContainsOnlyNamesAndDescriptions()
+    public void BuildIndexContext_ContainsOnlyNamesDescriptionsAndPaths()
     {
         var context = CreateCatalog().BuildIndexContext();
 
         Assert.Contains("工具箱命令行工具", context);
         Assert.Contains("urwtest —— U 盘/SSD 读写可靠性测试", context);
         Assert.Contains("Prime95 —— CPU 烤机", context);
-        // 索引不得泄漏详细用法（参数表/路径）
+        // AI 应知道工具在哪个目录：绝对 Tools 根 + 每项相对路径
+        Assert.Contains("工具箱 Tools 目录", context);
+        Assert.Contains(@"（相对路径：硬盘工具\URWTEST\urwtest_v18.exe）", context);
+        // 索引不得泄漏详细用法（参数表/路径标签）
         Assert.DoesNotContain("**路径**", context);
         Assert.DoesNotContain("参数表", context);
     }
@@ -114,6 +118,9 @@ public class CliToolboxCatalogTests
         Assert.Contains("urwtest", usage);
         Assert.Contains("参数", usage);
         Assert.Contains("示例", usage);
+        // 附带解析后的绝对路径，AI 可直接用于 run_command 等场景
+        Assert.Contains("绝对路径：", usage);
+        Assert.Contains("urwtest_v18.exe", usage);
     }
 
     [Fact]

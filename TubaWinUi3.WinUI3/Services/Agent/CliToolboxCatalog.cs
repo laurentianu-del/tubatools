@@ -49,7 +49,8 @@ public sealed class CliToolboxCatalog
     }
 
     /// <summary>
-    /// 生成系统提示词索引：只含「分类 / 工具名 —— 简介」，不含详细用法。
+    /// 生成系统提示词索引：只含「分类 / 工具名 —— 简介 + 相对路径」，
+    /// 并给出 Tools 目录绝对路径（AI 据此知道工具在哪个目录），不含详细用法。
     /// </summary>
     public string BuildIndexContext()
     {
@@ -59,11 +60,16 @@ public sealed class CliToolboxCatalog
         var sb = new StringBuilder();
         sb.AppendLine("## 工具箱命令行工具（以下工具均可通过 run_cli_tool 执行）");
         sb.AppendLine();
+        sb.AppendLine($"工具箱 Tools 目录（绝对路径）：`{ToolCatalog.ToolsRoot}`（以下工具相对路径均以它为基准）");
+        sb.AppendLine();
         foreach (var group in Index.GroupBy(t => t.Category))
         {
             sb.AppendLine($"### {group.Key}");
             foreach (var tool in group)
-                sb.AppendLine($"- {tool.Name} —— {tool.Description}");
+            {
+                var rel = string.IsNullOrWhiteSpace(tool.ExecutablePath) ? "" : $"（相对路径：{tool.ExecutablePath}）";
+                sb.AppendLine($"- {tool.Name} —— {tool.Description}{rel}");
+            }
             sb.AppendLine();
         }
         return sb.ToString().TrimEnd();

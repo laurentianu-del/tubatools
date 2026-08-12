@@ -1176,7 +1176,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 			XamlRoot = XamlRoot,
 			RequestedTheme = ThemeService.CurrentElementTheme
 		};
-		await webView.EnsureCoreWebView2Async();
+		await webView.EnsureCoreWebView2Async(await WebView2EnvironmentService.GetAsync());
 		var tcs = new TaskCompletionSource<BrowserBenchmarkResult>();
 		webView.CoreWebView2.WebMessageReceived += (_, args) =>
 		{
@@ -1413,7 +1413,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 				await pdfWv.CoreWebView2.ExecuteScriptAsync("window.print();");
 			};
 			obj.Activate();
-			await pdfWv.EnsureCoreWebView2Async();
+			await pdfWv.EnsureCoreWebView2Async(await WebView2EnvironmentService.GetAsync());
 			string folderPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Benchmark");
 			pdfWv.CoreWebView2.SetVirtualHostNameToFolderMapping("bench.local", folderPath, CoreWebView2HostResourceAccessKind.Allow);
 			var reportReady = new TaskCompletionSource<bool>();

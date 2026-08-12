@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.Web.WebView2.Core;
 using Windows.Graphics;
+using TubaWinUi3.Services;
 using TubaWinUi3.Services.Agent;
 
 namespace TubaWinUi3.Controls.AgentBrowser;
@@ -55,8 +56,9 @@ public sealed partial class BrowserWindow : Window
     {
         try
         {
-            // 使用默认 WebView2 环境（应用独立用户数据目录，与日常 Edge 配置隔离）
-            await Web.EnsureCoreWebView2Async();
+            // 使用共享 WebView2 环境：用户数据目录固定在 %LocalAppData%\TubaWinUi3\WebView2，
+            // 与安装位置解耦（默认目录在 exe 旁，安装目录不可写时会报"无法读取和写入其数据目录"）
+            await Web.EnsureCoreWebView2Async(await WebView2EnvironmentService.GetAsync());
 
             Core!.NavigationCompleted += (_, e) =>
             {
@@ -129,7 +131,7 @@ public sealed partial class BrowserWindow : Window
     {
         try
         {
-            await Web.EnsureCoreWebView2Async();
+            await Web.EnsureCoreWebView2Async(await WebView2EnvironmentService.GetAsync());
             if (Core is not null)
                 Core.Profile.ClearBrowsingDataAsync();
             Web.Close();

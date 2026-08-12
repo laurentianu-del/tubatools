@@ -44,7 +44,7 @@
 |------|------|-----------|---------|
 | Prime95 | 处理器 | `处理器工具\Prime95\prime95.exe` | 静默单烤 CPU（`-t`） |
 | FurMark | 显卡 | `烤鸡工具\FurMark_win64\furmark.exe` | 完整命令行：预设/自定义分辨率/时长/日志 |
-| GpuTest | 显卡 | `显卡工具\GpuTest_Windows x64\GpuTest.exe` | 完整命令行：demo 选择/基准/日志 |
+| GpuTest | 显卡 | `显卡工具\GpuTest_Windows x64\GpuTest.exe` | 仅 GUI（实测命令行参数无效） |
 | FPT64 | 显卡 | `显卡工具\FPT64\fptw64.exe` | BIOS 备份/刷写（Intel FPT 全套参数） |
 | nvidiaInspector | 显卡 | `显卡工具\nvidiaInspector\nvidiaInspector.exe` | 命令行超频/风扇/电压控制 |
 | nvidiaProfileInspector | 显卡 | `显卡工具\nvidiaProfileInspector\nvidiaProfileInspector.exe` | 驱动配置档导入导出/应用 |
@@ -62,7 +62,7 @@
 | Everything | 其他 | `其他工具\Everything\Everything.exe` | 命令行搜索/文件列表生成 |
 | Ventoy | 其他 | `其他工具\ventoy\Ventoy2Disk.exe` | VTOYCLI 无交互安装/升级 |
 | WinDbg | 其他 | `其他工具\WinDbg\windbg.exe` | 完整调试器命令行 |
-| UltraISO | 其他 | `其他工具\ULTRAISO\ULTRAISO.exe` | 镜像制作/提取命令行 ※ |
+| UltraISO | 其他 | `其他工具\ULTRAISO\ULTRAISO.exe` | 仅 GUI（实测命令行挂起） |
 
 ---
 
@@ -163,40 +163,6 @@ furmark [--option [value]] ...
 - 烤机对显卡压力极大，注意温度；建议先用 `--max-time` 限制时长。
 - 目录下已附带的 `start_benchmark.bat` / `start_fullscreen.bat` / `start_vram_test.bat` 均为现成命令行示例，可直接参考。
 - `FurMark_win64\gpushark\gpushark_x64.exe`（GPU Shark）与 `cpuburner\cpuburner.exe`（CPU 烤机）为同包附带工具。
-
-### GpuTest —— 跨平台显卡基准测试
-
-- **路径**：`显卡工具\GpuTest_Windows x64\GpuTest.exe`（`GpuTest_GUI.exe` 为图形界面版）
-- **说明**：Geeks3D 出品（与 FurMark 同引擎 gxl3d），参数体系与 FurMark 一致。日志输出到 `_geeks3d_gputest_log.txt`，分数写入 `_geeks3d_gputest_scores.csv`。
-
-**常用参数**
-
-| 参数 | 说明 | 示例 |
-|------|------|------|
-| `--help` | 打印全部参数 | `GpuTest.exe --help` |
-| `--demolist` | 列出可用 demo | `GpuTest.exe --demolist` |
-| `--demo <name>` | 运行指定 demo。常见：`gi`（玻璃）、`fur`（毛发）、`tess`（曲面细分）、`vol`（体积光照）、`pix`（像素着色）、`triangle`（基础三角形） | `--demo tess` |
-| `--benchmark` | 基准模式（结束后显示分数框） | |
-| `--p1080` / `--p1440` / `--p2160` | 分辨率预设 | `--p1080` |
-| `--width <px>` / `--height <px>` | 自定义分辨率 | `--width 1920 --height 1080` |
-| `--fullscreen` | 全屏 | |
-| `--max-time <秒>` | 最长运行时长 | `--max-time 30` |
-| `--max-frames <帧数>` | 按帧数限制 | |
-| `--no-score-box` | 隐藏分数框 | |
-| `--gpu-index <n>` | 指定 GPU | `--gpu-index 0` |
-| `--msaa <1\|2\|4\|8>` | MSAA 级别 | `--msaa 4` |
-| `--no-osi` | 关闭屏幕信息显示 | |
-| `--disable-logfile` | 不生成日志 | |
-
-**示例**
-
-```bat
-:: 30 秒曲面细分基准
-"Tools\显卡工具\GpuTest_Windows x64\GpuTest.exe" --demo tess --benchmark --width 1920 --height 1080 --max-time 30
-
-:: 全屏 1080p 预设烤机
-"Tools\显卡工具\GpuTest_Windows x64\GpuTest.exe" --demo fur --p1080 --fullscreen
-```
 
 ### FPT64 —— Intel 主板 BIOS 备份/刷写
 
@@ -895,37 +861,6 @@ windbg [选项] [-p PID | -z Dump文件 | 可执行文件]
 - 调试符号较大，首次运行会下载，`-y` 指定本地缓存目录可复用。
 - 蓝屏分析常用命令：`!analyze -v`（自动分析）、`!process 0 0`、`.reload`。
 
-### UltraISO —— 光盘镜像工具 ※
-
-- **路径**：`其他工具\ULTRAISO\ULTRAISO.exe`
-- **说明**：镜像制作/编辑/提取工具，支持命令行制作与提取镜像。参数为官方帮助文档通用内容。
-
-**核心参数表**
-
-| 参数 | 说明 | 示例 |
-|------|------|------|
-| `-in <镜像>` | 打开输入镜像 | `-in c:\boot.iso` |
-| `-out <镜像>` | 输出/另存镜像 | `-out d:\new.iso` |
-| `-vol <卷标>` | 设置卷标 | `-vol "MyDisk"` |
-| `-quiet` | 静默模式（不弹提示） | |
-| `-boot` | 添加引导信息（制作可引导盘） | `-boot` |
-| `-extract <目录>` | 提取镜像内容到目录 | `-extract d:\extracted` |
-| `-add` | 添加文件到镜像 | |
-
-**示例**
-
-```bat
-:: 从目录制作 ISO（制作时指定卷标）
-"Tools\其他工具\ULTRAISO\ULTRAISO.exe" -in "d:\myfiles" -out "d:\myfiles.iso" -vol "MyFiles" -quiet
-
-:: 提取 ISO 内容
-"Tools\其他工具\ULTRAISO\ULTRAISO.exe" -in "d:\boot.iso" -extract "d:\extracted"
-```
-
-**注意事项**
-
-- UltraISO 命令行参数完整列表见其程序内帮助（帮助 → 命令行参数）。
-
 ---
 
 ## 实用脚本组合示例
@@ -993,11 +928,11 @@ echo 已导出非微软启动项，见桌面 startup_items.csv
 | 分类 | 工具 | 说明 |
 |------|------|------|
 | 处理器 | CPU-Z、CoreTemp、C2CLatency、XIANGQI、ThrottleStop、LinX、wPrime、SuperPI | 均为 GUI 工具（ThrottleStop/LinX 可通过同目录 ini 配置参数，但无命令行开关） |
-| 显卡 | GPU-Z、DDU、DXVAChecker、MSI Afterburner | GUI 工具 |
+| 显卡 | GPU-Z、DDU、DXVAChecker、MSI Afterburner、**GpuTest** | GUI 工具（GpuTest 实测命令行参数无效，仅 GUI） |
 | 硬盘 | CrystalDiskMark、AS SSD、ATTO、HDTune、HD Tune、BOOTICE、SpaceSniffer、WinDirStat、TxBENCH、SSDZ、H2testw、LLFTOOL、DiskGenius GUI 模式 | GUI 工具（BOOTICE 无命令行；H2testw 仅交互式） |
 | 内存 | MemTest64、memtest、memtestpro、TestMem5（TM5）、ZenTimings、Thaiphoon、魔方内存盘、RAMMap | GUI 工具（TM5 可通过 TM5.ini 配置测试档） |
 | 综合检测 | HWMonitor、Speccy、RWEverything、LatencyMon | GUI 工具 |
-| 其他 | procexp（Process Explorer）、Geek Uninstaller、HiBit Uninstaller、Dism++、GifCam、DesktopOK、SpaceSniffer、DirectX Repair、BatteryInfoView 之外的 NirSoft GUI 工具 | GUI 工具（Dism++ 命令行支持有限，主要以 GUI 使用） |
+| 其他 | procexp（Process Explorer）、Geek Uninstaller、HiBit Uninstaller、Dism++、GifCam、DesktopOK、SpaceSniffer、DirectX Repair、BatteryInfoView 之外的 NirSoft GUI 工具、**UltraISO** | GUI 工具（Dism++ 命令行支持有限，主要以 GUI 使用；UltraISO 实测命令行挂起，仅 GUI） |
 
 > 说明：这些工具仍然可以从命令行**启动**（`"路径\xxx.exe"`），只是没有可供脚本化的参数开关。
 

@@ -40,7 +40,17 @@ public sealed partial class DotnetCompletionPage : Page
     private string _filterType = "全部";
     private string _searchFilter = "";
     private readonly Dictionary<string, bool> _expandedStates = new();
+    private readonly Dictionary<DotnetInstallableItem, DotnetItemRowUi> _rowUis = new();
     private bool _syncingQueue;
+
+    /// <summary>行 UI 引用：下载/安装进度只原位更新这些元素，不再整表重建。</summary>
+    private sealed class DotnetItemRowUi
+    {
+        public required Border StatusBadge { get; init; }
+        public required TextBlock StatusText { get; init; }
+        public required Button ActionButton { get; init; }
+        public DotnetInstallStatus LastStatus { get; set; }
+    }
 
     public DotnetCompletionPage()
     {
@@ -96,7 +106,9 @@ public sealed partial class DotnetCompletionPage : Page
             try
             {
                 var items = DotnetCompletionService.Installables;
-                var changed = false;
+                var statusChanged = false;
+                var updated = new HashSet<DotnetInstallableItem>();
+
                 foreach (var qi in DownloadQueueService.Queue)
                 {
                     if (qi.Tag is not DotnetInstallableItem ditem) continue;
@@ -119,20 +131,25 @@ public sealed partial class DotnetCompletionPage : Page
                     if (match.Status != newStatus)
                     {
                         match.Status = newStatus;
-                        changed = true;
+                        statusChanged = true;
+                        updated.Add(match);
                     }
 
-                    if (qi.Progress is not null)
+                    if (qi.Progress is not null &&
+                        Math.Abs(match.DownloadProgress - qi.Progress.Percentage) > 0.001)
                     {
                         match.DownloadProgress = qi.Progress.Percentage;
-                        changed = true;
+                        updated.Add(match);
                     }
                 }
 
-                if (changed)
+                // 只原位刷新受影响的行，避免整表重建导致折叠条闪烁
+                if (updated.Count > 0)
                 {
-                    UpdateStats();
-                    RenderList();
+                    foreach (var item in updated)
+                        UpdateRowInPlace(item);
+                    if (statusChanged)
+                        UpdateStats();
                 }
             }
             finally
@@ -324,7 +341,31 @@ public sealed partial class DotnetCompletionPage : Page
 
     private void OnDataChanged()
     {
-        DispatcherQueue.TryEnqueue(() => { UpdateStats(); RenderList(); });
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            // 列表已渲染且行数与数据一致时原位更新；结构变化（加载/刷新/筛选）才整表重建
+            if (_rowUis.Count > 0 && _rowUis.Count == DotnetCompletionService.Installables.Count)
+            {
+                var statusChanged = false;
+                foreach (var item in DotnetCompletionService.Installables)
+                {
+                    if (!_rowUis.TryGetValue(item, out _))
+                    {
+                        RenderList();
+                        return;
+                    }
+                    if (UpdateRowInPlace(item))
+                        statusChanged = true;
+                }
+                if (statusChanged)
+                    UpdateStats();
+            }
+            else
+            {
+                UpdateStats();
+                RenderList();
+            }
+        });
     }
 
     private void UpdateStats()
@@ -344,6 +385,7 @@ public sealed partial class DotnetCompletionPage : Page
     private void RenderList()
     {
         _itemsList.Children.Clear();
+        _rowUis.Clear();
 
         var items = DotnetCompletionService.Installables.AsEnumerable();
 
@@ -486,35 +528,29 @@ public sealed partial class DotnetCompletionPage : Page
         var versionText = new TextBlock { Text = item.Version, FontSize = 12, Foreground = new SolidColorBrush(ThemeColors.SecondaryText), VerticalAlignment = VerticalAlignment.Center };
         var infoStack = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center, Children = { nameText, versionText } };
 
-        var statusBadge = MakeStatusBadge(item);
-
-        var actionBtn = new Button { MinWidth = 80, Tag = item, Padding = new Thickness(12, 4, 12, 4) };
-        switch (item.Status)
+        var statusText = new TextBlock { FontSize = 10, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+        var statusBadge = new Border
         {
-            case DotnetInstallStatus.Installed:
-                actionBtn.Content = new TextBlock { Text = item.InstalledVersion is not null ? $"已装 {item.InstalledVersion}" : "已安装", FontSize = 11 };
-                actionBtn.IsEnabled = false; actionBtn.Opacity = 0.6;
-                break;
-            case DotnetInstallStatus.NotInstalled:
-                actionBtn.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Children = { new FontIcon { Glyph = "\uE896", FontSize = 11 }, new TextBlock { Text = "安装", FontSize = 11 } } };
-                actionBtn.Click += OnInstallClick;
-                break;
-            case DotnetInstallStatus.Downloading:
-                {
-                    var pct = item.DownloadProgress > 0 ? $" {item.DownloadProgress:F0}%" : "";
-                    actionBtn.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Children = { new ProgressRing { Width = 14, Height = 14, IsActive = true }, new TextBlock { Text = $"下载中{pct}", FontSize = 11 } } };
-                    actionBtn.IsEnabled = false;
-                }
-                break;
-            case DotnetInstallStatus.Installing:
-                actionBtn.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Children = { new ProgressRing { Width = 14, Height = 14, IsActive = true }, new TextBlock { Text = "安装中", FontSize = 11 } } };
-                actionBtn.IsEnabled = false;
-                break;
-            case DotnetInstallStatus.Failed:
-                actionBtn.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Children = { new FontIcon { Glyph = "\uE783", FontSize = 11 }, new TextBlock { Text = "重试", FontSize = 11 } } };
-                actionBtn.Click += OnInstallClick;
-                break;
-        }
+            Padding = new Thickness(6, 1, 6, 1), CornerRadius = new CornerRadius(3),
+            Child = statusText
+        };
+        ApplyStatusBadge(statusBadge, statusText, item);
+
+        // 按钮点击始终挂载，实际行为按 Status 在 OnInstallClick 内拦截，方便原位切换状态
+        var actionBtn = new Button { MinWidth = 80, Tag = item, Padding = new Thickness(12, 4, 12, 4) };
+        actionBtn.Click += OnInstallClick;
+        var (actionContent, actionEnabled, actionOpacity) = BuildActionContent(item);
+        actionBtn.Content = actionContent;
+        actionBtn.IsEnabled = actionEnabled;
+        actionBtn.Opacity = actionOpacity;
+
+        _rowUis[item] = new DotnetItemRowUi
+        {
+            StatusBadge = statusBadge,
+            StatusText = statusText,
+            ActionButton = actionBtn,
+            LastStatus = item.Status
+        };
 
         var moreBtn = new Button { Content = new FontIcon { Glyph = "\uE712", FontSize = 12 }, Padding = new Thickness(6, 4, 6, 4), Tag = item };
         moreBtn.Click += OnMoreClick;
@@ -534,28 +570,66 @@ public sealed partial class DotnetCompletionPage : Page
         return new Border { BorderBrush = new SolidColorBrush(ThemeColors.BorderColor), BorderThickness = new Thickness(0, 0, 0, 1), Child = grid };
     }
 
-    private static Border MakeStatusBadge(DotnetInstallableItem item)
+    private static (string Text, Color Color) GetStatusInfo(DotnetInstallableItem item) => item.Status switch
     {
-        var (text, color) = item.Status switch
+        DotnetInstallStatus.Installed => ("已安装", ThemeColors.AccentGreen),
+        DotnetInstallStatus.NotInstalled => ("未安装", ThemeColors.AccentOrange),
+        DotnetInstallStatus.Downloading => (item.DownloadProgress > 0 ? $"下载 {item.DownloadProgress:F0}%" : "队列中", ThemeColors.AccentBlue),
+        DotnetInstallStatus.Installing => ("安装中", ThemeColors.AccentBlue),
+        DotnetInstallStatus.Failed => ("失败", ThemeColors.AccentRed),
+        _ => ("未知", ThemeColors.DimText)
+    };
+
+    /// <summary>原位刷新状态徽标（不重建控件）。</summary>
+    private static void ApplyStatusBadge(Border badge, TextBlock text, DotnetInstallableItem item)
+    {
+        var (label, color) = GetStatusInfo(item);
+        text.Text = label;
+        text.Foreground = new SolidColorBrush(color);
+        badge.Background = new SolidColorBrush(Color.FromArgb(30, color.R, color.G, color.B));
+    }
+
+    /// <summary>按状态生成操作按钮内容（下载进度 / 安装中 / 重试 等）。</summary>
+    private static (UIElement Content, bool Enabled, double Opacity) BuildActionContent(DotnetInstallableItem item)
+    {
+        switch (item.Status)
         {
-            DotnetInstallStatus.Installed => ("已安装", ThemeColors.AccentGreen),
-            DotnetInstallStatus.NotInstalled => ("未安装", ThemeColors.AccentOrange),
-            DotnetInstallStatus.Downloading => (item.DownloadProgress > 0 ? $"下载 {item.DownloadProgress:F0}%" : "队列中", ThemeColors.AccentBlue),
-            DotnetInstallStatus.Installing => ("安装中", ThemeColors.AccentBlue),
-            DotnetInstallStatus.Failed => ("失败", ThemeColors.AccentRed),
-            _ => ("未知", ThemeColors.DimText)
-        };
-        return new Border
-        {
-            Padding = new Thickness(6, 1, 6, 1), CornerRadius = new CornerRadius(3),
-            Background = new SolidColorBrush(Color.FromArgb(30, color.R, color.G, color.B)),
-            Child = new TextBlock { Text = text, FontSize = 10, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = new SolidColorBrush(color), VerticalAlignment = VerticalAlignment.Center }
-        };
+            case DotnetInstallStatus.Installed:
+                return (new TextBlock { Text = item.InstalledVersion is not null ? $"已装 {item.InstalledVersion}" : "已安装", FontSize = 11 }, false, 0.6);
+            case DotnetInstallStatus.Downloading:
+                {
+                    var pct = item.DownloadProgress > 0 ? $" {item.DownloadProgress:F0}%" : "";
+                    return (new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Children = { new ProgressRing { Width = 14, Height = 14, IsActive = true }, new TextBlock { Text = $"下载中{pct}", FontSize = 11 } } }, false, 1);
+                }
+            case DotnetInstallStatus.Installing:
+                return (new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Children = { new ProgressRing { Width = 14, Height = 14, IsActive = true }, new TextBlock { Text = "安装中", FontSize = 11 } } }, false, 1);
+            case DotnetInstallStatus.Failed:
+                return (new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Children = { new FontIcon { Glyph = "\uE783", FontSize = 11 }, new TextBlock { Text = "重试", FontSize = 11 } } }, true, 1);
+            default:
+                return (new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Children = { new FontIcon { Glyph = "\uE896", FontSize = 11 }, new TextBlock { Text = "安装", FontSize = 11 } } }, true, 1);
+        }
+    }
+
+    /// <summary>原位刷新单个组件行的状态徽标与操作按钮。</summary>
+    private bool UpdateRowInPlace(DotnetInstallableItem item)
+    {
+        if (!_rowUis.TryGetValue(item, out var row)) return false;
+
+        ApplyStatusBadge(row.StatusBadge, row.StatusText, item);
+        var (content, enabled, opacity) = BuildActionContent(item);
+        row.ActionButton.Content = content;
+        row.ActionButton.IsEnabled = enabled;
+        row.ActionButton.Opacity = opacity;
+
+        var statusChanged = row.LastStatus != item.Status;
+        row.LastStatus = item.Status;
+        return statusChanged;
     }
 
     private void OnInstallClick(object sender, RoutedEventArgs e)
     {
         if (sender is not Button btn || btn.Tag is not DotnetInstallableItem item) return;
+        if (item.Status is not (DotnetInstallStatus.NotInstalled or DotnetInstallStatus.Failed)) return;
         DotnetCompletionService.EnqueueDownloadAndInstall(item);
     }
 

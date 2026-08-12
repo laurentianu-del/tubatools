@@ -41,7 +41,7 @@ public sealed partial class BrowserPage : Page
     {
         try
         {
-            await WebView.EnsureCoreWebView2Async();
+            await WebView.EnsureCoreWebView2Async(await WebView2EnvironmentService.GetAsync());
 
             WebView.CoreWebView2.NavigationStarting += OnNavigationStarting;
             WebView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;

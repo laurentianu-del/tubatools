@@ -20,7 +20,7 @@ public static class CliToolboxAgentTool
             "run_cli_tool", "AI 请求执行此工具箱 CLI 工具");
     }
 
-    [Description("获取工具箱某个命令行工具的完整使用文档（路径、参数表、示例、注意事项）。执行 run_cli_tool 之前必须先调用本工具，确认参数后再执行")]
+    [Description("获取工具箱某个命令行工具的完整使用文档（绝对路径、参数表、示例、注意事项）。执行 run_cli_tool 之前必须先调用本工具，确认参数后再执行")]
     public static string GetCliToolUsage(string name)
     {
         if (string.IsNullOrWhiteSpace(name)) return "错误：缺少 name 参数";
@@ -28,15 +28,21 @@ public static class CliToolboxAgentTool
         if (tool is null)
             return $"未找到 CLI 工具「{name}」。可用工具（名字 —— 简介）：\n"
                    + string.Join("\n", CliToolboxCatalog.Default.Index.Select(t => $"- {t.Name} —— {t.Description}"));
-        return $"# {tool.Name}（{tool.Category}）\n{tool.Detail}";
+        var exePath = !string.IsNullOrWhiteSpace(tool.ExecutablePath)
+            ? CliToolboxCatalog.Default.ResolveExePath(tool.ExecutablePath)
+            : null;
+        var header = exePath is null
+            ? $"# {tool.Name}（{tool.Category}）\n"
+            : $"# {tool.Name}（{tool.Category}）\n绝对路径：`{exePath}`\n\n";
+        return header + tool.Detail;
     }
 
-    [Description("运行工具箱内置的 CLI 工具（需用户确认后执行；支持超时，默认 60 秒；长时间工具如烤机请设置更大 timeout）。传入工具名与命令行参数，路径由系统自动解析")]
-    public static async Task<string> RunCliToolAsync(string toolName, string args, string reason, int? timeout, CancellationToken ct)
+    [Description("运行工具箱内置的 CLI 工具（需用户确认后执行；支持超时，默认 60 秒；长时间工具如烤机请设置更大 timeout）。传入工具名与命令行参数（无参数时省略或传空），路径由系统自动解析")]
+    public static async Task<string> RunCliToolAsync(string toolName, string? args, string reason, int? timeout, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(toolName)) return "错误：缺少 toolName 参数";
-        if (string.IsNullOrWhiteSpace(args)) return "错误：缺少 args 参数（如需无参数运行请传空字符串）";
         var timeoutSec = Math.Clamp(timeout ?? 60, 5, 3600);
+        args ??= "";
 
         var tool = CliToolboxCatalog.Default.Find(toolName);
         if (tool is null)

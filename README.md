@@ -297,3 +297,16 @@ dotnet run          # 运行（Unpackaged 模式）
 **如果觉得有用，给个 Star 吧！**
 
 </div>
+
+---
+
+## 捐赠支持
+
+如果这个工具箱对你有帮助，欢迎请我喝杯奶茶 ☕ 感谢每一位支持者！
+
+<div align="center">
+
+<img src="images/捐赠WeChat.png" alt="微信捐赠二维码" width="280"/>
+<img src="images/捐赠支付宝.png" alt="支付宝捐赠二维码" width="280" style="margin-left: 24px;"/>
+
+</div>
