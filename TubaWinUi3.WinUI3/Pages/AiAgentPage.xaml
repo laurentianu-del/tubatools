@@ -8,106 +8,126 @@
     mc:Ignorable="d"
     Loaded="OnPageLoaded">
 
-    <Grid>
+    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- 顶部栏 -->
-        <Grid Padding="16,8" ColumnSpacing="8"
-              Background="{ThemeResource LayerFillColorDefaultBrush}">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
+        <!-- 企业级 Agent 顶栏：会话、模型、权限、用量集中展示 -->
+        <Border Padding="20,14" Background="{ThemeResource LayerFillColorDefaultBrush}"
+                BorderThickness="0,0,0,1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+            <Grid ColumnSpacing="14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
 
-            <Button x:Name="NewChatButton" Padding="8,5" CornerRadius="6" Click="NewChatButton_Click">
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                    <FontIcon Glyph="&#xE710;" FontSize="12" />
-                    <TextBlock Text="新对话" FontSize="12" />
-                </StackPanel>
-            </Button>
-
-            <TextBlock x:Name="TitleText" Grid.Column="1" Text="新对话" FontSize="13"
-                       FontWeight="SemiBold" VerticalAlignment="Center"
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                       TextTrimming="CharacterEllipsis" />
-
-            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-                <ToggleSwitch x:Name="FullAccessToggle" MinWidth="0" Padding="0"
-                              OnContent="完全访问" OffContent="完全访问"
-                              FontSize="11" VerticalAlignment="Center"
-                              ToolTipService.ToolTip="完全访问模式：AI 可直接执行命令、修改注册表等危险操作，无需逐项确认（谨慎使用）"
-                              Toggled="FullAccessToggle_Toggled" />
-                <Border x:Name="ModelStatusPill" CornerRadius="10" Padding="10,4"
-                        Background="{ThemeResource ControlFillColorSecondaryBrush}"
-                        VerticalAlignment="Center">
-                    <TextBlock x:Name="ModelStatusText" FontSize="11"
-                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Border Width="40" Height="40" CornerRadius="12"
+                        Background="{ThemeResource AccentFillColorDefaultBrush}">
+                    <FontIcon Glyph="&#xE946;" FontSize="18"
+                              Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
                 </Border>
-                <Button x:Name="HistoryButton" Padding="8,5" CornerRadius="6" Click="HistoryButton_Click">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE81C;" FontSize="12" />
-                        <TextBlock Text="历史记录" FontSize="12" />
+
+                <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock x:Name="TitleText" Text="新对话" FontSize="18"
+                                   FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        <Border CornerRadius="10" Padding="8,3"
+                                Background="{ThemeResource SystemFillColorSuccessBackgroundBrush}">
+                            <TextBlock Text="Agent Workspace" FontSize="11"
+                                       Foreground="{ThemeResource SystemFillColorSuccessBrush}" />
+                        </Border>
                     </StackPanel>
-                </Button>
-            </StackPanel>
-        </Grid>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock x:Name="ModelStatusText" FontSize="12"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Text="·" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                        <TextBlock x:Name="RunStateText" Text="就绪" FontSize="12"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Text="·" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                        <TextBlock x:Name="HeaderTokenText" Text="0 tokens" FontSize="12"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                </StackPanel>
 
-        <!-- 消息区（StackPanel 代码构建气泡，与旧版完整页同模式，已验证可靠） -->
-        <ScrollViewer x:Name="MsgScroll" Grid.Row="1"
-                      VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollMode="Disabled">
-            <StackPanel x:Name="MsgPanel" MaxWidth="1000" HorizontalAlignment="Center"
-                        Padding="20,14,20,8" />
-        </ScrollViewer>
-
-        <!-- 输入区 -->
-        <Grid Grid.Row="2" Padding="20,0,20,14">
-            <StackPanel MaxWidth="1000" HorizontalAlignment="Center" Spacing="8">
-                <Grid ColumnSpacing="8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel x:Name="QuickPillPanel" Orientation="Horizontal" Spacing="6" />
-                </Grid>
-                <Grid ColumnSpacing="8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBox x:Name="InputBox" MinHeight="40" MaxHeight="120"
-                             PlaceholderText="输入问题，或让助手执行任务…（Enter 发送，Shift+Enter 换行）"
-                             AcceptsReturn="True" TextWrapping="Wrap"
-                             CornerRadius="10" Padding="12,9"
-                             KeyDown="InputBox_KeyDown" />
-                    <!-- 实时 token 消耗气泡（本会话多轮累计） -->
-                    <Border x:Name="TokenUsageBubble" Grid.Column="1" CornerRadius="10"
-                            Padding="8,5" Background="{ThemeResource ControlFillColorSecondaryBrush}"
-                            VerticalAlignment="Center" Visibility="Collapsed"
-                            ToolTipService.ToolTip="本会话累计消耗的 tokens（多轮对话累加）">
-                        <StackPanel Orientation="Horizontal" Spacing="5">
-                            <FontIcon Glyph="&#xE823;" FontSize="11"
-                                      Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-                            <TextBlock x:Name="TokenUsageText" FontSize="11"
-                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <ToggleSwitch x:Name="FullAccessToggle" MinWidth="0" Padding="0"
+                                  OnContent="完全访问" OffContent="受控执行"
+                                  FontSize="12" VerticalAlignment="Center"
+                                  ToolTipService.ToolTip="完全访问模式：AI 可直接执行命令、修改注册表等危险操作，无需逐项确认（谨慎使用）"
+                                  Toggled="FullAccessToggle_Toggled" />
+                    <Button x:Name="NewChatButton" Padding="12,7" CornerRadius="8" Click="NewChatButton_Click">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE710;" FontSize="12" />
+                            <TextBlock Text="新对话" FontSize="12" />
                         </StackPanel>
-                    </Border>
-                    <Button x:Name="SendButton" Grid.Column="2" Width="40" Height="40"
-                            CornerRadius="10" Click="SendButton_Click">
-                        <FontIcon Glyph="&#xE72A;" FontSize="15" />
                     </Button>
-                    <Button x:Name="StopButton" Grid.Column="2" Width="40" Height="40"
-                            CornerRadius="10" Visibility="Collapsed" Click="StopButton_Click">
-                        <FontIcon Glyph="&#xE71A;" FontSize="14" />
+                    <Button x:Name="HistoryButton" Padding="12,7" CornerRadius="8" Click="HistoryButton_Click">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE81C;" FontSize="12" />
+                            <TextBlock Text="历史" FontSize="12" />
+                        </StackPanel>
                     </Button>
-                </Grid>
-            </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 消息工作区 -->
+        <Grid Grid.Row="1">
+            <ScrollViewer x:Name="MsgScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
+                <StackPanel x:Name="MsgPanel" MaxWidth="1040" HorizontalAlignment="Center"
+                            Padding="24,18,24,16" />
+            </ScrollViewer>
         </Grid>
+
+        <!-- 输入控制台 -->
+        <Border Grid.Row="2" Padding="20,12,20,18" Background="{ThemeResource LayerFillColorDefaultBrush}"
+                BorderThickness="0,1,0,0" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+            <StackPanel MaxWidth="1040" HorizontalAlignment="Center" Spacing="10">
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled">
+                    <StackPanel x:Name="QuickPillPanel" Orientation="Horizontal" Spacing="8" />
+                </ScrollViewer>
+
+                <Border CornerRadius="16" Padding="10" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                    <Grid ColumnSpacing="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="InputBox" MinHeight="46" MaxHeight="140"
+                                 PlaceholderText="描述目标，或直接要求助手诊断、执行命令、整理报告…（Enter 发送，Shift+Enter 换行）"
+                                 AcceptsReturn="True" TextWrapping="Wrap"
+                                 BorderThickness="0" Background="Transparent"
+                                 Padding="4,8" KeyDown="InputBox_KeyDown" />
+                        <Border x:Name="TokenUsageBubble" Grid.Column="1" CornerRadius="12"
+                                Padding="10,7" Background="{ThemeResource ControlFillColorSecondaryBrush}"
+                                VerticalAlignment="Center" Visibility="Collapsed"
+                                ToolTipService.ToolTip="本会话累计消耗的 tokens（多轮对话累加）">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE823;" FontSize="12"
+                                          Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                                <TextBlock x:Name="TokenUsageText" FontSize="12"
+                                           Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                            </StackPanel>
+                        </Border>
+                        <Button x:Name="SendButton" Grid.Column="2" Width="44" Height="44"
+                                CornerRadius="14" Click="SendButton_Click"
+                                Background="{ThemeResource AccentFillColorDefaultBrush}">
+                            <FontIcon Glyph="&#xE72A;" FontSize="16"
+                                      Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                        </Button>
+                        <Button x:Name="StopButton" Grid.Column="2" Width="44" Height="44"
+                                CornerRadius="14" Visibility="Collapsed" Click="StopButton_Click">
+                            <FontIcon Glyph="&#xE71A;" FontSize="15" />
+                        </Button>
+                    </Grid>
+                </Border>
+            </StackPanel>
+        </Border>
     </Grid>
 </UserControl>
