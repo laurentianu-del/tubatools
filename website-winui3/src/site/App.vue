@@ -117,6 +117,11 @@ const pageSeo = {
     description: '图吧工具箱——免费、开源、注重隐私的PC硬件检测与系统维护工具集，WinUI 3原生界面，完全免费离线运行。',
     url: 'https://tubawinui3.cn/about'
   },
+  why: {
+    title: '为什么选择图吧工具箱WinUI3？——全面对比原版工具箱',
+    description: '对比图吧工具箱WinUI3与原版：多渠道高速下载、WinUI3精美界面、完美UTF-8支持、20+FluentUI内置工具、AI智能体驱动。',
+    url: 'https://tubawinui3.cn/why'
+  },
   thanks: {
     title: '感谢下载图吧工具箱——免费PC硬件检测与系统维护工具集',
     description: '感谢下载图吧工具箱，完全免费、纯离线运行，支持x86/x64/ARM64全架构。',

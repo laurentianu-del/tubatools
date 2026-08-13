@@ -595,17 +595,25 @@ public sealed partial class RogueCleanerPage : Page
 
     private async Task ConvertFindingIconsAsync()
     {
-        var pending = _allFindings.Where(f => f.SoftwareIcon != null && !_findingIcons.ContainsKey(f.Id)).ToList();
-        foreach (var f in pending)
+        bool changed = false;
+        foreach (var f in _allFindings)
         {
+            if (_findingIcons.TryGetValue(f.Id, out var cached))
+            {
+                f.IconDisplay = cached;
+                changed = true;
+                continue;
+            }
+            if (f.SoftwareIcon == null) continue;
             var bmp = await ToBitmapImageAsync(f.SoftwareIcon);
             if (bmp != null)
             {
                 _findingIcons[f.Id] = bmp;
                 f.IconDisplay = bmp;
+                changed = true;
             }
         }
-        if (pending.Count > 0) RenderFindings();
+        if (changed) RenderFindings();
     }
 
     private async Task ConvertMenuIconsAsync()
@@ -624,7 +632,14 @@ public sealed partial class RogueCleanerPage : Page
 
     private async Task<bool> SetMenuIconAsync(string id, System.Drawing.Image? icon, Action<ImageSource> setter)
     {
-        if (icon == null || string.IsNullOrEmpty(id) || _menuIcons.ContainsKey(id)) return false;
+        if (string.IsNullOrEmpty(id)) return false;
+        // 刷新后条目是全新对象：缓存命中也要把图标赋给新条目并触发重新绑定
+        if (_menuIcons.TryGetValue(id, out var cached))
+        {
+            setter(cached);
+            return true;
+        }
+        if (icon == null) return false;
         var bmp = await ToBitmapImageAsync(icon);
         if (bmp == null) return false;
         _menuIcons[id] = bmp;
@@ -963,7 +978,8 @@ public sealed partial class RogueCleanerPage : Page
     private void ApplyCmFilter()
     {
         if (_cmInventory == null) return;
-        _visibleCmEntries = _cmInventory.Entries.Where(e => !e.AdvancedOnly && e.PresentationResolved && e.IsThirdParty).ToList();
+        // 显示：已识别的第三方菜单 + 用户自己添加的菜单（UserAdded 标记）
+        _visibleCmEntries = _cmInventory.Entries.Where(e => !e.AdvancedOnly && e.PresentationResolved && (e.IsThirdParty || e.UserAdded)).ToList();
         int resolved = _cmInventory.Entries.Count(e => !e.AdvancedOnly && e.PresentationResolved);
         int visible = _visibleCmEntries.Count;
         int enabled = _visibleCmEntries.Count(e => e.Enabled);
@@ -1129,8 +1145,9 @@ public sealed partial class RogueCleanerPage : Page
 
     private sealed class LocationOption
     {
-        public string Scene = "";
-        public string RootSubKey = "";
+        public string Scene { get; set; } = "";
+        public string RootSubKey { get; set; } = "";
+        public override string ToString() => Scene;
     }
 
     private static string[] AllScenes()

@@ -9,6 +9,7 @@ export default {
 
   "nav.home": "首页",
   "nav.download": "下载",
+  "nav.why": "为什么选择",
   "nav.docs": "文档",
   "nav.about": "关于",
   "nav.theme": "主题",
@@ -24,6 +25,7 @@ export default {
   "home.hero.subtitle": "收录 82 款专业工具，一键启动 CPU-Z、GPU-Z、CrystalDiskMark，完全免费离线运行，零数据收集",
   "home.hero.download": "获取图吧工具箱",
   "home.hero.view-github": "查看 GitHub",
+  "home.hero.why-choose": "为什么选择 WinUI3？",
   "home.hero.license": "本项目基于 GPL-3.0 协议开源，允许自由分发。修改版须开源，禁止捆绑恶意软件。",
   "home.hero.license-link": "查看声明",
 
@@ -145,5 +147,39 @@ export default {
   "search.results-count": "条结果",
   "search.empty-query": "输入关键词搜索文档、教程和全站内容",
   "search.no-results": "没有找到相关结果",
-  "search.no-results-desc": "换个关键词试试，例如：CPU-Z、磁盘、蓝屏、硬件信息"
+  "search.no-results-desc": "换个关键词试试，例如：CPU-Z、磁盘、蓝屏、硬件信息",
+
+  "why.title": "为什么选择图吧工具箱 WinUI3？",
+  "why.subtitle": "全面对比原版图吧工具箱，WinUI3 版在下载体验、界面设计、兼容性、功能丰富度和智能化方面全面领先",
+  "why.winner": "更优",
+  "why.legacy": "原版",
+
+  "why.dl.title": "下载方式",
+  "why.dl.subtitle": "多渠道高速下载 vs 仅官网单一入口",
+  "why.dl.winItems": "支持 Winget 一键命令行安装|支持微软应用商店 (Microsoft Store) 安装与自动更新|支持 GitCode 国内高速下载|支持 GitHub Releases 下载|支持夸克/百度网盘下载",
+  "why.dl.legacyItems": "仅支持官网下载，国内访问速度慢|无包管理器支持，无法自动更新|下载渠道单一，容易因服务器负载导致失败",
+
+  "why.ui.title": "软件界面",
+  "why.ui.subtitle": "WinUI 3 原生 Fluent Design vs 传统易语言界面",
+  "why.ui.winItems": "采用 WinUI 3 框架，原生 Windows 11 设计语言|Mica / Acrylic 毛玻璃材质背景|流畅的页面切换动画与控件过渡效果|支持亮色 / 暗色 / 跟随系统主题|自定义窗口背景图片|现代化响应式布局",
+  "why.ui.legacyItems": "基于易语言的传统界面，视觉效果过时|无毛玻璃材质，无动画过渡|仅支持基础暗色模式切换|界面控件样式单一",
+
+  "why.utf8.title": "UTF-8 兼容性",
+  "why.utf8.subtitle": "完美 Unicode 支持 vs 开启 UTF-8 后运行异常",
+  "why.utf8.winItems": "原生支持 UTF-8 编码，路径和文件名无乱码|中文目录名（处理器工具、显卡工具等）完美显示|.NET 10 运行时原生 Unicode 处理",
+  "why.utf8.legacyItems": "开启 Windows UTF-8 全局支持后运行异常|易语言默认使用 ANSI 编码，对 UTF-8 兼容性差|中文路径可能显示乱码或无法正确解析",
+
+  "why.tools.title": "FluentUI 内置工具",
+  "why.tools.subtitle": "20+ 款内置工具 vs 少量基础内置功能",
+  "why.tools.winItems": "证书屏蔽 — 阻止流氓软件证书|端口查看 — 检查活动 TCP/UDP 端口|Hosts 编辑器 — 管理 hosts 映射|键盘测试 — 检测按键状态|垃圾清理 — 清理系统缓存|蓝屏分析 — 解析 BSOD 转储|网络测速、WiFi 密码查看、KMS 激活|CPU / GPU 天梯图、电池报告等",
+  "why.tools.legacyItems": "内置工具数量有限|工具界面风格不统一|部分工具功能较为基础",
+
+  "why.ai.title": "AI 智能体驱动",
+  "why.ai.subtitle": "内置 AI 助手帮你解决电脑问题",
+  "why.ai.winItems": "内置 AI 智能体，可回答电脑硬件和系统问题|支持多种 AI 模型接入|自然语言交互，降低使用门槛|持续迭代更新 AI 能力",
+  "why.ai.legacyItems": "无 AI 功能|遇到问题需自行搜索排查",
+
+  "why.summary.title": "图吧工具箱 WinUI3 — 下一代电脑硬件检测利器",
+  "why.summary.text": "从下载体验到日常使用，WinUI3 版在每一个维度都带来了质的飞跃。如果你还在使用原版工具箱，是时候升级了。",
+  "why.summary.download": "立即下载 WinUI3 版"
 }

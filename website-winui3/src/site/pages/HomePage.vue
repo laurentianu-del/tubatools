@@ -30,6 +30,15 @@
                 Height="40"
                 Padding="16,0"
                 @Click="openGithub" />
+              <WinButton
+                class="hero-why-btn"
+                Style="SubtleButtonStyle"
+                :Content="t('home.hero.why-choose')"
+                Background="#FFFFFF"
+                Foreground="#2B2B2B"
+                Height="40"
+                Padding="16,0"
+                @Click="goWhyChoose" />
             </div>
             <div class="site-hero-badges">
             <div class="site-hero-stats">
@@ -246,6 +255,7 @@ const toolColumns = [
 
 const goDownload = () => navigate('download');
 const openGithub = () => window.open(t('app.repository'), '_blank', 'noopener');
+const goWhyChoose = () => navigate('why');
 
 let parallaxObserver = null;
 let reducedMotion = false;

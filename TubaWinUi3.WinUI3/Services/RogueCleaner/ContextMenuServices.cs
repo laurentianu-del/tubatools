@@ -47,6 +47,9 @@ namespace TubaWinUi3.Services.RogueCleaner
         public string ReadOnlyReason { get; set; }
         public string NameReadStatus { get; set; }
         public bool AdvancedOnly { get; set; }
+        // 用户通过本工具「添加菜单」创建（写入 RogueCleanerUserAdded 标记，管理列表始终显示）
+        [JsonIgnore]
+        public bool UserAdded { get; set; }
         [JsonIgnore]
         public bool DynamicTitleProbeEligible { get; set; }
 
@@ -286,7 +289,9 @@ namespace TubaWinUi3.Services.RogueCleaner
                 foreach (string childName in SafeNames(key))
                 {
                     ActionTarget childTarget = Target(hive, view, root.Path + "\\" + childName);
-                    string unique = hive + "|" + view + "|" + childTarget.SubKey;
+                    // Software\Classes 在 64 位系统上 32/64 视图为同一数据（Windows 不重定向 Classes 根），
+                    // 按 hive+子键去重，避免同一菜单因视图不同而重复显示两次。
+                    string unique = hive + "|" + childTarget.SubKey;
                     if (!seen.Add(unique)) continue;
                     using (RegistryKey child = Open(childTarget, root.Scene, warnings))
                     {
@@ -300,6 +305,7 @@ namespace TubaWinUi3.Services.RogueCleaner
                         bool hasProgrammaticDisable = HasValue(child, "ProgrammaticAccessOnly");
                         bool disabled = shellEx ? IsBlocked(hive, view, clsid, warnings) : hasLegacyDisable || hasProgrammaticDisable;
                         bool ambiguousDisable = !shellEx && hasLegacyDisable && hasProgrammaticDisable;
+                        bool userAdded = HasValue(child, "RogueCleanerUserAdded");
                         entries.Add(new ContextMenuEntry
                         {
                             Id = unique,
@@ -322,6 +328,7 @@ namespace TubaWinUi3.Services.RogueCleaner
                             ReadOnly = (shellEx && string.IsNullOrWhiteSpace(clsid)) || ambiguousDisable,
                             ReadOnlyReason = shellEx && string.IsNullOrWhiteSpace(clsid) ? "没有读取到 CLSID，不能安全启停。" : (ambiguousDisable ? "同时存在两个禁用标记，当前版本先保持只读，避免破坏程序的条件显示逻辑。" : string.Empty),
                             DynamicTitleProbeEligible = !string.IsNullOrWhiteSpace(clsid),
+                            UserAdded = userAdded,
                             AdvancedOnly = advancedOnly
                         });
                     }
@@ -620,6 +627,8 @@ namespace TubaWinUi3.Services.RogueCleaner
                 key.SetValue("MUIVerb", displayName.Trim(), RegistryValueKind.String);
                 SetOrDelete(key, "Icon", icon);
                 SetOrDelete(key, "SubCommands", subCommands);
+                // 用户添加标记：右键菜单管理列表始终显示该条目，便于再次开关/删除
+                key.SetValue("RogueCleanerUserAdded", "1", RegistryValueKind.String);
                 if (!string.IsNullOrWhiteSpace(command))
                 {
                     using (RegistryKey commandKey = key.CreateSubKey("command", RegistryKeyPermissionCheck.ReadWriteSubTree)) commandKey.SetValue("", command.Trim(), RegistryValueKind.String);

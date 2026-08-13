@@ -9,6 +9,7 @@ export default {
 
   "nav.home": "Home",
   "nav.download": "Download",
+  "nav.why": "Why Choose",
   "nav.docs": "Docs",
   "nav.about": "About",
   "nav.theme": "Theme",
@@ -24,6 +25,7 @@ export default {
   "home.hero.subtitle": "82 professional tools included. Launch CPU-Z, GPU-Z, CrystalDiskMark with one click. Completely free, offline, zero data collection.",
   "home.hero.download": "Get TubaWinUi3",
   "home.hero.view-github": "View on GitHub",
+  "home.hero.why-choose": "Why WinUI3?",
   "home.hero.license": "This project is open source under GPL-3.0 and may be freely redistributed. Modified versions must remain open source and must not bundle malware.",
   "home.hero.license-link": "View statement",
 
@@ -145,5 +147,39 @@ export default {
   "search.results-count": "results",
   "search.empty-query": "Type keywords to search docs, tutorials and site content",
   "search.no-results": "No results found",
-  "search.no-results-desc": "Try different keywords, e.g. CPU-Z, disk, blue screen, hardware info"
+  "search.no-results-desc": "Try different keywords, e.g. CPU-Z, disk, blue screen, hardware info",
+
+  "why.title": "Why Choose TubaWinUi3?",
+  "why.subtitle": "Comprehensive comparison against the original toolbox — WinUI3 leads in download experience, UI design, compatibility, features, and AI capabilities",
+  "why.winner": "Better",
+  "why.legacy": "Original",
+
+  "why.dl.title": "Download Methods",
+  "why.dl.subtitle": "Multi-channel high-speed downloads vs single slow website",
+  "why.dl.winItems": "Winget one-command CLI install|Microsoft Store install with auto-updates|GitCode high-speed download for China|GitHub Releases download|Quark / Baidu cloud drive download",
+  "why.dl.legacyItems": "Official website only — slow access from China|No package manager support, no auto-updates|Single download channel, prone to server overload failures",
+
+  "why.ui.title": "Software Interface",
+  "why.ui.subtitle": "WinUI 3 native Fluent Design vs legacy EPL (易语言) UI",
+  "why.ui.winItems": "Built with WinUI 3, native Windows 11 design language|Mica / Acrylic backdrop materials|Smooth page transitions and control animations|Light / Dark / System theme support|Custom window background images|Modern responsive layout",
+  "why.ui.legacyItems": "Traditional EPL (易语言)-based UI, outdated visuals|No backdrop materials, no animation transitions|Only basic dark mode toggle|Limited control styling options",
+
+  "why.utf8.title": "UTF-8 Compatibility",
+  "why.utf8.subtitle": "Perfect Unicode support vs runtime exceptions with UTF-8",
+  "why.utf8.winItems": "Native UTF-8 encoding — paths and filenames display correctly|Chinese directory names render perfectly|.NET 10 runtime with native Unicode handling",
+  "why.utf8.legacyItems": "Runtime exceptions when Windows UTF-8 global support is enabled|EPL defaults to ANSI encoding with poor UTF-8 compatibility|Chinese paths may display garbled characters or fail to resolve",
+
+  "why.tools.title": "FluentUI Built-in Tools",
+  "why.tools.subtitle": "20+ built-in tools vs limited basic utilities",
+  "why.tools.winItems": "Certificate blocking — block rogue software certificates|Port viewer — inspect active TCP/UDP ports|Hosts editor — manage hosts mapping|Keyboard tester — detect key states|Junk cleaner — clean system cache|BSOD analyzer — parse crash dumps|Speed test, WiFi password viewer, KMS activation|CPU / GPU tier list, battery report, and more",
+  "why.tools.legacyItems": "Limited number of built-in tools|Inconsistent tool interface styles|Some tools have only basic functionality",
+
+  "why.ai.title": "AI-Powered",
+  "why.ai.subtitle": "Built-in AI assistant to help solve PC problems",
+  "why.ai.winItems": "Built-in AI agent for hardware and system questions|Support for multiple AI model integrations|Natural language interaction, lower barrier to entry|Continuously iterated AI capabilities",
+  "why.ai.legacyItems": "No AI features|Must search and troubleshoot issues manually",
+
+  "why.summary.title": "TubaWinUi3 — The Next-Gen PC Hardware Toolkit",
+  "why.summary.text": "From download experience to daily use, the WinUI3 version brings a quantum leap in every dimension. If you're still using the original, it's time to upgrade.",
+  "why.summary.download": "Download WinUI3 Now"
 }
