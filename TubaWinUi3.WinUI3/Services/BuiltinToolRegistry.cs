@@ -18,6 +18,7 @@ public static class BuiltinToolRegistry
     public static void RegisterDefaults()
     {
         Register(new CertBlockTool());
+        Register(new RogueCleanerTool());
         Register(new PortViewerTool());
         Register(new HostsEditorTool());
         Register(new KeyboardTestTool());

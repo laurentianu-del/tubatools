@@ -1281,3 +1281,6 @@ optimizerDuck-temp/
 /test_sc2/workloads.stx.json
 /test_sc2/wuceffectsi.dll
 .gstack/
+
+# macOS metadata
+.DS_Store

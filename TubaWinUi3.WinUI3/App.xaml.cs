@@ -63,9 +63,32 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        // 流氓软件的克星「安全增强菜单 - 复制完整路径」配方通过 --copy-path <路径>
+        // 唤醒本程序复制路径到剪贴板（后台模式，不显示主窗口）。
+        var cmdLine = Environment.GetCommandLineArgs();
+        var copyPathIndex = Array.FindIndex(cmdLine, a => string.Equals(a, "--copy-path", StringComparison.OrdinalIgnoreCase));
+        if (copyPathIndex >= 0)
+        {
+            if (copyPathIndex + 1 < cmdLine.Length && !string.IsNullOrWhiteSpace(cmdLine[copyPathIndex + 1]))
+            {
+                try
+                {
+                    var data = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                    data.SetText(cmdLine[copyPathIndex + 1]);
+                    Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(data);
+                    Windows.ApplicationModel.DataTransfer.Clipboard.Flush();
+                }
+                catch
+                {
+                }
+            }
+            Exit();
+            return;
+        }
+
         // EnergyStar silent auto-start (scheduled-task launched this instance
         // in the background — silently enable EcoQoS without showing the main UI).
-        var silentEnergyStar = Environment.GetCommandLineArgs()
+        var silentEnergyStar = cmdLine
             .Any(a => string.Equals(a, EnergyStarStartupService.SilentArg, StringComparison.OrdinalIgnoreCase));
 
         if (silentEnergyStar)

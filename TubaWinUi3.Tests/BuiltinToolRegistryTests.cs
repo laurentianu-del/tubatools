@@ -2,6 +2,8 @@ using TubaWinUi3.Services;
 
 namespace TubaWinUi3.Tests;
 
+// 与 RogueCleanerRegistrationTests 共享同一集合，避免反射清空注册表时并行冲突。
+[Collection("BuiltinToolRegistry")]
 public class BuiltinToolRegistryTests
 {
     private class StubTool : IBuiltinTool
