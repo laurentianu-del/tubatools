@@ -989,6 +989,24 @@
                             <ScrollViewer VerticalScrollBarVisibility="Disabled" HorizontalScrollMode="Disabled">
                             <StackPanel Spacing="2" Padding="0,4,0,0">
 
+                                <Border x:Name="SettingsBuiltinToolOpenModeCard" Style="{StaticResource SettingsCardStyle}">
+                                    <Grid ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource IconBorderStyle}">
+                                            <FontIcon FontSize="18" Glyph="&#xE8A7;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                            <TextBlock FontWeight="SemiBold" Text="内置工具打开方式" />
+                                            <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="选择打开内置工具时嵌入当前页面，还是打开独立窗口" />
+                                        </StackPanel>
+                                        <ComboBox x:Name="BuiltinToolOpenModeComboBox" Grid.Column="2" MinWidth="120" SelectionChanged="BuiltinToolOpenModeComboBox_SelectionChanged" />
+                                    </Grid>
+                                </Border>
+
                                 <Border x:Name="SettingsHttpDownloadCard" Style="{StaticResource SettingsCardStyle}">
                                     <Grid RowSpacing="12">
                                         <Grid.RowDefinitions>

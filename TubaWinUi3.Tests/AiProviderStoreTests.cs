@@ -154,18 +154,51 @@ public class AiProviderStoreTests : IDisposable
     }
 
     [Fact]
-    public void ExistingFile_UnconfiguredCustom_SwitchesToOpenCodeZen()
+    public void LegacyFile_EmptyCustom_DefaultMigratesToOpenCodeZen()
     {
-        // 已保存文件但仍是"自定义空白"（未配置）→ 重载时切换到 OpenCode Zen 免费模型
-        var custom = AiProviderStore.GetProvider("custom")!;
-        Assert.Equal("", custom.BaseUrl);
+        // 模拟旧版文件（无 defaultMigrated 标记）：选中「小图吧自带模型」且未配置 → 迁移到 OpenCode Zen
+        File.WriteAllText(_path, """
+            {"version":1,"selectedProviderId":"custom","selectedModelId":"auto","providers":[
+              {"id":"custom","name":"小图吧自带模型","baseUrl":"","apiKey":"","isPreset":true,"endpointLocked":false,"defaultModel":"auto","models":[{"id":"auto","label":"自动"}]},
+              {"id":"opencode","name":"OpenCode Zen","baseUrl":"https://opencode.ai/zen/v1","isPreset":true,"endpointLocked":true,"defaultModel":"deepseek-v4-flash-free","models":[{"id":"deepseek-v4-flash-free"}]}
+            ]}
+            """);
+        ResetStore(_path, legacy: null);
+
+        Assert.Equal(AiProviderStore.OpenCodeZenProviderId, AiProviderStore.SelectedProviderId);
+        Assert.Equal("deepseek-v4-flash-free", AiProviderStore.SelectedModelId);
+        Assert.False(AiService.IsUsingDefaultModel);
+    }
+
+    [Fact]
+    public void LegacyFile_EmptyCustomProvider_DefaultMigratesToOpenCodeZen()
+    {
+        // 旧版选中空白自定义提供商（如「新建自定义」后未填写）→ 同样迁移到 OpenCode Zen
+        File.WriteAllText(_path, """
+            {"version":1,"selectedProviderId":"custom-2","selectedModelId":"","providers":[
+              {"id":"custom","name":"小图吧自带模型","baseUrl":"","apiKey":"","isPreset":true,"endpointLocked":false,"defaultModel":"auto","models":[{"id":"auto","label":"自动"}]},
+              {"id":"custom-2","name":"自定义 2","baseUrl":"","apiKey":"","isPreset":false,"endpointLocked":false,"defaultModel":"","models":[]},
+              {"id":"opencode","name":"OpenCode Zen","baseUrl":"https://opencode.ai/zen/v1","isPreset":true,"endpointLocked":true,"defaultModel":"deepseek-v4-flash-free","models":[{"id":"deepseek-v4-flash-free"}]}
+            ]}
+            """);
+        ResetStore(_path, legacy: null);
+
+        Assert.Equal(AiProviderStore.OpenCodeZenProviderId, AiProviderStore.SelectedProviderId);
+        Assert.Equal("deepseek-v4-flash-free", AiProviderStore.SelectedModelId);
+    }
+
+    [Fact]
+    public void Migration_OneTime_ManualSwitchBackSticks()
+    {
+        // 迁移只执行一次：之后用户手动切回空白自定义，重启不再被强制切走
         AiProviderStore.SetSelected("custom", "auto");
         Assert.Equal("custom", AiProviderStore.SelectedProviderId);
 
-        ResetStore(_path, legacy: null); // 模拟重启：从文件重载
+        ResetStore(_path, legacy: null); // 模拟重启
 
-        Assert.Equal(AiProviderStore.OpenCodeZenProviderId, AiProviderStore.SelectedProviderId);
-        Assert.Equal(AiProviderStore.OpenCodeZenSeedFreeModels[0], AiProviderStore.SelectedModelId);
+        Assert.Equal("custom", AiProviderStore.SelectedProviderId);
+        Assert.Equal("auto", AiProviderStore.SelectedModelId);
+        Assert.True(AiService.IsUsingDefaultModel);
     }
 
     [Fact]
@@ -181,7 +214,7 @@ public class AiProviderStoreTests : IDisposable
 
         Assert.Equal("custom", AiProviderStore.SelectedProviderId);
         Assert.Equal("auto", AiProviderStore.SelectedModelId);
-        Assert.True(AiService.IsUsingDefaultModel == false);
+        Assert.False(AiService.IsUsingDefaultModel);
     }
 
     [Fact]

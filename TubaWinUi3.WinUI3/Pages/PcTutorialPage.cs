@@ -959,6 +959,7 @@ public sealed partial class PcTutorialPage : Page
                         if (builtinTool is not null && XamlRoot is not null)
                         {
                             var ctx = new BuiltinToolContext { XamlRoot = XamlRoot };
+                            MainWindow.ActiveToolName = builtinTool.Name;
                             _ = builtinTool.ExecuteAsync(ctx);
                         }
                     }
@@ -976,6 +977,7 @@ public sealed partial class PcTutorialPage : Page
                         if (builtinTool is not null && XamlRoot is not null)
                         {
                             var ctx = new BuiltinToolContext { XamlRoot = XamlRoot };
+                            MainWindow.ActiveToolName = builtinTool.Name;
                             _ = builtinTool.ExecuteAsync(ctx);
                         }
                         break;
@@ -986,6 +988,7 @@ public sealed partial class PcTutorialPage : Page
                         if (builtinTool is not null && XamlRoot is not null)
                         {
                             var ctx = new BuiltinToolContext { XamlRoot = XamlRoot };
+                            MainWindow.ActiveToolName = builtinTool.Name;
                             _ = builtinTool.ExecuteAsync(ctx);
                         }
                         break;

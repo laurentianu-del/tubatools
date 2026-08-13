@@ -588,6 +588,7 @@ public sealed partial class QuickDeviceCheckPage : Page
             if (screenTestTool != null)
             {
                 var context = new BuiltinToolContext { XamlRoot = XamlRoot };
+                MainWindow.ActiveToolName = screenTestTool.Name;
                 _ = screenTestTool.ExecuteAsync(context);
                 SendToast("屏幕检测已启动", "使用方向键切换颜色，ESC 退出");
             }
@@ -658,6 +659,7 @@ public sealed partial class QuickDeviceCheckPage : Page
             if (keyboardTool != null)
             {
                 var context = new BuiltinToolContext { XamlRoot = XamlRoot };
+                MainWindow.ActiveToolName = keyboardTool.Name;
                 _ = keyboardTool.ExecuteAsync(context);
                 SendToast("键盘测试已启动", "请逐个按下按键检查");
             }

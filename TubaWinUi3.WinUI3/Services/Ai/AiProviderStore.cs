@@ -34,6 +34,8 @@ public static class AiProviderStore
         [JsonPropertyName("version")] public int Version { get; set; } = 1;
         [JsonPropertyName("selectedProviderId")] public string SelectedProviderId { get; set; } = CustomProviderId;
         [JsonPropertyName("selectedModelId")] public string SelectedModelId { get; set; } = "";
+        /// <summary>默认模式是否已迁移到 OpenCode Zen（一次性标记，之后用户手动切换不再被强制覆盖）。</summary>
+        [JsonPropertyName("defaultMigrated")] public bool DefaultMigrated { get; set; }
         [JsonPropertyName("providers")] public List<AiProvider> Providers { get; set; } = [];
     }
 
@@ -265,15 +267,20 @@ public static class AiProviderStore
                 AppSettings.Remove("OpenCodeZenEmail");
                 Save();
             }
-
-            // 仍处于"未配置"状态（选中自定义且未填地址/Key）→ 默认改用 OpenCode Zen 免费模型
-            var fileZen = _cache.Providers.FirstOrDefault(p => p.Id == OpenCodeZenProviderId);
-            if (fileCustom is not null && fileZen is not null &&
-                string.IsNullOrWhiteSpace(fileCustom.BaseUrl) && string.IsNullOrWhiteSpace(fileCustom.ApiKey) &&
-                _cache.SelectedProviderId == CustomProviderId)
+            // 一次性迁移：默认模式从「小图吧自带模型/空白自定义」→ OpenCode Zen 免费模型。
+            // 只执行一次（defaultMigrated 标记），之后用户手动切换不会再被强制覆盖。
+            if (!_cache.DefaultMigrated)
             {
-                _cache.SelectedProviderId = OpenCodeZenProviderId;
-                _cache.SelectedModelId = fileZen.DefaultModel;
+                _cache.DefaultMigrated = true;
+                var selected = _cache.Providers.FirstOrDefault(p => p.Id == _cache.SelectedProviderId);
+                var zen = _cache.Providers.FirstOrDefault(p => p.Id == OpenCodeZenProviderId);
+                if (selected is not null && zen is not null &&
+                    selected.Id != OpenCodeZenProviderId &&
+                    string.IsNullOrWhiteSpace(selected.BaseUrl) && string.IsNullOrWhiteSpace(selected.ApiKey))
+                {
+                    _cache.SelectedProviderId = OpenCodeZenProviderId;
+                    _cache.SelectedModelId = zen.DefaultModel;
+                }
                 Save();
             }
             return;
@@ -315,6 +322,8 @@ public static class AiProviderStore
             _cache.SelectedModelId = zen.DefaultModel;
         }
 
+        // 全新文件即默认 OpenCode Zen，标记已迁移（避免后续被重复迁移打扰）
+        _cache.DefaultMigrated = true;
         Save();
     }
 

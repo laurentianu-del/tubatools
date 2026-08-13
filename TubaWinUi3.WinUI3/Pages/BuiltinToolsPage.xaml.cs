@@ -277,6 +277,7 @@ public sealed partial class BuiltinToolsPage : Page
 
         try
         {
+            MainWindow.ActiveToolName = vm.Name;
             await vm.Tool.ExecuteAsync(context);
             StatusBar.IsOpen = false;
         }
@@ -287,6 +288,10 @@ public sealed partial class BuiltinToolsPage : Page
         catch (Exception ex)
         {
             ShowStatus("执行失败", ex.Message, InfoBarSeverity.Error);
+        }
+        finally
+        {
+            MainWindow.ActiveToolName = null;
         }
     }
 

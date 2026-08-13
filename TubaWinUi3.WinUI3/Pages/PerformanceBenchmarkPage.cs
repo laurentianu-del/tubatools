@@ -997,7 +997,9 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		{
 			var tool = new RatingSystemTool();
 			var ctx = new BuiltinToolContext { XamlRoot = XamlRoot };
-			await tool.ExecuteAsync(ctx);
+			MainWindow.ActiveToolName = tool.Name;
+			try { await tool.ExecuteAsync(ctx); }
+			finally { MainWindow.ActiveToolName = null; }
 		}
 	}
 
@@ -1783,6 +1785,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 	{
 		var tool = new BenchmarkCloudTool();
 		var context = new BuiltinToolContext { XamlRoot = XamlRoot };
+		MainWindow.ActiveToolName = tool.Name;
 		tool.ExecuteAsync(context);
 	}
 

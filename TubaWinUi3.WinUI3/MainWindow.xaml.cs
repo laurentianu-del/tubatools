@@ -34,6 +34,9 @@ public sealed partial class MainWindow : Window
 
     public bool IsTabMode => _isTabMode;
 
+    /// <summary>当前正在执行的内置工具名称（入口页在 ExecuteAsync 前设置），供独立窗口标题使用。</summary>
+    public static string? ActiveToolName { get; set; }
+
     public Image? GetBackgroundImage() => BackgroundImg;
 
     public void ShowUpdateBanner(Models.UpdateInfo update, bool autoDownload)
@@ -969,6 +972,15 @@ public sealed partial class MainWindow : Window
 
     public void NavigateToToolPage(Type pageType, object? parameter = null)
     {
+        // 设置"独立窗口"模式下，内置工具在新窗口的 Frame 中打开（切换即时生效）
+        if (AppSettings.GetBool("BuiltinToolsOpenInWindow", false))
+        {
+            var title = parameter is ToolContentPageParam p
+                ? p.Title
+                : (ActiveToolName ?? "内置工具");
+            BuiltinToolWindow.Show(pageType, parameter, title);
+            return;
+        }
         var frame = _isTabMode ? TabNavFrame : NavFrame;
         frame.Navigate(pageType, parameter);
     }
@@ -985,6 +997,12 @@ public sealed partial class MainWindow : Window
 
     public void NavigateBack()
     {
+        // 若前台是独立工具窗口，返回/关闭操作作用于该窗口，避免误操作主窗口导航
+        if (BuiltinToolWindow.ActiveWindow is { } toolWindow)
+        {
+            toolWindow.GoBackOrClose();
+            return;
+        }
         var frame = _isTabMode ? TabNavFrame : NavFrame;
         if (frame.CanGoBack)
             frame.GoBack();

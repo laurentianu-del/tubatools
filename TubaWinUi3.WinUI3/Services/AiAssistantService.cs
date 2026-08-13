@@ -267,7 +267,7 @@ public sealed partial class AiAssistantService
     {
         var sb = new StringBuilder();
 
-        sb.AppendLine("## 当前工具箱可用软件");
+        sb.AppendLine("## 当前工具箱可用软件（仅列名称，详细简介请用 list_tools 工具查询）");
         sb.AppendLine();
 
         try
@@ -277,11 +277,10 @@ public sealed partial class AiAssistantService
             {
                 var tools = ToolCatalog.GetTools(cat);
                 if (tools.Count == 0) continue;
-                sb.AppendLine($"### {cat}");
+                sb.AppendLine($"### {cat}（{tools.Count} 个）");
                 foreach (var tool in tools)
                 {
-                    var desc = string.IsNullOrWhiteSpace(tool.Description) ? "" : $" — {tool.Description}";
-                    sb.AppendLine($"- {tool.Name}{desc}");
+                    sb.AppendLine($"- {tool.Name}");
                 }
                 sb.AppendLine();
             }

@@ -17,7 +17,7 @@ namespace TubaWinUi3.Pages;
 /// </summary>
 public sealed partial class AiQuickAskFlyout : UserControl
 {
-    private bool _syncingModelCombo;
+    private bool _syncingCombos;
     private readonly DispatcherQueue _dq;
     private readonly StackPanel _chatList;
     private AgentSession? _session;
@@ -36,16 +36,22 @@ public sealed partial class AiQuickAskFlyout : UserControl
         _chatList = ChatList;
 
         UpdateServiceStatus();
-        InitModelCombo();
+        InitProviderCombos();
         LoadLatestConversation();
     }
 
-    /// <summary>同步模型下拉框与当前选中模型（全局持久化，切换对下一条消息生效）。</summary>
-    private void InitModelCombo()
+    /// <summary>同步提供商/模型下拉框与当前选中状态（全局持久化，切换对下一条消息生效）。</summary>
+    private void InitProviderCombos()
     {
-        _syncingModelCombo = true;
+        _syncingCombos = true;
         try
         {
+            var providers = AiProviderStore.GetProviders();
+            var selectedId = AiProviderStore.SelectedProviderId;
+            // 传副本：活列表原地修改会导致 ItemsSourceView 快照过期（E_INVALIDARG）
+            FlyoutProviderCombo.ItemsSource = providers.ToList();
+            FlyoutProviderCombo.SelectedItem = providers.FirstOrDefault(p => p.Id == selectedId) ?? providers.FirstOrDefault();
+
             var provider = AiProviderStore.SelectedProvider;
             var modelId = AiProviderStore.SelectedModelId;
             var models = provider.Models.ToList();
@@ -56,16 +62,29 @@ public sealed partial class AiQuickAskFlyout : UserControl
         }
         finally
         {
-            _syncingModelCombo = false;
+            _syncingCombos = false;
         }
+    }
+
+    private void FlyoutProviderCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingCombos) return;
+        if (FlyoutProviderCombo.SelectedItem is not AiProvider provider) return;
+
+        var prev = AiProviderStore.SelectedProviderId;
+        if (provider.Id == prev) return;
+
+        AiProviderStore.SetSelected(provider.Id);
+        InitProviderCombos();
+        UpdateServiceStatus();
     }
 
     private void FlyoutModelCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_syncingModelCombo) return;
+        if (_syncingCombos) return;
+        if (FlyoutProviderCombo.SelectedItem is not AiProvider provider) return;
         if (FlyoutModelCombo.SelectedItem is not AiModelOption model) return;
 
-        var provider = AiProviderStore.SelectedProvider;
         var prev = AiProviderStore.SelectedModelId;
         if (model.Id.Equals(prev, StringComparison.OrdinalIgnoreCase)) return;
 
@@ -657,6 +676,7 @@ public sealed partial class AiQuickAskFlyout : UserControl
     private void FullAssistantButton_Click(object sender, RoutedEventArgs e)
     {
         var tool = new AiAssistantTool();
+        MainWindow.ActiveToolName = tool.Name;
         tool.ExecuteAsync(new BuiltinToolContext
         {
             XamlRoot = XamlRoot

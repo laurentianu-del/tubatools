@@ -17,7 +17,7 @@ public static class WebAgentTool
         Add("download_file", "下载文件", "\uE896", (Func<string, string, string, CancellationToken, Task<string>>)DownloadFileAsync);
     }
 
-    [Description("联网搜索，获取最新硬件评测、驱动、新闻、价格等（涉及最新信息时必须使用！）")]
+    [Description("联网搜索，获取最新硬件评测、驱动、新闻、价格等（涉及最新信息时必须使用！）。关键词可中英混合，如 \"Intel Core Ultra 9 285K 评测 性能\"")]
     public static async Task<string> WebSearchAsync(string query, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(query))

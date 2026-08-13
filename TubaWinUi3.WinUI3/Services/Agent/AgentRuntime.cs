@@ -79,6 +79,7 @@ public static class AgentRuntime
             };
 
             var fullText = new StringBuilder();
+            var reasoningSb = new StringBuilder();
             var callContents = new List<FunctionCallContent>();
             AgentUsage? usage = null;
 
@@ -98,6 +99,11 @@ public static class AgentRuntime
                             fullText.Append(update.Text);
                             cb.OnTextChunk?.Invoke(update.Text);
                         }
+
+                        // 思考链（reasoning_content）增量：M.E.AI 适配器转为 TextReasoningContent，
+                        // 逐段累积，随助手消息存入历史（后续请求需原样回传）
+                        foreach (var trc in update.Contents.OfType<TextReasoningContent>())
+                            reasoningSb.Append(trc.Text);
 
                         // M.E.AI 10.x：流式工具调用以 FunctionCallContent 到达，
                         // 同一 CallId 的后续更新携带累积后的完整参数，取最后一条。
@@ -164,6 +170,8 @@ public static class AgentRuntime
                 .ToList();
 
             var assistantMsg = new ChatMessage(ChatRole.Assistant, fullText.ToString());
+            if (reasoningSb.Length > 0)
+                assistantMsg.Contents.Add(new TextReasoningContent(reasoningSb.ToString()));
             foreach (var c in calls)
                 assistantMsg.Contents.Add(new FunctionCallContent(
                     callId: c.Id,

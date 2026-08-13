@@ -18,6 +18,8 @@ public sealed class AiChatMessage
 {
     public string Role { get; init; } = "";
     public string Content { get; init; } = "";
+    /// <summary>思考模式下的思维链内容（DeepSeek 系模型要求后续请求原样回传）。</summary>
+    public string? ReasoningContent { get; init; }
     public List<AiToolCallItem>? ToolCalls { get; init; }
     public string? ToolCallId { get; init; }
     public string? Name { get; init; }

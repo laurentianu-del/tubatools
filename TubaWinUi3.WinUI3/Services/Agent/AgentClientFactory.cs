@@ -26,6 +26,7 @@ public static class AgentClientFactory
             Endpoint = new Uri(endpoint.TrimEnd('/'))
         });
 
-        return openAiClient.GetChatClient(model).AsIChatClient();
+        // 外层包一层思考链回传装饰器：DeepSeek 系思考模型要求 reasoning_content 原样回传
+        return new ReasoningEchoChatClient(openAiClient.GetChatClient(model).AsIChatClient());
     }
 }

@@ -26,6 +26,7 @@ public sealed partial class SettingsPage : Page
     private bool _navLayoutInitializing;
     private bool _rememberWindowInitializing;
     private bool _defaultPageInitializing;
+    private bool _builtinToolOpenModeInitializing;
     private bool _backdropInitializing;
     private bool _opacityChanging;
     private bool _brandLogoInitializing;
@@ -202,6 +203,7 @@ public sealed partial class SettingsPage : Page
         InitProxySettings();
         InitGitHubLoginStatus();
         LoadCreditsAvatar();
+        InitBuiltinToolOpenModeComboBox();
         InitHttpDownloadSettings();
 
         if (RuntimeHelper.IsMsixPackaged)
@@ -402,6 +404,22 @@ public sealed partial class SettingsPage : Page
         if (_defaultPageInitializing) return;
         if (DefaultPageComboBox.SelectedIndex >= 0 && DefaultPageComboBox.SelectedIndex < DefaultPageOptions.Length)
             AppSettings.Set("DefaultPage", DefaultPageOptions[DefaultPageComboBox.SelectedIndex].Tag);
+    }
+
+    private void InitBuiltinToolOpenModeComboBox()
+    {
+        _builtinToolOpenModeInitializing = true;
+        BuiltinToolOpenModeComboBox.Items.Clear();
+        BuiltinToolOpenModeComboBox.Items.Add("嵌入页面");
+        BuiltinToolOpenModeComboBox.Items.Add("独立窗口");
+        BuiltinToolOpenModeComboBox.SelectedIndex = AppSettings.GetBool("BuiltinToolsOpenInWindow", false) ? 1 : 0;
+        _builtinToolOpenModeInitializing = false;
+    }
+
+    private void BuiltinToolOpenModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_builtinToolOpenModeInitializing) return;
+        AppSettings.Set("BuiltinToolsOpenInWindow", BuiltinToolOpenModeComboBox.SelectedIndex == 1);
     }
 
     private void InitFastModeToggle()
@@ -1891,7 +1909,9 @@ public sealed partial class SettingsPage : Page
 				XamlRoot = XamlRoot,
 				CancellationToken = CancellationToken.None
 			};
+			MainWindow.ActiveToolName = tool.Name;
 			try { await tool.ExecuteAsync(context); } catch { }
+			finally { MainWindow.ActiveToolName = null; }
 		}
 	}
 

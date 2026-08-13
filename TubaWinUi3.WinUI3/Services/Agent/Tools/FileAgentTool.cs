@@ -193,7 +193,7 @@ public static class FileAgentTool
         }
     }
 
-    [Description("编辑文件：把第一个出现的 oldText 替换为 newText（需用户确认后执行）")]
+    [Description("编辑文件：把第一个出现的 oldText 替换为 newText（需用户确认后执行）。oldText 必须与文件原文完全一致（含空白与换行），建议先 read_file 确认原文")]
     public static string EditFile(string path, string oldText, string newText, string reason)
     {
         if (FileSandbox.ValidateWrite(path) is { } err) return $"错误：{err}";

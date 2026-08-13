@@ -19,7 +19,7 @@ public static class CommandAgentTool
         Add("run_powershell", "执行 PowerShell", "\uE756", (Func<string, string, int?, CancellationToken, Task<string>>)RunPowerShellAsync);
     }
 
-    [Description("执行 cmd 命令（需用户确认后执行；支持超时，默认 60 秒；长时间命令如系统扫描请设置更大 timeout）")]
+    [Description("执行 cmd 命令（需用户确认后执行；支持超时，默认 60 秒；长时间命令如系统扫描请设置更大 timeout）。多条命令可用 && 合并为一次执行，减少确认次数")]
     public static async Task<string> RunCommandAsync(string cmd, string reason, int? timeout, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(cmd)) return "错误：缺少 cmd 参数";
@@ -53,7 +53,7 @@ public static class CommandAgentTool
         }
     }
 
-    [Description("执行 PowerShell 脚本（需用户确认后执行；支持超时，默认 60 秒）")]
+    [Description("执行 PowerShell 脚本（需用户确认后执行；支持超时，默认 60 秒）。需要多个操作时写成一段脚本一次执行，减少确认次数")]
     public static async Task<string> RunPowerShellAsync(string script, string reason, int? timeout, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(script)) return "错误：缺少 script 参数";

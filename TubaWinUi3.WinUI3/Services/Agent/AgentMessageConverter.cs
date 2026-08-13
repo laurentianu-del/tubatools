@@ -30,7 +30,16 @@ public static class AgentMessageConverter
                         Arguments = c.Arguments is null ? "" : JsonSerializer.Serialize(c.Arguments)
                     });
                 }
-                result.Add(AiChatMessage.Assistant(m.Text ?? "", toolCalls.Count > 0 ? toolCalls : null));
+
+                // 思考链（reasoning_content）随历史持久化，供后续请求原样回传
+                var reasoning = string.Concat(m.Contents.OfType<TextReasoningContent>().Select(c => c.Text));
+                result.Add(new AiChatMessage
+                {
+                    Role = "assistant",
+                    Content = m.Text ?? "",
+                    ReasoningContent = reasoning.Length > 0 ? reasoning : null,
+                    ToolCalls = toolCalls.Count > 0 ? toolCalls : null
+                });
             }
             else if (m.Role == ChatRole.Tool)
             {
@@ -57,6 +66,8 @@ public static class AgentMessageConverter
                 case "assistant":
                 {
                     var msg = new ChatMessage(ChatRole.Assistant, m.Content);
+                    if (!string.IsNullOrWhiteSpace(m.ReasoningContent))
+                        msg.Contents.Add(new TextReasoningContent(m.ReasoningContent));
                     if (m.ToolCalls is not null)
                     {
                         foreach (var tc in m.ToolCalls)

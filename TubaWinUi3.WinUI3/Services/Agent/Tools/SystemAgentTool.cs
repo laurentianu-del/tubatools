@@ -462,7 +462,7 @@ public static class SystemAgentTool
         }
     }
 
-    [Description("启动工具箱中的软件（需用户确认后执行）")]
+    [Description("启动工具箱中的软件（需用户确认后执行）。toolName 必须与 list_tools 返回的名称完全一致，不确定时先调用 list_tools 查询")]
     public static string LaunchTool(string toolName, string reason)
     {
         if (string.IsNullOrWhiteSpace(toolName)) return "错误：缺少 toolName 参数";

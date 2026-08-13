@@ -998,6 +998,7 @@ public sealed partial class HomePage : Page
                 OnProgress = msg => DispatcherQueue.TryEnqueue(() =>
                     ShowStatus(builtinTool.Name, msg, InfoBarSeverity.Informational))
             };
+            MainWindow.ActiveToolName = builtinTool.Name;
             await builtinTool.ExecuteAsync(context);
             LaunchHistoryService.RecordLaunch(tool.Path);
             ShowStatus("已启动", tool.Name, InfoBarSeverity.Success);
@@ -1005,6 +1006,10 @@ public sealed partial class HomePage : Page
         catch (Exception ex)
         {
             ShowStatus("启动失败", ex.Message, InfoBarSeverity.Error);
+        }
+        finally
+        {
+            MainWindow.ActiveToolName = null;
         }
     }
 

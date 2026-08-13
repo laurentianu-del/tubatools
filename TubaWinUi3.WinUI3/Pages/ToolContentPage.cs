@@ -82,7 +82,15 @@ public sealed partial class ToolContentPage : Page
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
         base.OnNavigatedFrom(e);
+        Detach();
+    }
 
+    /// <summary>
+    /// 执行与 OnNavigatedFrom 相同的清理逻辑。宿主（如独立工具窗口）在窗口关闭时
+    /// 调用它，因为关闭窗口不会触发 Frame 的导航事件。
+    /// </summary>
+    public void Detach()
+    {
         _onClose?.Invoke();
         _onClose = null;
         _contentHost.Children.Clear();
