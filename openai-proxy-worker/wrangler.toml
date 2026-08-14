@@ -24,3 +24,11 @@ DAILY_REQUESTS = "300"
 DAILY_TOKENS = "1000000"
 # 访问 GET /v1/admin/usage 用的管理员 key（留空则禁用该接口）
 ADMIN_KEY = ""
+# 会话粘性路由（默认开）：同一会话的多轮请求钉在同一上游，跨轮命中上游前缀缓存
+# （避免中途换上游导致缓存全失；同时保证多轮行为一致）。0 关闭。
+STICKY_ROUTING = "1"
+# 粘性键有效期（秒）
+STICKY_TTL = "1800"
+# 非流式完全重复请求的响应缓存秒数（0 = 关闭）。命中时省一次上游调用
+# （如 TestConnection、取消后原样重发）；多轮 agent 请求体每次不同，收益有限。
+RESPONSE_CACHE_TTL = "0"

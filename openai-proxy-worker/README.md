@@ -42,6 +42,16 @@ npm run deploy
 | `ADMIN_KEY` | 空 | 管理接口 key，留空禁用 |
 | `OPENCODE_API_KEY` | 内置 key | 可选覆盖 |
 | `NVIDIA_API_KEY` | 必填 | nvidia 回退需要 |
+| `STICKY_ROUTING` | 1 | 会话粘性路由：同一会话（稳定前缀指纹）的多轮请求钉在同一上游，跨轮命中上游前缀缓存；`0` 关闭 |
+| `STICKY_TTL` | 1800 | 粘性键有效期（秒） |
+| `RESPONSE_CACHE_TTL` | 0 | 非流式**完全重复**请求的响应缓存秒数（0 = 关闭）；命中直接由 KV 返回，省一次上游调用 |
+
+## 缓存优化说明（省钱）
+
+- **会话粘性路由**：多轮 agent 对话若中途换上游（限流/抖动触发 fallback），新上游会当作全新对话，前缀缓存全部失效。粘性路由用「model + 首条消息 + 工具定义」的 SHA-256 指纹把会话钉在上一个成功上游（键 `sticky:<指纹>`，复用 QUOTA KV），跨轮请求字节稳定 → DeepSeek 官方等支持自动前缀缓存的付费上游可跨轮命中（命中价远低于未命中价）。
+- **usage 规范化**：把上游的 `prompt_cache_hit_tokens`（DeepSeek 系自定义字段）同步映射为 OpenAI 标准 `prompt_tokens_details.cached_tokens`，否则客户端 OpenAI SDK 解析不到缓存命中数。
+- **管理接口可见性**：`/v1/admin/usage` 的每条记录新增 `hit` 字段（当日缓存命中 token），可直接看到省钱效果；应用内 AI 助手 token 气泡也会显示「缓存命中 X (Y%)」。
+- 网关侧无法伪造模型级前缀缓存（那是推理服务内部的 KV），以上只是保证它不被破坏、并让同一会话始终命中同一个上游。
 
 ## 管理接口
 

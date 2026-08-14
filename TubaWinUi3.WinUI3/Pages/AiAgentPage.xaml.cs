@@ -1121,10 +1121,12 @@ public sealed partial class AiAgentPage : UserControl
         UpdateRunState();
     }
 
-    /// <summary>发送按钮旁的气泡：实时展示本会话累计 token 消耗（多轮累加）。</summary>
+    /// <summary>发送按钮旁的气泡：实时展示本会话累计 token 消耗（多轮累加），
+    /// 提供商/网关返回缓存统计时附带缓存命中量。</summary>
     private void UpdateTokenUsage()
     {
-        var tokens = _session?.TotalTokens ?? 0;
+        var session = _session;
+        var tokens = session?.TotalTokens ?? 0;
         HeaderTokenText.Text = tokens <= 0 ? "0 tokens" : $"{FormatTokens(tokens)} tokens";
         if (tokens <= 0)
         {
@@ -1132,7 +1134,14 @@ public sealed partial class AiAgentPage : UserControl
             return;
         }
         TokenUsageBubble.Visibility = Visibility.Visible;
-        TokenUsageText.Text = $"{FormatTokens(tokens)} tokens";
+        var text = $"{FormatTokens(tokens)} tokens";
+        if (session is { TotalCacheHitTokens: > 0 })
+        {
+            var total = session.TotalCacheHitTokens + session.TotalCacheMissTokens;
+            var pct = total > 0 ? (int)Math.Round(session.TotalCacheHitTokens * 100.0 / total) : 100;
+            text += $" · 缓存命中 {FormatTokens(session.TotalCacheHitTokens)} ({pct}%)";
+        }
+        TokenUsageText.Text = text;
     }
 
     private void UpdateRunState()

@@ -40,6 +40,9 @@ public sealed class AiChatResponse
     public string? Error { get; init; }
     public int? PromptTokens { get; init; }
     public int? CompletionTokens { get; init; }
+    /// <summary>缓存命中 token（usage.prompt_cache_hit_tokens / cached_tokens 等，提供商支持时才有值）。</summary>
+    public int? CacheHitTokens { get; init; }
+    public int? CacheMissTokens { get; init; }
     public string? FinishReason { get; init; }
 }
 
@@ -305,11 +308,12 @@ public static class AiService
             if (choice.TryGetProperty("finish_reason", out var frProp))
                 finishReason = frProp.GetString();
 
-            int? promptTokens = null, completionTokens = null;
+            int? promptTokens = null, completionTokens = null, cacheHit = null, cacheMiss = null;
             if (root.TryGetProperty("usage", out var usage))
             {
                 promptTokens = usage.TryGetProperty("prompt_tokens", out var pt) ? pt.GetInt32() : null;
                 completionTokens = usage.TryGetProperty("completion_tokens", out var ct2) ? ct2.GetInt32() : null;
+                (cacheHit, cacheMiss) = ParseCacheTokens(usage);
             }
 
             return new AiChatResponse
@@ -319,6 +323,8 @@ public static class AiService
                 Success = true,
                 PromptTokens = promptTokens,
                 CompletionTokens = completionTokens,
+                CacheHitTokens = cacheHit,
+                CacheMissTokens = cacheMiss,
                 FinishReason = finishReason
             };
         }
@@ -446,6 +452,28 @@ public static class AiService
 
         choice = choices[0];
         return true;
+    }
+
+    /// <summary>
+    /// 解析 usage 中的缓存命中/未命中 token。兼容：
+    /// DeepSeek/GLM 的 prompt_cache_hit_tokens / prompt_cache_miss_tokens、
+    /// Moonshot/Kimi 的 cached_tokens、OpenAI 标准的 prompt_tokens_details.cached_tokens。
+    /// 无缓存字段时返回 null（部分免费端点/网关不返回）。
+    /// </summary>
+    internal static (int? Hit, int? Miss) ParseCacheTokens(JsonElement usage)
+    {
+        int? hit = null, miss = null;
+        if (usage.TryGetProperty("prompt_cache_hit_tokens", out var hitProp) && hitProp.ValueKind == JsonValueKind.Number)
+            hit = hitProp.GetInt32();
+        if (usage.TryGetProperty("prompt_cache_miss_tokens", out var missProp) && missProp.ValueKind == JsonValueKind.Number)
+            miss = missProp.GetInt32();
+        if (hit is null && usage.TryGetProperty("cached_tokens", out var cachedProp) && cachedProp.ValueKind == JsonValueKind.Number)
+            hit = cachedProp.GetInt32();
+        if (hit is null && usage.TryGetProperty("prompt_tokens_details", out var detailsProp) &&
+            detailsProp.ValueKind == JsonValueKind.Object &&
+            detailsProp.TryGetProperty("cached_tokens", out var detailsCached) && detailsCached.ValueKind == JsonValueKind.Number)
+            hit = detailsCached.GetInt32();
+        return (hit, miss);
     }
 
     private static string? TryExtractError(string responseBody)

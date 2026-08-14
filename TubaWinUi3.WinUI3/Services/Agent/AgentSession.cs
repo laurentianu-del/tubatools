@@ -22,6 +22,8 @@ public sealed class AgentSession : IDisposable
     private System.Diagnostics.Stopwatch? _groupTimer;
     private int _groupPromptTokens;
     private int _groupCompletionTokens;
+    private int _groupCacheHitTokens;
+    private int _groupCacheMissTokens;
     /// <summary>上一组是否已结算。为 false 表示处于确认暂停期（步骤组保持打开）。</summary>
     private bool _groupCompleted = true;
     /// <summary>当前正在填充的步骤链展示项。</summary>
@@ -36,6 +38,10 @@ public sealed class AgentSession : IDisposable
     public int TotalPromptTokens { get; private set; }
     public int TotalCompletionTokens { get; private set; }
     public int TotalTokens => TotalPromptTokens + TotalCompletionTokens;
+
+    /// <summary>本会话累计缓存命中/未命中 token（提供商/网关返回缓存统计时才有值）。</summary>
+    public int TotalCacheHitTokens { get; private set; }
+    public int TotalCacheMissTokens { get; private set; }
 
     /// <summary>流式文本增量。</summary>
     public event Action<string>? TextChunk;
@@ -102,6 +108,8 @@ public sealed class AgentSession : IDisposable
         {
             session.TotalPromptTokens = metaItem.PromptTokens;
             session.TotalCompletionTokens = metaItem.CompletionTokens;
+            session.TotalCacheHitTokens = metaItem.CacheHitTokens;
+            session.TotalCacheMissTokens = metaItem.CacheMissTokens;
         }
         session.EnsureSystemPrompt();
         return session;
@@ -168,7 +176,8 @@ public sealed class AgentSession : IDisposable
             _history.Clear();
             _history.AddRange(prepared);
 
-            _history.Add(new ChatMessage(ChatRole.User, userText));
+            // 当前时间追加在用户消息末尾（不放进系统提示词，避免前缀缓存失效）
+            _history.Add(new ChatMessage(ChatRole.User, AiAssistantService.WithCurrentTime(userText)));
 
             var cb = BuildCallbacks();
             await AgentRuntime.RunLoopAsync(_history, cb, ct);
@@ -262,6 +271,8 @@ public sealed class AgentSession : IDisposable
                 }
                 meta.PromptTokens = TotalPromptTokens;
                 meta.CompletionTokens = TotalCompletionTokens;
+                meta.CacheHitTokens = TotalCacheHitTokens;
+                meta.CacheMissTokens = TotalCacheMissTokens;
             }
             AiAssistantService.SaveConversationDisplay(Id, _displayItems);
             SaveSkills();
@@ -295,6 +306,8 @@ public sealed class AgentSession : IDisposable
                 _groupSteps.Clear();
                 _groupPromptTokens = 0;
                 _groupCompletionTokens = 0;
+                _groupCacheHitTokens = 0;
+                _groupCacheMissTokens = 0;
                 _groupTimer = System.Diagnostics.Stopwatch.StartNew();
             }
             RoundStarted?.Invoke();
@@ -327,6 +340,15 @@ public sealed class AgentSession : IDisposable
             _groupCompletionTokens += usage.CompletionTokens;
             TotalPromptTokens += usage.PromptTokens;
             TotalCompletionTokens += usage.CompletionTokens;
+            if (usage.CacheHitTokens is { } hit)
+            {
+                // 未命中数缺失时按 prompt = hit + miss 推算（DeepSeek/GLM 语义）
+                var miss = usage.CacheMissTokens ?? Math.Max(0, usage.PromptTokens - hit);
+                _groupCacheHitTokens += hit;
+                _groupCacheMissTokens += miss;
+                TotalCacheHitTokens += hit;
+                TotalCacheMissTokens += miss;
+            }
         },
         OnRoundCompleted = () => CompleteGroup(raise: true)
     };
@@ -350,6 +372,8 @@ public sealed class AgentSession : IDisposable
             Duration = _groupTimer?.Elapsed,
             PromptTokens = _groupPromptTokens,
             CompletionTokens = _groupCompletionTokens,
+            CacheHitTokens = _groupCacheHitTokens,
+            CacheMissTokens = _groupCacheMissTokens,
             ByTool = _groupSteps
                 .GroupBy(s => s.DisplayName)
                 .ToDictionary(g => g.Key, g => g.Count())

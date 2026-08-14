@@ -20,7 +20,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/about', name: 'about', component: pageLoaders.about },
   // 文档路由延续原官网 clean URL 格式：/guide/x、/tools/x、/tutorials/x、/dev/x
   { path: '/:cat(guide|tools|tutorials|dev)/:file?', name: 'docs', component: pageLoaders.docs },
-  { path: '/:pathMatch(.*)*', redirect: '/home' }
+  { path: '/:pathMatch(.*)*', redirect: '/' }
 ];
 
 const router = createRouter({

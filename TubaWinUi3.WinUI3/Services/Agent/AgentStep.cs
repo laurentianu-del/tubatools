@@ -83,6 +83,9 @@ public sealed class AgentStepGroupSummary
     public TimeSpan? Duration { get; init; }
     public int PromptTokens { get; init; }
     public int CompletionTokens { get; init; }
+    /// <summary>本组缓存命中 token（提供商/网关返回缓存统计时才有值）。</summary>
+    public int CacheHitTokens { get; init; }
+    public int CacheMissTokens { get; init; }
     public int TotalTokens => PromptTokens + CompletionTokens;
     public IReadOnlyDictionary<string, int> ByTool { get; init; } = new Dictionary<string, int>();
 
@@ -109,6 +112,13 @@ public sealed class AgentStepGroupSummary
 
         if (TotalTokens > 0)
             parts.Add($"消耗 {FormatTokens(TotalTokens)}");
+
+        if (CacheHitTokens > 0)
+        {
+            var total = CacheHitTokens + CacheMissTokens;
+            var pct = total > 0 ? (int)Math.Round(CacheHitTokens * 100.0 / total) : 100;
+            parts.Add($"缓存命中 {FormatTokens(CacheHitTokens)} ({pct}%)");
+        }
 
         return string.Join(" · ", parts);
     }

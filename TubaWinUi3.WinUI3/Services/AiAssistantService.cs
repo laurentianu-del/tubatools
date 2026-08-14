@@ -300,11 +300,18 @@ public sealed partial class AiAssistantService
         return sb.ToString();
     }
 
+    /// <summary>
+    /// 在用户消息末尾附加当前时间。时间放在请求最末（用户消息）而非系统提示词：
+    /// 系统提示词是最前缀，一旦包含分钟级变化的时间，每次发送都会重建提示词、
+    /// 导致服务端前缀缓存整段失效（全部历史按未命中价重付）。
+    /// </summary>
+    public static string WithCurrentTime(string userText)
+        => userText + $"\n\n（当前时间：{DateTime.Now:yyyy年M月d日 HH:mm}）";
+
     public static string BuildSystemInfoContext()
     {
         var sb = new StringBuilder();
         sb.AppendLine("## 系统基本信息");
-        sb.AppendLine($"当前时间：{DateTime.Now:yyyy年M月d日 HH:mm dddd}（涉及价格、时效信息一律以当前时间判断）");
         sb.AppendLine($"操作系统：{Environment.OSVersion.VersionString}");
         sb.AppendLine($"用户名：{Environment.UserName}");
         sb.AppendLine($"用户目录：{Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)}");
@@ -346,7 +353,7 @@ public sealed partial class AiAssistantService
             conversationHistory.Insert(0, AiChatMessage.System(systemContent));
         }
 
-        conversationHistory.Add(AiChatMessage.User(userMessage));
+        conversationHistory.Add(AiChatMessage.User(WithCurrentTime(userMessage)));
 
         await RunAgentLoop(conversationHistory, onTextChunk, onToolCall, onToolResult, onActions, onToolRecommendations, onError, ct, maxRounds: 30);
     }
@@ -540,7 +547,7 @@ public sealed partial class AiAssistantService
         return toolName switch
         {
             "get_hardware_info" => await Task.Run(ExecuteGetHardwareInfo, ct),
-            "get_system_info" => BuildSystemInfoContext(),
+            "get_system_info" => BuildSystemInfoContext() + $"\n（当前时间：{DateTime.Now:yyyy年M月d日 HH:mm}）",
             "list_programs" => await Task.Run(ExecuteListPrograms, ct),
             "disk_usage" => ExecuteDiskUsage(),
             "network_info" => await Task.Run(ExecuteNetworkInfo, ct),

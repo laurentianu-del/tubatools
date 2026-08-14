@@ -39,6 +39,68 @@ const MODEL_ROUTES = {
 
 const FALLBACK_CHAIN = ["opencode-free", "opencode", "nvidia"];
 
+// ==================== 缓存优化：会话指纹 / 响应缓存键 / 粘性排序 ====================
+// 目标：让上游（DeepSeek 官方等）的前缀缓存能跨轮命中 —— 前提是同一会话的请求
+// 字节级稳定且始终发往同一上游。以下均为纯函数（node --test 可单测）。
+
+function messageContentKey(m) {
+	return typeof m.content === "string" ? m.content : JSON.stringify(m.content ?? "");
+}
+
+/// 会话指纹输入：只取稳定前缀（model + 首条消息 + 工具定义）。
+/// 首条消息是系统提示词（应用侧已做去易变化），工具定义在会话内固定 ——
+/// 多轮请求的指纹一致 → 同一会话钉在同一上游；不同会话（系统提示词不同）指纹不同。
+export function conversationFingerprintInput(route, body) {
+	const first = body.messages?.[0];
+	const firstPart = first ? `${first.role}:${messageContentKey(first)}` : "";
+	const toolsPart = JSON.stringify(body.tools || []);
+	return [route.model, firstPart, toolsPart].join("\n---\n");
+}
+
+/// 完整请求缓存键（响应缓存用）：model + 全部消息 + 参数，任何差异都算不同请求。
+export function requestCacheKey(route, body) {
+	const msgs = (body.messages || []).map((m) => {
+		let k = `${m.role}|${messageContentKey(m)}`;
+		if (m.tool_call_id) k += `|tc:${m.tool_call_id}`;
+		if (m.name) k += `|n:${m.name}`;
+		if (m.tool_calls) k += `|calls:${JSON.stringify(m.tool_calls)}`;
+		return k;
+	});
+	return [
+		route.model,
+		JSON.stringify(msgs),
+		JSON.stringify(body.tools || []),
+		body.temperature ?? "",
+		body.max_tokens ?? "",
+		body.stream ?? false,
+	].join("\n---\n");
+}
+
+/// 粘性排序：把上一轮成功服务的上游提到最前；无粘性或粘性上游不在链上时保持原链。
+export function orderProviders(sticky, providers) {
+	if (!sticky || !providers.includes(sticky)) return providers;
+	return [sticky, ...providers.filter((p) => p !== sticky)];
+}
+
+/// 把 DeepSeek 系的自定义缓存字段规范化为 OpenAI 标准 prompt_tokens_details.cached_tokens。
+/// OpenAI SDK 只认标准字段（InputTokenDetails.CachedTokenCount），不规范化则应用侧
+/// 流式路径拿不到缓存命中数。
+function normalizeUsage(usage) {
+	if (!usage || typeof usage !== "object") return usage;
+	const hit = usage.prompt_cache_hit_tokens;
+	if (typeof hit === "number" && hit > 0) {
+		return { ...usage, prompt_tokens_details: { cached_tokens: hit } };
+	}
+	return usage;
+}
+
+/// 从 usage 提取缓存命中 token（DeepSeek 系字段；标准字段在 prompt_tokens_details.cached_tokens）。
+function usageCacheHit(usage) {
+	if (!usage) return 0;
+	if (typeof usage.prompt_cache_hit_tokens === "number") return usage.prompt_cache_hit_tokens;
+	return usage.prompt_tokens_details?.cached_tokens || 0;
+}
+
 // ==================== 限流与每日配额 ====================
 // 层级：
 //   1) 分钟级限速 —— 优先用 Cloudflare 原生 RATE_LIMITER binding（免费计划可用），
@@ -161,15 +223,19 @@ async function checkQuota(env, uid, limits) {
 	};
 }
 
-// 请求成功（或流式结束）后记账：请求数 +1、token 累加
-async function recordUsage(ctx, tokens) {
+// 请求成功（或流式结束）后记账：请求数 +1、token 累加、缓存命中 token 单独统计
+async function recordUsage(ctx, tokens, cacheHitTokens = 0) {
 	if (!ctx || !ctx.quotaKey || !ctx.env.QUOTA) return;
 	try {
 		const raw = await ctx.env.QUOTA.get(ctx.quotaKey);
 		const cur = raw ? JSON.parse(raw) : { req: 0, tok: 0 };
 		await ctx.env.QUOTA.put(
 			ctx.quotaKey,
-			JSON.stringify({ req: cur.req + 1, tok: cur.tok + (tokens || 0) }),
+			JSON.stringify({
+				req: cur.req + 1,
+				tok: cur.tok + (tokens || 0),
+				hit: (cur.hit || 0) + (cacheHitTokens || 0),
+			}),
 			{ expirationTtl: KV_QUOTA_TTL }
 		);
 	} catch {
@@ -389,7 +455,7 @@ function rewriteNonStreamResponse(result, displayModel) {
 			message: msg,
 			finish_reason: choice.finish_reason || "stop",
 		}],
-		usage: result.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+		usage: normalizeUsage(result.usage) || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
 	};
 }
 
@@ -411,6 +477,7 @@ function handleUpstreamStream(upstream, displayModel, ctx) {
 
 			let accChars = 0; // 累计输出字符数，用于流式时估算 token
 			let finalUsage = null; // 上游若在流尾返回 usage，则优先用它记账
+			let finalUsageCacheHit = 0; // 缓存命中 token（单独记账，便于查看省钱效果）
 
 			try {
 				const reader = upstream.body.getReader();
@@ -433,7 +500,10 @@ function handleUpstreamStream(upstream, displayModel, ctx) {
 
 						try {
 							const parsed = JSON.parse(dataStr);
-							if (parsed.usage) finalUsage = parsed.usage;
+							if (parsed.usage) {
+								finalUsage = parsed.usage;
+								finalUsageCacheHit = usageCacheHit(parsed.usage);
+							}
 							const choice = parsed.choices?.[0];
 							if (!choice) continue;
 
@@ -469,20 +539,20 @@ function handleUpstreamStream(upstream, displayModel, ctx) {
 				}
 			} catch {
 				// stream error
-			} finally {
-				// 流结束（含客户端中断）后记账：有 usage 用 usage，否则按字符数估算
-				const u = finalUsage;
-				const tokens = u
-					? (u.prompt_tokens || 0) + (u.completion_tokens || 0)
-					: Math.ceil(accChars / 4);
-				await recordUsage(ctx, tokens);
-			}
+				} finally {
+					// 流结束（含客户端中断）后记账：有 usage 用 usage，否则按字符数估算
+					const u = finalUsage;
+					const tokens = u
+						? (u.prompt_tokens || 0) + (u.completion_tokens || 0)
+						: Math.ceil(accChars / 4);
+					await recordUsage(ctx, tokens, finalUsageCacheHit);
+				}
 
-			sendSSE({
-				id, object: "chat.completion.chunk", created, model: displayModel,
-				choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
-				...(finalUsage ? { usage: finalUsage } : {}),
-			});
+				sendSSE({
+					id, object: "chat.completion.chunk", created, model: displayModel,
+					choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+					...(finalUsage ? { usage: normalizeUsage(finalUsage) } : {}),
+				});
 			controller.enqueue(encoder.encode("data: [DONE]\n\n"));
 			controller.close();
 		},
@@ -551,21 +621,67 @@ async function handleChatCompletions(request, env) {
 	const displayModel = body.model || "auto";
 	const route = resolveRoute(displayModel);
 
-	const providers = [route.provider, ...FALLBACK_CHAIN.filter((p) => p !== route.provider)];
+	// ---- 会话粘性路由（缓存优化）----
+	// 同一会话（稳定前缀指纹）的多轮请求钉在同一上游：避免中途换上游导致
+	// 新上游把会话当作全新对话、前缀缓存全部失效；也保证多轮行为一致。
+	// STICKY_ROUTING=0 关闭；粘性键存 KV（复用 QUOTA 命名空间），TTL 默认 30 分钟。
+	const stickyEnabled = env.STICKY_ROUTING !== "0" && env.STICKY_ROUTING !== "false";
+	const stickyTtl = numOr(env.STICKY_TTL, 1800);
+	let stickyKey = null;
+	if (stickyEnabled && env.QUOTA) {
+		stickyKey = "sticky:" + (await sha256Hex(conversationFingerprintInput(route, body)));
+	}
+	let sticky = null;
+	if (stickyKey) {
+		try {
+			sticky = (await env.QUOTA.get(stickyKey)) || null;
+		} catch {
+			sticky = null;
+		}
+	}
+
+	// ---- 非流式响应缓存（可选，默认关）----
+	// RESPONSE_CACHE_TTL>0 时，完全相同的非流式请求（如 TestConnection、
+	// 取消后原样重发同一条消息）直接由 KV 返回，省一次上游调用。
+	// 多轮 agent 请求体每次都不同，命中面有限，按需开启。
+	const respCacheTtl = numOr(env.RESPONSE_CACHE_TTL, 0);
+	let fullHash = null;
+	if (!body.stream && respCacheTtl > 0 && env.QUOTA) {
+		fullHash = "resp:" + (await sha256Hex(requestCacheKey(route, body)));
+		try {
+			const cached = await env.QUOTA.get(fullHash);
+			if (cached) {
+				return jsonResponse(JSON.parse(cached), 200, { ...ctx.rateHeaders, "X-Cache": "HIT" });
+			}
+		} catch {
+			// 缓存读取失败按未命中处理
+		}
+	}
+
+	const providers = orderProviders(sticky, [route.provider, ...FALLBACK_CHAIN.filter((p) => p !== route.provider)]);
 
 	for (const provider of providers) {
 		const currentRoute = provider === route.provider ? route : getFallbackRoute(provider);
 		try {
 			const resp = await callProvider(env, provider, currentRoute, body, displayModel, ctx);
 
-			// 非流式：拿到响应后按 usage 记账（克隆响应，不影响返回给客户端）
+			// 成功即把该会话钉到当前上游（仅当发生变化时写，避免无谓 KV 写）
+			if (stickyKey && provider !== sticky) {
+				env.QUOTA.put(stickyKey, provider, { expirationTtl: stickyTtl }).catch(() => {});
+				sticky = provider;
+			}
+
+			// 非流式：拿到响应后按 usage 记账（克隆响应，不影响返回给客户端）+ 可选响应缓存
 			if (!body.stream && ctx.quotaKey) {
 				resp.clone()
 					.json()
 					.then((data) => {
 						const u = data?.usage;
 						const tokens = u ? (u.prompt_tokens || 0) + (u.completion_tokens || 0) : 0;
-						return recordUsage(ctx, tokens);
+						recordUsage(ctx, tokens, usageCacheHit(u));
+						if (fullHash) {
+							env.QUOTA.put(fullHash, JSON.stringify(data), { expirationTtl: respCacheTtl }).catch(() => {});
+						}
 					})
 					.catch(() => {});
 			}
@@ -667,13 +783,26 @@ export default {
 					identity: "Bearer API key (SHA-256) or client IP",
 					binding: "RATE_LIMITER (optional, native) / QUOTA KV (required for daily quota)",
 				},
+				caching: {
+					sticky_routing: "STICKY_ROUTING (default on): keep a conversation on one upstream so upstream prefix-cache hits across rounds",
+					sticky_ttl: "STICKY_TTL (default 1800s)",
+					response_cache: "RESPONSE_CACHE_TTL (default 0=off): KV cache for byte-identical non-stream requests",
+					usage_normalization: "maps prompt_cache_hit_tokens -> prompt_tokens_details.cached_tokens for OpenAI SDK compat",
+					cache_stats: "GET /v1/admin/usage reports daily cache-hit tokens (hit field)",
+				},
 				endpoints: {
 					"POST /v1/chat/completions": "Chat completions (streaming + reasoning + tool_calls, rate-limited)",
 					"GET /v1/models": "List available models",
 					"GET /v1/admin/usage": "Daily usage per user (requires ADMIN_KEY)",
 				},
 				env_required: ["NVIDIA_API_KEY"],
-				env_optional: ["OPENCODE_API_KEY (defaults to the built-in key)", "RATE_LIMIT_PER_MINUTE", "DAILY_REQUESTS", "DAILY_TOKENS", "ADMIN_KEY"],
+				env_optional: [
+					"OPENCODE_API_KEY (defaults to the built-in key)",
+					"RATE_LIMIT_PER_MINUTE", "DAILY_REQUESTS", "DAILY_TOKENS", "ADMIN_KEY",
+					"STICKY_ROUTING (0 to disable conversation sticky routing)",
+					"STICKY_TTL (sticky key TTL in seconds, default 1800)",
+					"RESPONSE_CACHE_TTL (non-stream exact-match response cache TTL, 0=off)",
+				],
 				bindings_required: ["QUOTA (KV namespace, needed for daily quota)"],
 				bindings_optional: ["RATE_LIMITER (native rate limit binding; falls back to in-memory)"],
 				note: "Fallback chain: opencode-free (zen/v1) → opencode (zen/go/v1) → nvidia. Rate limit: native binding or in-memory per minute; daily quota: KV counters per user.",

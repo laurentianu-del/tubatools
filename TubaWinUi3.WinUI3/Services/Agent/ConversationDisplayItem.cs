@@ -27,6 +27,9 @@ public sealed class ConversationDisplayItem
     public double? DurationSeconds { get; set; }
     public int PromptTokens { get; set; }
     public int CompletionTokens { get; set; }
+    /// <summary>meta 条目：会话级累计缓存命中/未命中 token（用于恢复展示）。</summary>
+    public int CacheHitTokens { get; set; }
+    public int CacheMissTokens { get; set; }
 }
 
 /// <summary>单个 Agent 步骤的持久化快照（历史恢复时重建步骤链行）。</summary>

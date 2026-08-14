@@ -44,9 +44,9 @@ public class AgentSessionSkillPromptTests
         Assert.True(skillsIdx < indexIdx,
             $"技能段位置异常：skills@{skillsIdx} index@{indexIdx}\n系统提示词开头：\n{system[..Math.Min(600, system.Length)]}");
 
-        // 系统上下文含当前时间（AI 需要知道现在的年月，避免用过时价格/知识）
-        Assert.Contains(DateTime.Now.Year.ToString(), system);
-        Assert.Contains("当前时间：", system);
+        // 缓存优化：系统提示词不得含当前时间（分钟级变化会导致服务端前缀缓存整段失效；
+        // 时间已改为追加到用户消息末尾，由 AiAssistantService.WithCurrentTime 负责）
+        Assert.DoesNotContain("当前时间", system);
         session.Dispose();
     }
 

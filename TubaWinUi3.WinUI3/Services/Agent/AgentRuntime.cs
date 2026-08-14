@@ -40,6 +40,10 @@ public sealed class AgentUsage
 {
     public int PromptTokens { get; init; }
     public int CompletionTokens { get; init; }
+    /// <summary>缓存命中 token。流式经 OpenAI SDK 时仅当上游返回标准
+    /// prompt_tokens_details.cached_tokens（网关已做规范化）才有值；直连 DeepSeek 时为 null。</summary>
+    public int? CacheHitTokens { get; init; }
+    public int? CacheMissTokens { get; init; }
     public int TotalTokens => PromptTokens + CompletionTokens;
 }
 
@@ -127,7 +131,8 @@ public static class AgentRuntime
                             usage = new AgentUsage
                             {
                                 PromptTokens = tokenUsage.InputTokenCount,
-                                CompletionTokens = tokenUsage.OutputTokenCount
+                                CompletionTokens = tokenUsage.OutputTokenCount,
+                                CacheHitTokens = tokenUsage.InputTokenDetails?.CachedTokenCount
                             };
                         }
                     }
