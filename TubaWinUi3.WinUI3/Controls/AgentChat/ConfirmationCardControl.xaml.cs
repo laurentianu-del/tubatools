@@ -28,6 +28,9 @@ public sealed class ConfirmationItemVm : ObservableObject
     public Visibility HasDetailVisibility => HasDetail ? Visibility.Visible : Visibility.Collapsed;
     public string ReasonText => string.IsNullOrWhiteSpace(_request.Reason) ? "" : $"理由：{_request.Reason}";
 
+    /// <summary>确认按钮文案：登录等待类操作提示用户登录完成后继续。</summary>
+    public string ConfirmButtonText => _request.Kind == "login" ? "我已登录，继续" : "确认";
+
     public bool IsResolved
     {
         get => _resolved;

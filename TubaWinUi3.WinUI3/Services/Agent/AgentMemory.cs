@@ -62,7 +62,12 @@ public static class AgentMemory
         int budgetTokens = DefaultHistoryBudgetTokens,
         CancellationToken ct = default)
     {
-        if (history.Count <= 1) return history;
+        if (history.Count <= 1)
+        {
+            // 必须返回副本：调用方随后会 Clear 原列表，
+            // 若返回同一引用会导致 system 消息被连带清空（历史只剩 user）。
+            return history.ToList();
+        }
 
         var system = history[0];
         var rest = history.Skip(1).ToList();

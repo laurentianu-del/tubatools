@@ -200,10 +200,20 @@ public static class AgentRuntime
                     continue;
                 }
 
+                // 技能强制触发：禁用 web_search（价格必须来自浏览器，搜索不是可购买的真实价格）
+                if (call.Name == "web_search" && AgentToolContext.Current?.IsSkillTriggerActive == true)
+                {
+                    AgentDebugLog.Info($"技能触发中，禁用 web_search（call {call.Id}）");
+                    toolResults.Add(new ChatMessage(ChatRole.Tool,
+                        [new FunctionResultContent(callId: call.Id, result: "web_search 已被禁用：当前任务触发了「电脑选购」技能，要求用浏览器查询京东实时价格（搜索返回的不是可购买的真实价格）。请改用浏览器工具：browser_navigate 打开 https://search.jd.com/Search?keyword=商品名（URL 编码），再用 browser_get_page / browser_run_js 提取价格。")]));
+                    continue;
+                }
+
                 var step = CreateStep(tool, call.Id, call.Args);
 
-                // 完全访问模式：跳过所有确认（命令/注册表/计划直接执行）
-                if (!AgentToolContext.IsFullAccess && (tool.IsPlanTool || tool.RequiresConfirmation))
+                // 需要确认：AlwaysConfirm（必须用户亲手参与，如等待登录）不受完全访问模式豁免；
+                // 其余危险/计划工具在非完全访问模式下暂停
+                if (tool.AlwaysConfirm || (!AgentToolContext.IsFullAccess && (tool.IsPlanTool || tool.RequiresConfirmation)))
                 {
                     AgentDebugLog.Info($"工具 {tool.Name} 需确认，暂停循环");
                     step.Status = AgentStepStatus.AwaitingConfirmation;
@@ -464,6 +474,7 @@ public static class AgentRuntime
             "read_memory" => "读取会话记忆",
             "write_memory" => "更新会话记忆",
             "clear_memory" => "清空会话记忆",
+            "browser_wait_for_login" => Arg(args, "site", "等待登录"),
             _ => ""
         };
 

@@ -45,7 +45,7 @@
                                 <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
                                     <Button Content="拒绝" FontSize="12" Padding="12,4" CornerRadius="6"
                                             Click="Reject_Click" Tag="{Binding Index}" />
-                                    <Button Content="确认" FontSize="12" Padding="12,4" CornerRadius="6"
+                                    <Button Content="{Binding ConfirmButtonText}" FontSize="12" Padding="12,4" CornerRadius="6"
                                             Style="{StaticResource AccentButtonStyle}"
                                             Click="Confirm_Click" Tag="{Binding Index}" />
                                 </StackPanel>

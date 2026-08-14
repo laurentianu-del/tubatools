@@ -8,6 +8,13 @@
     mc:Ignorable="d"
     Loaded="OnPageLoaded">
 
+    <UserControl.Resources>
+        <!-- 技能开关菜单：勾选/取消的技能随会话保存，下一条消息生效 -->
+        <Flyout x:Key="SkillsFlyout">
+            <StackPanel x:Name="SkillsPanel" Width="300" Spacing="4" Padding="4" />
+        </Flyout>
+    </UserControl.Resources>
+
     <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -65,6 +72,13 @@
                                   FontSize="12" VerticalAlignment="Center"
                                   ToolTipService.ToolTip="完全访问模式：AI 可直接执行命令、修改注册表等危险操作，无需逐项确认（谨慎使用）"
                                   Toggled="FullAccessToggle_Toggled" />
+                    <Button x:Name="SkillsButton" Padding="12,7" CornerRadius="8" Click="SkillsButton_Click"
+                            ToolTipService.ToolTip="已加载的技能（可随时开关，下一条消息生效）">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE7C0;" FontSize="12" />
+                            <TextBlock Text="技能" FontSize="12" />
+                        </StackPanel>
+                    </Button>
                     <Button x:Name="NewChatButton" Padding="12,7" CornerRadius="8" Click="NewChatButton_Click">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE710;" FontSize="12" />

@@ -25,6 +25,12 @@ public sealed class AgentTool
     /// <summary>危险操作：调用后暂停循环，弹出确认卡片，用户确认后才真正执行。</summary>
     public bool RequiresConfirmation { get; init; }
 
+    /// <summary>
+    /// 始终暂停等用户确认（即使完全访问模式也跳过确认直接执行）。
+    /// 用于必须用户亲手参与的操作（如等待用户在浏览器中完成登录）。
+    /// </summary>
+    public bool AlwaysConfirm { get; init; }
+
     /// <summary>计划工具（create_plan）：确认卡片展示分步计划。</summary>
     public bool IsPlanTool { get; init; }
 

@@ -23,6 +23,8 @@ public static class BrowserAgentTool
         Add("browser_get_text", "读取正文", "\uE8D3", (Func<CancellationToken, Task<string>>)GetTextAsync);
         Add("browser_back", "后退", "\uE72B", (Func<CancellationToken, Task<string>>)BackAsync);
         Add("browser_close", "关闭浏览器", "\uE711", (Func<CancellationToken, Task<string>>)CloseAsync);
+        Add("browser_wait_for_login", "等待登录", "\uE72E", (Func<string, string, CancellationToken, Task<string>>)WaitForLoginAsync,
+            alwaysConfirm: true, defaultReason: "需要你在浏览器窗口中完成登录后继续");
     }
 
     [Description("打开真实的浏览器窗口（WebView2）。需要操作网页/表单/下载/登录时先调用它，之后用 browser_get_page 读取页面元素")]
@@ -122,14 +124,61 @@ public static class BrowserAgentTool
         return await BrowserAutomationService.CloseAsync();
     }
 
-    private static void Add(string name, string displayName, string glyph, Delegate method)
+    [Description("等待用户完成登录：页面处于登录拦截（跳转到 passport.jd.com 等登录地址、出现登录弹窗或「请登录」提示）时调用。系统会暂停并提示用户在浏览器窗口完成登录，用户点击「我已登录，继续」后，本工具会直接验证页面能否查到信息（登录是否真正生效）。site 填站点名（如 京东），reason 说明为什么需要登录")]
+    public static async Task<string> WaitForLoginAsync(string site, string reason, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        if (!BrowserAutomationService.IsOpen)
+            return "错误：浏览器未打开（请先调用 browser_open 或 browser_get_page）";
+        if (string.IsNullOrWhiteSpace(site)) site = "该网站";
+
+        // 用户已点击「我已登录，继续」：不再依赖 cookie 检测（京东登录 cookie 是 HttpOnly，
+        // document.cookie 读不到），直接验证登录是否真正生效——页面能否查到信息。
+        var url = await BrowserAutomationService.RunJsAsync("location.href");
+        if (BrowserLoginDetector.IsLoginWall(url))
+            return $"仍在 {site} 登录页：请确认已在浏览器窗口完成登录（登录成功后页面会自动跳转），然后再次点击「我已登录，继续」。";
+
+        // 京东场景：先验证当前页能否提取到商品，再导航到京东搜索页验证
+        var isJd = site.Contains("京东") || site.Contains("jd", StringComparison.OrdinalIgnoreCase)
+                   || url.Contains("jd.com", StringComparison.OrdinalIgnoreCase);
+        if (!isJd)
+        {
+            // 其他站点：非登录墙即视为可继续（尽力而为）
+            return $"已确认 {site} 不在登录拦截状态，可以继续执行。";
+        }
+
+        var countText = await BrowserAutomationService.RunJsAsync("Array.from(document.querySelectorAll('.gl-item')).length");
+        if (!int.TryParse(countText, out var count) || count <= 0)
+        {
+            // 当前页无商品数据 → 导航到京东搜索页做权威验证
+            var nav = await BrowserAutomationService.NavigateAsync("https://search.jd.com/Search?keyword=CPU");
+            if (nav != "OK")
+                return $"登录验证失败（导航京东搜索页失败：{nav}），请检查浏览器窗口后重试。";
+            countText = await BrowserAutomationService.RunJsAsync("Array.from(document.querySelectorAll('.gl-item')).length");
+            int.TryParse(countText, out count);
+        }
+
+        if (count > 0)
+            return $"已确认 {site} 登录成功：页面可正常查询商品信息（提取到 {count} 个商品），可以继续查价。";
+
+        var afterUrl = await BrowserAutomationService.RunJsAsync("location.href");
+        if (BrowserLoginDetector.IsLoginWall(afterUrl))
+            return $"导航后仍跳转到 {site} 登录页：登录可能未完成，请再次确认浏览器窗口中的登录状态后点击「我已登录，继续」。";
+        return $"未能确认 {site} 页面可正常查询（可能触发风控或暂时无结果），请检查浏览器窗口后重试，或改用其他方式获取信息。";
+    }
+
+    private static void Add(string name, string displayName, string glyph, Delegate method,
+        bool alwaysConfirm = false, string? defaultReason = null)
     {
         AgentToolRegistry.Register(new AgentTool
         {
             Name = name,
             DisplayName = displayName,
             Glyph = glyph,
-            Function = AIFunctionFactory.Create(method, new AIFunctionFactoryOptions { Name = name })
+            Function = AIFunctionFactory.Create(method, new AIFunctionFactoryOptions { Name = name }),
+            AlwaysConfirm = alwaysConfirm,
+            ConfirmKind = alwaysConfirm ? "login" : null,
+            DefaultReason = defaultReason
         });
     }
 }

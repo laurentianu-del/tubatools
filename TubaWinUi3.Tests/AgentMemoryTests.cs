@@ -78,6 +78,27 @@ public class AgentMemoryTests
     }
 
     [Fact]
+    public async Task PrepareHistoryAsync_SingleMessage_ReturnsCopyNotSameReference()
+    {
+        // 回归测试：历史上仅 1 条（如新会话只有 system）时，
+        // 返回值必须是独立副本——调用方会 Clear 原列表，
+        // 若返回同一引用会把 system 连带清空（曾导致模型收不到 system）。
+        var fake = new FakeChatClient();
+        var history = new List<ChatMessage> { new(ChatRole.System, "sys") };
+
+        var result = await AgentMemory.PrepareHistoryAsync(fake, history, budgetTokens: 6000);
+
+        Assert.NotSame(history, result);
+        Assert.Single(result);
+        Assert.Equal(ChatRole.System, result[0].Role);
+
+        // 模拟调用方行为：Clear 原列表后 result 必须不受影响
+        history.Clear();
+        Assert.Single(result);
+        Assert.Equal("sys", result[0].Text);
+    }
+
+    [Fact]
     public async Task PrepareHistoryAsync_OverBudget_SummarizesOldestRound()
     {
         var fake = new FakeChatClient();

@@ -30,6 +30,7 @@ public partial class App : Application
         
         BuiltinToolRegistry.RegisterDefaults();
         AgentToolRegistry.RegisterDefaults();
+        AgentSkillRegistry.RegisterDefaults();
 
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
