@@ -28,6 +28,9 @@ export default {
   "home.hero.why-choose": "为什么选择 WinUI3？",
   "home.hero.license": "本项目基于 GPL-3.0 协议开源，允许自由分发。修改版须开源，禁止捆绑恶意软件。",
   "home.hero.license-link": "查看声明",
+  "home.hero.store-tip": "如果你害怕下载到病毒可以到",
+  "home.hero.store-name": "微软应用商店",
+  "home.hero.store-tip-end": "下载",
 
   "home.features.title": "为电脑爱好者而生",
   "home.features.subtitle": "一站式解决硬件检测、系统维护与性能测试需求",
@@ -79,6 +82,7 @@ export default {
   "download.store-desc": "通过官方 Microsoft Store 下载安装，自动更新",
   "download.gitcode": "GitCode",
   "download.gitcode-badge": "国内推荐",
+  "download.now": "立即下载",
   "download.github": "GitHub",
   "download.mirror": "镜像",
   "download.cloud": "网盘下载",

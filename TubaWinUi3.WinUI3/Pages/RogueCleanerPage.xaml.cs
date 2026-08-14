@@ -31,6 +31,7 @@ public sealed partial class RogueCleanerPage : Page
     private bool _suppressRender;
     private bool _hasScanned;
     private bool _startupAllMode;
+    private bool _findingsAllMode;
     private Finding? _flyoutFinding;
 
     // 软件图标缓存（原版结果行展示软件图标）
@@ -46,6 +47,7 @@ public sealed partial class RogueCleanerPage : Page
     // 右键菜单管理
     private string _cmMode = "basic";
     private string _cmSubModule = "";
+    private bool _cmAllMode;
     private List<ContextMenuEntry> _cmEntries = [];
     private List<SpecialMenuEntry> _specialEntries = [];
     private List<AdvancedMenuEntry> _advancedEntries = [];
@@ -97,24 +99,21 @@ public sealed partial class RogueCleanerPage : Page
         if (scanPanel)
         {
             _filter = tag;
+            _findingsAllMode = false;
             RenderFindings();
         }
     }
 
     private List<Finding> FilteredFindings()
     {
+        if (_findingsAllMode) return _allFindings;
         if (_filter == "startup")
         {
-            return _allFindings.Where(f => (f.Category ?? "").IndexOf("启动", StringComparison.OrdinalIgnoreCase) >= 0
-                || (f.Category ?? "").IndexOf("计划任务", StringComparison.OrdinalIgnoreCase) >= 0
-                || (f.Category ?? "").IndexOf("后台服务", StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+            return _allFindings.Where(RogueCleanerViewFilters.MatchesStartupTab).ToList();
         }
         if (_filter == "popup")
         {
-            return _allFindings.Where(f => (f.Category ?? "").IndexOf("正在运行", StringComparison.OrdinalIgnoreCase) >= 0
-                || (f.Category ?? "").IndexOf("弹窗", StringComparison.OrdinalIgnoreCase) >= 0
-                || (f.Category ?? "").IndexOf("守护", StringComparison.OrdinalIgnoreCase) >= 0
-                || (f.Category ?? "").IndexOf("捆绑", StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+            return _allFindings.Where(RogueCleanerViewFilters.MatchesPopupTab).ToList();
         }
         return _allFindings;
     }
@@ -134,6 +133,7 @@ public sealed partial class RogueCleanerPage : Page
         }
         _cts = new CancellationTokenSource();
         _startupAllMode = false;
+        _findingsAllMode = false;
         StartupAllList.Visibility = Visibility.Collapsed;
         BackToFindingsBtn.Visibility = Visibility.Collapsed;
         _allFindings = [];
@@ -302,6 +302,13 @@ public sealed partial class RogueCleanerPage : Page
         RenderFindings();
     }
 
+    // 列表底部「展示全部」：显示被当前 tab 筛选器隐藏的其他分类（与总览一致），再点一次回到筛选结果
+    private void FindingsToggle_Click(object sender, RoutedEventArgs e)
+    {
+        _findingsAllMode = !_findingsAllMode;
+        RenderFindings();
+    }
+
     private async void Clean_Click(object sender, RoutedEventArgs e)
     {
         var selected = FilteredFindings().Where(f => f.Selected && f.CanClean).ToList();
@@ -439,7 +446,7 @@ public sealed partial class RogueCleanerPage : Page
             {
                 ResultsList.ItemsSource = null;
                 ResultsList.ItemsSource = list;
-                FilterTitle.Text = _filter switch
+                FilterTitle.Text = _findingsAllMode ? "全部发现" : _filter switch
                 {
                     "startup" => "开机启动相关",
                     "popup" => "弹窗与守护进程诊断",
@@ -463,6 +470,10 @@ public sealed partial class RogueCleanerPage : Page
                 {
                     EmptyText.Text = "正在扫描…";
                 }
+                else if (_findingsAllMode)
+                {
+                    EmptyText.Text = "扫描完成，未发现可疑项。";
+                }
                 else if (_filter == "startup")
                 {
                     EmptyText.Text = "扫描完成，未发现可疑启动项。\n可点击上方「查看全部启动项（只读）」核对全部开机启动项。";
@@ -480,6 +491,7 @@ public sealed partial class RogueCleanerPage : Page
             {
                 EmptyPanel.Visibility = Visibility.Collapsed;
             }
+            UpdateFindingsFooter();
         }
         finally
         {
@@ -493,6 +505,32 @@ public sealed partial class RogueCleanerPage : Page
         else
         {
             RenderDetail(ResultsList.SelectedItem as Finding);
+        }
+    }
+
+    // 列表底部「展示全部」的提示与切换按钮；总览 tab 已显示全部，不显示
+    private void UpdateFindingsFooter()
+    {
+        if (_filter is not ("startup" or "popup"))
+        {
+            FindingsFooter.Visibility = Visibility.Collapsed;
+            return;
+        }
+        int filtered = _allFindings.Count(_filter == "startup"
+            ? RogueCleanerViewFilters.MatchesStartupTab
+            : RogueCleanerViewFilters.MatchesPopupTab);
+        int hidden = _allFindings.Count - filtered;
+        if (_findingsAllMode)
+        {
+            FindingsHiddenHint.Text = "已显示全部 " + _allFindings.Count + " 项";
+            FindingsToggleBtn.Content = "仅显示筛选结果";
+            FindingsFooter.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            FindingsHiddenHint.Text = "另有 " + hidden + " 项被当前筛选器隐藏";
+            FindingsToggleBtn.Content = "展示全部 " + _allFindings.Count + " 项";
+            FindingsFooter.Visibility = hidden > 0 ? Visibility.Visible : Visibility.Collapsed;
         }
     }
 
@@ -960,6 +998,7 @@ public sealed partial class RogueCleanerPage : Page
                     }
                     _cmInventory = t.Result;
                     _cmEntries = _cmInventory.Entries;
+                    _cmAllMode = false;
                     foreach (ContextMenuEntry entry in _cmInventory.Entries)
                     {
                         entry.SoftwareIcon = null;
@@ -978,8 +1017,8 @@ public sealed partial class RogueCleanerPage : Page
     private void ApplyCmFilter()
     {
         if (_cmInventory == null) return;
-        // 显示：已识别的第三方菜单 + 用户自己添加的菜单（UserAdded 标记）
-        _visibleCmEntries = _cmInventory.Entries.Where(e => !e.AdvancedOnly && e.PresentationResolved && (e.IsThirdParty || e.UserAdded)).ToList();
+        // 显示：已识别的第三方菜单 + 用户自己添加的菜单（UserAdded 标记）；「展示全部」时含系统内置与未识别项
+        _visibleCmEntries = _cmInventory.Entries.Where(e => _cmAllMode || RogueCleanerViewFilters.MatchesMainMenuList(e)).ToList();
         int resolved = _cmInventory.Entries.Count(e => !e.AdvancedOnly && e.PresentationResolved);
         int visible = _visibleCmEntries.Count;
         int enabled = _visibleCmEntries.Count(e => e.Enabled);
@@ -995,6 +1034,33 @@ public sealed partial class RogueCleanerPage : Page
         if (_visibleCmEntries.Count == 0) CmEmptyText.Text = "没有找到已识别的第三方右键菜单。";
         UpdateCmActions();
         ShowCmDetails();
+        UpdateCmFooter();
+    }
+
+    // 列表底部「展示全部」的提示与切换按钮
+    private void UpdateCmFooter()
+    {
+        if (_cmInventory == null) return;
+        int filtered = _cmInventory.Entries.Count(RogueCleanerViewFilters.MatchesMainMenuList);
+        int hidden = _cmInventory.Entries.Count - filtered;
+        if (_cmAllMode)
+        {
+            CmHiddenHint.Text = "已显示全部 " + _cmInventory.Entries.Count + " 项（含系统内置与未识别项）";
+            CmToggleBtn.Content = "仅显示第三方菜单";
+            CmFooter.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            CmHiddenHint.Text = "另有 " + hidden + " 项被隐藏（系统内置 / 未识别 / 技术记录）";
+            CmToggleBtn.Content = "展示全部 " + _cmInventory.Entries.Count + " 项";
+            CmFooter.Visibility = hidden > 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
+    private void CmToggle_Click(object sender, RoutedEventArgs e)
+    {
+        _cmAllMode = !_cmAllMode;
+        ApplyCmFilter();
     }
 
     private void CmList_SelectionChanged(object sender, SelectionChangedEventArgs e) => ShowCmDetails();
@@ -1024,7 +1090,8 @@ public sealed partial class RogueCleanerPage : Page
         CmEditBtn.IsEnabled = entry != null && !entry.ReadOnly
             && !string.Equals(entry.Type, "Shell 扩展", StringComparison.OrdinalIgnoreCase)
             && !string.Equals(entry.Type, "现代右键扩展", StringComparison.OrdinalIgnoreCase);
-        CmDeleteBtn.IsEnabled = entry != null && !string.Equals(entry.Type, "现代右键扩展", StringComparison.OrdinalIgnoreCase);
+        CmDeleteBtn.IsEnabled = entry != null && !entry.ReadOnly
+            && !string.Equals(entry.Type, "现代右键扩展", StringComparison.OrdinalIgnoreCase);
         CmCopyBtn.IsEnabled = entry != null;
         CmLocationBtn.IsEnabled = entry != null;
     }

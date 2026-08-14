@@ -24,6 +24,8 @@ public sealed class BuiltinToolWindow
     {
         _window = new Window();
         _frame = new Frame { CacheSize = 10 };
+        // 与其它独立窗口一致：跟随应用主题设置（跟随系统时为 Default）
+        _frame.RequestedTheme = ThemeService.CurrentElementTheme;
         _frame.Navigate(pageType, parameter);
         _window.Content = _frame;
         BuiltinWindowHelper.ApplyStandardStyle(_window, title);

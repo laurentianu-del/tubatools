@@ -294,7 +294,7 @@ const portableSources = computed(() => {
     || `https://github.com/${GH_OWNER}/${GH_REPO}/releases`;
 
   return [
-    { id: 'gc-portable', label: `${t('download.gitcode')} ${arch}`, url: gcUrl, group: 'gc', dlType: 'portable' },
+    { id: 'gc-portable', label: `${t('download.now')} (${arch})`, url: gcUrl, group: 'gc', dlType: 'portable' },
     { id: 'gh-portable', label: `${t('download.github')} ${arch}`, url: ghUrl, group: 'gh', dlType: 'portable' },
     { id: 'gh-mirror-portable', label: `${t('download.mirror')} ${arch}`, url: `https://hub.tubawinui3.cn/${GH_OWNER}/${GH_REPO}/releases/`, group: 'gh', dlType: 'portable' }
   ];
@@ -309,7 +309,7 @@ const setupSources = computed(() => {
     || `https://github.com/${GH_OWNER}/${GH_REPO}/releases`;
 
   return [
-    { id: 'gc-setup', label: `${t('download.gitcode')} ${arch}`, url: gcUrl, group: 'gc', dlType: 'setup' },
+    { id: 'gc-setup', label: `${t('download.now')} (${arch})`, url: gcUrl, group: 'gc', dlType: 'setup' },
     { id: 'gh-setup', label: `${t('download.github')} ${arch}`, url: ghUrl, group: 'gh', dlType: 'setup' },
     { id: 'gh-mirror-setup', label: `${t('download.mirror')} ${arch}`, url: `https://hub.tubawinui3.cn/${GH_OWNER}/${GH_REPO}/releases/`, group: 'gh', dlType: 'setup' }
   ];

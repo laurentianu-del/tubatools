@@ -79,6 +79,13 @@
         </div>
       </header>
 
+      <!-- 微软应用商店提示（仅宽屏显示） -->
+      <p class="site-store-tip">
+        {{ t('home.hero.store-tip') }}
+        <a href="https://apps.microsoft.com/detail/9P15095X7MGB" target="_blank" rel="noopener noreferrer">{{ t('home.hero.store-name') }}</a>
+        {{ t('home.hero.store-tip-end') }}
+      </p>
+
       <!-- 特性总览 -->
       <section class="site-section">
         <div class="site-section-inner">
@@ -461,6 +468,27 @@ onUnmounted(() => {
   text-decoration: underline;
 }
 
+.site-store-tip {
+  margin: 0;
+  padding: 16px 24px;
+  text-align: center;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 30px;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--accent-base) 8%, transparent);
+}
+
+.site-store-tip a {
+  color: var(--accent-base);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.site-store-tip a:hover {
+  text-decoration: underline;
+}
+
 .site-hero-art {
   position: relative;
 }
@@ -673,6 +701,10 @@ onUnmounted(() => {
   .site-hero-title {
     font-size: 34px;
     line-height: 44px;
+  }
+
+  .site-store-tip {
+    display: none;
   }
 }
 

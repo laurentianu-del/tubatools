@@ -28,6 +28,9 @@ export default {
   "home.hero.why-choose": "Why WinUI3?",
   "home.hero.license": "This project is open source under GPL-3.0 and may be freely redistributed. Modified versions must remain open source and must not bundle malware.",
   "home.hero.license-link": "View statement",
+  "home.hero.store-tip": "Worried about malware? Get it from the",
+  "home.hero.store-name": "Microsoft Store",
+  "home.hero.store-tip-end": " instead.",
 
   "home.features.title": "Made for PC enthusiasts",
   "home.features.subtitle": "Hardware detection, system maintenance and performance testing in one place",
@@ -79,6 +82,7 @@ export default {
   "download.store-desc": "Install from the official Microsoft Store with auto-updates",
   "download.gitcode": "GitCode",
   "download.gitcode-badge": "CN Recommended",
+  "download.now": "Download Now",
   "download.github": "GitHub",
   "download.mirror": "Mirror",
   "download.cloud": "Cloud drives",

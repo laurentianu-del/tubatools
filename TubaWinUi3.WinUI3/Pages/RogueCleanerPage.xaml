@@ -297,6 +297,15 @@
                                         <MenuFlyoutItem Text="反馈当前项" Click="FeedbackItem_Click"/>
                                     </MenuFlyout>
                                 </ListView.ContextFlyout>
+                                <ListView.Footer>
+                                    <!-- 列表底部「展示全部」：显示被当前筛选器隐藏的其他分类 -->
+                                    <StackPanel x:Name="FindingsFooter" Orientation="Horizontal" Spacing="10"
+                                                HorizontalAlignment="Center" Padding="0,10" Visibility="Collapsed">
+                                        <TextBlock x:Name="FindingsHiddenHint" FontSize="12" VerticalAlignment="Center"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                        <HyperlinkButton x:Name="FindingsToggleBtn" FontSize="12" Click="FindingsToggle_Click"/>
+                                    </StackPanel>
+                                </ListView.Footer>
                             </ListView>
 
                             <!-- 全部启动项（只读） -->
@@ -383,7 +392,17 @@
                                 <ListView x:Name="CmList" Grid.Row="1" Margin="0,4,0,0"
                                           ItemTemplate="{StaticResource CmRowTemplate}"
                                           ContainerContentChanging="CmList_ContainerContentChanging"
-                                          SelectionChanged="CmList_SelectionChanged"/>
+                                          SelectionChanged="CmList_SelectionChanged">
+                                    <ListView.Footer>
+                                        <!-- 列表底部「展示全部」：显示被隐藏的系统内置 / 未识别 / 技术记录条目 -->
+                                        <StackPanel x:Name="CmFooter" Orientation="Horizontal" Spacing="10"
+                                                    HorizontalAlignment="Center" Padding="0,10" Visibility="Collapsed">
+                                            <TextBlock x:Name="CmHiddenHint" FontSize="12" VerticalAlignment="Center"
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                            <HyperlinkButton x:Name="CmToggleBtn" FontSize="12" Click="CmToggle_Click"/>
+                                        </StackPanel>
+                                    </ListView.Footer>
+                                </ListView>
                                 <TextBlock x:Name="CmEmptyText" Grid.Row="1" Margin="0,30,0,0" HorizontalAlignment="Center"
                                            Text="正在加载右键菜单清单…" FontSize="13"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
