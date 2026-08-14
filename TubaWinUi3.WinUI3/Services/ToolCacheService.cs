@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using TubaWinUi3.Models;
 
@@ -9,23 +11,88 @@ public static class ToolCacheService
     private static string CachePath => Path.Combine(
         ConfigManager.GetDataDir(), "tool_cache.json");
 
-    private static readonly TimeSpan CacheMaxAge = TimeSpan.FromHours(24);
+    /// <summary>
+    /// 构建时预生成的随包缓存（<c>Metadata/tool_cache.json</c>），与 ToolsRoot 同级。
+    /// 由 GenerateBundledToolCache MSBuild target 在 publish 时扫描 Tools 生成，
+    /// 随包分发后运行时直接读取，免去首启全量扫描。
+    /// </summary>
+    public static string BundledCachePath
+    {
+        get
+        {
+            var toolsRoot = ToolCatalog.ToolsRoot;
+            var parent = Path.GetDirectoryName(toolsRoot);
+            return string.IsNullOrEmpty(parent) ? "" : Path.Combine(parent, "Metadata", "tool_cache.json");
+        }
+    }
 
+    /// <summary>
+    /// 计算 Tools 目录的内容指纹：Version 文件内容 + 分类目录名 + 各分类下的工具目录名。
+    /// 用户增删工具会改变目录结构 → 指纹变化 → 缓存失效回退扫描。
+    /// 只枚举目录名（毫秒级），不读文件内容。
+    /// </summary>
+    public static string ComputeFingerprint(string toolsRoot)
+    {
+        try
+        {
+            if (!Directory.Exists(toolsRoot))
+                return "";
+
+            var sb = new StringBuilder();
+            var versionFile = Path.Combine(toolsRoot, "Version");
+            if (File.Exists(versionFile))
+            {
+                sb.Append('V').Append(File.ReadAllText(versionFile)).Append('|');
+            }
+
+            foreach (var category in Directory.GetDirectories(toolsRoot)
+                         .OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
+            {
+                sb.Append('[').Append(Path.GetFileName(category)).Append(']');
+                foreach (var toolDir in Directory.GetDirectories(category)
+                             .OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
+                {
+                    sb.Append(Path.GetFileName(toolDir)).Append(';');
+                }
+            }
+
+            var hash = SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()));
+            return Convert.ToHexString(hash);
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    /// <summary>AppData 运行时缓存（由扫描/后台刷新写入）。</summary>
     public static bool TryLoadCache(out List<ToolCacheEntry> entries)
+    {
+        return TryLoadCacheFrom(CachePath, out entries);
+    }
+
+    /// <summary>构建时预生成的随包缓存（校验 Tools 指纹）。</summary>
+    public static bool TryLoadBundledCache(out List<ToolCacheEntry> entries)
+    {
+        return TryLoadCacheFrom(BundledCachePath, out entries);
+    }
+
+    private static bool TryLoadCacheFrom(string path, out List<ToolCacheEntry> entries)
     {
         entries = [];
         try
         {
-            if (!File.Exists(CachePath))
+            if (string.IsNullOrEmpty(path) || !File.Exists(path))
                 return false;
 
-            var age = DateTime.UtcNow - File.GetLastWriteTimeUtc(CachePath);
-            if (age >= CacheMaxAge)
-                return false;
-
-            var json = File.ReadAllText(CachePath);
+            var json = File.ReadAllText(path);
             var data = JsonSerializer.Deserialize<ToolCacheData>(json);
-            if (data?.Entries is null || data.Version != ToolCatalog.CacheVersion)
+            if (data?.Entries is null || data.Entries.Count == 0 || data.Version != ToolCatalog.CacheVersion)
+                return false;
+
+            // 指纹不匹配（Tools 目录内容已变化）→ 缓存失效
+            var expected = ComputeFingerprint(ToolCatalog.ToolsRoot);
+            if (expected.Length == 0 || !string.Equals(data.Fingerprint, expected, StringComparison.Ordinal))
                 return false;
 
             foreach (var e in data.Entries)
@@ -70,9 +137,15 @@ public static class ToolCacheService
 
     public static void SaveCache(List<ToolCacheEntry> entries)
     {
+        SaveCacheTo(entries, CachePath);
+    }
+
+    /// <summary>把扫描结果序列化写到指定路径（构建工具缓存模式与后台刷新共用）。</summary>
+    public static void SaveCacheTo(List<ToolCacheEntry> entries, string path)
+    {
         try
         {
-            var dir = Path.GetDirectoryName(CachePath);
+            var dir = Path.GetDirectoryName(path);
             if (!string.IsNullOrEmpty(dir))
                 Directory.CreateDirectory(dir);
 
@@ -101,12 +174,13 @@ public static class ToolCacheService
             var data = new ToolCacheData
             {
                 Version = ToolCatalog.CacheVersion,
+                Fingerprint = ComputeFingerprint(ToolCatalog.ToolsRoot),
                 Entries = toSave,
                 SavedAt = DateTime.UtcNow
             };
 
             var json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = false });
-            File.WriteAllText(CachePath, json);
+            File.WriteAllText(path, json);
         }
         catch { }
     }
@@ -124,6 +198,7 @@ public static class ToolCacheService
     private sealed class ToolCacheData
     {
         public int Version { get; set; }
+        public string? Fingerprint { get; set; }
         public List<ToolCacheEntry> Entries { get; set; } = [];
         public DateTime SavedAt { get; set; }
     }

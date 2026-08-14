@@ -872,9 +872,14 @@ public sealed partial class HomePage : Page
         var wingetTools = tools.Where(t => !string.IsNullOrWhiteSpace(t.WingetId) && !t.IsWingetInstalled).ToList();
         if (wingetTools.Count == 0) return;
 
+        // winget 进程逐个启动很重（首次运行还可能下载源），延后 3s 开始并限制最多 2 个并发
+        try { await Task.Delay(3000, ct); } catch (OperationCanceledException) { return; }
+
+        using var gate = new SemaphoreSlim(2);
         foreach (var tool in wingetTools)
         {
             ct.ThrowIfCancellationRequested();
+            await gate.WaitAsync(ct);
             try
             {
                 var installed = await WingetService.IsInstalledAsync(tool.WingetId!, ct);
@@ -889,6 +894,10 @@ public sealed partial class HomePage : Page
             }
             catch (OperationCanceledException) { break; }
             catch { }
+            finally
+            {
+                gate.Release();
+            }
         }
     }
 

@@ -54,6 +54,7 @@ public sealed partial class TrafficMonitorPage : Page
     public TrafficMonitorPage()
     {
         InitializeComponent();
+        ChartInitializer.EnsureConfigured();
 
         InitChart();
         ConnHeaderGrid.Children.Add(MakeHeaderGrid());

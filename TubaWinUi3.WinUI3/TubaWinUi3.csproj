@@ -118,4 +118,28 @@
   <Target Name="GenerateBundledIconCache" BeforeTargets="Publish" Condition="'$(ExcludeToolsFromPublish)' != 'true'">
     <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\build-icon-cache.ps1&quot; -ToolsRoot &quot;$(MSBuildProjectDirectory)\Tools&quot; -OutputDir &quot;$(MSBuildProjectDirectory)\IconCache&quot;" />
   </Target>
+
+  <!--
+    Pre-build the bundled tool catalog cache (Metadata/tool_cache.json) before
+    publish: the app scans the Tools tree once in build-tool-cache mode and
+    writes the final result, so end users get instant tool lists on first
+    launch without scanning 500+ MB of tools. Generated file ships via the
+    Metadata/** Content group. Skipped for lite builds (no Tools folder).
+  -->
+  <Target Name="GenerateBundledToolCache" BeforeTargets="Publish" Condition="'$(ExcludeToolsFromPublish)' != 'true'">
+    <!-- 注意用 exe 而非 $(TargetPath)（dll）：unpackaged WinUI 必须经 exe 启动 -->
+    <Exec Command="&quot;$(TargetDir)$(TargetName).exe&quot; --build-tool-cache &quot;$(MSBuildProjectDirectory)\Tools&quot; &quot;$(MSBuildProjectDirectory)\Metadata\tool_cache.json&quot;" />
+    <!-- 生成发生在 Build 的内容复制之后，需补复制到输出目录才能随 publish 分发 -->
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\Metadata\tool_cache.json" DestinationFolder="$(TargetDir)Metadata" />
+  </Target>
+
+  <!--
+    Generate the subset MiSans font (Fonts/MiSans-Subset.otf) before publish so
+    first frame rendering loads a small font instead of the 6.5MB original.
+    Skips silently when fonttools is unavailable (falls back to the full font).
+  -->
+  <Target Name="GenerateBundledFontSubset" BeforeTargets="Publish">
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\build-font-subset.ps1&quot; -ProjectDir &quot;$(MSBuildProjectDirectory)&quot;" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\Fonts\MiSans-Subset.otf" DestinationFolder="$(TargetDir)Fonts" Condition="Exists('$(MSBuildProjectDirectory)\Fonts\MiSans-Subset.otf')" />
+  </Target>
 </Project>

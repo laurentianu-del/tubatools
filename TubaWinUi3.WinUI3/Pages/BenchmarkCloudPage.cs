@@ -115,6 +115,7 @@ public sealed partial class BenchmarkCloudPage : Page
 	public BenchmarkCloudPage()
 	{
 		InitializeComponent();
+		ChartInitializer.EnsureConfigured();
 		Content = BuildUI();
 		Loaded += OnLoaded;
 	}

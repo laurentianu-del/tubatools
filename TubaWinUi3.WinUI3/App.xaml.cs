@@ -21,11 +21,9 @@ public partial class App : Application
         Environment.SetEnvironmentVariable("MICROSOFT_WINDOWSAPPRUNTIME_BASE_DIRECTORY", AppContext.BaseDirectory);
         InitializeComponent();
 
-        LiveCharts.Configure(config => config
-            .AddSkiaSharp()
-            .AddDefaultMappers()
-            .AddDefaultTheme());
-        
+        // LiveCharts/SkiaSharp 不再于启动时初始化：首个图表页面首次访问时才配置（ChartInitializer）。
+        // LiveCharts.Configure 在 App() 中已移除，启动不再加载 SkiaSharp 原生库。
+
         AppSettings.Load();
         
         BuiltinToolRegistry.RegisterDefaults();
@@ -87,6 +85,33 @@ public partial class App : Application
             return;
         }
 
+        // 构建工具缓存模式（publish 时由 GenerateBundledToolCache MSBuild target 调用）：
+        // 扫描 Tools 目录并把结果写入 Metadata/tool_cache.json 随包分发，
+        // 运行时直接读取免去全量扫描。复用全部扫描逻辑，无窗口后台运行。
+        var buildCacheIndex = Array.FindIndex(cmdLine, a => string.Equals(a, "--build-tool-cache", StringComparison.OrdinalIgnoreCase));
+        if (buildCacheIndex >= 0)
+        {
+            var toolsRoot = buildCacheIndex + 1 < cmdLine.Length ? cmdLine[buildCacheIndex + 1] : "";
+            var outJson = buildCacheIndex + 2 < cmdLine.Length ? cmdLine[buildCacheIndex + 2] : "";
+            if (!string.IsNullOrWhiteSpace(toolsRoot) && !string.IsNullOrWhiteSpace(outJson))
+            {
+                try
+                {
+                    ToolCatalog.SetToolsRootForBuild(toolsRoot);
+                    var tools = ToolCatalog.GetAllToolsCached();
+                    ToolCacheService.SaveCacheTo(ToolCatalog.ToCacheEntries(tools), outJson);
+                }
+                catch (Exception ex)
+                {
+                    System.IO.File.WriteAllText(
+                        System.IO.Path.Combine(System.IO.Path.GetTempPath(), "tool_cache_build.log"),
+                        ex.ToString());
+                }
+            }
+            Exit();
+            return;
+        }
+
         // EnergyStar silent auto-start (scheduled-task launched this instance
         // in the background — silently enable EcoQoS without showing the main UI).
         var silentEnergyStar = cmdLine
@@ -127,8 +152,9 @@ public partial class App : Application
             });
         }
 
-        _ = Task.Run(() => ToolIconService.CleanExpiredCache());
-        _ = Task.Run(() => HardwareInfoService.PreloadAsync());
+        // 图标缓存清理与硬件盘点都不再抢启动窗口：图标清理延迟到空闲期执行，
+        // 硬件 WMI 盘点（20+ 条查询）移到首次打开硬件信息页时预热。
+        _ = DelayThenRunAsync(TimeSpan.FromSeconds(15), () => { ToolIconService.CleanExpiredCache(); return Task.CompletedTask; });
         _ = Task.Run(() => ConfigManager.AutoMigratePathsIfNeeded());
 
         try
@@ -167,13 +193,24 @@ public partial class App : Application
 
         if (!RuntimeHelper.IsMsixPackaged)
         {
-            _ = CheckForToolUpdatesSilentAsync();
-            _ = CheckForUpdateSilentAsync();
+            // 更新检查延后 10s 发起，避开启动窗口期的磁盘/网络竞争
+            _ = DelayThenRunAsync(TimeSpan.FromSeconds(10), CheckForToolUpdatesSilentAsync);
+            _ = DelayThenRunAsync(TimeSpan.FromSeconds(10), () => CheckForUpdateSilentAsync());
         }
         else
         {
-            _ = CheckForToolUpdatesSilentAsync();
+            _ = DelayThenRunAsync(TimeSpan.FromSeconds(10), CheckForToolUpdatesSilentAsync);
         }
+    }
+
+    private static async Task DelayThenRunAsync(TimeSpan delay, Func<Task> action)
+    {
+        try
+        {
+            await Task.Delay(delay);
+            await action();
+        }
+        catch { }
     }
 
     private static async Task ShowToolsBundleDownloadDialogAsync()

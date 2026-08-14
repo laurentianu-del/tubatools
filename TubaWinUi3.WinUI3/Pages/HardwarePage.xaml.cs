@@ -100,6 +100,8 @@ public sealed partial class HardwarePage : Page
     {
         base.OnNavigatedTo(e);
         StartUptimeTimer();
+        // WMI 盘点从启动移到首次打开本页时后台预热（LoadAsync 自带 _cache，页面显示 loading）
+        _ = HardwareInfoService.PreloadAsync();
         _ = LoadHardwareInfoAsync();
     }
 

@@ -103,6 +103,9 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Setup fonttools (build-time font subsetting)
+        run: pip install fonttools
+
       - name: Publish app (portable)
         run: |
           dotnet publish TubaWinUi3.WinUI3/TubaWinUi3.csproj `

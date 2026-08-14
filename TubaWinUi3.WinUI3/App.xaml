@@ -10,8 +10,9 @@
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
                 <ResourceDictionary Source="ms-appx:///Styles/SettingsStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
-            <FontFamily x:Key="MiSansFont">ms-appx:///Fonts/MiSans-Medium.otf#MiSans</FontFamily>
-            <FontFamily x:Key="AppFontFamily">ms-appx:///Fonts/MiSans-Medium.otf#MiSans</FontFamily>
+            <!-- 首帧优先加载子集字体（构建时生成，~1MB），缺字回退全量 MiSans -->
+            <FontFamily x:Key="MiSansFont">ms-appx:///Fonts/MiSans-Subset.otf#MiSans, ms-appx:///Fonts/MiSans-Medium.otf#MiSans</FontFamily>
+            <FontFamily x:Key="AppFontFamily">ms-appx:///Fonts/MiSans-Subset.otf#MiSans, ms-appx:///Fonts/MiSans-Medium.otf#MiSans</FontFamily>
             <Style TargetType="TextBlock">
                 <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
                 <Setter Property="Opacity" Value="1.0" />

@@ -221,22 +221,40 @@ public static class ToolCatalog
     }
 
     private static IReadOnlyList<string>? _cachedTags;
-    private static IReadOnlyList<ToolItem>? _cachedAllTools;
+    private static volatile IReadOnlyList<ToolItem>? _cachedAllTools;
     private static readonly object _cacheLock = new();
+    private static readonly object _scanLock = new();
     private static readonly Dictionary<string, IReadOnlyList<ToolItem>> _toolsCache = new(StringComparer.OrdinalIgnoreCase);
-    private static int _cacheVersion = 3; // v3: 工具根目录统一走 RuntimeHelper.GetLocalAppDataRoot()，作废旧版绝对路径缓存
+    private static int _cacheVersion = 4; // v4: 缓存携带 Tools 指纹、命中后填充分类缓存、构建时预生成随包缓存
 
     public static int CacheVersion => _cacheVersion;
 
     public static event Action? ToolsChanged;
 
+    /// <summary>
+    /// Single-flight：并发调用（MainWindow 预热 / 首页 / 标签栏 / 图标清理）
+    /// 共享同一次扫描，避免冷启动时 3~4 路重复全量扫描。
+    /// </summary>
     public static IReadOnlyList<ToolItem> GetAllToolsCached()
     {
         if (_cachedAllTools is not null)
             return _cachedAllTools;
 
+        lock (_scanLock)
+        {
+            if (_cachedAllTools is not null)
+                return _cachedAllTools;
+
+            _cachedAllTools = ScanAllTools();
+            return _cachedAllTools;
+        }
+    }
+
+    /// <summary>真实扫描整个 Tools 树（不读任何缓存），供 single-flight 与后台刷新使用。</summary>
+    private static IReadOnlyList<ToolItem> ScanAllTools()
+    {
         if (!Directory.Exists(ToolsRoot))
-            return _cachedAllTools = [];
+            return [];
 
         var allItems = GetCategories().SelectMany(GetTools).ToList();
 
@@ -278,71 +296,124 @@ public static class ToolCatalog
             return _cachedAllTools;
 
         _isLoadingFromCache = true;
-
-        if (ToolCacheService.TryLoadCache(out var cachedEntries) && cachedEntries.Count > 0)
+        try
         {
-            var cachedTools = cachedEntries.Select(e => new ToolItem
+            // ① AppData 运行时缓存（上次扫描/刷新写入）
+            if (ToolCacheService.TryLoadCache(out var cachedEntries) && cachedEntries.Count > 0)
             {
-                Name = e.Name,
-                Category = e.Category,
-                Path = e.Path,
-                RelativePath = e.RelativePath,
-                Extension = e.Extension,
-                Description = e.Description,
-                Publisher = e.Publisher,
-                Version = e.Version,
-                DownloadUrl = e.DownloadUrl,
-                WingetId = e.WingetId,
-                IconGlyph = e.IconGlyph,
-                PrimaryArch = e.PrimaryArch,
-                Tags = e.Tags,
-                IsFavorite = e.IsFavorite,
-                IsBuiltinLink = e.IsBuiltinLink,
-                BuiltinToolId = e.BuiltinToolId,
-                BuiltinKindText = e.BuiltinKindText,
-                TutorialUrl = e.TutorialUrl
-            }).ToList();
+                var cachedTools = BuildFromEntries(cachedEntries);
+                _cachedAllTools = cachedTools;
+                _ = Task.Run(RefreshCacheInBackground);
+                return cachedTools;
+            }
 
-            _cachedAllTools = cachedTools;
+            // ② 构建时预生成的随包缓存（Metadata/tool_cache.json）→ 首次运行秒出
+            if (ToolCacheService.TryLoadBundledCache(out var bundledEntries) && bundledEntries.Count > 0)
+            {
+                var bundledTools = BuildFromEntries(bundledEntries);
+                _cachedAllTools = bundledTools;
+                _ = Task.Run(() => ToolCacheService.SaveCache(bundledEntries)); // 落到 AppData，供后续刷新
+                _ = Task.Run(RefreshCacheInBackground);
+                return bundledTools;
+            }
+        }
+        finally
+        {
             _isLoadingFromCache = false;
-
-            _ = Task.Run(RefreshCacheInBackground);
-
-            return cachedTools;
         }
 
-        _isLoadingFromCache = false;
-        return await Task.Run(() => GetAllToolsCached());
+        // ③ 无可用缓存 → 全量扫描（single-flight 合并并发调用），完成后写盘供下次启动秒读
+        var scanned = await Task.Run(() => GetAllToolsCached());
+        _ = Task.Run(() => ToolCacheService.SaveCache(ToCacheEntries(scanned)));
+        return scanned;
+    }
+
+    /// <summary>从缓存条目恢复 ToolItem 列表，并填充分类缓存（分类页/首页全部秒出）。</summary>
+    private static IReadOnlyList<ToolItem> BuildFromEntries(List<ToolCacheEntry> entries)
+    {
+        var tools = entries.Select(e => new ToolItem
+        {
+            Name = e.Name,
+            Category = e.Category,
+            Path = e.Path,
+            RelativePath = e.RelativePath,
+            Extension = e.Extension,
+            Description = e.Description,
+            Publisher = e.Publisher,
+            Version = e.Version,
+            DownloadUrl = e.DownloadUrl,
+            WingetId = e.WingetId,
+            IconGlyph = e.IconGlyph,
+            PrimaryArch = e.PrimaryArch,
+            Tags = e.Tags,
+            IsFavorite = FavoritesService.IsFavorite(e.Path), // 收藏实时读取，缓存中的收藏状态可能过期
+            IsBuiltinLink = e.IsBuiltinLink,
+            BuiltinToolId = e.BuiltinToolId,
+            BuiltinKindText = e.BuiltinKindText,
+            TutorialUrl = e.TutorialUrl
+        }).ToList();
+
+        FillCategoryCache(tools);
+        return tools;
+    }
+
+    private static void FillCategoryCache(IReadOnlyList<ToolItem> tools)
+    {
+        lock (_cacheLock)
+        {
+            foreach (var group in tools.GroupBy(t => t.Category, StringComparer.OrdinalIgnoreCase))
+                _toolsCache[group.Key] = group.ToList();
+        }
+    }
+
+    /// <summary>扫描结果 → 磁盘缓存条目（后台刷新与构建工具缓存模式共用）。</summary>
+    public static List<ToolCacheEntry> ToCacheEntries(IReadOnlyList<ToolItem> tools)
+    {
+        return tools.Select(t => new ToolCacheEntry
+        {
+            Name = t.Name,
+            Category = t.Category,
+            Path = t.Path,
+            RelativePath = t.RelativePath,
+            Extension = t.Extension,
+            Description = t.Description,
+            Publisher = t.Publisher,
+            Version = t.Version,
+            DownloadUrl = t.DownloadUrl,
+            WingetId = t.WingetId,
+            IconGlyph = t.IconGlyph,
+            PrimaryArch = t.PrimaryArch,
+            Tags = t.Tags.ToList(),
+            IsFavorite = t.IsFavorite,
+            IsBuiltinLink = t.IsBuiltinLink,
+            BuiltinToolId = t.BuiltinToolId,
+            BuiltinKindText = t.BuiltinKindText,
+            TutorialUrl = t.TutorialUrl
+        }).ToList();
+    }
+
+    /// <summary>仅供构建工具缓存模式使用（--build-tool-cache），覆盖 Tools 根路径。</summary>
+    public static void SetToolsRootForBuild(string toolsRoot)
+    {
+        _cachedToolsRoot = toolsRoot;
     }
 
     private static void RefreshCacheInBackground()
     {
         try
         {
-            var tools = GetAllToolsCached();
-            var entries = tools.Select(t => new ToolCacheEntry
-            {
-                Name = t.Name,
-                Category = t.Category,
-                Path = t.Path,
-                RelativePath = t.RelativePath,
-                Extension = t.Extension,
-                Description = t.Description,
-                Publisher = t.Publisher,
-                Version = t.Version,
-                DownloadUrl = t.DownloadUrl,
-                WingetId = t.WingetId,
-                IconGlyph = t.IconGlyph,
-                PrimaryArch = t.PrimaryArch,
-                Tags = t.Tags.ToList(),
-                IsFavorite = t.IsFavorite,
-                IsBuiltinLink = t.IsBuiltinLink,
-                BuiltinToolId = t.BuiltinToolId,
-                BuiltinKindText = t.BuiltinKindText,
-                TutorialUrl = t.TutorialUrl
-            }).ToList();
+            // 真实扫描一次（绕过内存缓存）修正过期数据，并更新内存与磁盘缓存
+            var scanned = ScanAllTools();
+            if (scanned.Count == 0)
+                return;
 
-            ToolCacheService.SaveCache(entries);
+            lock (_cacheLock)
+            {
+                _cachedAllTools = scanned;
+                _toolsCache.Clear();
+            }
+            FillCategoryCache(scanned);
+            ToolCacheService.SaveCache(ToCacheEntries(scanned));
         }
         catch { }
     }

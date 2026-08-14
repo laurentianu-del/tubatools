@@ -172,7 +172,13 @@ public sealed partial class MainWindow : Window
 
         NavigateToDefaultPage();
 
-        _ = ApplyBackgroundAsync();
+        // 本地背景立即应用；品牌检测（WMI 查询 + 壁纸下载）延迟到空闲期，不抢启动窗口
+        ApplyBackground();
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(15));
+            await BackgroundService.EnsureBrandBackgroundInitializedAsync();
+        });
 
         _ = Task.Run(async () =>
         {
@@ -248,22 +254,6 @@ public sealed partial class MainWindow : Window
     private void ApplyBackground()
     {
         var bmp = BackgroundService.LoadBackgroundImage();
-        if (bmp is not null)
-        {
-            BackgroundImg.Source = bmp;
-            BackgroundImg.Opacity = BackgroundService.GetBackgroundOpacity();
-            BackgroundImg.Visibility = Visibility.Visible;
-        }
-        else
-        {
-            BackgroundImg.Source = null;
-            BackgroundImg.Visibility = Visibility.Collapsed;
-        }
-    }
-
-    private async Task ApplyBackgroundAsync()
-    {
-        var bmp = await BackgroundService.LoadBackgroundImageAsync();
         if (bmp is not null)
         {
             BackgroundImg.Source = bmp;

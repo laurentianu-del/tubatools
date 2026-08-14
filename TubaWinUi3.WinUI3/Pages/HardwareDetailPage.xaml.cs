@@ -32,6 +32,7 @@ public sealed partial class HardwareDetailPage : Page
     public HardwareDetailPage()
     {
         InitializeComponent();
+        ChartInitializer.EnsureConfigured();
         Loaded += HardwareDetailPage_Loaded;
         Unloaded += HardwareDetailPage_Unloaded;
     }
