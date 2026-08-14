@@ -169,14 +169,22 @@ public sealed partial class BrowserWindow : Window
             tcs.TrySetException(ex);
         }
 
-        // 防挂起：15 秒无结果视为超时
+        // 防挂起：15 秒无结果视为超时。
+        // 注意：ContinueWith 在线程池线程执行，必须经 DispatcherQueue 回到 UI 线程
+        // 才能触碰 CoreWebView2（COM 对象有 UI 线程亲和性，否则抛 RPC_E_WRONG_THREAD）；
+        // 回调整体 try/catch，避免产生未观察异常（finalizer 线程会抛出 AggregateException）。
         _ = Task.Delay(TimeSpan.FromSeconds(15)).ContinueWith(_ =>
         {
-            if (!tcs.Task.IsCompleted)
+            try
             {
-                Core.NavigationCompleted -= Handler;
-                tcs.TrySetResult("导航超时（15 秒），请重试");
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (tcs.Task.IsCompleted) return;
+                    try { Core.NavigationCompleted -= Handler; } catch { }
+                    tcs.TrySetResult("导航超时（15 秒），请重试");
+                });
             }
+            catch { }
         });
         return tcs.Task;
     }
@@ -362,6 +370,7 @@ public sealed partial class BrowserWindow : Window
             text = "https://www.bing.com/search?q=" + Uri.EscapeDataString(text);
         else if (uri.Scheme is not ("http" or "https"))
             text = "https://www.bing.com/search?q=" + Uri.EscapeDataString(text);
-        _ = NavigateAsync(text);
+        // fire-and-forget：观察异常，避免未观察异常在 finalizer 线程被重新抛出
+        _ = NavigateAsync(text).ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
     }
 }
