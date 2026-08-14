@@ -88,12 +88,13 @@ public sealed partial class AiAgentPage : UserControl
         sb.Begin();
     }
 
-    /// <summary>页面卸载（内置工具关闭时调用）：保存并释放会话。</summary>
+    /// <summary>页面卸载（内置工具关闭时调用）：取消后台运行、保存并释放会话。</summary>
     public void Unload()
     {
         StopQueueWatch();
-        _session?.Dispose();
+        var session = _session;
         _session = null;
+        session?.Dispose();
     }
 
     // ---------- 会话 ----------
@@ -218,6 +219,87 @@ public sealed partial class AiAgentPage : UserControl
             AddSystemBubble("⚠️ 已开启完全访问模式：AI 可直接执行命令、修改注册表等操作，不再逐项确认。");
     }
 
+    // ---------- 技能（Skills）菜单 ----------
+
+    private void SkillsButton_Click(object sender, RoutedEventArgs e)
+    {
+        RefreshSkillsPanel();
+        if (Resources["SkillsFlyout"] is Flyout flyout)
+            flyout.ShowAt(SkillsButton);
+    }
+
+    /// <summary>按当前会话的技能状态重建菜单项（技能默认全部加载）。</summary>
+    private void RefreshSkillsPanel()
+    {
+        _session ??= CreateSession();
+        if (Resources["SkillsFlyout"] is not Flyout { Content: StackPanel panel }) return;
+        panel.Children.Clear();
+
+        // 顶部说明：消除"技能默认关闭"的误解
+        panel.Children.Add(new TextBlock
+        {
+            Text = "技能默认全部启用；取消勾选即禁用（勾选/取消后立即生效，下一条消息按新状态执行）",
+            FontSize = 11,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(8, 2, 8, 8),
+            Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+        });
+
+        foreach (var skill in AgentSkillRegistry.All)
+        {
+            var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            content.Children.Add(new FontIcon
+            {
+                Glyph = skill.Glyph,
+                FontSize = 14,
+                Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+            });
+            var texts = new StackPanel { Spacing = 1 };
+            texts.Children.Add(new TextBlock
+            {
+                Text = skill.DisplayName,
+                FontSize = 13,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+            });
+            texts.Children.Add(new TextBlock
+            {
+                Text = skill.Description,
+                FontSize = 11,
+                TextWrapping = TextWrapping.Wrap,
+                MaxWidth = 230,
+                Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+            });
+            content.Children.Add(texts);
+
+            var check = new CheckBox
+            {
+                Content = content,
+                IsChecked = _session.ActiveSkillIds.Contains(skill.Id),
+                Tag = skill.Id,
+                MinWidth = 0,
+                Padding = new Thickness(0, 6, 0, 6)
+            };
+            check.Checked += SkillToggle_Changed;
+            check.Unchecked += SkillToggle_Changed;
+            panel.Children.Add(check);
+        }
+    }
+
+    private void SkillToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        if (sender is not CheckBox { Tag: string id } cb) return;
+        if (_session is null) return;
+        var skill = AgentSkillRegistry.Find(id);
+        if (skill is null) return;
+
+        var on = cb.IsChecked == true;
+        _session.SetSkillEnabled(id, on);
+        _session.Save();
+        AddSystemBubble(on
+            ? $"✅ 已启用技能：{skill.DisplayName}（{skill.Description}）"
+            : $"已禁用技能：{skill.DisplayName}（恢复默认状态可重新勾选）");
+    }
+
     private async Task SendAsync(string text)
     {
         if (_isProcessing || _awaitingConfirmation) return;
@@ -254,8 +336,12 @@ public sealed partial class AiAgentPage : UserControl
             StopQueueWatch();
             _isProcessing = false;
             UpdateInputState();
-            _session.Save();
-            TitleText.Text = _session.Title;
+            // 页面已关闭（Unload 已置空 _session）时跳过，避免空引用
+            if (_session is { } session)
+            {
+                session.Save();
+                TitleText.Text = session.Title;
+            }
             UpdateTokenUsage();
             SmartScroll();
         }
@@ -302,7 +388,9 @@ public sealed partial class AiAgentPage : UserControl
             StopQueueWatch();
             _isProcessing = false;
             UpdateInputState();
-            _session.Save();
+            // 页面已关闭（Unload 已置空 _session）时跳过，避免空引用
+            if (_session is { } session)
+                session.Save();
             UpdateTokenUsage();
             SmartScroll();
         }
@@ -442,7 +530,11 @@ public sealed partial class AiAgentPage : UserControl
     {
         var conversations = AiAssistantService.ListConversations();
         if (conversations.Count > 0)
+        {
             LoadConversation(conversations[0]);
+            // 历史会话也展示当前技能状态，避免"技能没加载"的误解
+            ShowActiveSkillsBubble();
+        }
         else
             Welcome();
     }
@@ -453,12 +545,29 @@ public sealed partial class AiAgentPage : UserControl
         {
             AddSystemBubble("⚠️ 自带模型可能出现排队/限额满速，质量低下等问题。推荐使用 DeepSeek V4 Pro。\n\n你可以在 设置 → AI 服务 中配置自己的 API Key 和模型。");
         }
-        AddSystemBubble("你好！我是图吧助手（智能代理版），可以帮你诊断系统问题、优化配置、执行操作、搜索最新资讯。\n\n我可以：\n- 诊断问题并**自动执行**修复操作（危险操作会先请你确认）\n- 读写文件、执行命令、下载文件\n- 联网搜索最新硬件评测、驱动、价格\n- 制定多步任务计划并逐项执行\n- 记住你的偏好与任务进度（会话记忆）\n\n试试下面的快捷问题，或直接输入你的需求！");
+        AddSystemBubble("你好！我是图吧助手（智能代理版），可以帮你诊断系统问题、优化配置、执行操作、搜索最新资讯。\n\n我可以：\n- 诊断问题并**自动执行**修复操作（危险操作会先请你确认）\n- 读写文件、执行命令、下载文件\n- 联网搜索最新硬件评测、驱动、价格\n- **配电脑/装机时自动上京东查实时价格**（「电脑选购」技能，可在顶部「技能」菜单开关）\n- 制定多步任务计划并逐项执行\n- 记住你的偏好与任务进度（会话记忆）\n\n试试下面的快捷问题，或直接输入你的需求！");
+        ShowActiveSkillsBubble();
+    }
+
+    /// <summary>展示「已加载技能」可见提示（技能菜单开关会即时生效）。</summary>
+    private void ShowActiveSkillsBubble()
+    {
+        var skills = AgentSkillRegistry.All;
+        if (skills.Count == 0) return;
+
+        var parts = skills.Select(s => $"{s.DisplayName}（{s.Description}）");
+        AddSystemBubble($"🔧 已加载技能：{string.Join("、", parts)}\n可在顶部「技能」菜单随时开关，咨询对应场景时我将按技能要求执行。");
     }
 
     private void NewChatButton_Click(object sender, RoutedEventArgs e)
     {
         if (_isProcessing) return;
+        ResetToNewChat();
+    }
+
+    /// <summary>重置为新对话：释放当前会话并清空界面（删除当前会话时复用）。</summary>
+    private void ResetToNewChat()
+    {
         _session?.Dispose();
         _session = null;
         _streamingBubble = null;
@@ -477,28 +586,37 @@ public sealed partial class AiAgentPage : UserControl
         if (_isProcessing) return;
         _session?.Save();
 
-        var flyout = new MenuFlyout();
-        var conversations = AiAssistantService.ListConversations();
-
-        if (conversations.Count == 0)
-        {
-            flyout.Items.Add(new MenuFlyoutItem { Text = "暂无历史记录", IsEnabled = false });
-        }
-        else
-        {
-            foreach (var conv in conversations.Take(20))
-            {
-                var item = new MenuFlyoutItem
-                {
-                    Text = $"{conv.Title}  ({conv.CreatedAt:MM/dd HH:mm})",
-                    Tag = conv
-                };
-                item.Click += (_, _) => LoadConversation(conv);
-                flyout.Items.Add(item);
-            }
-        }
+        var flyout = AiHistoryMenu.Build(
+            AiAssistantService.ListConversations(),
+            onOpen: LoadConversation,
+            onRename: OnRenameConversation,
+            onDelete: OnDeleteConversation);
 
         flyout.ShowAt(sender as FrameworkElement);
+    }
+
+    /// <summary>重命名会话：当前打开的会话同步更新内存标题，并立即持久化到 meta.json。</summary>
+    private async void OnRenameConversation(ConversationMeta conv)
+    {
+        var newTitle = await AiHistoryMenu.PromptRenameAsync(XamlRoot, conv.Title);
+        if (newTitle is null) return;
+
+        if (_session?.Id == conv.Id)
+        {
+            _session.Rename(newTitle);
+            TitleText.Text = newTitle;
+        }
+        AiAssistantService.RenameConversation(conv.Id, newTitle);
+    }
+
+    /// <summary>删除会话：确认后移除全部关联文件；删的是当前会话则回到新对话。</summary>
+    private async void OnDeleteConversation(ConversationMeta conv)
+    {
+        if (!await AiHistoryMenu.ConfirmDeleteAsync(XamlRoot, conv.Title)) return;
+
+        AiAssistantService.DeleteConversation(conv.Id);
+        if (_session?.Id == conv.Id)
+            ResetToNewChat();
     }
 
     private void LoadConversation(ConversationMeta meta)

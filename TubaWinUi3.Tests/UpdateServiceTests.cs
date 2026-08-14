@@ -152,4 +152,71 @@ public class UpdateServiceTests
     {
         Assert.Contains(UpdateService.CurrentArchitecture, new[] { "x64", "x86", "arm64" });
     }
+
+    [Fact]
+    public void IsInstallerFileValid_MissingFile_ReturnsFalse()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "missing_" + Guid.NewGuid().ToString("N") + ".exe");
+        Assert.False(UpdateService.IsInstallerFileValid(path));
+    }
+
+    [Fact]
+    public void IsInstallerFileValid_EmptyFile_ReturnsFalse()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "empty_" + Guid.NewGuid().ToString("N") + ".exe");
+        File.WriteAllBytes(path, []);
+        try
+        {
+            Assert.False(UpdateService.IsInstallerFileValid(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void IsInstallerFileValid_ExeWithoutMzHeader_ReturnsFalse()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "noMZ_" + Guid.NewGuid().ToString("N") + ".exe");
+        File.WriteAllBytes(path, [0x00, 0x01, 0x02, 0x03]);
+        try
+        {
+            Assert.False(UpdateService.IsInstallerFileValid(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void IsInstallerFileValid_ExeWithMzHeader_ReturnsTrue()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "mz_" + Guid.NewGuid().ToString("N") + ".exe");
+        File.WriteAllBytes(path, [0x4D, 0x5A, 0x90, 0x00]);
+        try
+        {
+            Assert.True(UpdateService.IsInstallerFileValid(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void IsInstallerFileValid_NonExeFile_SkipsPeCheck()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "zip_" + Guid.NewGuid().ToString("N") + ".zip");
+        File.WriteAllBytes(path, [0x50, 0x4B, 0x03, 0x04]);
+        try
+        {
+            Assert.True(UpdateService.IsInstallerFileValid(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
 }

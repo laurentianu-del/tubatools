@@ -111,11 +111,19 @@ public sealed class InstallerLaunchProcessor : IDownloadPostProcessor
         IProgress<string>? statusProgress, CancellationToken ct)
     {
         statusProgress?.Report("正在启动安装程序...");
-        var psi = new System.Diagnostics.ProcessStartInfo(downloadedFilePath)
+        try
         {
-            UseShellExecute = true
-        };
-        System.Diagnostics.Process.Start(psi);
+            var psi = new System.Diagnostics.ProcessStartInfo(downloadedFilePath)
+            {
+                UseShellExecute = true
+            };
+            System.Diagnostics.Process.Start(psi);
+        }
+        catch (Win32Exception ex)
+        {
+            // 下载的文件可能被杀软移除/隔离或损坏，抛给队列以 Failed 状态呈现，避免崩溃
+            throw new IOException($"无法启动安装程序，文件已不可用（可能被安全软件移除或磁盘错误）：{ex.Message}", ex);
+        }
         return Task.CompletedTask;
     }
 }
@@ -200,11 +208,19 @@ public sealed class UpdateInstallProcessor : IDownloadPostProcessor
         if (isExe)
         {
             statusProgress?.Report("正在启动安装程序...");
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            try
             {
-                FileName = downloadedFilePath,
-                UseShellExecute = true
-            });
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = downloadedFilePath,
+                    UseShellExecute = true
+                });
+            }
+            catch (Win32Exception ex)
+            {
+                // 下载的文件可能被杀软移除/隔离或损坏，抛给队列以 Failed 状态呈现，避免崩溃
+                throw new IOException($"无法启动更新安装程序，文件已不可用（可能被安全软件移除或磁盘错误）：{ex.Message}", ex);
+            }
             Microsoft.UI.Xaml.Application.Current.Exit();
         }
         else if (isZip && _isPortableMode)

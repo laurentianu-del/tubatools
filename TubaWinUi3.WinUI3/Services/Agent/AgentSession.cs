@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using Microsoft.Extensions.AI;
 
 namespace TubaWinUi3.Services.Agent;
@@ -14,6 +15,8 @@ public sealed class AgentSession : IDisposable
     private readonly List<ConversationDisplayItem> _displayItems = [];
     private readonly StringBuilder _textSb = new();
     private readonly ConversationMemory _memory;
+    private readonly HashSet<string> _activeSkillIds = [];
+    private bool _skillTriggerActive;
     private CancellationTokenSource _cts = new();
     private bool _awaitingConfirmation;
     private System.Diagnostics.Stopwatch? _groupTimer;
@@ -61,6 +64,14 @@ public sealed class AgentSession : IDisposable
     /// <summary>会话记忆文件读写（供记忆工具访问）。</summary>
     internal ConversationMemory Memory => _memory;
 
+    /// <summary>本会话已激活的技能 Id（技能菜单 UI 读取）。</summary>
+    public IReadOnlyCollection<string> ActiveSkillIds => _activeSkillIds;
+
+    /// <summary>
+    /// 技能强制触发激活中（本次发送内 web_search 被 Runtime 禁用，强制模型用浏览器查价）。
+    /// </summary>
+    internal bool IsSkillTriggerActive => _skillTriggerActive;
+
     private static string HistoryDir => Path.Combine(ConfigManager.GetDataDir(), "AiAssistant");
 
     private AgentSession(string id, string title)
@@ -68,6 +79,7 @@ public sealed class AgentSession : IDisposable
         Id = id;
         Title = title;
         _memory = new ConversationMemory(Path.Combine(HistoryDir, $"{id}.memory.md"));
+        LoadSkills();
     }
 
     public static AgentSession CreateNew()
@@ -116,13 +128,43 @@ public sealed class AgentSession : IDisposable
         {
             EnsureSystemPrompt();
 
+            // 技能触发：命中触发词 → 系统级强制（不依赖模型自觉，兼容忽略长 system 的弱模型）：
+            // 1) system 末尾追加技能强指令；2) 以 user 角色注入自包含「系统指令」
+            //   （含当前时间 + 完整技能片段，模型只看最后几条消息也能执行）；
+            // 3) 本次发送内禁用 web_search（Runtime 拦截）
+            var trigger = AgentSkillRegistry.BuildTriggerFor(userText, _activeSkillIds);
+            _skillTriggerActive = !string.IsNullOrEmpty(trigger);
+            if (_skillTriggerActive)
+            {
+                _history[0] = new ChatMessage(ChatRole.System, _history[0].Text + "\n\n" + trigger);
+
+                var dirSb = new StringBuilder();
+                dirSb.Append($"【系统指令】当前时间：{DateTime.Now:yyyy年M月d日 HH:mm}。以下已加载技能已触发，本次任务必须完整执行其要求（技能要求优先于其他默认策略）：");
+                foreach (var skill in AgentSkillRegistry.All.Where(s => _activeSkillIds.Contains(s.Id)))
+                {
+                    if (skill.TriggerKeywords.Length == 0 ||
+                        !skill.TriggerKeywords.Any(k => userText.Contains(k, StringComparison.OrdinalIgnoreCase)))
+                        continue;
+                    dirSb.AppendLine();
+                    dirSb.AppendLine($"—— 技能「{skill.DisplayName}」要求 ——");
+                    dirSb.AppendLine(skill.SystemPromptFragment.Trim());
+                }
+                dirSb.AppendLine();
+                dirSb.AppendLine("（若技能要求用浏览器查询价格：web_search 已被系统禁用，必须使用 browser_* 浏览器工具；遇到登录拦截调用 browser_wait_for_login 等待用户登录）");
+                _history.Add(new ChatMessage(ChatRole.User, dirSb.ToString()));
+            }
+
             // 标题：第一条用户消息
             if (_history.Count <= 1 && Title == "新对话")
                 Title = userText.Length > 30 ? userText[..30] + "…" : userText;
 
-            // 上下文预算：先本地截断，超预算滚动摘要
+            // 上下文预算：先本地截断，超预算滚动摘要。
+            // 注意：PrepareHistoryAsync 返回的列表必须与 _history 不同引用
+            // （历史 <=1 条时若返回原引用，下方的 Clear 会连带清空 system）。
             using var client = AgentClientFactory.CreateClient();
             var prepared = await AgentMemory.PrepareHistoryAsync(client, _history, ct: ct);
+            if (ReferenceEquals(prepared, _history))
+                prepared = _history.ToList();
             _history.Clear();
             _history.AddRange(prepared);
 
@@ -141,6 +183,7 @@ public sealed class AgentSession : IDisposable
         {
             FinalizeOpenTextItem();
             IsRunning = false;
+            _skillTriggerActive = false;
             AgentToolContext.Current = null;
         }
     }
@@ -183,13 +226,31 @@ public sealed class AgentSession : IDisposable
     /// <summary>取消当前运行。</summary>
     public void Cancel() => _cts.Cancel();
 
+    /// <summary>
+    /// 启用/禁用技能，立即重建系统提示词（技能开关即时生效）。
+    /// </summary>
+    public void SetSkillEnabled(string id, bool enabled)
+    {
+        if (AgentSkillRegistry.Find(id) is null) return;
+        if (enabled) _activeSkillIds.Add(id);
+        else _activeSkillIds.Remove(id);
+        EnsureSystemPrompt();
+    }
+
+    /// <summary>用户重命名会话（持久化由调用方触发 Save）。</summary>
+    public void Rename(string title) => Title = title.Trim();
+
     /// <summary>持久化：协议历史（messages.json）+ 展示记录（display.json，含步骤链与 token 统计）。</summary>
     public void Save()
     {
         if (_history.Count == 0) return;
         try
         {
-            AiAssistantService.SaveConversation(Id, Title, AgentMessageConverter.ToAiMessages(_history));
+            // 跳过注入的「系统指令」消息（内部指令，不写入用户可见历史）
+            var saveable = _history
+                .Where(m => m.Role != ChatRole.User || m.Text is null || !m.Text.StartsWith("【系统指令】"))
+                .ToList();
+            AiAssistantService.SaveConversation(Id, Title, AgentMessageConverter.ToAiMessages(saveable));
             // 会话级 token 统计写入 meta 条目（多轮累计，加载时恢复）
             if (TotalTokens > 0)
             {
@@ -203,13 +264,17 @@ public sealed class AgentSession : IDisposable
                 meta.CompletionTokens = TotalCompletionTokens;
             }
             AiAssistantService.SaveConversationDisplay(Id, _displayItems);
+            SaveSkills();
         }
         catch { }
     }
 
     public void Dispose()
     {
-        _cts.Dispose();
+        // 注意：不能释放 _cts —— 后台运行循环（Task.Run 中的 SendAsync）可能仍持有其 token，
+        // 对已释放的 CTS 调用 Cancel / CreateLinkedTokenSource 会抛 ObjectDisposedException。
+        // 这里只请求取消让运行收尾；CTS 无强非托管资源，交由 GC 回收。
+        _cts.Cancel();
         Save();
     }
 
@@ -317,12 +382,59 @@ public sealed class AgentSession : IDisposable
         _textSb.Clear();
     }
 
-    private static string BuildSystemContent()
+    private static string SkillsPath(string id) => Path.Combine(HistoryDir, $"{id}.skills.json");
+
+    /// <summary>加载会话技能状态：文件缺失时默认全部技能激活。</summary>
+    private void LoadSkills()
     {
-        var content = AgentPrompts.SystemPrompt + "\n\n" +
-                      CliToolboxCatalog.Default.BuildIndexContext() + "\n\n" +
-                      AiAssistantService.BuildSystemContext() + "\n\n" +
-                      AiAssistantService.BuildSystemInfoContext();
+        _activeSkillIds.Clear();
+        try
+        {
+            if (File.Exists(SkillsPath(Id)))
+            {
+                var ids = JsonSerializer.Deserialize<List<string>>(File.ReadAllText(SkillsPath(Id)));
+                if (ids is not null)
+                    foreach (var id in ids)
+                        if (AgentSkillRegistry.Find(id) is not null)
+                            _activeSkillIds.Add(id);
+            }
+            else
+            {
+                foreach (var skill in AgentSkillRegistry.All)
+                    _activeSkillIds.Add(skill.Id);
+            }
+        }
+        catch
+        {
+            foreach (var skill in AgentSkillRegistry.All)
+                _activeSkillIds.Add(skill.Id);
+        }
+    }
+
+    private void SaveSkills()
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(SkillsPath(Id));
+            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+            File.WriteAllText(SkillsPath(Id), JsonSerializer.Serialize(_activeSkillIds.OrderBy(x => x).ToList()));
+        }
+        catch { }
+    }
+
+    private string BuildSystemContent()
+    {
+        var content = AgentPrompts.SystemPrompt;
+
+        // 已加载技能：紧跟主提示词，保证模型优先注意（技能要求优先于主提示词默认策略）
+        var active = AgentSkillRegistry.All.Where(s => _activeSkillIds.Contains(s.Id)).ToList();
+        var skillsContext = AgentSkillRegistry.BuildActiveSkillsContext(active);
+        if (!string.IsNullOrEmpty(skillsContext))
+            content += "\n\n" + skillsContext;
+
+        content += "\n\n" + CliToolboxCatalog.Default.BuildIndexContext() + "\n\n" +
+                   AiAssistantService.BuildSystemContext() + "\n\n" +
+                   AiAssistantService.BuildSystemInfoContext();
         return content;
     }
 

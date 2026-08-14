@@ -248,32 +248,40 @@ public sealed partial class AiQuickAskFlyout : UserControl
     {
         _session?.Save();
 
-        var flyout = new MenuFlyout();
-        var conversations = AiAssistantService.ListConversations();
-
-        if (conversations.Count == 0)
-        {
-            flyout.Items.Add(new MenuFlyoutItem
-            {
-                Text = "暂无历史记录",
-                IsEnabled = false
-            });
-        }
-        else
-        {
-            foreach (var conv in conversations.Take(20))
-            {
-                var item = new MenuFlyoutItem
-                {
-                    Text = $"{conv.Title}  ({conv.CreatedAt:MM/dd HH:mm})",
-                    Tag = conv
-                };
-                item.Click += (_, _) => LoadConversation(conv);
-                flyout.Items.Add(item);
-            }
-        }
+        var flyout = AiHistoryMenu.Build(
+            AiAssistantService.ListConversations(),
+            onOpen: conv => LoadConversation(conv),
+            onRename: OnRenameConversation,
+            onDelete: OnDeleteConversation);
 
         flyout.ShowAt(sender as FrameworkElement);
+    }
+
+    /// <summary>重命名会话：当前打开的会话同步更新内存标题，并立即持久化到 meta.json。</summary>
+    private async void OnRenameConversation(ConversationMeta conv)
+    {
+        var newTitle = await AiHistoryMenu.PromptRenameAsync(XamlRoot, conv.Title);
+        if (newTitle is null) return;
+
+        if (_session?.Id == conv.Id)
+            _session.Rename(newTitle);
+        AiAssistantService.RenameConversation(conv.Id, newTitle);
+    }
+
+    /// <summary>删除会话：确认后移除全部关联文件；删的是当前会话则回到新对话。</summary>
+    private async void OnDeleteConversation(ConversationMeta conv)
+    {
+        if (!await AiHistoryMenu.ConfirmDeleteAsync(XamlRoot, conv.Title)) return;
+
+        AiAssistantService.DeleteConversation(conv.Id);
+        if (_session?.Id == conv.Id)
+        {
+            _session?.Dispose();
+            _session = CreateSession();
+            _awaitingConfirmation = false;
+            _chatList.Children.Clear();
+            AddSystemMessage("新对话已开始。请输入你的问题。");
+        }
     }
 
     private void QuickQuestion_Click(object sender, RoutedEventArgs e)

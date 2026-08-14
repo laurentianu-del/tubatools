@@ -304,6 +304,7 @@ public sealed partial class AiAssistantService
     {
         var sb = new StringBuilder();
         sb.AppendLine("## 系统基本信息");
+        sb.AppendLine($"当前时间：{DateTime.Now:yyyy年M月d日 HH:mm dddd}（涉及价格、时效信息一律以当前时间判断）");
         sb.AppendLine($"操作系统：{Environment.OSVersion.VersionString}");
         sb.AppendLine($"用户名：{Environment.UserName}");
         sb.AppendLine($"用户目录：{Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)}");
@@ -616,7 +617,10 @@ public sealed partial class AiAssistantService
         };
     }
 
-    private static string HistoryDir => Path.Combine(ConfigManager.GetDataDir(), "AiAssistant");
+    /// <summary>测试用：覆盖历史目录（见 AiProviderStore.StoragePathOverride）。</summary>
+    internal static string? HistoryDirOverride;
+
+    private static string HistoryDir => HistoryDirOverride ?? Path.Combine(ConfigManager.GetDataDir(), "AiAssistant");
 
     public static void SaveConversation(string id, string title, List<AiChatMessage> messages)
     {
@@ -698,14 +702,34 @@ public sealed partial class AiAssistantService
         catch { return []; }
     }
 
+    /// <summary>删除会话：清除全部 4 个关联文件（meta / messages / display / memory），缺文件容忍。</summary>
     public static void DeleteConversation(string id)
     {
         try
         {
+            foreach (var suffix in new[] { ".meta.json", ".messages.json", ".display.json", ".memory.md" })
+            {
+                var path = Path.Combine(HistoryDir, $"{id}{suffix}");
+                if (File.Exists(path)) File.Delete(path);
+            }
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// 重命名会话：只重写 meta.json 中的 Title，保留 CreatedAt / MessageCount。
+    /// 不能走 SaveConversation —— 它会刷新 CreatedAt，导致列表排序跳顶。
+    /// </summary>
+    public static void RenameConversation(string id, string newTitle)
+    {
+        try
+        {
             var metaPath = Path.Combine(HistoryDir, $"{id}.meta.json");
-            var msgPath = Path.Combine(HistoryDir, $"{id}.messages.json");
-            if (File.Exists(metaPath)) File.Delete(metaPath);
-            if (File.Exists(msgPath)) File.Delete(msgPath);
+            if (!File.Exists(metaPath)) return;
+            var meta = JsonSerializer.Deserialize<ConversationMeta>(File.ReadAllText(metaPath), JsonOpts);
+            if (meta is null) return;
+            meta.Title = newTitle.Trim();
+            File.WriteAllText(metaPath, JsonSerializer.Serialize(meta, JsonOpts));
         }
         catch { }
     }

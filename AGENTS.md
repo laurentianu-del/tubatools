@@ -62,6 +62,15 @@ The "文件传输" feature spans three pieces with their own toolchains — none
 - `file-transfer-web/` — Vue 3 + Vuetify 4 web UI (`npm run dev`; build is `vue-tsc -b && vite build`).
 - `cloudflare-worker/` — WebRTC signaling server (Cloudflare Durable Object `GroupRoom`); `wrangler dev` / `wrangler deploy`.
 
+## Android downloader app (separate)
+
+`android-tuba-installer/` is a **Kotlin + Jetpack Compose** Android app (图吧工具箱安装助手) that lets users pick a PC architecture (x64 default), download the official Inno setup exe (GitCode mirror first, GitHub fallback — same asset naming as `UpdateService`), and follow an MTP copy + double-click install guide. **No root / no ADB / no Bluetooth** by design (target PCs must stay offline). Not part of `dotnet build`:
+
+- Build: `./gradlew -p android-tuba-installer assembleDebug` (Gradle wrapper inside the folder; needs Android SDK; `local.properties` is gitignored).
+- APK CI: `.github/workflows/android-build.yml` (manual `workflow_dispatch`, uploads debug APK artifact).
+- Android 10+ writes to public Downloads via MediaStore (no permissions); API 26–28 needs WRITE_EXTERNAL_STORAGE.
+- Release API sources: `api.gitcode.com/api/v5/repos/{luolangaga|gcw_uDDNaqJw}/tubatool/releases/latest` → `api.github.com/repos/luolangaga/tubatool/releases/latest`; assets matched by `TubaWinUi3_Setup_*_{arch}.exe`.
+
 ## CI (`.github/workflows/` — all manual `workflow_dispatch`)
 
 - `build-release.yml` — bumps `<Version>` in **both** `.csproj`s and `#define MyAppVersion` in all `installer*.iss`, publishes x64/x86/ARM64 portable + Inno installer + x64-lite (`ExcludeToolsFromPublish=true` + `.lite_build` marker), builds the Compatible edition, restores `.pri`, generates the changelog via **DeepSeek** (`DEEPSEEK_API_KEY`), creates the GitHub release, and optionally mirrors to **GitCode/AtomGit** (`GITCODE_ACCESS_TOKEN`). Portable zips are staged as a `src/` folder plus the native `Launcher\bin\图吧工具箱WinUI3_<arch>.exe` (renamed `图吧工具箱WinUI3.exe`).

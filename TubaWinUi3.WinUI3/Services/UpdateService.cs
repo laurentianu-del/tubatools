@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Net.Http;
 using System.Reflection;
@@ -473,22 +474,31 @@ public static class UpdateService
 
     public static void LaunchDownloadedUpdate()
     {
+        LaunchScannedUpdate();
+    }
+
+    /// <summary>
+    /// 扫描更新目录中的安装包并安全启动（exe 启动 / zip 打开所在文件夹）。永不抛出。
+    /// </summary>
+    private static bool LaunchScannedUpdate()
+    {
         var file = FindDownloadedUpdateFile();
-        if (file is null) return;
+        if (file is null) return false;
 
         if (file.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
         {
-            Process.Start(new ProcessStartInfo
+            if (TryLaunchInstaller(file))
             {
-                FileName = file,
-                UseShellExecute = true
-            });
-            Microsoft.UI.Xaml.Application.Current.Exit();
+                Microsoft.UI.Xaml.Application.Current.Exit();
+                return true;
+            }
+            return false;
         }
         else
         {
             var folder = Path.GetDirectoryName(file)!;
             Process.Start("explorer.exe", folder);
+            return true;
         }
     }
 
@@ -573,31 +583,145 @@ public static class UpdateService
         LaunchDownloadedUpdate();
     }
 
-    public static void LaunchUpdateFromItem()
+    /// <summary>
+    /// 启动待定更新安装包。返回是否成功启动；失败时不会抛出异常
+    /// （文件可能被杀毒软件、清理工具或磁盘错误影响）。
+    /// </summary>
+    public static bool LaunchUpdateFromItem()
     {
         if (_pendingDownloadItem is not null)
         {
             var fileName = _pendingDownloadItem.ResolvedFileName;
-            if (!string.IsNullOrEmpty(fileName))
+            if (string.IsNullOrEmpty(fileName))
+                return false;
+
+            var filePath = Path.Combine(UpdateTempDir, fileName);
+            if (!File.Exists(filePath))
+                return false; // 待定安装包已不存在（被清理/删除），不再回退启动目录中的旧文件
+
+            if (filePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
             {
-                var filePath = Path.Combine(UpdateTempDir, fileName);
-                if (File.Exists(filePath))
+                if (TryLaunchInstaller(filePath))
                 {
-                    if (filePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
-                    {
-                        Process.Start(new ProcessStartInfo { FileName = filePath, UseShellExecute = true });
-                        Microsoft.UI.Xaml.Application.Current.Exit();
-                    }
-                    else
-                    {
-                        Process.Start("explorer.exe", UpdateTempDir);
-                    }
-                    return;
+                    Microsoft.UI.Xaml.Application.Current.Exit();
+                    return true;
                 }
+                return false;
+            }
+            else
+            {
+                Process.Start("explorer.exe", UpdateTempDir);
+                return true;
             }
         }
 
-        LaunchDownloadedUpdate();
+        // 待定项不可用（如启动时检测到上一会话已下载的更新）时回退到目录扫描
+        return LaunchScannedUpdate();
+    }
+
+    /// <summary>待定更新文件（或目录扫描到的更新文件）是否存在且有效。</summary>
+    public static bool IsPendingUpdateReady()
+    {
+        if (_pendingDownloadItem is not null && !string.IsNullOrEmpty(_pendingDownloadItem.ResolvedFileName))
+        {
+            var filePath = Path.Combine(UpdateTempDir, _pendingDownloadItem.ResolvedFileName);
+            return IsInstallerFileValid(filePath);
+        }
+
+        var file = FindDownloadedUpdateFile();
+        return file is not null && IsInstallerFileValid(file);
+    }
+
+    /// <summary>在资源管理器中打开更新下载目录。</summary>
+    public static void OpenUpdateFolder()
+    {
+        try
+        {
+            Directory.CreateDirectory(UpdateTempDir);
+            Process.Start("explorer.exe", UpdateTempDir);
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// 校验更新文件是否可用：存在、非空；exe 额外校验 PE 魔数（MZ 头）。
+    /// 返回 false 时文件大概率已损坏或被外部改动，应删除后重新下载。
+    /// </summary>
+    public static bool IsInstallerFileValid(string filePath)
+    {
+        try
+        {
+            var info = new FileInfo(filePath);
+            if (!info.Exists || info.Length <= 0) return false;
+
+            if (filePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+            {
+                using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete);
+                var magic = new byte[2];
+                return fs.Read(magic, 0, 2) == 2 && magic[0] == (byte)'M' && magic[1] == (byte)'Z';
+            }
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 校验并安全启动下载好的更新安装包（永不抛出）。
+    /// 刚下载到临时目录的 exe 可能被杀毒软件扫描/隔离、清理工具删除或受磁盘错误影响，
+    /// 直接 Process.Start 会抛 Win32Exception 导致 UI 崩溃；这里先做存在性 + PE 魔数校验，
+    /// 启动失败后短暂等待重试一次，仍失败则删除失效文件。
+    /// </summary>
+    private static bool TryLaunchInstaller(string filePath)
+    {
+        if (!IsInstallerFileValid(filePath))
+        {
+            TryDeleteInvalidFile(filePath);
+            return false;
+        }
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = filePath,
+            // 显式指定工作目录，避免依赖应用当前目录（可能指向已失效的卷）
+            WorkingDirectory = Path.GetDirectoryName(filePath) ?? Path.GetTempPath(),
+            UseShellExecute = true
+        };
+
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            try
+            {
+                Process.Start(psi);
+                return true;
+            }
+            catch (Exception) when (attempt == 0)
+            {
+                // 文件可能在校验与启动之间被外部改动（杀软扫描等瞬时占用），等待后重试一次
+                Thread.Sleep(800);
+            }
+            catch (Exception)
+            {
+                // 重试仍失败：文件已不可用
+                break;
+            }
+        }
+
+        TryDeleteInvalidFile(filePath);
+        return false;
+    }
+
+    private static void TryDeleteInvalidFile(string filePath)
+    {
+        try
+        {
+            if (File.Exists(filePath)) File.Delete(filePath);
+        }
+        catch { }
     }
 
     public static void ClearPendingUpdate()
