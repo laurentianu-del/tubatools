@@ -30,22 +30,22 @@ public sealed partial class ToolContentPage : Page
 
         _titleText = new TextBlock
         {
-            FontSize = 24,
-            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+            FontSize = 28,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
             Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorPrimaryBrush"]
         };
 
         _subtitleText = new TextBlock
         {
-            FontSize = 13,
+            FontSize = 14,
             Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
             TextWrapping = TextWrapping.Wrap
         };
 
         var header = new StackPanel
         {
-            Padding = new Thickness(24, 20, 24, 4),
-            Spacing = 2,
+            Padding = new Thickness(24, 16, 24, 8),
+            Spacing = 4,
             Children = { _titleText, _subtitleText }
         };
 

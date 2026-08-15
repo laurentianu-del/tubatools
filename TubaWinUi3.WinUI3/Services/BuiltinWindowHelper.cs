@@ -49,10 +49,19 @@ public static class BuiltinWindowHelper
 
     public static void ApplyTitleBarTheme(Window window)
     {
-        var tb = window.AppWindow.TitleBar;
         var isDark = ThemeService.CurrentTheme == AppTheme.Dark ||
                      (ThemeService.CurrentTheme == AppTheme.Default && Application.Current.RequestedTheme == ApplicationTheme.Dark);
+        TitleBarPalette.Apply(window.AppWindow.TitleBar, isDark);
+    }
+}
 
+/// <summary>
+/// 全应用统一的标题栏配色（主窗口与所有子窗口共用同一套明暗色值）。
+/// </summary>
+internal static class TitleBarPalette
+{
+    public static void Apply(AppWindowTitleBar tb, bool isDark)
+    {
         if (isDark)
         {
             tb.ButtonForegroundColor = Color.FromArgb(255, 255, 255, 255);
