@@ -153,7 +153,7 @@ public sealed partial class CustomToolManagerWindow : Window
         var nameText = new TextBlock
         {
             Text = vm.Name,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             VerticalAlignment = VerticalAlignment.Center
         };
         Grid.SetColumn(nameText, 1);
@@ -324,7 +324,7 @@ public sealed partial class CustomToolManagerWindow : Window
                     CornerRadius='6'>
                     <TextBlock
                         FontSize='13'
-                        FontWeight='SemiBold'
+                        FontWeight='Bold'
                         MaxLines='2'
                         TextTrimming='CharacterEllipsis'
                         TextWrapping='Wrap'

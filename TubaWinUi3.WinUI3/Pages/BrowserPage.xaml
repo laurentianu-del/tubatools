@@ -28,7 +28,7 @@
                 <FontIcon FontSize="16" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" Glyph="&#xE774;" />
             </Border>
 
-            <TextBlock x:Name="TitleText" Grid.Column="1" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" Text="浏览器" />
+            <TextBlock x:Name="TitleText" Grid.Column="1" FontSize="14" FontWeight="Bold" VerticalAlignment="Center" Text="浏览器" />
 
             <ProgressRing x:Name="LoadingRing" Grid.Column="2" Width="20" Height="20" IsActive="False" VerticalAlignment="Center" />
 
@@ -54,7 +54,7 @@
 
             <StackPanel x:Name="ErrorPanel" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12" Visibility="Collapsed">
                 <FontIcon FontSize="48" Glyph="&#xE783;" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                <TextBlock x:Name="ErrorTitle" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" Text="无法加载页面" />
+                <TextBlock x:Name="ErrorTitle" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center" Text="无法加载页面" />
                 <TextBlock x:Name="ErrorMessage" FontSize="13" Opacity="1.0" HorizontalAlignment="Center" TextWrapping="Wrap" MaxWidth="360" />
                 <Button x:Name="RetryButton" HorizontalAlignment="Center" Click="RetryButton_Click" Style="{ThemeResource AccentButtonStyle}">
                     <StackPanel Orientation="Horizontal" Spacing="6">

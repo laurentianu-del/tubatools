@@ -30,9 +30,6 @@
     <Content Include="Assets\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="Fonts\*.ttf;Fonts\*.otf">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
   </ItemGroup>
 
   <ItemGroup Condition="'$(ExcludeToolsFromPublish)' != 'true'">
@@ -131,15 +128,5 @@
     <Exec Command="&quot;$(TargetDir)$(TargetName).exe&quot; --build-tool-cache &quot;$(MSBuildProjectDirectory)\Tools&quot; &quot;$(MSBuildProjectDirectory)\Metadata\tool_cache.json&quot;" />
     <!-- 生成发生在 Build 的内容复制之后，需补复制到输出目录才能随 publish 分发 -->
     <Copy SourceFiles="$(MSBuildProjectDirectory)\Metadata\tool_cache.json" DestinationFolder="$(TargetDir)Metadata" />
-  </Target>
-
-  <!--
-    Generate the subset MiSans font (Fonts/MiSans-Subset.otf) before publish so
-    first frame rendering loads a small font instead of the 6.5MB original.
-    Skips silently when fonttools is unavailable (falls back to the full font).
-  -->
-  <Target Name="GenerateBundledFontSubset" BeforeTargets="Publish">
-    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\build-font-subset.ps1&quot; -ProjectDir &quot;$(MSBuildProjectDirectory)&quot;" />
-    <Copy SourceFiles="$(MSBuildProjectDirectory)\Fonts\MiSans-Subset.otf" DestinationFolder="$(TargetDir)Fonts" Condition="Exists('$(MSBuildProjectDirectory)\Fonts\MiSans-Subset.otf')" />
   </Target>
 </Project>

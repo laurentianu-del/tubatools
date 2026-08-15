@@ -78,7 +78,7 @@ public static partial class MarkdownTextService
             3 => 15,
             _ => 13
         };
-        var fontWeight = level <= 2 ? FontWeights.SemiBold : FontWeights.Normal;
+        var fontWeight = level <= 2 ? FontWeights.Bold : FontWeights.Normal;
 
         var run = new Run { Text = text, FontSize = fontSize, FontWeight = fontWeight };
         para.Inlines.Add(run);
@@ -217,7 +217,7 @@ public static partial class MarkdownTextService
 
                 if (isHeader)
                 {
-                    var bold = new Span { FontWeight = FontWeights.SemiBold };
+                    var bold = new Span { FontWeight = FontWeights.Bold };
                     AddInlineContent(bold, row[c]);
                     para.Inlines.Add(bold);
                 }
@@ -300,7 +300,7 @@ public static partial class MarkdownTextService
             else if (match.Groups[3].Success)
             {
                 var boldText = match.Groups[3].Value;
-                var bold = new Span { FontWeight = FontWeights.SemiBold };
+                var bold = new Span { FontWeight = FontWeights.Bold };
                 bold.Inlines.Add(new Run { Text = boldText });
                 para.Inlines.Add(bold);
             }

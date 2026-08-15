@@ -203,7 +203,7 @@ public sealed class CertBlockTool : IBuiltinTool
         {
             Text = vendor.DisplayName,
             FontSize = 14,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             TextAlignment = TextAlignment.Left
         };
         var countText = new TextBlock

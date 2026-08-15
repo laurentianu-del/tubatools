@@ -28,7 +28,7 @@
             </Border>
 
             <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-                <TextBlock x:Name="TitleText" FontSize="26" FontWeight="SemiBold" Text="正在下载" />
+                <TextBlock x:Name="TitleText" FontSize="26" FontWeight="Bold" Text="正在下载" />
                 <TextBlock x:Name="SubtitleText" Opacity="1.0" FontSize="13" TextWrapping="Wrap"
                            Text="正在测速选择最佳下载源..." />
             </StackPanel>
@@ -43,7 +43,7 @@
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                         BorderThickness="1" CornerRadius="10">
                     <StackPanel Spacing="4">
-                        <TextBlock x:Name="InfoTitleText" FontSize="15" FontWeight="SemiBold" />
+                        <TextBlock x:Name="InfoTitleText" FontSize="15" FontWeight="Bold" />
                         <TextBlock x:Name="InfoDescText" FontSize="13" Opacity="1.0" TextWrapping="Wrap" />
                         <TextBlock x:Name="InfoDetailText" FontSize="12" Opacity="1.0" />
                     </StackPanel>
@@ -118,7 +118,7 @@
                     <StackPanel Spacing="8">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <FontIcon FontSize="14" Glyph="&#xE73E;" Foreground="#0F7B0F" />
-                            <TextBlock FontSize="14" FontWeight="SemiBold" Text="下载完成" />
+                            <TextBlock FontSize="14" FontWeight="Bold" Text="下载完成" />
                         </StackPanel>
                         <TextBlock x:Name="SuccessDetailText" FontSize="13" Opacity="1.0" TextWrapping="Wrap" />
                     </StackPanel>
@@ -131,7 +131,7 @@
                     <StackPanel Spacing="8">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <FontIcon FontSize="14" Glyph="&#xE783;" Foreground="#FF4444" />
-                            <TextBlock FontSize="14" FontWeight="SemiBold" Text="下载失败" />
+                            <TextBlock FontSize="14" FontWeight="Bold" Text="下载失败" />
                         </StackPanel>
                         <TextBlock x:Name="ErrorText" FontSize="13" Opacity="1.0" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
                     </StackPanel>

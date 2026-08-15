@@ -120,7 +120,7 @@ public sealed partial class PortViewerPage : Page
             {
                 Text = entry.ProtocolLabel,   // TCP / TCP6 / UDP / UDP6
                 FontSize = 11,
-                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
                 Foreground = new SolidColorBrush(protoFg)
             }
         };
@@ -129,7 +129,7 @@ public sealed partial class PortViewerPage : Page
         {
             Text = entry.LocalPort.ToString(),
             FontSize = 13,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText),
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -249,7 +249,7 @@ public sealed partial class PortViewerPage : Page
             {
                 Text = text,
                 FontSize = 10,
-                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
                 Foreground = new SolidColorBrush(color),
                 VerticalAlignment = VerticalAlignment.Center
             }

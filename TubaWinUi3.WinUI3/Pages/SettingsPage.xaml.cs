@@ -33,8 +33,6 @@ public sealed partial class SettingsPage : Page
     private bool _watermarkInitializing;
     private bool _watermarkTextInitializing;
     private bool _watermarkFontInitializing;
-    private bool _fontInitializing;
-    private bool _fontChangePending;
     private Border[] _backdropOptions = [];
     private bool _hardwareFitScreenInitializing;
     private bool _hardwareMultiDeviceNewLineInitializing;
@@ -195,7 +193,6 @@ public sealed partial class SettingsPage : Page
         InitBrandLogoToggle();
         InitDisableBrandEasterEggToggle();
         InitWatermarkSettings();
-        InitInterfaceFontSettings();
         InitHardwareFitScreenToggle();
         InitHardwareMultiDeviceNewLineToggle();
         InitCpuzDataSourceStatus();
@@ -994,78 +991,6 @@ public sealed partial class SettingsPage : Page
             AppSettings.Set("ScreenshotWatermarkFont", font);
     }
 
-    private void InitInterfaceFontSettings()
-    {
-        _fontInitializing = true;
-        InitFontComboBox();
-        _fontInitializing = false;
-    }
-
-    private void InitFontComboBox()
-    {
-        FontComboBox.Items.Clear();
-        var savedFont = FontService.GetCurrentFont();
-        var isDefault = savedFont == FontService.DefaultFont;
-        var fonts = FontService.GetInstalledFonts();
-
-        var selectedIndex = 0;
-        for (var i = 0; i < fonts.Count; i++)
-        {
-            FontComboBox.Items.Add(fonts[i]);
-            if (isDefault && fonts[i].Contains("（默认）"))
-            {
-                selectedIndex = i;
-            }
-            else if (!isDefault)
-            {
-                var actualFont = fonts[i].Replace("（默认）", "");
-                if (actualFont == savedFont)
-                    selectedIndex = i;
-            }
-        }
-
-        FontComboBox.SelectedIndex = selectedIndex;
-    }
-
-    private void FontComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_fontInitializing) return;
-        if (FontComboBox.SelectedItem is string font)
-        {
-            var actualFont = font.Replace("（默认）", "");
-            FontService.SetFont(actualFont);
-            ShowRestartHint();
-        }
-    }
-
-    private void ResetFontButton_Click(object sender, RoutedEventArgs e)
-    {
-        FontService.SetFont(FontService.DefaultFont);
-
-        _fontInitializing = true;
-        InitFontComboBox();
-        _fontInitializing = false;
-
-        ShowRestartHint();
-    }
-
-    private async void ShowRestartHint()
-    {
-        if (_fontChangePending) return;
-        _fontChangePending = true;
-
-        var dialog = new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = "字体已更改",
-            Content = "字体设置已保存，需要重启应用才能生效。",
-            CloseButtonText = "知道了",
-            RequestedTheme = ThemeService.CurrentElementTheme
-        };
-
-        await dialog.ShowAsync();
-    }
-
     private void InitHardwareFitScreenToggle()
     {
         _hardwareFitScreenInitializing = true;
@@ -1188,7 +1113,7 @@ public sealed partial class SettingsPage : Page
                 new TextBlock
                 {
                     Text = "⚠ WMI 数据可能被伪造",
-                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    FontWeight = Microsoft.UI.Text.FontWeights.Bold,
                     FontSize = 14
                 },
                 new TextBlock
@@ -1224,7 +1149,7 @@ public sealed partial class SettingsPage : Page
                 new TextBlock
                 {
                     Text = "✓ CPU-Z 读取原理",
-                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    FontWeight = Microsoft.UI.Text.FontWeights.Bold,
                     FontSize = 14
                 },
                 new TextBlock
@@ -1260,7 +1185,7 @@ public sealed partial class SettingsPage : Page
                 new TextBlock
                 {
                     Text = "⏱ 注意事项",
-                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    FontWeight = Microsoft.UI.Text.FontWeights.Bold,
                     FontSize = 14
                 },
                 new TextBlock
@@ -1940,9 +1865,9 @@ public sealed partial class SettingsPage : Page
         };
 
         var panel = new StackPanel { Spacing = 12 };
-        panel.Children.Add(new TextBlock { Text = "问题描述", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, FontSize = 14 });
+        panel.Children.Add(new TextBlock { Text = "问题描述", FontWeight = Microsoft.UI.Text.FontWeights.Bold, FontSize = 14 });
         panel.Children.Add(descriptionBox);
-        panel.Children.Add(new TextBlock { Text = "复现步骤 *必填", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, FontSize = 14 });
+        panel.Children.Add(new TextBlock { Text = "复现步骤 *必填", FontWeight = Microsoft.UI.Text.FontWeights.Bold, FontSize = 14 });
         panel.Children.Add(stepsBox);
 
         while (true)

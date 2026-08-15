@@ -158,7 +158,6 @@ public sealed partial class FavoritesPage : Page
 
         var nameBlock = new TextBlock
         {
-            FontFamily = (Microsoft.UI.Xaml.Media.FontFamily)Microsoft.UI.Xaml.Application.Current.Resources["AppFontFamily"],
             HorizontalAlignment = HorizontalAlignment.Center,
             FontSize = 12,
             MaxLines = 2,

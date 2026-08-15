@@ -187,7 +187,7 @@ public sealed partial class ToolDownloadDialog : ContentDialog
         {
             Text = $"{_toolName} 下载完成！",
             FontSize = 16,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold
         });
         infoStack.Children.Add(new TextBlock
         {

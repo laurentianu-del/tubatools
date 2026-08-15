@@ -73,7 +73,7 @@ public sealed partial class RatingSystemPage : Page
         {
             Text = "硬件评分系统",
             FontSize = 22,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -563,7 +563,7 @@ public sealed partial class RatingSystemPage : Page
         {
             Text = score.ToString("F1"),
             FontSize = big ? 18 : 14,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(c)
         };
     }
@@ -589,7 +589,7 @@ public sealed partial class RatingSystemPage : Page
         {
             Text = string.IsNullOrWhiteSpace(entry.DeviceModel) ? "未知机型" : entry.DeviceModel,
             FontSize = 14,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText),
             TextWrapping = TextWrapping.Wrap
         });
@@ -682,7 +682,7 @@ public sealed partial class RatingSystemPage : Page
         {
             Text = string.IsNullOrWhiteSpace(entry.ComponentModel) ? "未知型号" : entry.ComponentModel,
             FontSize = 14,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText),
             TextWrapping = TextWrapping.Wrap
         });
@@ -752,7 +752,7 @@ public sealed partial class RatingSystemPage : Page
         {
             Text = $"总评均分 {entry.AvgOverall:F1} · {entry.RatingCount} 条评价",
             FontSize = 13,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Margin = new Thickness(0, 4, 0, 6)
         });
 
@@ -806,7 +806,7 @@ public sealed partial class RatingSystemPage : Page
         {
             Text = r.Author,
             FontSize = 12,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText)
         });
         header.Children.Add(ScoreText(r.OverallScore, false));
@@ -915,7 +915,7 @@ public sealed partial class RatingSystemPage : Page
         {
             Text = r.Author,
             FontSize = 12,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText)
         });
         header.Children.Add(ScoreText(r.OverallScore, false));
@@ -1267,7 +1267,7 @@ public sealed partial class RatingSystemPage : Page
         {
             Text = string.IsNullOrWhiteSpace(value) ? "未知" : value,
             FontSize = 13,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText),
             TextWrapping = TextWrapping.Wrap,
             MaxLines = 2

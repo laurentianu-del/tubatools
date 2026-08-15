@@ -14,8 +14,6 @@ public sealed partial class BuiltinToolsPage : Page
     private CancellationTokenSource? _highlightCts;
     private string? _pendingHighlightId;
 
-    private readonly FontFamily _appFont = (FontFamily)Application.Current.Resources["AppFontFamily"];
-
     public BuiltinToolsPage()
     {
         InitializeComponent();
@@ -133,8 +131,7 @@ public sealed partial class BuiltinToolsPage : Page
         {
             Text = category,
             FontSize = 16,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            FontFamily = _appFont,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             VerticalAlignment = VerticalAlignment.Center
         };
 
@@ -147,8 +144,7 @@ public sealed partial class BuiltinToolsPage : Page
             {
                 Text = tools.Count.ToString(),
                 FontSize = 12,
-                Opacity = 0.7,
-                FontFamily = _appFont
+                Opacity = 0.7
             }
         };
 
@@ -207,7 +203,6 @@ public sealed partial class BuiltinToolsPage : Page
                                 Glyph="{Binding Glyph}" />
                         </Border>
                         <TextBlock
-                            FontFamily="{StaticResource AppFontFamily}"
                             HorizontalAlignment="Center"
                             FontSize="13"
                             MaxLines="2"

@@ -24,7 +24,7 @@
                 <FontIcon FontSize="16" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" Glyph="&#xE968;" />
             </Border>
             <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-                <TextBlock FontSize="18" FontWeight="SemiBold" Text="网络调度器" />
+                <TextBlock FontSize="18" FontWeight="Bold" Text="网络调度器" />
                 <TextBlock Opacity="1.0" FontSize="12" Text="根据实时负载自动均衡多网络流量" />
             </StackPanel>
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
@@ -41,7 +41,7 @@
                 <InfoBar x:Name="ToastBar" IsClosable="True" IsOpen="False" />
 
                 <!-- Adapter cards -->
-                <TextBlock FontSize="13" FontWeight="SemiBold" Opacity="1.0" Text="网络适配器" Margin="0,2,0,0" />
+                <TextBlock FontSize="13" FontWeight="Bold" Opacity="1.0" Text="网络适配器" Margin="0,2,0,0" />
                 <Grid x:Name="AdapterCardsGrid" ColumnSpacing="10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -59,7 +59,7 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <FontIcon Glyph="&#xE9D9;" FontSize="18" VerticalAlignment="Center" Opacity="1.0" />
-                            <TextBlock Grid.Column="1" FontSize="14" FontWeight="SemiBold" Text="自动调度" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" FontSize="14" FontWeight="Bold" Text="自动调度" VerticalAlignment="Center" />
                             <ToggleSwitch x:Name="AutoScheduleToggle" IsOn="True" OnContent="运行中" OffContent="已关闭" FontSize="12" Toggled="AutoScheduleToggle_Toggled" Grid.Column="2" />
                         </Grid>
                         <TextBlock x:Name="ScheduleStatusText" FontSize="12" Opacity="1.0" Text="每 5 秒根据实时负载自动调整路由优先级" TextWrapping="Wrap" />
@@ -81,7 +81,7 @@
                 </Border>
 
                 <!-- Realtime speed -->
-                <TextBlock FontSize="13" FontWeight="SemiBold" Opacity="1.0" Text="实时速度" Margin="0,4,0,0" />
+                <TextBlock FontSize="13" FontWeight="Bold" Opacity="1.0" Text="实时速度" Margin="0,4,0,0" />
                 <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8" Padding="14">
                     <Grid x:Name="SpeedGrid" ColumnSpacing="20">
                         <Grid.ColumnDefinitions>
@@ -97,7 +97,7 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock FontSize="13" FontWeight="SemiBold" Opacity="1.0" Text="活动连接" VerticalAlignment="Center" />
+                    <TextBlock FontSize="13" FontWeight="Bold" Opacity="1.0" Text="活动连接" VerticalAlignment="Center" />
                     <HyperlinkButton x:Name="ViewConnectionsBtn" Grid.Column="1" Click="ViewConnectionsBtn_Click" Padding="4,2" FontSize="12">
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <TextBlock Text="查看详情" />

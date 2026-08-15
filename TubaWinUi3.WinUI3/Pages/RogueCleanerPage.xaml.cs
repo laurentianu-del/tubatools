@@ -599,7 +599,7 @@ public sealed partial class RogueCleanerPage : Page
         {
             Text = value ?? "",
             FontSize = bold ? 14 : 12,
-            FontWeight = bold ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
+            FontWeight = bold ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal,
             IsTextSelectionEnabled = true,
             TextWrapping = TextWrapping.Wrap,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText)

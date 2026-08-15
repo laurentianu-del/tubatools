@@ -30,7 +30,7 @@
             <TextBlock
                 x:Name="StepTitleText"
                 FontSize="20"
-                FontWeight="SemiBold" />
+                FontWeight="Bold" />
             <TextBlock
                 x:Name="StepSubtitleText"
                 FontSize="13"
@@ -86,7 +86,7 @@
                     <StackPanel Spacing="6" HorizontalAlignment="Center">
                         <TextBlock
                             FontSize="15"
-                            FontWeight="SemiBold"
+                            FontWeight="Bold"
                             Foreground="{ThemeResource SystemFillColorCriticalBrush}"
                             HorizontalAlignment="Center"
                             Text="⚠ 该软件开源免费！" />
@@ -141,7 +141,7 @@
                             </Border>
                             <TextBlock
                                 FontSize="15"
-                                FontWeight="SemiBold"
+                                FontWeight="Bold"
                                 HorizontalAlignment="Center"
                                 Text="新卡牌模式" />
                             <TextBlock
@@ -179,7 +179,7 @@
                             </Border>
                             <TextBlock
                                 FontSize="15"
-                                FontWeight="SemiBold"
+                                FontWeight="Bold"
                                 HorizontalAlignment="Center"
                                 Text="简洁模式" />
                             <TextBlock
@@ -248,7 +248,7 @@
                             </Border>
                             <TextBlock
                                 FontSize="13"
-                                FontWeight="SemiBold"
+                                FontWeight="Bold"
                                 HorizontalAlignment="Center"
                                 Text="Mica" />
                             <TextBlock
@@ -299,7 +299,7 @@
                             </Border>
                             <TextBlock
                                 FontSize="13"
-                                FontWeight="SemiBold"
+                                FontWeight="Bold"
                                 HorizontalAlignment="Center"
                                 Text="Mica Alt" />
                             <TextBlock
@@ -349,7 +349,7 @@
                             </Border>
                             <TextBlock
                                 FontSize="13"
-                                FontWeight="SemiBold"
+                                FontWeight="Bold"
                                 HorizontalAlignment="Center"
                                 Text="亚克力" />
                             <TextBlock

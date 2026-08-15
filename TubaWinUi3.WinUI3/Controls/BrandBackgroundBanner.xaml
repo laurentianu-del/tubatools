@@ -34,7 +34,7 @@
                 x:Name="BannerText"
                 Grid.Column="1"
                 VerticalAlignment="Center"
-                FontFamily="{StaticResource AppFontFamily}"
+
                 FontSize="13"
                 TextTrimming="CharacterEllipsis"
                 Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
@@ -45,7 +45,7 @@
                 VerticalAlignment="Center"
                 Padding="12,4"
                 MinHeight="28"
-                FontFamily="{StaticResource AppFontFamily}"
+
                 FontSize="12"
                 Click="DismissButton_Click"
                 AutomationProperties.Name="不需要">

@@ -14,14 +14,14 @@
             <TextBlock FontSize="28" FontWeight="Bold" Text="组件测试" />
             <TextBlock Opacity="0.7" FontSize="14" Text="预览 HealthGauge 仪表盘与 SparklineGraph 图表组件" />
 
-            <TextBlock FontSize="20" FontWeight="SemiBold" Text="HealthGauge 健康度仪表盘" />
+            <TextBlock FontSize="20" FontWeight="Bold" Text="HealthGauge 健康度仪表盘" />
             <Slider x:Name="GaugeValueSlider" Minimum="0" Maximum="100" Value="95" StepFrequency="1" Width="300" HorizontalAlignment="Left" />
             <controls:HealthGauge x:Name="TestGauge" Value="{x:Bind GaugeValueSlider.Value, Mode=OneWay}" Width="220" Height="220" HorizontalAlignment="Left" />
 
-            <TextBlock FontSize="20" FontWeight="SemiBold" Text="SparklineGraph 折线面积图" />
+            <TextBlock FontSize="20" FontWeight="Bold" Text="SparklineGraph 折线面积图" />
             <controls:SparklineGraph x:Name="TestSparkline" Height="150" HorizontalAlignment="Stretch" />
 
-            <TextBlock FontSize="20" FontWeight="SemiBold" Text="多个仪表盘对比" />
+            <TextBlock FontSize="20" FontWeight="Bold" Text="多个仪表盘对比" />
             <StackPanel Orientation="Horizontal" Spacing="24">
                 <StackPanel Spacing="4" HorizontalAlignment="Center">
                     <controls:HealthGauge x:Name="Gauge1" Value="15" Width="160" Height="160" />

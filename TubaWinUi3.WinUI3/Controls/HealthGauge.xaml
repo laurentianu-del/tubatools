@@ -17,7 +17,7 @@
             <TextBlock HorizontalTextAlignment="Center" FontSize="20" Opacity="0.8">
                 <Run Text="{x:Bind Label, Mode=OneWay}" />
             </TextBlock>
-            <TextBlock HorizontalTextAlignment="Center" FontSize="24" FontWeight="SemiBold">
+            <TextBlock HorizontalTextAlignment="Center" FontSize="24" FontWeight="Bold">
                 <Run Text="{x:Bind StatusLabel, Mode=OneWay}" />
             </TextBlock>
         </StackPanel>

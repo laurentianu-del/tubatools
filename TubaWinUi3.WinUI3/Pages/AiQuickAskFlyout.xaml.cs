@@ -616,7 +616,7 @@ public sealed partial class AiQuickAskFlyout : UserControl
             Text = displayText,
             FontSize = 12,
             Foreground = (Brush)Application.Current.Resources["AccentTextFillColorPrimaryBrush"],
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             TextTrimming = TextTrimming.CharacterEllipsis,
             MaxWidth = 300
         });

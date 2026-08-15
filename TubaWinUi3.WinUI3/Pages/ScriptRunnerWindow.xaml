@@ -34,7 +34,7 @@
                 </Grid>
             </Grid>
             <StackPanel Grid.Column="1" Spacing="2">
-                <TextBlock x:Name="TitleText" FontSize="22" FontWeight="SemiBold" Text="脚本运行" />
+                <TextBlock x:Name="TitleText" FontSize="22" FontWeight="Bold" Text="脚本运行" />
                 <TextBlock x:Name="SubtitleText" Opacity="1.0" FontSize="11" FontFamily="Consolas" IsTextSelectionEnabled="True" />
             </StackPanel>
             <Button x:Name="CloseButton" Grid.Column="2" Click="CloseButton_Click" CornerRadius="6">
@@ -58,7 +58,7 @@
                     </Grid.ColumnDefinitions>
 
                     <Border x:Name="CmdBadge" Padding="8,4" CornerRadius="4" VerticalAlignment="Center">
-                        <TextBlock FontSize="11" FontWeight="SemiBold" Opacity="1.0" Text="CMD" FontFamily="Cascadia Code, Consolas" />
+                        <TextBlock FontSize="11" FontWeight="Bold" Opacity="1.0" Text="CMD" FontFamily="Cascadia Code, Consolas" />
                     </Border>
 
                     <TextBox x:Name="CommandBox"
@@ -212,7 +212,7 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="STDIN" FontSize="11" FontWeight="SemiBold" Opacity="1.0"
+                <TextBlock Text="STDIN" FontSize="11" FontWeight="Bold" Opacity="1.0"
                            FontFamily="Cascadia Code, Consolas" VerticalAlignment="Center" />
                 <TextBox x:Name="InputBox" Grid.Column="1"
                          PlaceholderText="输入内容后按回车发送到进程标准输入..."
@@ -239,7 +239,7 @@
                 </Grid.ColumnDefinitions>
 
                 <Border x:Name="ExitCodeBadge" Padding="8,2" CornerRadius="4" Visibility="Collapsed">
-                    <TextBlock x:Name="ExitCodeText" FontSize="11" FontWeight="SemiBold"
+                    <TextBlock x:Name="ExitCodeText" FontSize="11" FontWeight="Bold"
                                FontFamily="Cascadia Code, Consolas" />
                 </Border>
 

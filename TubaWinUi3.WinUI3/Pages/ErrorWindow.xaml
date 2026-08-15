@@ -28,7 +28,7 @@
             </Border>
 
             <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-                <TextBlock FontSize="26" FontWeight="SemiBold" Text="出现了意外错误" />
+                <TextBlock FontSize="26" FontWeight="Bold" Text="出现了意外错误" />
                 <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap"
                            Text="应用遇到了一个未处理的异常，你可以复制详细信息并提交 Issue 帮助我们改进。" />
             </StackPanel>
@@ -50,7 +50,7 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                 <FontIcon FontSize="14" Glyph="&#xE946;" Opacity="1.0" />
-                                <TextBlock FontSize="14" FontWeight="SemiBold" Opacity="1.0" Text="异常详情" />
+                                <TextBlock FontSize="14" FontWeight="Bold" Opacity="1.0" Text="异常详情" />
                             </StackPanel>
                             <Button x:Name="CopyButton" Grid.Column="1"
                                     Padding="10,4" Click="CopyButton_Click"
@@ -87,7 +87,7 @@
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                 <FontIcon x:Name="SysInfoChevron" FontSize="10" Glyph="&#xE70D;" Opacity="1.0" />
                                 <FontIcon FontSize="14" Glyph="&#xE950;" Opacity="1.0" />
-                                <TextBlock FontSize="14" FontWeight="SemiBold" Opacity="1.0" Text="系统信息" />
+                                <TextBlock FontSize="14" FontWeight="Bold" Opacity="1.0" Text="系统信息" />
                                 <TextBlock x:Name="SysInfoSummary" FontSize="12" Opacity="1.0"
                                            VerticalAlignment="Center" />
                             </StackPanel>
@@ -120,7 +120,7 @@
                     <StackPanel Spacing="8">
                         <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                             <FontIcon FontSize="14" Glyph="&#xE8BD;" Opacity="1.0" />
-                            <TextBlock FontSize="14" FontWeight="SemiBold" Opacity="1.0" Text="复现步骤" />
+                            <TextBlock FontSize="14" FontWeight="Bold" Opacity="1.0" Text="复现步骤" />
                             <TextBlock FontSize="12" Foreground="#FF4444" Text="*必填" />
                         </StackPanel>
                         <TextBlock Opacity="1.0" FontSize="12" TextWrapping="Wrap"

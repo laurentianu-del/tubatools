@@ -1033,7 +1033,7 @@ public sealed partial class VideoProcessorPage : Page
         Spacing = 2, Children =
         {
             new TextBlock { Text = label, FontSize = 10, Opacity = 0.6 },
-            new TextBlock { Text = value, FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold }
+            new TextBlock { Text = value, FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.Bold }
         }
     };
 
@@ -1264,7 +1264,7 @@ public sealed partial class VideoProcessorPage : Page
             Grid.SetColumn(icon, 1);
             var info = new StackPanel { Spacing = 1, Children =
             {
-                new TextBlock { Text = a.Name, FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold },
+                new TextBlock { Text = a.Name, FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.Bold },
                 new TextBlock { Text = a.Summary, FontSize = 11, Opacity = 0.7, TextTrimming = TextTrimming.CharacterEllipsis }
             }};
             Grid.SetColumn(info, 2);

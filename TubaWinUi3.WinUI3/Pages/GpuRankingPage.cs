@@ -387,7 +387,7 @@ public sealed partial class GpuRankingPage : Page
             FrameworkElement btnContent;
             if (label == "全部")
             {
-                btnContent = new TextBlock { Text = "全部", FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
+                btnContent = new TextBlock { Text = "全部", FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.Bold };
             }
             else if (logo is not null)
             {
@@ -398,13 +398,13 @@ public sealed partial class GpuRankingPage : Page
                     Children =
                     {
                         new Image { Source = logo, Width = 16, Height = 16, VerticalAlignment = VerticalAlignment.Center },
-                        new TextBlock { Text = label, FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center }
+                        new TextBlock { Text = label, FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center }
                     }
                 };
             }
             else
             {
-                btnContent = new TextBlock { Text = label, FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
+                btnContent = new TextBlock { Text = label, FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.Bold };
             }
 
             var btn = new Button
@@ -621,7 +621,7 @@ public sealed partial class GpuRankingPage : Page
         {
             Text = text,
             FontSize = 11,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.DimText)
         };
         grid.Children.Add(tb);
@@ -714,7 +714,7 @@ public sealed partial class GpuRankingPage : Page
 
         var nameText = new TextBlock
         {
-            Text = entry.Name, FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Text = entry.Name, FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText), VerticalAlignment = VerticalAlignment.Center
         };
 
@@ -738,7 +738,7 @@ public sealed partial class GpuRankingPage : Page
         var tflopsText = new TextBlock
         {
             Text = !string.IsNullOrWhiteSpace(entry.Tflops) ? entry.Tflops : "-",
-            FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(tflopsColor), VerticalAlignment = VerticalAlignment.Center
         };
 

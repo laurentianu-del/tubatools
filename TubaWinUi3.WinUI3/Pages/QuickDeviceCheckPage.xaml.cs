@@ -177,7 +177,7 @@ public sealed partial class QuickDeviceCheckPage : Page
         {
             Text = "📋 外观检查清单",
             FontSize = 18,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold
         });
 
         var checks = new (string Title, string Desc)[]
@@ -196,7 +196,7 @@ public sealed partial class QuickDeviceCheckPage : Page
             {
                 Text = $"✓ {title}",
                 FontSize = 15,
-                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
                 Foreground = new SolidColorBrush(ThemeColors.AccentBlue)
             });
             row.Children.Add(new TextBlock
@@ -286,7 +286,7 @@ public sealed partial class QuickDeviceCheckPage : Page
                         {
                             Text = section.Title,
                             FontSize = 16,
-                            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+                            FontWeight = Microsoft.UI.Text.FontWeights.Bold
                         });
 
                         foreach (var item in section.Items)
@@ -314,7 +314,7 @@ public sealed partial class QuickDeviceCheckPage : Page
                             {
                                 Text = item.Value,
                                 FontSize = 14,
-                                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
                                 TextWrapping = TextWrapping.Wrap,
                                 VerticalAlignment = VerticalAlignment.Center
                             });
@@ -331,7 +331,7 @@ public sealed partial class QuickDeviceCheckPage : Page
                                     {
                                         Text = "真",
                                         FontSize = 11,
-                                        FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                                        FontWeight = Microsoft.UI.Text.FontWeights.Bold,
                                         Foreground = new SolidColorBrush(Color.FromArgb(255, 0, 200, 100))
                                     }
                                 });
@@ -457,7 +457,7 @@ public sealed partial class QuickDeviceCheckPage : Page
         {
             Text = "📊 判断标准",
             FontSize = 16,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold
         });
         judgeStack.Children.Add(new TextBlock
         {

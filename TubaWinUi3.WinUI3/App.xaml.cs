@@ -148,7 +148,6 @@ public partial class App : Application
             MainWindow.DispatcherQueue.TryEnqueue(() =>
             {
                 ThemeService.ApplySavedTheme();
-                FontService.ApplySavedFonts();
             });
         }
 

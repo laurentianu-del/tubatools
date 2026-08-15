@@ -22,7 +22,7 @@
                 <FontIcon FontSize="20" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" Glyph="&#xE896;" />
             </Border>
             <StackPanel Grid.Column="1" Spacing="2">
-                <TextBlock FontSize="22" FontWeight="SemiBold" Text="Windows 镜像下载" />
+                <TextBlock FontSize="22" FontWeight="Bold" Text="Windows 镜像下载" />
                 <TextBlock Opacity="1.0" FontSize="12" Text="原版系统镜像下载，支持 ESD 转 ISO（需 UltraISO）" />
             </StackPanel>
         </Grid>
@@ -68,7 +68,7 @@
                                         <SolidColorBrush Color="{ThemeResource SubtleFillColorSecondary}" />
                                     </Border.Background>
                                     <StackPanel Spacing="8">
-                                        <TextBlock x:Name="MsResultTitle" FontSize="14" FontWeight="SemiBold" />
+                                        <TextBlock x:Name="MsResultTitle" FontSize="14" FontWeight="Bold" />
                                         <TextBlock x:Name="MsResultInfo" FontSize="12" Opacity="1.0" />
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <Button x:Name="MsDownloadBtn" Click="MsDownloadBtn_Click">
@@ -100,8 +100,8 @@
                         <StackPanel Spacing="14" Padding="0,8,0,0">
                             <InfoBar IsOpen="True" IsClosable="False" Title="社区镜像风险提醒" Severity="Warning">
                                 <TextBlock TextWrapping="Wrap">
-                                    <Run FontWeight="SemiBold" Text="来源：GitHub ILLKX/Windows 社区项目" /><LineBreak />
-                                    <Run FontWeight="SemiBold" Foreground="Red" Text="⚠ 风险提醒：" />社区镜像非微软官方提供，虽经社区验证，但无法保证文件完整性与安全性。建议下载后校验 SHA256，或优先使用"微软官方下载"标签页获取原版镜像。
+                                    <Run FontWeight="Bold" Text="来源：GitHub ILLKX/Windows 社区项目" /><LineBreak />
+                                    <Run FontWeight="Bold" Foreground="Red" Text="⚠ 风险提醒：" />社区镜像非微软官方提供，虽经社区验证，但无法保证文件完整性与安全性。建议下载后校验 SHA256，或优先使用"微软官方下载"标签页获取原版镜像。
                                 </TextBlock>
                             </InfoBar>
 
@@ -141,12 +141,12 @@
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" FontSize="11" FontWeight="SemiBold" Opacity="1.0" Text="版本" MinWidth="60" />
-                                    <TextBlock Grid.Column="1" FontSize="11" FontWeight="SemiBold" Opacity="1.0" Text="文件名" />
-                                    <TextBlock Grid.Column="2" FontSize="11" FontWeight="SemiBold" Opacity="1.0" Text="大小" MinWidth="60" />
-                                    <TextBlock Grid.Column="3" FontSize="11" FontWeight="SemiBold" Opacity="1.0" Text="语言" MinWidth="70" />
-                                    <TextBlock Grid.Column="4" FontSize="11" FontWeight="SemiBold" Opacity="1.0" Text="架构" MinWidth="44" />
-                                    <TextBlock Grid.Column="5" FontSize="11" FontWeight="SemiBold" Opacity="1.0" Text="操作" MinWidth="120" />
+                                    <TextBlock Grid.Column="0" FontSize="11" FontWeight="Bold" Opacity="1.0" Text="版本" MinWidth="60" />
+                                    <TextBlock Grid.Column="1" FontSize="11" FontWeight="Bold" Opacity="1.0" Text="文件名" />
+                                    <TextBlock Grid.Column="2" FontSize="11" FontWeight="Bold" Opacity="1.0" Text="大小" MinWidth="60" />
+                                    <TextBlock Grid.Column="3" FontSize="11" FontWeight="Bold" Opacity="1.0" Text="语言" MinWidth="70" />
+                                    <TextBlock Grid.Column="4" FontSize="11" FontWeight="Bold" Opacity="1.0" Text="架构" MinWidth="44" />
+                                    <TextBlock Grid.Column="5" FontSize="11" FontWeight="Bold" Opacity="1.0" Text="操作" MinWidth="120" />
                                 </Grid>
                             </Border>
 
@@ -169,7 +169,7 @@
                         <StackPanel Spacing="14" Padding="0,8,0,0">
                             <InfoBar IsOpen="True" IsClosable="False" Title="UUP Dump 说明" Severity="Informational">
                                 <TextBlock TextWrapping="Wrap">
-                                    <Run FontWeight="SemiBold" Text="来源：uupdump.net" /><LineBreak />
+                                    <Run FontWeight="Bold" Text="来源：uupdump.net" /><LineBreak />
                                     <Run Text="从 Windows Update 服务器下载 UUP 文件并转换为 ISO。支持最新 Insider 版本、自定义构建、虚拟版本集成等功能。" />
                                 </TextBlock>
                             </InfoBar>
@@ -186,7 +186,7 @@
                                                             <SolidColorBrush Color="{ThemeResource SubtleFillColorSecondary}" />
                                                         </Border.Background>
                                                         <StackPanel Spacing="4">
-                                                            <TextBlock FontFamily="{StaticResource AppFontFamily}" FontSize="13" FontWeight="SemiBold" Text="{Binding DisplayName}" />
+                                                            <TextBlock FontSize="13" FontWeight="Bold" Text="{Binding DisplayName}" />
                                                         </StackPanel>
                                                     </Border>
                                                 </DataTemplate>
@@ -294,11 +294,11 @@
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" FontSize="11" FontWeight="SemiBold" Opacity="1.0" Text="构建版本" />
-                                    <TextBlock Grid.Column="1" FontSize="11" FontWeight="SemiBold" Opacity="1.0" Text="架构" MinWidth="50" />
-                                    <TextBlock Grid.Column="2" FontSize="11" FontWeight="SemiBold" Opacity="1.0" Text="渠道" MinWidth="80" />
-                                    <TextBlock Grid.Column="3" FontSize="11" FontWeight="SemiBold" Opacity="1.0" Text="分类" MinWidth="100" />
-                                    <TextBlock Grid.Column="4" FontSize="11" FontWeight="SemiBold" Opacity="1.0" Text="操作" MinWidth="80" />
+                                    <TextBlock Grid.Column="0" FontSize="11" FontWeight="Bold" Opacity="1.0" Text="构建版本" />
+                                    <TextBlock Grid.Column="1" FontSize="11" FontWeight="Bold" Opacity="1.0" Text="架构" MinWidth="50" />
+                                    <TextBlock Grid.Column="2" FontSize="11" FontWeight="Bold" Opacity="1.0" Text="渠道" MinWidth="80" />
+                                    <TextBlock Grid.Column="3" FontSize="11" FontWeight="Bold" Opacity="1.0" Text="分类" MinWidth="100" />
+                                    <TextBlock Grid.Column="4" FontSize="11" FontWeight="Bold" Opacity="1.0" Text="操作" MinWidth="80" />
                                 </Grid>
                             </Border>
 
@@ -336,12 +336,12 @@
                 <StackPanel Spacing="12">
                     <TextBlock x:Name="UupEditionBuildInfo" FontSize="12" Opacity="1.0" TextWrapping="Wrap" />
                     <ProgressRing x:Name="UupEditionProgress" Width="28" Height="28" HorizontalAlignment="Center" Visibility="Collapsed" IsActive="True" />
-                    <TextBlock FontSize="13" FontWeight="SemiBold" Text="基础版本" Visibility="{x:Bind UupBaseEditionPanel.Visibility}" />
+                    <TextBlock FontSize="13" FontWeight="Bold" Text="基础版本" Visibility="{x:Bind UupBaseEditionPanel.Visibility}" />
                     <StackPanel x:Name="UupBaseEditionPanel" Spacing="6" />
-                    <TextBlock x:Name="UupVirtualEditionLabel" FontSize="13" FontWeight="SemiBold" Text="虚拟版本（可选）" Visibility="Collapsed" />
+                    <TextBlock x:Name="UupVirtualEditionLabel" FontSize="13" FontWeight="Bold" Text="虚拟版本（可选）" Visibility="Collapsed" />
                     <StackPanel x:Name="UupVirtualEditionPanel" Spacing="6" Visibility="Collapsed" />
 
-                    <TextBlock FontSize="14" FontWeight="SemiBold" Text="下载方式" Margin="0,8,0,0" />
+                    <TextBlock FontSize="14" FontWeight="Bold" Text="下载方式" Margin="0,8,0,0" />
                     <ComboBox x:Name="UupDownloadMethodCombo" MinWidth="320" SelectedIndex="1" HorizontalAlignment="Stretch">
                                         <ComboBoxItem Content="仅下载 UUP 文件集（需手动转换）" Tag="1" />
                                         <ComboBoxItem Content="下载并转换为 ISO（推荐）" Tag="2" />

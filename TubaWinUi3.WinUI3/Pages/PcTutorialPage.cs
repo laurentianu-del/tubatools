@@ -288,7 +288,7 @@ public sealed partial class PcTutorialPage : Page
         {
             Text = m.Title,
             FontSize = 13,
-            FontWeight = FontWeights.SemiBold,
+            FontWeight = FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText)
         };
         var sub = new TextBlock
@@ -460,7 +460,7 @@ public sealed partial class PcTutorialPage : Page
             {
                 Text = (index).ToString(),
                 FontSize = 12,
-                FontWeight = FontWeights.SemiBold,
+                FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush(accent),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
@@ -471,7 +471,7 @@ public sealed partial class PcTutorialPage : Page
         {
             Text = question,
             FontSize = 14,
-            FontWeight = FontWeights.SemiBold,
+            FontWeight = FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText),
             TextWrapping = TextWrapping.Wrap
         };
@@ -650,7 +650,7 @@ public sealed partial class PcTutorialPage : Page
         {
             Text = guide.Title,
             FontSize = 16,
-            FontWeight = FontWeights.SemiBold,
+            FontWeight = FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText)
         };
 
@@ -667,7 +667,7 @@ public sealed partial class PcTutorialPage : Page
         {
             Text = "👉 " + guide.ActionHint,
             FontSize = 13,
-            FontWeight = FontWeights.SemiBold,
+            FontWeight = FontWeights.Bold,
             Foreground = new SolidColorBrush(color),
             TextWrapping = TextWrapping.Wrap
         };
@@ -684,7 +684,7 @@ public sealed partial class PcTutorialPage : Page
         {
             Text = "已完成！",
             FontSize = 13,
-            FontWeight = FontWeights.SemiBold,
+            FontWeight = FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.AccentGreen),
             Visibility = Visibility.Collapsed
         };
@@ -707,7 +707,7 @@ public sealed partial class PcTutorialPage : Page
                 Children =
                 {
                     new FontIcon { Glyph = "\uE768", FontSize = 12 },
-                    new TextBlock { Text = guide.ButtonText, FontSize = 12, FontWeight = FontWeights.SemiBold }
+                    new TextBlock { Text = guide.ButtonText, FontSize = 12, FontWeight = FontWeights.Bold }
                 }
             },
             Background = new SolidColorBrush(Color.FromArgb(26, color.R, color.G, color.B)),
@@ -856,7 +856,7 @@ public sealed partial class PcTutorialPage : Page
                             UninstallKeyboardHook();
                             checkIcon.Visibility = Visibility.Visible;
                             completedText.Visibility = Visibility.Visible;
-                            actionBtn.Content = new TextBlock { Text = "✓ 已掌握", FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(ThemeColors.AccentGreen) };
+                            actionBtn.Content = new TextBlock { Text = "✓ 已掌握", FontSize = 12, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(ThemeColors.AccentGreen) };
 
                             shortcutHint.Background = new SolidColorBrush(Color.FromArgb(30, ThemeColors.AccentGreen.R, ThemeColors.AccentGreen.G, ThemeColors.AccentGreen.B));
                             ((TextBlock)shortcutHint.Child).Text = "✓ 成功按下: " + guide.ShortcutDisplay;
@@ -1000,7 +1000,7 @@ public sealed partial class PcTutorialPage : Page
 
             checkIcon.Visibility = Visibility.Visible;
             completedText.Visibility = Visibility.Visible;
-            actionBtn.Content = new TextBlock { Text = "✓ 已完成", FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(ThemeColors.AccentGreen) };
+            actionBtn.Content = new TextBlock { Text = "✓ 已完成", FontSize = 12, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(ThemeColors.AccentGreen) };
             actionBtn.IsEnabled = false;
 
             AnimateCardSuccess(card);
@@ -1028,7 +1028,7 @@ public sealed partial class PcTutorialPage : Page
         {
             Text = title,
             FontSize = 16,
-            FontWeight = FontWeights.SemiBold,
+            FontWeight = FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText)
         };
 

@@ -284,7 +284,7 @@ public sealed partial class ToolsBundleDownloadDialog : ContentDialog
         {
             Text = $"内核下载完成！",
             FontSize = 16,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold
         });
         infoStack.Children.Add(new TextBlock
         {

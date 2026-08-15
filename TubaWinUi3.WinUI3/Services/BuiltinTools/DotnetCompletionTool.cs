@@ -169,7 +169,7 @@ public sealed partial class DotnetCompletionPage : Page
             Child = new FontIcon { FontSize = 20, Glyph = "\uE950", Foreground = new SolidColorBrush(Microsoft.UI.Colors.White) }
         };
 
-        var titleText = new TextBlock { Text = ".NET 环境补全", FontSize = 22, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
+        var titleText = new TextBlock { Text = ".NET 环境补全", FontSize = 22, FontWeight = Microsoft.UI.Text.FontWeights.Bold };
         var subtitleText = new TextBlock { Text = "检测已安装的 .NET Runtime/SDK/Framework，从官网获取最新版本，一键补全缺失组件", FontSize = 12, Opacity = 0.68 };
         var titleStack = new StackPanel { Spacing = 2, Children = { titleText, subtitleText } };
 
@@ -308,7 +308,7 @@ public sealed partial class DotnetCompletionPage : Page
     private static StackPanel MakeHelpSection(string title, string desc)
     {
         var stack = new StackPanel { Spacing = 4 };
-        stack.Children.Add(new TextBlock { Text = title, FontSize = 14, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = new SolidColorBrush(ThemeColors.PrimaryText) });
+        stack.Children.Add(new TextBlock { Text = title, FontSize = 14, FontWeight = Microsoft.UI.Text.FontWeights.Bold, Foreground = new SolidColorBrush(ThemeColors.PrimaryText) });
         stack.Children.Add(new TextBlock { Text = desc, FontSize = 12, Opacity = 0.78, TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(ThemeColors.SecondaryText) });
         return stack;
     }
@@ -446,13 +446,13 @@ public sealed partial class DotnetCompletionPage : Page
             {
                 Padding = new Thickness(8, 2, 8, 2), CornerRadius = new CornerRadius(4),
                 Background = new SolidColorBrush(Color.FromArgb(30, phaseColor.R, phaseColor.G, phaseColor.B)),
-                Child = new TextBlock { Text = phaseLabel, FontSize = 11, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = new SolidColorBrush(phaseColor) }
+                Child = new TextBlock { Text = phaseLabel, FontSize = 11, FontWeight = Microsoft.UI.Text.FontWeights.Bold, Foreground = new SolidColorBrush(phaseColor) }
             };
 
             var headerText = new TextBlock
             {
                 Text = isFramework ? $".NET {group.Key}" : $".NET {group.Key}",
-                FontSize = 15, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center
+                FontSize = 15, FontWeight = Microsoft.UI.Text.FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center
             };
 
             var eolText = new TextBlock { FontSize = 11, Opacity = 0.68, VerticalAlignment = VerticalAlignment.Center };
@@ -521,14 +521,14 @@ public sealed partial class DotnetCompletionPage : Page
         {
             Padding = new Thickness(8, 2, 8, 2), CornerRadius = new CornerRadius(4),
             Background = new SolidColorBrush(typeBg),
-            Child = new TextBlock { Text = typeLabel, FontSize = 11, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = new SolidColorBrush(typeFg) }
+            Child = new TextBlock { Text = typeLabel, FontSize = 11, FontWeight = Microsoft.UI.Text.FontWeights.Bold, Foreground = new SolidColorBrush(typeFg) }
         };
 
-        var nameText = new TextBlock { Text = item.DisplayName, FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = new SolidColorBrush(ThemeColors.PrimaryText), VerticalAlignment = VerticalAlignment.Center };
+        var nameText = new TextBlock { Text = item.DisplayName, FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.Bold, Foreground = new SolidColorBrush(ThemeColors.PrimaryText), VerticalAlignment = VerticalAlignment.Center };
         var versionText = new TextBlock { Text = item.Version, FontSize = 12, Foreground = new SolidColorBrush(ThemeColors.SecondaryText), VerticalAlignment = VerticalAlignment.Center };
         var infoStack = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center, Children = { nameText, versionText } };
 
-        var statusText = new TextBlock { FontSize = 10, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+        var statusText = new TextBlock { FontSize = 10, FontWeight = Microsoft.UI.Text.FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center };
         var statusBadge = new Border
         {
             Padding = new Thickness(6, 1, 6, 1), CornerRadius = new CornerRadius(3),

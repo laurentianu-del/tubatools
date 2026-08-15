@@ -16,7 +16,7 @@
 
             <TextBlock
                 FontSize="14"
-                FontWeight="SemiBold"
+                FontWeight="Bold"
                 Opacity="1.0"
                 Text="配置存储位置" />
 
@@ -84,7 +84,7 @@
 
             <TextBlock
                 FontSize="14"
-                FontWeight="SemiBold"
+                FontWeight="Bold"
                 Opacity="1.0"
                 Text="当前配置目录" />
 
@@ -135,7 +135,7 @@
 
             <TextBlock
                 FontSize="14"
-                FontWeight="SemiBold"
+                FontWeight="Bold"
                 Opacity="1.0"
                 Text="数据操作" />
 

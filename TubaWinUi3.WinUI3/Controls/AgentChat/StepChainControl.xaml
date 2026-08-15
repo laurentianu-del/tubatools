@@ -32,7 +32,7 @@
                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                   VerticalAlignment="Center" />
                         <TextBlock Text="{Binding DisplayName}" FontSize="12"
-                                   FontWeight="SemiBold" VerticalAlignment="Center" />
+                                   FontWeight="Bold" VerticalAlignment="Center" />
                         <TextBlock Text="{Binding Summary}" FontSize="12"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
@@ -76,7 +76,7 @@
                         </FontIcon.RenderTransform>
                     </FontIcon>
                     <TextBlock x:Name="SummaryText" Grid.Column="1" FontSize="12"
-                               FontWeight="SemiBold"
+                               FontWeight="Bold"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                 </Grid>

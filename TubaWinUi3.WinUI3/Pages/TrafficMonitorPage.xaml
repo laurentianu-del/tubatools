@@ -40,7 +40,7 @@
                 <FontIcon FontSize="20" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" Glyph="&#xE774;" />
             </Border>
             <StackPanel Grid.Column="1" Spacing="2">
-                <TextBlock FontSize="22" FontWeight="SemiBold" Text="流量监控器" />
+                <TextBlock FontSize="22" FontWeight="Bold" Text="流量监控器" />
                 <TextBlock Opacity="0.8" FontSize="12" Text="选择网卡实时查看各连接的流量、速度与延迟，整卡吞吐折线统计，支持快照录制回放" />
             </StackPanel>
             <Button Grid.Column="2" Click="CloseButton_Click">
@@ -79,7 +79,7 @@
                         <FontIcon Glyph="&#xE896;" FontSize="13" Opacity="0.7" />
                         <TextBlock Text="总下载" FontSize="12" Opacity="0.7" />
                     </StackPanel>
-                    <TextBlock x:Name="TotalInText" FontSize="20" FontWeight="SemiBold" Text="0 B" />
+                    <TextBlock x:Name="TotalInText" FontSize="20" FontWeight="Bold" Text="0 B" />
                     <TextBlock Text="本次监控累计" FontSize="11" Opacity="0.5" />
                 </StackPanel>
             </Border>
@@ -89,7 +89,7 @@
                         <FontIcon Glyph="&#xE898;" FontSize="13" Opacity="0.7" />
                         <TextBlock Text="总上传" FontSize="12" Opacity="0.7" />
                     </StackPanel>
-                    <TextBlock x:Name="TotalOutText" FontSize="20" FontWeight="SemiBold" Text="0 B" />
+                    <TextBlock x:Name="TotalOutText" FontSize="20" FontWeight="Bold" Text="0 B" />
                     <TextBlock Text="本次监控累计" FontSize="11" Opacity="0.5" />
                 </StackPanel>
             </Border>
@@ -99,7 +99,7 @@
                         <FontIcon Glyph="&#xE774;" FontSize="13" Opacity="0.7" />
                         <TextBlock Text="下载速度" FontSize="12" Opacity="0.7" />
                     </StackPanel>
-                    <TextBlock x:Name="SpeedInText" FontSize="20" FontWeight="SemiBold" Text="0 B/s" />
+                    <TextBlock x:Name="SpeedInText" FontSize="20" FontWeight="Bold" Text="0 B/s" />
                     <TextBlock Text="整卡实时速率" FontSize="11" Opacity="0.5" />
                 </StackPanel>
             </Border>
@@ -109,7 +109,7 @@
                         <FontIcon Glyph="&#xE774;" FontSize="13" Opacity="0.7" />
                         <TextBlock Text="上传速度" FontSize="12" Opacity="0.7" />
                     </StackPanel>
-                    <TextBlock x:Name="SpeedOutText" FontSize="20" FontWeight="SemiBold" Text="0 B/s" />
+                    <TextBlock x:Name="SpeedOutText" FontSize="20" FontWeight="Bold" Text="0 B/s" />
                     <TextBlock Text="整卡实时速率" FontSize="11" Opacity="0.5" />
                 </StackPanel>
             </Border>
@@ -129,7 +129,7 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock FontSize="14" FontWeight="SemiBold" Text="在线连接" />
+                    <TextBlock FontSize="14" FontWeight="Bold" Text="在线连接" />
                     <TextBlock x:Name="ConnCountText" Grid.Column="1" VerticalAlignment="Center" FontSize="12" Opacity="0.6" Text="0 条" />
                     <TextBlock x:Name="ReviewBannerText" Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" Opacity="0.8" Visibility="Collapsed" Text="快照查看中 — 拖动下方滑条浏览历史，点「返回实时」恢复" />
                     <Button x:Name="ConnPopOutBtn" Grid.Column="3" Padding="8,3" FontSize="11.5" Click="ConnPopOut_Click" ToolTipService.ToolTip="弹出到独立窗口">
@@ -172,7 +172,7 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock FontSize="14" FontWeight="SemiBold" Text="整卡吞吐折线（MB/s）" />
+                    <TextBlock FontSize="14" FontWeight="Bold" Text="整卡吞吐折线（MB/s）" />
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="14">
                         <StackPanel Orientation="Horizontal" Spacing="5">
                             <Ellipse Width="8" Height="8" Fill="#4ADE80" VerticalAlignment="Center" />

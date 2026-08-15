@@ -580,7 +580,7 @@ public sealed partial class TrafficMonitorPage : Page
                 Text = cells[i],
                 FontSize = 11,
                 Opacity = 0.6,
-                FontWeight = FontWeights.SemiBold,
+                FontWeight = FontWeights.Bold,
                 TextTrimming = TextTrimming.CharacterEllipsis
             };
             Grid.SetColumn(cell, i);
@@ -598,7 +598,7 @@ public sealed partial class TrafficMonitorPage : Page
         {
             Text = info.ProcessName,
             FontSize = 12.5,
-            FontWeight = FontWeights.SemiBold,
+            FontWeight = FontWeights.Bold,
             TextTrimming = TextTrimming.CharacterEllipsis,
             MaxWidth = 150
         };
@@ -611,7 +611,7 @@ public sealed partial class TrafficMonitorPage : Page
         {
             Text = RemoteMainText(info),
             FontSize = 12.5,
-            FontWeight = FontWeights.SemiBold,
+            FontWeight = FontWeights.Bold,
             TextTrimming = TextTrimming.CharacterEllipsis,
             MaxWidth = 240
         };

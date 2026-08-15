@@ -122,7 +122,7 @@ public sealed partial class NetworkAdapterProxyPage : Page
 
             var nameText = new TextBlock
             {
-                Text = entry.Name, FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Text = entry.Name, FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.Bold,
                 Foreground = new SolidColorBrush(ThemeColors.PrimaryText),
                 VerticalAlignment = VerticalAlignment.Center
             };
@@ -135,7 +135,7 @@ public sealed partial class NetworkAdapterProxyPage : Page
                 {
                     Text = $"{entry.LoadPercent:0.0}%", FontSize = 11,
                     Foreground = new SolidColorBrush(accent),
-                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+                    FontWeight = Microsoft.UI.Text.FontWeights.Bold
                 }
             };
 
@@ -308,7 +308,7 @@ public sealed partial class NetworkAdapterProxyPage : Page
 
         var name = new TextBlock
         {
-            Text = a.Name, FontSize = 14, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Text = a.Name, FontSize = 14, FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText)
         };
 
@@ -318,7 +318,7 @@ public sealed partial class NetworkAdapterProxyPage : Page
         var statusTextBlock = new TextBlock
         {
             Text = statusText, FontSize = 10,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(statusColor)
         };
 
@@ -408,15 +408,15 @@ public sealed partial class NetworkAdapterProxyPage : Page
             var a = _adapters[i];
             var accent = a.AccentColor;
 
-            var dlText = new TextBlock { Text = "0 B/s", FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = new SolidColorBrush(AccentBlue) };
-            var ulText = new TextBlock { Text = "0 B/s", FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = new SolidColorBrush(AccentOrange) };
+            var dlText = new TextBlock { Text = "0 B/s", FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.Bold, Foreground = new SolidColorBrush(AccentBlue) };
+            var ulText = new TextBlock { Text = "0 B/s", FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.Bold, Foreground = new SolidColorBrush(AccentOrange) };
             var dlBar = new ProgressBar { Height = 3, Foreground = new SolidColorBrush(AccentBlue), Background = new SolidColorBrush(Color.FromArgb(20, AccentBlue.R, AccentBlue.G, AccentBlue.B)) };
             var ulBar = new ProgressBar { Height = 3, Foreground = new SolidColorBrush(AccentOrange), Background = new SolidColorBrush(Color.FromArgb(20, AccentOrange.R, AccentOrange.G, AccentOrange.B)) };
 
             _speedRefs[a.Index] = new SpeedRefs { DlText = dlText, UlText = ulText, DlBar = dlBar, UlBar = ulBar };
 
             var panel = new StackPanel { Spacing = 4 };
-            var header = new TextBlock { Text = a.Name, FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = new SolidColorBrush(accent) };
+            var header = new TextBlock { Text = a.Name, FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.Bold, Foreground = new SolidColorBrush(accent) };
 
             var dlRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
             dlRow.Children.Add(new TextBlock { Text = "↓", FontSize = 12, Opacity = 0.5 });

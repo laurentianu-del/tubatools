@@ -170,7 +170,7 @@ public sealed partial class WhatsNewWindow : Page
             var titleText = new TextBlock
             {
                 Text = release.Name ?? release.TagName,
-                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
                 FontSize = 14,
                 TextTrimming = TextTrimming.CharacterEllipsis
             };

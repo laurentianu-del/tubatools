@@ -297,7 +297,7 @@ public sealed partial class CommunityToolsPage : Page
                     {
                         Text = $"确定要删除「{tool.Name}」吗？",
                         FontSize = 14,
-                        FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+                        FontWeight = Microsoft.UI.Text.FontWeights.Bold
                     },
                     new TextBlock
                     {
@@ -494,7 +494,7 @@ public sealed partial class CommunityToolsPage : Page
                 Spacing = 4,
                 Children =
                 {
-                    new TextBlock { Text = tool.Name, FontSize = 15, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold },
+                    new TextBlock { Text = tool.Name, FontSize = 15, FontWeight = Microsoft.UI.Text.FontWeights.Bold },
                     new TextBlock { Text = tool.Description ?? "无描述", FontSize = 13, Opacity = 0.7, TextWrapping = TextWrapping.Wrap }
                 }
             }
@@ -749,7 +749,7 @@ public sealed partial class CommunityToolsPage : Page
                 Spacing = 4,
                 Children =
                 {
-                    new TextBlock { Text = "未选择文件", FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold },
+                    new TextBlock { Text = "未选择文件", FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.Bold },
                     new TextBlock { Text = "", FontSize = 12, Opacity = 0.6 }
                 }
             }
@@ -840,7 +840,7 @@ public sealed partial class CommunityToolsPage : Page
                 Spacing = 4,
                 Children =
                 {
-                    new TextBlock { Text = "未下载", FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold },
+                    new TextBlock { Text = "未下载", FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.Bold },
                     new TextBlock { Text = "", FontSize = 12, Opacity = 0.6 }
                 }
             }

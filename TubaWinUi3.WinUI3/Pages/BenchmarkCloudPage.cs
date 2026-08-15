@@ -156,7 +156,7 @@ public sealed partial class BenchmarkCloudPage : Page
 		{
 			Text = "跑分排行",
 			FontSize = 20.0,
-			FontWeight = FontWeights.SemiBold,
+			FontWeight = FontWeights.Bold,
 			VerticalAlignment = VerticalAlignment.Center
 		});
 		RefreshButton = new Button
@@ -354,10 +354,10 @@ public sealed partial class BenchmarkCloudPage : Page
 						<ColumnDefinition Width='*'/>
 						<ColumnDefinition Width='Auto'/>
 					</Grid.ColumnDefinitions>
-					<TextBlock Text='{Binding Rank}' FontSize='18' FontWeight='SemiBold' VerticalAlignment='Center'
+					<TextBlock Text='{Binding Rank}' FontSize='18' FontWeight='Bold' VerticalAlignment='Center'
 							   Foreground='{Binding RankBrush}'/>
 					<StackPanel Grid.Column='1' Spacing='2'>
-						<TextBlock Text='{Binding Report.Author}' FontSize='13' FontWeight='SemiBold'/>
+						<TextBlock Text='{Binding Report.Author}' FontSize='13' FontWeight='Bold'/>
 						<TextBlock FontSize='12' Foreground='{ThemeResource TextFillColorSecondaryBrush}'>
 							<Run Text='{Binding Report.CpuName}'/><Run Text=' | '/><Run Text='{Binding Report.GpuName}'/>
 						</TextBlock>
@@ -382,11 +382,11 @@ public sealed partial class BenchmarkCloudPage : Page
 					</StackPanel>
 					<StackPanel Grid.Column='2' Orientation='Horizontal' Spacing='16' VerticalAlignment='Center'>
 						<StackPanel Spacing='0' HorizontalAlignment='Right'>
-							<TextBlock Text='{Binding Report.GamingScore}' FontSize='15' FontWeight='SemiBold' HorizontalAlignment='Right'/>
+							<TextBlock Text='{Binding Report.GamingScore}' FontSize='15' FontWeight='Bold' HorizontalAlignment='Right'/>
 							<TextBlock Text='游戏' FontSize='9' Foreground='{ThemeResource TextFillColorTertiaryBrush}' HorizontalAlignment='Right'/>
 						</StackPanel>
 						<StackPanel Spacing='0' HorizontalAlignment='Right'>
-							<TextBlock Text='{Binding Report.OfficeScore}' FontSize='15' FontWeight='SemiBold' HorizontalAlignment='Right'/>
+							<TextBlock Text='{Binding Report.OfficeScore}' FontSize='15' FontWeight='Bold' HorizontalAlignment='Right'/>
 							<TextBlock Text='办公' FontSize='9' Foreground='{ThemeResource TextFillColorTertiaryBrush}' HorizontalAlignment='Right'/>
 						</StackPanel>
 					</StackPanel>
@@ -763,7 +763,7 @@ public sealed partial class BenchmarkCloudPage : Page
 						<ColumnDefinition Width='Auto'/>
 					</Grid.ColumnDefinitions>
 					<StackPanel Spacing='2'>
-						<TextBlock FontSize='13' FontWeight='SemiBold'>
+						<TextBlock FontSize='13' FontWeight='Bold'>
 							<Run Text='@'/><Run Text='{Binding Author}'/>
 						</TextBlock>
 						<TextBlock FontSize='12' Foreground='{ThemeResource TextFillColorSecondaryBrush}'>
@@ -771,11 +771,11 @@ public sealed partial class BenchmarkCloudPage : Page
 						</TextBlock>
 					</StackPanel>
 					<StackPanel Grid.Column='1' Spacing='2' HorizontalAlignment='Right'>
-						<TextBlock Text='{Binding GamingScore}' FontSize='14' FontWeight='SemiBold' HorizontalAlignment='Right'/>
+						<TextBlock Text='{Binding GamingScore}' FontSize='14' FontWeight='Bold' HorizontalAlignment='Right'/>
 						<TextBlock Text='游戏' FontSize='10' Foreground='{ThemeResource TextFillColorTertiaryBrush}' HorizontalAlignment='Right'/>
 					</StackPanel>
 					<StackPanel Grid.Column='2' Spacing='2' HorizontalAlignment='Right' Margin='12,0,0,0'>
-						<TextBlock Text='{Binding OfficeScore}' FontSize='14' FontWeight='SemiBold' HorizontalAlignment='Right'/>
+						<TextBlock Text='{Binding OfficeScore}' FontSize='14' FontWeight='Bold' HorizontalAlignment='Right'/>
 						<TextBlock Text='办公' FontSize='10' Foreground='{ThemeResource TextFillColorTertiaryBrush}' HorizontalAlignment='Right'/>
 					</StackPanel>
 				</Grid>
@@ -1220,7 +1220,7 @@ public sealed partial class BenchmarkCloudPage : Page
 		var altBg = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(20, 0, 0, 0));
 
 		var headerRow = new Border { Background = headerBg, Padding = new Thickness(8, 6, 8, 6) };
-		headerRow.Child = new TextBlock { Text = "项目", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+		headerRow.Child = new TextBlock { Text = "项目", FontWeight = Microsoft.UI.Text.FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center };
 		CompareTableGrid.Children.Add(headerRow);
 		Grid.SetRow(headerRow, 0);
 		Grid.SetColumn(headerRow, 0);
@@ -1228,7 +1228,7 @@ public sealed partial class BenchmarkCloudPage : Page
 		for (int i = 0; i < reports.Count; i++)
 		{
 			var header = new Border { Background = headerBg, Padding = new Thickness(8, 6, 8, 6) };
-			var txt = new TextBlock { Text = GetCompareShortName(reports[i]), FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+			var txt = new TextBlock { Text = GetCompareShortName(reports[i]), FontWeight = Microsoft.UI.Text.FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
 			ToolTipService.SetToolTip(txt, reports[i].CpuName + " | " + reports[i].GpuName);
 			header.Child = txt;
 			CompareTableGrid.Children.Add(header);
@@ -1567,12 +1567,12 @@ public sealed partial class BenchmarkCloudPage : Page
 		stackPanel.Children.Add(new TextBlock
 		{
 			Text = $"游戏性能: {report.GamingScore} ({report.GamingGrade})",
-			FontWeight = FontWeights.SemiBold
+			FontWeight = FontWeights.Bold
 		});
 		stackPanel.Children.Add(new TextBlock
 		{
 			Text = $"办公性能: {report.OfficeScore} ({report.OfficeGrade})",
-			FontWeight = FontWeights.SemiBold
+			FontWeight = FontWeights.Bold
 		});
 		stackPanel.Children.Add(new Border
 		{

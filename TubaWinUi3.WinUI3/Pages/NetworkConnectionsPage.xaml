@@ -24,7 +24,7 @@
                 <FontIcon FontSize="16" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" Glyph="&#xE8BD;" />
             </Border>
             <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-                <TextBlock FontSize="18" FontWeight="SemiBold" Text="活动连接详情" />
+                <TextBlock FontSize="18" FontWeight="Bold" Text="活动连接详情" />
                 <TextBlock x:Name="SubtitleText" Opacity="1.0" FontSize="12" Text="TCP 连接实时监控" />
             </StackPanel>
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
@@ -53,11 +53,11 @@
                         <ColumnDefinition Width="60" />
                         <ColumnDefinition Width="100" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock FontSize="11" FontWeight="SemiBold" Opacity="1.0" Text="进程" />
-                    <TextBlock FontSize="11" FontWeight="SemiBold" Opacity="1.0" Grid.Column="1" Text="类型" />
-                    <TextBlock FontSize="11" FontWeight="SemiBold" Opacity="1.0" Grid.Column="2" Text="远程地址" />
-                    <TextBlock FontSize="11" FontWeight="SemiBold" Opacity="1.0" Grid.Column="3" Text="端口" />
-                    <TextBlock FontSize="11" FontWeight="SemiBold" Opacity="1.0" Grid.Column="4" Text="适配器" />
+                    <TextBlock FontSize="11" FontWeight="Bold" Opacity="1.0" Text="进程" />
+                    <TextBlock FontSize="11" FontWeight="Bold" Opacity="1.0" Grid.Column="1" Text="类型" />
+                    <TextBlock FontSize="11" FontWeight="Bold" Opacity="1.0" Grid.Column="2" Text="远程地址" />
+                    <TextBlock FontSize="11" FontWeight="Bold" Opacity="1.0" Grid.Column="3" Text="端口" />
+                    <TextBlock FontSize="11" FontWeight="Bold" Opacity="1.0" Grid.Column="4" Text="适配器" />
                 </Grid>
                 <StackPanel x:Name="ConnectionPanel" Spacing="2" />
                 <StackPanel x:Name="EmptyPanel" Visibility="Collapsed" HorizontalAlignment="Center" Spacing="4" Padding="0,32,0,32">

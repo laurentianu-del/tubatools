@@ -231,7 +231,7 @@ public sealed partial class BatteryAnalyzerPage : Page
         _healthStatusText = new TextBlock
         {
             FontSize = 11,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(AccentGreen)
         };
         _healthBar = new ProgressBar { Minimum = 0, Maximum = 100, HorizontalAlignment = HorizontalAlignment.Stretch };
@@ -335,7 +335,7 @@ public sealed partial class BatteryAnalyzerPage : Page
         {
             Text = "电量变化趋势",
             FontSize = 16,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText)
         };
 
@@ -421,7 +421,7 @@ public sealed partial class BatteryAnalyzerPage : Page
         {
             Text = "高耗电进程排行",
             FontSize = 16,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText)
         };
 
@@ -464,7 +464,7 @@ public sealed partial class BatteryAnalyzerPage : Page
         {
             Text = "系统电源报告 (SPR)",
             FontSize = 16,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText)
         };
 
@@ -580,7 +580,7 @@ public sealed partial class BatteryAnalyzerPage : Page
         {
             Text = "电源状态会话记录",
             FontSize = 13,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText),
             VerticalAlignment = VerticalAlignment.Center
         });
@@ -628,7 +628,7 @@ public sealed partial class BatteryAnalyzerPage : Page
         {
             Text = "电池详细信息",
             FontSize = 16,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText)
         };
 
@@ -852,7 +852,7 @@ public sealed partial class BatteryAnalyzerPage : Page
         {
             Text = "电池信息 (SPR)",
             FontSize = 13,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText)
         });
 
@@ -919,7 +919,7 @@ public sealed partial class BatteryAnalyzerPage : Page
 
         foreach (var (h, col) in new[] { "#", "开始时间", "持续时长", "状态", "电源", "电量变化", "活动级别" }.Select((h, i) => (h, i)))
         {
-            var tb = new TextBlock { Text = h, FontSize = 11, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = new SolidColorBrush(ThemeColors.DimText) };
+            var tb = new TextBlock { Text = h, FontSize = 11, FontWeight = Microsoft.UI.Text.FontWeights.Bold, Foreground = new SolidColorBrush(ThemeColors.DimText) };
             headerRow.Children.Add(tb);
             Grid.SetColumn(tb, col);
         }
@@ -980,7 +980,7 @@ public sealed partial class BatteryAnalyzerPage : Page
             {
                 drainText = "0%";
             }
-            var c5 = new TextBlock { Text = drainText, FontSize = 11, Foreground = new SolidColorBrush(drainColor), VerticalAlignment = VerticalAlignment.Center, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
+            var c5 = new TextBlock { Text = drainText, FontSize = 11, Foreground = new SolidColorBrush(drainColor), VerticalAlignment = VerticalAlignment.Center, FontWeight = Microsoft.UI.Text.FontWeights.Bold };
             row.Children.Add(c5); Grid.SetColumn(c5, 5);
 
             var c6 = new TextBlock { Text = s.ActivityLevelZh, FontSize = 11, Foreground = new SolidColorBrush(ThemeColors.DimText), VerticalAlignment = VerticalAlignment.Center };

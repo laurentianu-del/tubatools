@@ -63,7 +63,7 @@ public sealed partial class LatencyImageQueryPage : Page
 			Child = new FontIcon { FontSize = 20, Glyph = "\ue9d9", Foreground = new SolidColorBrush(Microsoft.UI.Colors.White) }
 		};
 
-		var titleText = new TextBlock { Text = "核间延迟查询", FontSize = 22, FontWeight = FontWeights.SemiBold };
+		var titleText = new TextBlock { Text = "核间延迟查询", FontSize = 22, FontWeight = FontWeights.Bold };
 		var subtitleText = new TextBlock { Text = "查看社区上传的 CPU 核间延迟热力图（reports/latency-images）", FontSize = 12, Opacity = 0.68 };
 		var titleStack = new StackPanel { Spacing = 2, Children = { titleText, subtitleText } };
 
@@ -158,7 +158,7 @@ public sealed partial class LatencyImageQueryPage : Page
 			Children = { loadingRing, loadingText }
 		};
 
-		var errorTitle = new TextBlock { Text = "加载失败", FontSize = 16, FontWeight = FontWeights.SemiBold };
+		var errorTitle = new TextBlock { Text = "加载失败", FontSize = 16, FontWeight = FontWeights.Bold };
 		_errorMessage = new TextBlock { FontSize = 13, Opacity = 0.78, TextWrapping = TextWrapping.Wrap, MaxWidth = 400 };
 		var retryBtn = new Button { Content = "重试", Style = App.Current.Resources["AccentButtonStyle"] as Style };
 		retryBtn.Click += async (_, _) => await LoadImagesAsync();
@@ -303,7 +303,7 @@ public sealed partial class LatencyImageQueryPage : Page
 		{
 			Text = string.IsNullOrEmpty(cpu) ? info.Name : cpu,
 			FontSize = 14.0,
-			FontWeight = FontWeights.SemiBold,
+			FontWeight = FontWeights.Bold,
 			MaxWidth = 190,
 			TextWrapping = TextWrapping.Wrap,
 			MaxLines = 2,
@@ -379,7 +379,7 @@ public sealed partial class LatencyImageQueryPage : Page
 			Visibility = Visibility.Collapsed,
 			Children =
 			{
-				new TextBlock { Text = "CPU: " + (string.IsNullOrEmpty(cpu) ? "未知" : cpu), FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap },
+				new TextBlock { Text = "CPU: " + (string.IsNullOrEmpty(cpu) ? "未知" : cpu), FontWeight = FontWeights.Bold, TextWrapping = TextWrapping.Wrap },
 				new TextBlock { Text = "发布者: @" + author, FontSize = 12, Opacity = 0.78 },
 				new TextBlock { Text = "文件名: " + info.Name, FontSize = 12, Opacity = 0.68, TextWrapping = TextWrapping.Wrap },
 				imageScroll

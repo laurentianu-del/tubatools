@@ -286,9 +286,9 @@ public static partial class AiMarkdownRenderer
                             foreach (var inline in p.Inlines)
                             {
                                 if (inline is Run run)
-                                    run.FontWeight = FontWeights.SemiBold;
+                                    run.FontWeight = FontWeights.Bold;
                                 else if (inline is Span span)
-                                    span.FontWeight = FontWeights.SemiBold;
+                                    span.FontWeight = FontWeights.Bold;
                             }
                         }
                     }
@@ -403,7 +403,7 @@ public static partial class AiMarkdownRenderer
         infoStack.Children.Add(new TextBlock
         {
             Text = name,
-            FontWeight = FontWeights.SemiBold,
+            FontWeight = FontWeights.Bold,
             FontSize = 13
         });
         if (!string.IsNullOrWhiteSpace(reason))
@@ -517,7 +517,7 @@ public static partial class AiMarkdownRenderer
             infoStack.Children.Add(new TextBlock
             {
                 Text = desc,
-                FontWeight = FontWeights.SemiBold,
+                FontWeight = FontWeights.Bold,
                 FontSize = 13
             });
         }
@@ -584,7 +584,7 @@ public static partial class AiMarkdownRenderer
         header.Children.Add(new TextBlock
         {
             Text = name,
-            FontWeight = FontWeights.SemiBold,
+            FontWeight = FontWeights.Bold,
             FontSize = 13,
             VerticalAlignment = VerticalAlignment.Center
         });
@@ -662,7 +662,7 @@ public static partial class AiMarkdownRenderer
         header.Children.Add(new TextBlock
         {
             Text = "需要确认的操作",
-            FontWeight = FontWeights.SemiBold,
+            FontWeight = FontWeights.Bold,
             FontSize = 13,
             Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 218, 112, 0)),
             VerticalAlignment = VerticalAlignment.Center
@@ -691,7 +691,7 @@ public static partial class AiMarkdownRenderer
             actionStack.Children.Add(new TextBlock
             {
                 Text = $"{kindLabel}：{action.Description}",
-                FontWeight = FontWeights.SemiBold,
+                FontWeight = FontWeights.Bold,
                 FontSize = 13
             });
 

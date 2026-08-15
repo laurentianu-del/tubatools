@@ -222,7 +222,7 @@
                             <TextBlock
                                 x:Name="TitleText"
                                 FontSize="34"
-                                FontWeight="SemiBold"
+                                FontWeight="Bold"
                                 Text="硬件信息"
                                 IsTapEnabled="True"
                                 Tapped="TitleText_Tapped" />
@@ -238,7 +238,7 @@
                                 </Border.Background>
                                 <TextBlock
                                     FontSize="12"
-                                    FontWeight="SemiBold"
+                                    FontWeight="Bold"
                                     Foreground="#FF00C864"
                                     Text="CPU-Z" />
                             </Border>
@@ -311,7 +311,7 @@
                                 <TextBlock
                                     x:Name="ModelText"
                                     FontSize="20"
-                                    FontWeight="SemiBold"
+                                    FontWeight="Bold"
                                     TextWrapping="Wrap" />
                             </StackPanel>
                         </Grid>
@@ -335,7 +335,7 @@
                                 <TextBlock
                                     x:Name="SystemText"
                                     FontSize="20"
-                                    FontWeight="SemiBold"
+                                    FontWeight="Bold"
                                     TextWrapping="Wrap" />
                             </StackPanel>
                         </Grid>
@@ -361,7 +361,7 @@
                                     Width="220"
                                     HorizontalAlignment="Left"
                                     FontSize="20"
-                                    FontWeight="SemiBold"
+                                    FontWeight="Bold"
                                     TextWrapping="Wrap" />
                             </StackPanel>
                         </Grid>
@@ -379,7 +379,7 @@
                     </StackPanel.RenderTransform>
                     <TextBlock
                         FontSize="22"
-                        FontWeight="SemiBold"
+                        FontWeight="Bold"
                         Text="详细信息" />
 
                     <Border
@@ -406,7 +406,7 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock
-                                            FontFamily="{StaticResource AppFontFamily}"
+
                                             FontSize="15"
                                             Opacity="1.0"
                                             Text="{Binding Label}"
@@ -419,10 +419,10 @@
                                             VerticalAlignment="Center" />
                                         <TextBlock
                                             x:Name="ValueText"
-                                            FontFamily="{StaticResource AppFontFamily}"
+
                                             Grid.Column="2"
                                             FontSize="15"
-                                            FontWeight="SemiBold"
+                                            FontWeight="Bold"
                                             Text="{Binding Value}"
                                             TextWrapping="Wrap"
                                             VerticalAlignment="Center"
@@ -442,9 +442,9 @@
                                                 <SolidColorBrush Color="#2600C864" />
                                             </Border.Background>
                                             <TextBlock
-                                                FontFamily="{StaticResource AppFontFamily}"
+
                                                 FontSize="11"
-                                                FontWeight="SemiBold"
+                                                FontWeight="Bold"
                                                 Foreground="#FF00C864"
                                                 Text="真" />
                                         </Border>

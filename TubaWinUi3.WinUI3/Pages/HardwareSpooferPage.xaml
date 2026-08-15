@@ -24,7 +24,7 @@
                 <FontIcon FontSize="20" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" Glyph="&#xEEA1;" />
             </Border>
             <StackPanel Grid.Column="1" Spacing="2">
-                <TextBlock FontSize="22" FontWeight="SemiBold" Text="配置修改器" />
+                <TextBlock FontSize="22" FontWeight="Bold" Text="配置修改器" />
                 <TextBlock x:Name="SubtitleText" Opacity="1.0" FontSize="12" Text="修改注册表中的硬件信息显示" />
             </StackPanel>
             <Button x:Name="CloseButton" Grid.Column="2" Click="CloseButton_Click">
@@ -48,13 +48,13 @@
                     <Border Grid.Column="1" Padding="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
                         <StackPanel Spacing="2">
                             <TextBlock FontSize="11" Opacity="1.0" Text="备份状态" />
-                            <TextBlock x:Name="BackupStatusText" FontSize="14" FontWeight="SemiBold" Text="无备份" />
+                            <TextBlock x:Name="BackupStatusText" FontSize="14" FontWeight="Bold" Text="无备份" />
                         </StackPanel>
                     </Border>
                     <Border Grid.Column="2" Padding="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
                         <StackPanel Spacing="2">
                             <TextBlock FontSize="11" Opacity="1.0" Text="管理员权限" />
-                            <TextBlock x:Name="AdminStatusText" FontSize="14" FontWeight="SemiBold" Text="检测中..." />
+                            <TextBlock x:Name="AdminStatusText" FontSize="14" FontWeight="Bold" Text="检测中..." />
                         </StackPanel>
                     </Border>
                 </Grid>
@@ -70,7 +70,7 @@
                     <Expander.Header>
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <FontIcon FontSize="18" Glyph="&#xEEA1;" />
-                            <TextBlock FontWeight="SemiBold" Text="CPU 处理器" />
+                            <TextBlock FontWeight="Bold" Text="CPU 处理器" />
                         </StackPanel>
                     </Expander.Header>
                     <StackPanel Spacing="12" Padding="8">
@@ -100,7 +100,7 @@
                     <Expander.Header>
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <FontIcon FontSize="18" Glyph="&#xF211;" />
-                            <TextBlock FontWeight="SemiBold" Text="GPU 显卡" />
+                            <TextBlock FontWeight="Bold" Text="GPU 显卡" />
                         </StackPanel>
                     </Expander.Header>
                     <StackPanel Spacing="12" Padding="8">
@@ -126,7 +126,7 @@
                     <Expander.Header>
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <FontIcon FontSize="18" Glyph="&#xE977;" />
-                            <TextBlock FontWeight="SemiBold" Text="系统信息" />
+                            <TextBlock FontWeight="Bold" Text="系统信息" />
                         </StackPanel>
                     </Expander.Header>
                     <StackPanel Spacing="12" Padding="8">
@@ -160,7 +160,7 @@
                     <Expander.Header>
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <FontIcon FontSize="18" Glyph="&#xE977;" />
-                            <TextBlock FontWeight="SemiBold" Text="BIOS / 主板" />
+                            <TextBlock FontWeight="Bold" Text="BIOS / 主板" />
                         </StackPanel>
                     </Expander.Header>
                     <StackPanel Spacing="12" Padding="8">

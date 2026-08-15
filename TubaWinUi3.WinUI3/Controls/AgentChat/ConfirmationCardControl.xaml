@@ -15,7 +15,7 @@
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <FontIcon Glyph="&#xE7BA;" FontSize="14"
                           Foreground="{ThemeResource SystemFillColorCautionBrush}" />
-                <TextBlock Text="需要确认的操作" FontSize="13" FontWeight="SemiBold" />
+                <TextBlock Text="需要确认的操作" FontSize="13" FontWeight="Bold" />
                 <TextBlock Text="{x:Bind PendingCountText, Mode=OneWay}" FontSize="12"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             </StackPanel>
@@ -29,7 +29,7 @@
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon FontSize="12" Glyph="{Binding Glyph}"
                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock Text="{Binding DisplayName}" FontSize="12" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding DisplayName}" FontSize="12" FontWeight="Bold" />
                                     <TextBlock Text="{Binding Summary}" FontSize="12"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                                TextTrimming="CharacterEllipsis" />

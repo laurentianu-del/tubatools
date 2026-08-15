@@ -222,7 +222,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
         var confirmText = new TextBlock
         {
             FontSize = 13,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(AccentYellow),
             TextWrapping = TextWrapping.Wrap
         };
@@ -598,7 +598,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
                 Text = label,
                 FontSize = 10,
                 Foreground = new SolidColorBrush(accent),
-                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold
             }
         };
 
@@ -875,7 +875,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
         {
             Text = cat.Name,
             FontSize = 14,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText)
         };
 
@@ -890,7 +890,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
         {
             Text = cat.FileCount > 0 ? JunkCleanerService.FormatSize(cat.SizeBytes) : "无文件",
             FontSize = 14,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(cat.FileCount > 0 ? accent : ThemeColors.DimText)
         };
 
@@ -987,7 +987,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
         {
             Text = item.Path,
             FontSize = 14,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText)
         };
 
@@ -1017,7 +1017,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
                 Text = riskLabel,
                 FontSize = 11,
                 Foreground = new SolidColorBrush(riskColor),
-                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold
             }
         };
 
@@ -1038,7 +1038,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
         {
             Text = item.SizeBytes > 0 ? AiJunkAnalyzerService.FormatSize(item.SizeBytes) : "--",
             FontSize = 14,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(item.SizeBytes > 0 ? riskColor : ThemeColors.DimText)
         };
 

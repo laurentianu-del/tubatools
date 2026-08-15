@@ -259,7 +259,7 @@ public sealed partial class AiAgentPage : UserControl
             {
                 Text = skill.DisplayName,
                 FontSize = 13,
-                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold
             });
             texts.Children.Add(new TextBlock
             {
@@ -897,7 +897,7 @@ public sealed partial class AiAgentPage : UserControl
                             {
                                 Text = "出错了",
                                 FontSize = 12,
-                                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
                                 Foreground = (Brush)Application.Current.Resources["SystemFillColorCriticalBrush"]
                             }
                         }

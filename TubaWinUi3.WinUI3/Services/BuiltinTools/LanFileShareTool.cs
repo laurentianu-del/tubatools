@@ -67,7 +67,7 @@ public sealed partial class LanFileSharePage : Page
             Child = new FontIcon { FontSize = 20, Glyph = "\uE8F1", Foreground = new SolidColorBrush(Microsoft.UI.Colors.White) }
         };
 
-        var titleText = new TextBlock { Text = "局域网文件分享", FontSize = 22, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
+        var titleText = new TextBlock { Text = "局域网文件分享", FontSize = 22, FontWeight = Microsoft.UI.Text.FontWeights.Bold };
         var subtitleText = new TextBlock { Text = "在局域网内创建HTTP文件分享服务，其他设备可通过浏览器访问和下载文件", FontSize = 12, Opacity = 0.68 };
         var titleStack = new StackPanel { Spacing = 2, Children = { titleText, subtitleText } };
 
@@ -94,7 +94,7 @@ public sealed partial class LanFileSharePage : Page
         titleBar.Children.Add(titleStack); Grid.SetColumn(titleStack, 1);
         titleBar.Children.Add(closeBtn); Grid.SetColumn(closeBtn, 2);
 
-        _statusText = new TextBlock { FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+        _statusText = new TextBlock { FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center };
 
         _urlText = new TextBlock
         {
@@ -166,7 +166,7 @@ public sealed partial class LanFileSharePage : Page
         _loadingText = new TextBlock { Text = "正在启动服务...", FontSize = 13, Opacity = 0.68 };
         _loadingPanel = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Spacing = 8, Visibility = Visibility.Collapsed, Children = { _loadingRing, _loadingText } };
 
-        _errorTitle = new TextBlock { Text = "启动失败", FontSize = 16, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
+        _errorTitle = new TextBlock { Text = "启动失败", FontSize = 16, FontWeight = Microsoft.UI.Text.FontWeights.Bold };
         _errorMessage = new TextBlock { FontSize = 13, Opacity = 0.78, TextWrapping = TextWrapping.Wrap, MaxWidth = 400 };
         _retryBtn = new Button { Content = "重试", Style = App.Current.Resources["AccentButtonStyle"] as Style };
         _retryBtn.Click += async (_, _) => await StartServerAsync();

@@ -68,7 +68,7 @@
                         BorderBrush="{ThemeResource SubtleFillColorSecondaryBrush}"
                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
                     <StackPanel Spacing="8">
-                        <TextBlock FontSize="14" FontWeight="SemiBold" Text="烤机时长设置" />
+                        <TextBlock FontSize="14" FontWeight="Bold" Text="烤机时长设置" />
                         <Grid ColumnSpacing="16">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
@@ -89,7 +89,7 @@
                             </StackPanel>
                         </Grid>
                         <TextBlock FontSize="11" Opacity="0.6" TextWrapping="Wrap">
-                            <Run FontWeight="SemiBold" Text="时长含义：" />
+                            <Run FontWeight="Bold" Text="时长含义：" />
                             <Run Text="15 分钟 — 快速验证散热与稳定性；30 分钟 — 常规稳定性测试；1 小时+ — 深度烤机。" />
                             <LineBreak />
                             <Run Text="可自由勾选要烤的部件（CPU / GPU / 网卡），多选时各部件按自己的时长运行，全部结束后自动停止。" />
@@ -108,7 +108,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock FontSize="14" FontWeight="SemiBold" Text="FurMark GPU 参数设置" VerticalAlignment="Center" />
+                            <TextBlock FontSize="14" FontWeight="Bold" Text="FurMark GPU 参数设置" VerticalAlignment="Center" />
                             <Button Grid.Column="1" Click="ResetFurMarkSettings_Click" Padding="10,4">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon FontSize="12" Glyph="&#xE72C;" />
@@ -226,7 +226,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock FontSize="14" FontWeight="SemiBold" Text="网卡烤机参数设置" VerticalAlignment="Center" />
+                            <TextBlock FontSize="14" FontWeight="Bold" Text="网卡烤机参数设置" VerticalAlignment="Center" />
                             <Button Grid.Column="1" Click="ResetNetSettings_Click" Padding="10,4">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon FontSize="12" Glyph="&#xE72C;" />
@@ -254,7 +254,7 @@
                         </Grid>
                         <TextBlock x:Name="NetRefText" FontSize="11" Opacity="0.7" TextWrapping="Wrap" />
                         <TextBlock FontSize="11" Opacity="0.6" TextWrapping="Wrap">
-                            <Run FontWeight="SemiBold" Text="说明：" />
+                            <Run FontWeight="Bold" Text="说明：" />
                             <Run Text="单播模式向路由器发送，速率最高（WiFi 实测约为链路的 50%，有线千兆 100+ MB/s），但接收为 0（路由器不回包）；广播模式由交换机/AP 把帧回环到本机网卡，收发双工，有线千兆可全双工跑满，WiFi 上会被 AP 限速到几 MB/s。" />
                         </TextBlock>
                     </StackPanel>
@@ -375,7 +375,7 @@
                         BorderBrush="{ThemeResource SubtleFillColorSecondaryBrush}"
                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
                     <StackPanel Spacing="8">
-                        <TextBlock FontSize="14" FontWeight="SemiBold" Text="CPU 监控曲线" />
+                        <TextBlock FontSize="14" FontWeight="Bold" Text="CPU 监控曲线" />
                         <Grid ColumnSpacing="8" Height="120">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -431,7 +431,7 @@
                         BorderBrush="{ThemeResource SubtleFillColorSecondaryBrush}"
                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
                     <StackPanel Spacing="8">
-                        <TextBlock FontSize="14" FontWeight="SemiBold" Text="GPU 监控曲线" />
+                        <TextBlock FontSize="14" FontWeight="Bold" Text="GPU 监控曲线" />
                         <Grid ColumnSpacing="8" Height="120">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -481,7 +481,7 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock FontSize="14" FontWeight="SemiBold" Text="网卡监控曲线" VerticalAlignment="Center" />
+                            <TextBlock FontSize="14" FontWeight="Bold" Text="网卡监控曲线" VerticalAlignment="Center" />
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16" HorizontalAlignment="Right" VerticalAlignment="Center">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <Border Width="10" Height="10" CornerRadius="2" Background="#38BDF8" VerticalAlignment="Center" />
@@ -520,7 +520,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock FontSize="14" FontWeight="SemiBold" Text="运行日志" />
+                            <TextBlock FontSize="14" FontWeight="Bold" Text="运行日志" />
                             <Button Grid.Column="1" Click="ClearLog_Click" ToolTipService.ToolTip="清空日志">
                                 <FontIcon Glyph="&#xE74D;" FontSize="12" />
                             </Button>

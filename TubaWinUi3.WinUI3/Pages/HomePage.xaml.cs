@@ -627,7 +627,7 @@ public sealed partial class HomePage : Page
                     {
                         Text = "确定要删除此工具吗？此操作不可撤销！",
                         TextWrapping = TextWrapping.Wrap,
-                        FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+                        FontWeight = Microsoft.UI.Text.FontWeights.Bold
                     },
                     new TextBlock
                     {

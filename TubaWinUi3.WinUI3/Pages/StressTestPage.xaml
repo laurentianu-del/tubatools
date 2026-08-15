@@ -24,7 +24,7 @@
                 <FontIcon FontSize="20" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" Glyph="&#xECAD;" />
             </Border>
             <StackPanel Grid.Column="1" Spacing="2">
-                <TextBlock FontSize="22" FontWeight="SemiBold" Text="一键三烤" />
+                <TextBlock FontSize="22" FontWeight="Bold" Text="一键三烤" />
                 <TextBlock x:Name="SubtitleText" Opacity="0.8" FontSize="12" Text="CPU / GPU / 网卡压力测试 — 实时监控温度、频率、功耗与网卡吞吐" />
             </StackPanel>
             <Button x:Name="CloseButton" Grid.Column="2" Click="CloseButton_Click">

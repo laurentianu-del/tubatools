@@ -30,9 +30,9 @@
             </Border>
             <StackPanel Grid.Column="1" Spacing="2">
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock FontSize="22" FontWeight="SemiBold" Text="后台节流省电神器" />
+                    <TextBlock FontSize="22" FontWeight="Bold" Text="后台节流省电神器" />
                     <Border x:Name="StatusBadge" Padding="8,2" CornerRadius="10" VerticalAlignment="Center">
-                        <TextBlock x:Name="StatusBadgeText" FontSize="11" FontWeight="SemiBold" />
+                        <TextBlock x:Name="StatusBadgeText" FontSize="11" FontWeight="Bold" />
                     </Border>
                 </StackPanel>
                 <TextBlock x:Name="StatusText" Opacity="0.8" FontSize="12" IsTextSelectionEnabled="True" />
@@ -53,7 +53,7 @@
                     <StackPanel Spacing="6">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon FontSize="16" Glyph="&#xE83F;" />
-                            <TextBlock FontSize="15" FontWeight="SemiBold" Text="EcoQoS 效率模式 (Energy Star X 内核)" />
+                            <TextBlock FontSize="15" FontWeight="Bold" Text="EcoQoS 效率模式 (Energy Star X 内核)" />
                         </StackPanel>
                         <TextBlock Opacity="0.8" FontSize="13" TextWrapping="Wrap">
                             通过 Windows 11 Process Power Throttling API 节流后台进程以提升电池续航与散热；前台应用不会被节流以保证体验。任务管理器的“状态”列会对节流的后台进程显示绿色叶子图标。
@@ -62,7 +62,7 @@
                         <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,2,0,0">
                             <FontIcon FontSize="11" Glyph="&#xE71B;" Opacity="0.6" />
                             <TextBlock FontSize="11" Opacity="0.6">
-                                <Run Text="源自开源项目 " /><Run FontWeight="SemiBold" Text="EnergyStarX" />
+                                <Run Text="源自开源项目 " /><Run FontWeight="Bold" Text="EnergyStarX" />
                                 <Hyperlink NavigateUri="https://github.com/JasonWei512/EnergyStarX">
                                     <Run Text="github.com/JasonWei512/EnergyStarX" />
                                 </Hyperlink>
@@ -91,7 +91,7 @@
                 <!-- 选项 -->
                 <Border BorderThickness="1" CornerRadius="6" Padding="16" BorderBrush="{ThemeResource SubtleFillColorSecondaryBrush}" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
                     <StackPanel Spacing="12">
-                        <TextBlock FontSize="14" FontWeight="SemiBold" Text="节流选项" />
+                        <TextBlock FontSize="14" FontWeight="Bold" Text="节流选项" />
 
                         <ToggleSwitch x:Name="ThrottleWhenPluggedInToggle"
                                       Header="插电时也节流所有后台进程"
@@ -121,7 +121,7 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Spacing="2">
-                                <TextBlock FontSize="14" FontWeight="SemiBold" Text="进程白名单" />
+                                <TextBlock FontSize="14" FontWeight="Bold" Text="进程白名单" />
                                 <TextBlock Opacity="0.7" FontSize="11" Text="白名单中的进程绝不会被节流 (一行一个)" />
                             </StackPanel>
                             <Button Grid.Column="1" Click="ToggleWhitelistEdit_Click" x:Name="ToggleWhitelistEditButton">
@@ -158,7 +158,7 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Spacing="2">
-                                <TextBlock FontSize="14" FontWeight="SemiBold" Text="进程黑名单" />
+                                <TextBlock FontSize="14" FontWeight="Bold" Text="进程黑名单" />
                                 <TextBlock Opacity="0.7" FontSize="11" Text="黑名单中的进程始终被节流, 即使在插电时 (一行一个)" />
                             </StackPanel>
                             <Button Grid.Column="1" Click="ToggleBlacklistEdit_Click" x:Name="ToggleBlacklistEditButton">
@@ -192,7 +192,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock FontSize="14" FontWeight="SemiBold" Text="活动日志" />
+                            <TextBlock FontSize="14" FontWeight="Bold" Text="活动日志" />
                             <Button Grid.Column="1" Click="ClearLog_Click" ToolTipService.ToolTip="清空日志"><FontIcon Glyph="&#xE74D;" FontSize="12" /></Button>
                         </Grid>
                         <Border BorderBrush="{ThemeResource SubtleFillColorSecondaryBrush}" BorderThickness="1" Padding="8" CornerRadius="4">

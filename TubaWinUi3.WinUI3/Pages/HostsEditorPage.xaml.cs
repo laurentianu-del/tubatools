@@ -132,7 +132,7 @@ public sealed partial class HostsEditorPage : Page
         {
             Text = entry.Hostname,
             FontSize = 13,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             FontFamily = new FontFamily("Consolas"),
             Foreground = new SolidColorBrush(entry.Enabled ? ThemeColors.PrimaryText : ThemeColors.DimText),
             VerticalAlignment = VerticalAlignment.Center,

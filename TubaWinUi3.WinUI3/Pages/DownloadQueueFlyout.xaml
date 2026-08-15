@@ -16,7 +16,7 @@
 
             <TextBlock
                 FontSize="14"
-                FontWeight="SemiBold"
+                FontWeight="Bold"
                 VerticalAlignment="Center"
                 Text="下载队列" />
 
@@ -79,14 +79,14 @@
 
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
                                         <TextBlock
-                                            FontFamily="{StaticResource AppFontFamily}"
+
                                             FontSize="13"
-                                            FontWeight="SemiBold"
+                                            FontWeight="Bold"
                                             TextTrimming="CharacterEllipsis"
                                             MaxLines="1"
                                             Text="{Binding DisplayName}" />
                                         <TextBlock
-                                            FontFamily="{StaticResource AppFontFamily}"
+
                                             FontSize="11"
                                             Opacity="1.0"
                                             TextTrimming="CharacterEllipsis"
@@ -101,7 +101,7 @@
                                         VerticalAlignment="Center"
                                         Background="{ThemeResource SubtleFillColorSecondaryBrush}">
                                         <TextBlock
-                                            FontFamily="{StaticResource AppFontFamily}"
+
                                             FontSize="10"
                                             Text="{Binding StateText}" />
                                     </Border>
@@ -121,7 +121,7 @@
                                     </Grid.ColumnDefinitions>
 
                                     <TextBlock
-                                        FontFamily="{StaticResource AppFontFamily}"
+
                                         FontSize="11"
                                         Opacity="1.0"
                                         TextTrimming="CharacterEllipsis"

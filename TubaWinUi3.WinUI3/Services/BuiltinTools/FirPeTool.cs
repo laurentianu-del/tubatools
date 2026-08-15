@@ -258,7 +258,7 @@ public sealed class FirPeTool : IBuiltinTool
         {
             Text = label,
             FontSize = 15,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold
         };
         var fileText = new TextBlock
         {

@@ -28,7 +28,7 @@
 
         <StackPanel Grid.Row="1" Spacing="6" HorizontalAlignment="Center" Margin="0,16,0,16">
             <FontIcon x:Name="StepGlyphIcon" Glyph="&#xE734;" FontSize="36" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" HorizontalAlignment="Center" />
-            <TextBlock x:Name="StepTitleText" FontSize="28" FontWeight="SemiBold" HorizontalAlignment="Center" />
+            <TextBlock x:Name="StepTitleText" FontSize="28" FontWeight="Bold" HorizontalAlignment="Center" />
             <TextBlock x:Name="StepDescText" FontSize="14" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
         </StackPanel>
 

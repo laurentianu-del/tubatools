@@ -127,7 +127,7 @@
         <!-- 恢复批次模板 -->
         <DataTemplate x:Key="BatchRowTemplate">
             <StackPanel Spacing="2" Padding="0,4">
-                <TextBlock Text="{Binding CreatedAt}" FontSize="13" FontWeight="SemiBold"
+                <TextBlock Text="{Binding CreatedAt}" FontSize="13" FontWeight="Bold"
                            Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                 <StackPanel Orientation="Horizontal" Spacing="4">
                     <TextBlock Text="{Binding Results.Count}" FontSize="11"
@@ -252,7 +252,7 @@
 
                             <!-- 标题行 -->
                             <StackPanel Orientation="Horizontal" Spacing="10">
-                                <TextBlock x:Name="FilterTitle" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"
+                                <TextBlock x:Name="FilterTitle" FontSize="14" FontWeight="Bold" VerticalAlignment="Center"
                                            Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                                 <TextBlock x:Name="CountText" FontSize="12" VerticalAlignment="Center"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
@@ -272,15 +272,15 @@
                                     <ColumnDefinition Width="120"/>
                                     <ColumnDefinition Width="84"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="1" Text="风险" FontSize="11" FontWeight="SemiBold"
+                                <TextBlock Grid.Column="1" Text="风险" FontSize="11" FontWeight="Bold"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                <TextBlock Grid.Column="2" Text="项目" FontSize="11" FontWeight="SemiBold"
+                                <TextBlock Grid.Column="2" Text="项目" FontSize="11" FontWeight="Bold"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                <TextBlock Grid.Column="3" Text="软件" FontSize="11" FontWeight="SemiBold"
+                                <TextBlock Grid.Column="3" Text="软件" FontSize="11" FontWeight="Bold"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                <TextBlock Grid.Column="4" Text="影响" FontSize="11" FontWeight="SemiBold"
+                                <TextBlock Grid.Column="4" Text="影响" FontSize="11" FontWeight="Bold"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                <TextBlock Grid.Column="5" Text="处理" FontSize="11" FontWeight="SemiBold"
+                                <TextBlock Grid.Column="5" Text="处理" FontSize="11" FontWeight="Bold"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                             </Grid>
 
@@ -380,13 +380,13 @@
                                         <ColumnDefinition Width="110"/>
                                         <ColumnDefinition Width="96"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="2" Text="右键里显示的名称" FontSize="11" FontWeight="SemiBold"
+                                    <TextBlock Grid.Column="2" Text="右键里显示的名称" FontSize="11" FontWeight="Bold"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                    <TextBlock Grid.Column="3" Text="什么时候会出现" FontSize="11" FontWeight="SemiBold"
+                                    <TextBlock Grid.Column="3" Text="什么时候会出现" FontSize="11" FontWeight="Bold"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                    <TextBlock Grid.Column="4" Text="关联软件" FontSize="11" FontWeight="SemiBold"
+                                    <TextBlock Grid.Column="4" Text="关联软件" FontSize="11" FontWeight="Bold"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                    <TextBlock Grid.Column="5" Text="影响范围" FontSize="11" FontWeight="SemiBold"
+                                    <TextBlock Grid.Column="5" Text="影响范围" FontSize="11" FontWeight="Bold"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                 </Grid>
                                 <ListView x:Name="CmList" Grid.Row="1" Margin="0,4,0,0"
@@ -445,7 +445,7 @@
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <Button Content="‹ 返回" FontSize="12" Click="CmBack_Click"/>
                             <StackPanel Spacing="1">
-                                <TextBlock Text="更多右键位置" FontSize="15" FontWeight="SemiBold"
+                                <TextBlock Text="更多右键位置" FontSize="15" FontWeight="Bold"
                                            Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                                 <TextBlock Text="管理“新建”“发送到”“打开方式”以及组件屏蔽等扩展入口" FontSize="11"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
@@ -487,7 +487,7 @@
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <Button Content="‹ 返回" FontSize="12" Click="CmBack_Click"/>
                             <StackPanel Spacing="1">
-                                <TextBlock Text="系统右键高级功能" FontSize="15" FontWeight="SemiBold"
+                                <TextBlock Text="系统右键高级功能" FontSize="15" FontWeight="Bold"
                                            Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                                 <TextBlock Text="管理系统快捷菜单、Windows 11 现代菜单、IE 旧式菜单和安全增强入口" FontSize="11"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
@@ -554,7 +554,7 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
-                            <TextBlock x:Name="BatchItemsTitle" FontSize="14" FontWeight="SemiBold"
+                            <TextBlock x:Name="BatchItemsTitle" FontSize="14" FontWeight="Bold"
                                        Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="恢复对象"/>
                             <ListView x:Name="BatchItemsList" Grid.Row="1" Margin="0,6,0,0"
                                       ItemTemplate="{StaticResource BatchItemTemplate}"/>

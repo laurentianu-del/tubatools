@@ -112,7 +112,7 @@
             <StackPanel Spacing="4">
                 <TextBlock
                     FontSize="30"
-                    FontWeight="SemiBold"
+                    FontWeight="Bold"
                     Text="常用" />
                 <TextBlock
                     x:Name="SubtitleText"
@@ -140,7 +140,7 @@
                     </Border>
                     <TextBlock
                         FontSize="18"
-                        FontWeight="SemiBold"
+                        FontWeight="Bold"
                         VerticalAlignment="Center"
                         Text="常用推荐" />
                     <TextBlock
@@ -186,7 +186,7 @@
                     <StackPanel Grid.Column="1" Spacing="2">
                         <TextBlock
                             FontSize="16"
-                            FontWeight="SemiBold"
+                            FontWeight="Bold"
                             Text="我的收藏" />
                         <TextBlock
                             x:Name="ToolCountText"
@@ -259,14 +259,14 @@
                                     </Border>
                                     <StackPanel Grid.Column="1" Spacing="3">
                                         <TextBlock
-                                            FontFamily="{StaticResource AppFontFamily}"
+
                                             FontSize="16"
-                                            FontWeight="SemiBold"
+                                            FontWeight="Bold"
                                             MaxLines="1"
                                             Text="{Binding Name}"
                                             TextTrimming="CharacterEllipsis" />
                                         <TextBlock
-                                            FontFamily="{StaticResource AppFontFamily}"
+
                                             FontSize="12"
                                             Opacity="1.0"
                                             Text="{Binding Category}"
@@ -275,7 +275,7 @@
                                 </Grid>
 
                                 <TextBlock
-                                    FontFamily="{StaticResource AppFontFamily}"
+
                                     Grid.Row="1"
                                     MaxLines="2"
                                     Opacity="1.0"
@@ -293,9 +293,9 @@
                                         Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                         CornerRadius="6">
                                         <TextBlock
-                                            FontFamily="{StaticResource AppFontFamily}"
+
                                             FontSize="11"
-                                            FontWeight="SemiBold"
+                                            FontWeight="Bold"
                                             Text="{Binding Extension}" />
                                     </Border>
 
@@ -333,7 +333,7 @@
                                         Padding="10,4"
                                         Click="LaunchButton_Click">
                                         <TextBlock
-                                            FontFamily="{StaticResource AppFontFamily}"
+
                                             Text="{Binding LaunchButtonText}"
                                             TextAlignment="Center"
                                             TextTrimming="CharacterEllipsis" />

@@ -86,7 +86,7 @@ public sealed class WifiPasswordTool : IBuiltinTool
         {
             Text = network.Ssid,
             FontSize = 14,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText)
         };
 
@@ -95,7 +95,7 @@ public sealed class WifiPasswordTool : IBuiltinTool
             Padding = new Thickness(6, 2, 6, 2),
             Background = new SolidColorBrush(Color.FromArgb(26, AccentGreen.R, AccentGreen.G, AccentGreen.B)),
             CornerRadius = new CornerRadius(4),
-            Child = new TextBlock { Text = "已连接", FontSize = 10, Foreground = new SolidColorBrush(AccentGreen), FontWeight = Microsoft.UI.Text.FontWeights.SemiBold },
+            Child = new TextBlock { Text = "已连接", FontSize = 10, Foreground = new SolidColorBrush(AccentGreen), FontWeight = Microsoft.UI.Text.FontWeights.Bold },
             Visibility = network.IsConnected ? Visibility.Visible : Visibility.Collapsed
         };
 

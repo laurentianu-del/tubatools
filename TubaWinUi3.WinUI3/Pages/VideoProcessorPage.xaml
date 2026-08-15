@@ -24,7 +24,7 @@
                 <FontIcon FontSize="18" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" Glyph="&#xE8B2;" />
             </Border>
             <StackPanel Grid.Column="1" Spacing="2">
-                <TextBlock FontSize="20" FontWeight="SemiBold" Text="视频处理" />
+                <TextBlock FontSize="20" FontWeight="Bold" Text="视频处理" />
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock x:Name="FfmpegStatusText" FontSize="11" Text="FFmpeg: 检查中..." VerticalAlignment="Center" />
                     <HyperlinkButton x:Name="DeleteFfmpegBtn" Click="DeleteFfmpegBtn_Click" Visibility="Collapsed" Padding="4,0" FontSize="11">
@@ -51,7 +51,7 @@
                     <StackPanel Spacing="10">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <FontIcon Glyph="&#xE896;" FontSize="18" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                            <TextBlock FontSize="14" FontWeight="SemiBold" Text="需要下载 FFmpeg" VerticalAlignment="Center" />
+                            <TextBlock FontSize="14" FontWeight="Bold" Text="需要下载 FFmpeg" VerticalAlignment="Center" />
                         </StackPanel>
                         <TextBlock FontSize="12" Opacity="0.8" TextWrapping="Wrap" Text="视频处理功能依赖 FFmpeg，首次使用需要下载（约 80MB）。下载后可离线使用，不会增加应用安装包体积。" />
                         <ProgressBar x:Name="FfmpegDownloadProgress" Value="0" Visibility="Collapsed" />
@@ -71,7 +71,7 @@
                     <!-- ── Section 1: Source ── -->
                     <Border Padding="16" CornerRadius="8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1">
                         <StackPanel Spacing="10">
-                            <TextBlock FontSize="14" FontWeight="SemiBold" Text="1. 导入源文件" />
+                            <TextBlock FontSize="14" FontWeight="Bold" Text="1. 导入源文件" />
 
                             <Grid ColumnSpacing="8">
                                 <Grid.ColumnDefinitions>
@@ -103,7 +103,7 @@
                     <!-- ── Section 2: Actions ── -->
                     <Border Padding="16" CornerRadius="8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1">
                         <StackPanel Spacing="10">
-                            <TextBlock FontSize="14" FontWeight="SemiBold" Text="2. 添加操作" />
+                            <TextBlock FontSize="14" FontWeight="Bold" Text="2. 添加操作" />
 
                             <StackPanel Orientation="Horizontal" Spacing="6" x:Name="AddActionPanel">
                                 <Button Click="AddAction_Click" Tag="Trim" FontSize="12" Padding="10,6" ToolTipService.ToolTip="裁剪时间片段">
@@ -158,7 +158,7 @@
                     <!-- ── Section 3: Output ── -->
                     <Border Padding="16" CornerRadius="8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1">
                         <StackPanel Spacing="10">
-                            <TextBlock FontSize="14" FontWeight="SemiBold" Text="3. 输出设置" />
+                            <TextBlock FontSize="14" FontWeight="Bold" Text="3. 输出设置" />
 
                             <StackPanel Spacing="4">
                                 <TextBlock FontSize="12" Opacity="0.8" Text="输出格式" />
@@ -226,7 +226,7 @@
                     <Button x:Name="StartBtn" Click="StartBtn_Click" HorizontalAlignment="Stretch" Style="{ThemeResource AccentButtonStyle}" IsEnabled="False">
                         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
                             <FontIcon Glyph="&#xE768;" FontSize="14" />
-                            <TextBlock Text="开始处理" FontSize="14" FontWeight="SemiBold" />
+                            <TextBlock Text="开始处理" FontSize="14" FontWeight="Bold" />
                         </StackPanel>
                     </Button>
 

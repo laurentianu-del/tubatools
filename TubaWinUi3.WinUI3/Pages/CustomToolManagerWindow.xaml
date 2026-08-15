@@ -21,7 +21,7 @@
             </Grid.ColumnDefinitions>
             <TextBlock
                 FontSize="24"
-                FontWeight="SemiBold"
+                FontWeight="Bold"
                 VerticalAlignment="Center"
                 Text="自定义工具管理" />
             <Button

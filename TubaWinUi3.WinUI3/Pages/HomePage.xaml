@@ -204,7 +204,7 @@
                     <TextBlock
                         x:Name="CategoryTitle"
                         FontSize="30"
-                        FontWeight="SemiBold" />
+                        FontWeight="Bold" />
                     <TextBlock
                         x:Name="ToolCountText"
                         VerticalAlignment="Bottom"
@@ -329,21 +329,21 @@
                                          </Border>
                                          <StackPanel Grid.Column="1" Spacing="3">
                                              <TextBlock
-                                                 FontFamily="{StaticResource AppFontFamily}"
+
                                                  FontSize="18"
-                                                 FontWeight="SemiBold"
+                                                 FontWeight="Bold"
                                                  MaxLines="1"
                                                  Text="{Binding Name}"
                                                  TextTrimming="CharacterEllipsis" />
                                              <StackPanel Orientation="Horizontal" Spacing="4">
                                                  <TextBlock
-                                                     FontFamily="{StaticResource AppFontFamily}"
+
                                                      FontSize="12"
                                                      Opacity="1.0"
                                                      Text="{Binding Category}"
                                                      TextTrimming="CharacterEllipsis" />
                                                  <TextBlock
-                                                     FontFamily="{StaticResource AppFontFamily}"
+
                                                      FontSize="12"
                                                      Opacity="1.0"
                                                      Text="{Binding CategoriesDisplay}"
@@ -367,7 +367,7 @@
 
                                     <TextBlock
                                         Grid.Row="1"
-                                        FontFamily="{StaticResource AppFontFamily}"
+
                                         MaxLines="2"
                                         Opacity="1.0"
                                         Text="{Binding Description}"
@@ -376,7 +376,7 @@
 
                                     <TextBlock
                                         Grid.Row="2"
-                                        FontFamily="{StaticResource AppFontFamily}"
+
                                         FontSize="10"
                                         MaxLines="1"
                                         Opacity="1.0"
@@ -392,7 +392,7 @@
                                             CornerRadius="6">
                                             <TextBlock
                                                 FontSize="11"
-                                                FontWeight="SemiBold"
+                                                FontWeight="Bold"
                                                 Text="{Binding Extension}" />
                                         </Border>
 
@@ -432,7 +432,7 @@
                                             Click="LaunchButton_Click"
                                             IsEnabled="{Binding CanLaunch}">
                                             <TextBlock
-                                                FontFamily="{StaticResource AppFontFamily}"
+
                                                 Text="{Binding LaunchButtonText}"
                                                 TextAlignment="Center"
                                                 TextTrimming="CharacterEllipsis" />
@@ -530,7 +530,7 @@
                                         </Grid>
                                     </Border>
                                     <TextBlock
-                                        FontFamily="{StaticResource AppFontFamily}"
+
                                         HorizontalAlignment="Center"
                                         FontSize="13"
                                         MaxLines="2"

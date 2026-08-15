@@ -129,11 +129,11 @@ public sealed partial class HealthGauge : UserControl, INotifyPropertyChanged
             DrawGradientArc(canvas, cx, cy, innerRadius, gradientWidth, startAngle, valueAngle);
         }
 
-        var run1 = new XamlRun { Text = ((int)Value).ToString(), FontSize = 40, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
-        var run2 = new XamlRun { Text = "%", FontSize = 24, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
-        var inline1 = new XamlSpan { FontSize = 40, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
+        var run1 = new XamlRun { Text = ((int)Value).ToString(), FontSize = 40, FontWeight = Microsoft.UI.Text.FontWeights.Bold };
+        var run2 = new XamlRun { Text = "%", FontSize = 24, FontWeight = Microsoft.UI.Text.FontWeights.Bold };
+        var inline1 = new XamlSpan { FontSize = 40, FontWeight = Microsoft.UI.Text.FontWeights.Bold };
         inline1.Inlines.Add(run1);
-        var inline2 = new XamlSpan { FontSize = 40, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
+        var inline2 = new XamlSpan { FontSize = 40, FontWeight = Microsoft.UI.Text.FontWeights.Bold };
         inline2.Inlines.Add(run2);
 
         var richText = new RichTextBlock

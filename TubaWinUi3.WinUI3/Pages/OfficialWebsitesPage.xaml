@@ -23,7 +23,7 @@
                 <FontIcon FontSize="18" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" Glyph="&#xE8F1;" />
             </Border>
             <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-                <TextBlock FontSize="20" FontWeight="SemiBold" Text="常用官网" />
+                <TextBlock FontSize="20" FontWeight="Bold" Text="常用官网" />
                 <TextBlock FontSize="12" Opacity="0.7" Text="常用软件官方网站直达" />
             </StackPanel>
             <Button x:Name="CloseButton" Grid.Column="2" Click="BackButton_Click">
@@ -76,7 +76,7 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock x:Name="CurrentCategoryText" FontSize="16" FontWeight="SemiBold" Text="游戏平台" VerticalAlignment="Center" />
+                    <TextBlock x:Name="CurrentCategoryText" FontSize="16" FontWeight="Bold" Text="游戏平台" VerticalAlignment="Center" />
                     <TextBlock x:Name="SiteCountText" Grid.Column="1" FontSize="12" Opacity="0.6" VerticalAlignment="Center" />
                 </Grid>
 

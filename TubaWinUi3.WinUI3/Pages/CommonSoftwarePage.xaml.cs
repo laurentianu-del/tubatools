@@ -80,7 +80,7 @@ public sealed partial class CommonSoftwarePage : Page
             {
                 Text = text,
                 FontSize = 12.5,
-                FontWeight = isSelected ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
+                FontWeight = isSelected ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal,
                 Foreground = isSelected ? new SolidColorBrush(Colors.White) : new SolidColorBrush(ThemeColors.SecondaryText)
             }
         };
@@ -110,7 +110,7 @@ public sealed partial class CommonSoftwarePage : Page
                     if (b.Child is TextBlock tb)
                     {
                         tb.Foreground = t == _selectedCategory ? new SolidColorBrush(Colors.White) : new SolidColorBrush(ThemeColors.SecondaryText);
-                        tb.FontWeight = t == _selectedCategory ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal;
+                        tb.FontWeight = t == _selectedCategory ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
                     }
                 }
             }
@@ -188,7 +188,7 @@ public sealed partial class CommonSoftwarePage : Page
         {
             Text = text,
             FontSize = 14,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText),
             VerticalAlignment = VerticalAlignment.Center
         });
@@ -214,7 +214,7 @@ public sealed partial class CommonSoftwarePage : Page
         {
             Text = text,
             FontSize = 13,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.AccentBlue),
             Margin = new Thickness(8, 8, 0, 2)
         };
@@ -250,7 +250,7 @@ public sealed partial class CommonSoftwarePage : Page
         {
             Text = pkg.Name,
             FontSize = 13,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText),
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis
@@ -279,7 +279,7 @@ public sealed partial class CommonSoftwarePage : Page
                 {
                     Text = "推荐",
                     FontSize = 10.5,
-                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    FontWeight = Microsoft.UI.Text.FontWeights.Bold,
                     Foreground = new SolidColorBrush(ThemeColors.AccentOrange)
                 }
             });
@@ -295,7 +295,7 @@ public sealed partial class CommonSoftwarePage : Page
                 {
                     Text = "已安装",
                     FontSize = 10.5,
-                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    FontWeight = Microsoft.UI.Text.FontWeights.Bold,
                     Foreground = new SolidColorBrush(ThemeColors.AccentGreen)
                 }
             });

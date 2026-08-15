@@ -72,7 +72,7 @@ public sealed partial class WindowsOptimizePage : Page
         {
             Text = preset.Name,
             FontSize = 14,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText),
             VerticalAlignment = VerticalAlignment.Center
         });
@@ -159,7 +159,7 @@ public sealed partial class WindowsOptimizePage : Page
             {
                 Text = group.Key,
                 FontSize = 14,
-                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
                 Foreground = new SolidColorBrush(ThemeColors.PrimaryText),
                 VerticalAlignment = VerticalAlignment.Center
             });
@@ -273,7 +273,7 @@ public sealed partial class WindowsOptimizePage : Page
         {
             Text = action.Name,
             FontSize = 13,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.PrimaryText),
             TextTrimming = TextTrimming.CharacterEllipsis
         });

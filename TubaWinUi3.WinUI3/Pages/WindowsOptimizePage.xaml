@@ -21,7 +21,7 @@
 
         <!-- Visual Preset Cards -->
         <StackPanel Grid.Row="1" Padding="24,10,24,0" Spacing="8">
-            <TextBlock Text="视觉体验挡位" FontSize="13" FontWeight="SemiBold"
+            <TextBlock Text="视觉体验挡位" FontSize="13" FontWeight="Bold"
                        Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
             <Grid x:Name="PresetCardsPanel" ColumnSpacing="10"/>
         </StackPanel>

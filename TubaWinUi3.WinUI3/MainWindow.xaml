@@ -87,7 +87,7 @@
         <TitleBar
             x:Name="AppTitleBar"
             Title="图吧工具箱"
-            FontFamily="{StaticResource AppFontFamily}"
+
             FontWeight="Bold"
             BackRequested="TitleBar_BackRequested"
             IsBackButtonVisible="True"
@@ -180,14 +180,14 @@
 
                                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
                                                     <TextBlock
-                                                        FontFamily="{StaticResource AppFontFamily}"
+
                                                         FontSize="13"
-                                                        FontWeight="SemiBold"
+                                                        FontWeight="Bold"
                                                         MaxLines="1"
                                                         Text="{Binding Title}"
                                                         TextTrimming="CharacterEllipsis" />
                                                     <TextBlock
-                                                        FontFamily="{StaticResource AppFontFamily}"
+
                                                         FontSize="11"
                                                         Opacity="1.0"
                                                         MaxLines="1"
@@ -202,7 +202,7 @@
                                                     Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                                     VerticalAlignment="Center">
                                                     <TextBlock
-                                                        FontFamily="{StaticResource AppFontFamily}"
+
                                                         FontSize="10"
                                                         Text="{Binding KindText}" />
                                                 </Border>

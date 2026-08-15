@@ -522,7 +522,7 @@ public sealed class KeyboardTestTool : IBuiltinTool
         {
             Text = label,
             FontSize = fontSize,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeColors.KeyText),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,

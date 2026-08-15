@@ -171,7 +171,7 @@ public sealed partial class MemoryManagerPage : Page
             {
                 Text = p.Name.Length > 0 ? p.Name[0].ToString().ToUpperInvariant() : "?",
                 FontSize = 13,
-                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             }
@@ -180,7 +180,7 @@ public sealed partial class MemoryManagerPage : Page
         var nameText = new TextBlock
         {
             FontSize = 13,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             TextTrimming = TextTrimming.CharacterEllipsis
         };
         var pidText = new TextBlock
@@ -201,7 +201,7 @@ public sealed partial class MemoryManagerPage : Page
         var memText = new TextBlock
         {
             FontSize = 12.5,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             HorizontalAlignment = HorizontalAlignment.Right
         };
         var privateText = new TextBlock
@@ -417,7 +417,7 @@ public sealed partial class MemoryManagerPage : Page
         {
             Text = entry.DriveLetter + ":",
             FontSize = 13,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold
         });
         driveStack.Children.Add(new TextBlock
         {
@@ -603,7 +603,7 @@ public sealed partial class MemoryManagerPage : Page
         {
             Text = title,
             FontSize = 14.5,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -617,7 +617,7 @@ public sealed partial class MemoryManagerPage : Page
                 Foreground = new SolidColorBrush(ThemeColors.PrimaryText),
                 Inlines =
                 {
-                    new Microsoft.UI.Xaml.Documents.Run { Text = $"{label}：", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = new SolidColorBrush(accent) },
+                    new Microsoft.UI.Xaml.Documents.Run { Text = $"{label}：", FontWeight = Microsoft.UI.Text.FontWeights.Bold, Foreground = new SolidColorBrush(accent) },
                     new Microsoft.UI.Xaml.Documents.Run { Text = text }
                 }
             });

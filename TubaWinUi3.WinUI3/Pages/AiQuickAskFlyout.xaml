@@ -40,7 +40,7 @@
             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
                 <TextBlock
                     FontSize="14"
-                    FontWeight="SemiBold"
+                    FontWeight="Bold"
                     Text="AI 助手" />
                 <TextBlock
                     x:Name="ServiceStatusText"

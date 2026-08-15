@@ -228,7 +228,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		{
 			Text = "",
 			FontSize = 16.0,
-			FontWeight = FontWeights.SemiBold,
+			FontWeight = FontWeights.Bold,
 			Foreground = new SolidColorBrush(ThemeColors.DimText),
 			VerticalAlignment = VerticalAlignment.Center,
 			Margin = new Thickness(8.0, 0.0, 0.0, 0.0)
@@ -275,7 +275,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		{
 			Text = title,
 			FontSize = 15.0,
-			FontWeight = FontWeights.SemiBold
+			FontWeight = FontWeights.Bold
 		});
 		StackPanel stackPanel2 = new() { Spacing = 8.0 };
 		stackPanel2.Children.Add(stackPanel);
@@ -316,7 +316,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		{
 			Text = "—",
 			FontSize = 13.0,
-			FontWeight = FontWeights.SemiBold,
+			FontWeight = FontWeights.Bold,
 			VerticalAlignment = VerticalAlignment.Center,
 			Foreground = new SolidColorBrush(ThemeColors.DimText)
 		};
@@ -431,7 +431,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		{
 			Text = "—",
 			FontSize = 13.0,
-			FontWeight = FontWeights.SemiBold,
+			FontWeight = FontWeights.Bold,
 			VerticalAlignment = VerticalAlignment.Center,
 			Foreground = new SolidColorBrush(ThemeColors.DimText)
 		};
@@ -1541,7 +1541,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 				{
 					Text = $"{r.TestTime:yyyy-MM-dd HH:mm}  ({r.DurationMode})",
 					FontSize = 12.0,
-					FontWeight = FontWeights.SemiBold
+					FontWeight = FontWeights.Bold
 				});
 				stackPanel2.Children.Add(new TextBlock
 				{
@@ -1752,7 +1752,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 						new TextBlock
 						{
 							Text = $"{c.TestTime:yyyy-MM-dd HH:mm}  {c.CpuName}",
-							FontWeight = FontWeights.SemiBold
+							FontWeight = FontWeights.Bold
 						},
 						new TextBlock
 						{

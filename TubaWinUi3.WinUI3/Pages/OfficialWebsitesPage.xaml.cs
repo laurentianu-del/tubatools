@@ -164,7 +164,7 @@ public sealed partial class OfficialWebsitesPage : Page
         {
             Text = site.Name,
             FontSize = 14,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             TextTrimming = TextTrimming.CharacterEllipsis
         };
 
