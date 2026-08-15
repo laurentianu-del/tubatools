@@ -353,7 +353,7 @@ public sealed partial class TrafficMonitorPage : Page
     private Window CreatePopoutWindow(string title, int width, int height)
     {
         var window = new Window();
-        window.SystemBackdrop = new MicaBackdrop(); // 亚克力/云母材质背景
+        BackdropService.ApplyBackdrop(window); // 跟随用户选择的背景材质
         window.AppWindow.Title = title;
         window.AppWindow.Resize(new SizeInt32(width, height));
         if (window.AppWindow.Presenter is OverlappedPresenter presenter)

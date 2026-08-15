@@ -156,17 +156,7 @@ public static class ToolCatalog
         IReadOnlyList<ToolItem> result;
         if (toolOrder is not null && toolOrder.Count > 0)
         {
-            var orderedSet = new HashSet<string>(toolOrder, StringComparer.CurrentCultureIgnoreCase);
-            var ordered = toolOrder
-                .Where(name => items.Any(it => it.Name.Equals(name, StringComparison.CurrentCultureIgnoreCase)))
-                .Select(name => items.First(it => it.Name.Equals(name, StringComparison.CurrentCultureIgnoreCase)))
-                .ToList();
-            foreach (var item in items.OrderBy(it => it.Name, StringComparer.CurrentCultureIgnoreCase))
-            {
-                if (!orderedSet.Contains(item.Name))
-                    ordered.Add(item);
-            }
-            result = ordered;
+            result = ReorderByName(items, toolOrder);
         }
         else
         {
@@ -178,6 +168,22 @@ public static class ToolCatalog
 
         lock (_cacheLock) { _toolsCache[category] = result; }
         return result;
+    }
+
+    /// <summary>按给定工具名顺序重排列表;未列出的项按名称追加。</summary>
+    internal static IReadOnlyList<ToolItem> ReorderByName(IReadOnlyList<ToolItem> items, IReadOnlyList<string> orderedNames)
+    {
+        var orderedSet = new HashSet<string>(orderedNames, StringComparer.CurrentCultureIgnoreCase);
+        var ordered = orderedNames
+            .Where(name => items.Any(it => it.Name.Equals(name, StringComparison.CurrentCultureIgnoreCase)))
+            .Select(name => items.First(it => it.Name.Equals(name, StringComparison.CurrentCultureIgnoreCase)))
+            .ToList();
+        foreach (var item in items.OrderBy(it => it.Name, StringComparer.CurrentCultureIgnoreCase))
+        {
+            if (!orderedSet.Contains(item.Name))
+                ordered.Add(item);
+        }
+        return ordered;
     }
 
     private static List<string> MergeArchDirectories(List<string> toolDirs)
@@ -392,8 +398,8 @@ public static class ToolCatalog
         }).ToList();
     }
 
-    /// <summary>仅供构建工具缓存模式使用（--build-tool-cache），覆盖 Tools 根路径。</summary>
-    public static void SetToolsRootForBuild(string toolsRoot)
+    /// <summary>仅供构建工具缓存模式使用（--build-tool-cache），覆盖 Tools 根路径。传 null 恢复自动查找。</summary>
+    public static void SetToolsRootForBuild(string? toolsRoot)
     {
         _cachedToolsRoot = toolsRoot;
     }

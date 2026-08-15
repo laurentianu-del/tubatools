@@ -3,6 +3,8 @@ using TubaWinUi3.Services;
 
 namespace TubaWinUi3.Tests;
 
+// 与 FavoritesServiceTests 等共享全局静态配置(ConfigManager/ToolCatalog)的测试串行执行,避免互相覆盖
+[Collection("GlobalConfigTests")]
 public class ToolCatalogTests
 {
     [Theory]
@@ -116,5 +118,34 @@ public class ToolCatalogTests
     public void PreferredArchPriority_ContainsAtLeastTwoEntries()
     {
         Assert.True(ToolCatalog.PreferredArchPriority.Count >= 2);
+    }
+
+    private static ToolItem MakeItem(string name) => new()
+    {
+        Name = name,
+        Category = "Cat",
+        Path = $@"C:\tools\{name}.exe",
+        RelativePath = name,
+        Extension = "EXE"
+    };
+
+    [Fact]
+    public void ReorderByName_ReordersKnownAndAppendsUnknown()
+    {
+        var items = new List<ToolItem> { MakeItem("Alpha"), MakeItem("Beta"), MakeItem("Gamma") };
+
+        var result = ToolCatalog.ReorderByName(items, ["Gamma", "Alpha"]);
+
+        Assert.Equal(["Gamma", "Alpha", "Beta"], result.Select(t => t.Name));
+    }
+
+    [Fact]
+    public void ReorderByName_IsCaseInsensitive()
+    {
+        var items = new List<ToolItem> { MakeItem("Alpha"), MakeItem("Beta") };
+
+        var result = ToolCatalog.ReorderByName(items, ["beta", "alpha"]);
+
+        Assert.Equal(["Beta", "Alpha"], result.Select(t => t.Name));
     }
 }

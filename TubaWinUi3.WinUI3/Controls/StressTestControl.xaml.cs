@@ -104,6 +104,7 @@ public sealed partial class StressTestControl : UserControl
         InitializeComponent();
         InitCharts();
         CheckAida64Wmi();
+        ActualThemeChanged += (_, _) => ApplyAidaStatusColors();
         _settingsReady = true;
         LoadFurMarkSettings();
         UpdateDxt5Availability();
@@ -445,19 +446,30 @@ public sealed partial class StressTestControl : UserControl
         if (data is not null)
         {
             _wmiConnected = true;
-            AidaStatusBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 108, 203, 95));
-            AidaStatusBorder.Background = new SolidColorBrush(Color.FromArgb(255, 222, 246, 228));
             AidaStatusIcon.Glyph = "\uE73E";
             AidaStatusText.Text = "AIDA64 WMI 已连接 — 实时监控已就绪";
         }
         else
         {
             _wmiConnected = false;
-            AidaStatusBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 249, 117, 51));
-            AidaStatusBorder.Background = new SolidColorBrush(Color.FromArgb(255, 255, 244, 225));
             AidaStatusIcon.Glyph = "\uE7BA";
             AidaStatusText.Text = "未检测到 AIDA64 WMI 数据。请启动 AIDA64 并开启：文件 → 设置 → 硬件监控 → 外部应用程序 → 允许将监测数据写入WMI。";
         }
+        ApplyAidaStatusColors();
+    }
+
+    // 横幅颜色按当前主题取色，避免硬编码浅色配色在深色模式下出现"白字 + 浅色底"
+    private void ApplyAidaStatusColors()
+    {
+        var (accentKey, backgroundKey) = _wmiConnected
+            ? ("SystemFillColorSuccessBrush", "SystemFillColorSuccessBackgroundBrush")
+            : ("SystemFillColorCautionBrush", "SystemFillColorCautionBackgroundBrush");
+
+        var accent = (Brush)Application.Current.Resources[accentKey];
+        AidaStatusBorder.BorderBrush = accent;
+        AidaStatusBorder.Background = (Brush)Application.Current.Resources[backgroundKey];
+        AidaStatusIcon.Foreground = accent;
+        AidaStatusText.Foreground = (Brush)Application.Current.Resources["TextFillColorPrimaryBrush"];
     }
 
     private void StartStress_Click(object sender, RoutedEventArgs e) => StartStress();

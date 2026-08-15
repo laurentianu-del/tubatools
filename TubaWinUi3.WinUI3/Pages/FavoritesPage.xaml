@@ -117,7 +117,7 @@
                 <TextBlock
                     x:Name="SubtitleText"
                     Opacity="1.0"
-                    Text="你收藏的工具会显示在这里。" />
+                    Text="你收藏的工具会显示在这里,可拖拽调整顺序。" />
             </StackPanel>
 
             <StackPanel
@@ -193,17 +193,28 @@
                             Opacity="1.0" />
                     </StackPanel>
 
-                    <Button
-                        x:Name="ClearAllButton"
-                        Grid.Column="2"
-                        Padding="12,6"
-                        Click="ClearAllButton_Click"
-                        Visibility="Collapsed">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon FontSize="12" Glyph="&#xE74D;" />
-                            <TextBlock Text="清空全部" />
-                        </StackPanel>
-                    </Button>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                        <Button
+                            x:Name="EditOrderButton"
+                            Padding="12,6"
+                            Click="EditOrderButton_Click"
+                            Visibility="Collapsed">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon x:Name="EditOrderIcon" FontSize="12" Glyph="&#xE70F;" />
+                                <TextBlock x:Name="EditOrderButtonText" Text="编辑排序" />
+                            </StackPanel>
+                        </Button>
+                        <Button
+                            x:Name="ClearAllButton"
+                            Padding="12,6"
+                            Click="ClearAllButton_Click"
+                            Visibility="Collapsed">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon FontSize="12" Glyph="&#xE74D;" />
+                                <TextBlock Text="清空全部" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
                 </Grid>
             </Border>
 
@@ -353,6 +364,32 @@
                     </DataTemplate>
                 </GridView.ItemTemplate>
             </GridView>
+
+            <!-- 编辑排序模式:专用纵向列表,整行自实现拖拽,不依赖 GridView 原生拖拽 -->
+            <StackPanel
+                x:Name="EditModePanel"
+                Spacing="12"
+                Visibility="Collapsed">
+                <Border
+                    Padding="12,10"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon
+                            FontSize="14"
+                            Glyph="&#xE700;"
+                            VerticalAlignment="Center"
+                            Opacity="1.0" />
+                        <TextBlock
+                            Opacity="1.0"
+                            Text="按住任意卡片上下拖动即可调整顺序，完成后点击右上角“完成”。"
+                            VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+                <StackPanel x:Name="EditRowsPanel" Spacing="8" />
+            </StackPanel>
 
             <StackPanel
                 x:Name="EmptyState"

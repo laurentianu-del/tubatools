@@ -23,16 +23,12 @@ public sealed partial class MainWindow : Window
     private bool _navFromSidebar;
     private bool _suppressSearch;
     private bool _searchDismissed;
-    private bool _syncingTabSelection;
     private readonly ObservableCollection<SearchResult> _searchResults = [];
     private readonly DispatcherQueueTimer _searchDebounceTimer;
     private Flyout? _downloadFlyout;
     private int _lastBadgeCount;
-    private bool _isTabMode;
     private bool _refreshCategoriesInFlight;
     private bool _refreshCategoriesPending;
-
-    public bool IsTabMode => _isTabMode;
 
     /// <summary>当前正在执行的内置工具名称（入口页在 ExecuteAsync 前设置），供独立窗口标题使用。</summary>
     public static string? ActiveToolName { get; set; }
@@ -155,7 +151,6 @@ public sealed partial class MainWindow : Window
         Closed += MainWindow_Closed;
         AppWindow.Changed += AppWindow_Changed;
         NavFrame.Navigated += NavFrame_Navigated;
-        TabNavFrame.Navigated += TabNavFrame_Navigated;
 
         if (RuntimeHelper.IsMsixPackaged)
         {
@@ -196,6 +191,7 @@ public sealed partial class MainWindow : Window
                 {
                     PopulateCategories(categories);
                     ApplyNavLayoutMode();
+                    NavigateToDefaultPage();
                     NavLayoutModeService.NavLayoutModeChanged += OnNavLayoutModeChanged;
                 });
             }
@@ -274,8 +270,7 @@ public sealed partial class MainWindow : Window
 
     private void NavFrame_Navigated(object sender, NavigationEventArgs e)
     {
-        if (!_isTabMode)
-            AppTitleBar.IsBackButtonVisible = NavFrame.CanGoBack;
+        AppTitleBar.IsBackButtonVisible = NavFrame.CanGoBack;
 
         if (_navFromSidebar)
         {
@@ -308,49 +303,6 @@ public sealed partial class MainWindow : Window
         _syncingNavSelection = false;
     }
 
-    private void TabNavFrame_Navigated(object sender, NavigationEventArgs e)
-    {
-        if (_isTabMode)
-            AppTitleBar.IsBackButtonVisible = TabNavFrame.CanGoBack;
-
-        if (_navFromSidebar)
-        {
-            _navFromSidebar = false;
-            return;
-        }
-
-        _syncingTabSelection = true;
-
-        if (e.SourcePageType == typeof(SettingsPage))
-        {
-            foreach (var item in MainTabView.TabItems)
-            {
-                if (item is TabViewItem tab && tab.Tag?.ToString() == "settings")
-                {
-                    MainTabView.SelectedItem = tab;
-                    break;
-                }
-            }
-        }
-        else
-        {
-            var targetTag = ResolvePageTag(e.SourcePageType, e.Parameter);
-            if (targetTag is not null)
-            {
-                foreach (var item in MainTabView.TabItems)
-                {
-                    if (item is TabViewItem tab && tab.Tag?.ToString() == targetTag)
-                    {
-                        MainTabView.SelectedItem = tab;
-                        break;
-                    }
-                }
-            }
-        }
-
-        _syncingTabSelection = false;
-    }
-
     private static string? ResolvePageTag(Type pageType, object? parameter)
     {
         if (pageType == typeof(SettingsPage)) return "settings";
@@ -370,7 +322,7 @@ public sealed partial class MainWindow : Window
     private void RootGrid_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
         PointerPointProperties props = e.GetCurrentPoint(null).Properties;
-        var frame = _isTabMode ? TabNavFrame : NavFrame;
+        var frame = NavFrame;
 
         if (props.IsXButton1Pressed)
         {
@@ -563,20 +515,19 @@ public sealed partial class MainWindow : Window
 
     private void TitleBar_PaneToggleRequested(TitleBar sender, object args)
     {
-        if (!_isTabMode)
-            NavView.IsPaneOpen = !NavView.IsPaneOpen;
+        NavView.IsPaneOpen = !NavView.IsPaneOpen;
     }
 
     private void TitleBar_BackRequested(TitleBar sender, object args)
     {
-        var frame = _isTabMode ? TabNavFrame : NavFrame;
+        var frame = NavFrame;
         if (frame.CanGoBack)
             frame.GoBack();
     }
 
     private async void NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
-        if (_syncingNavSelection || _isTabMode) return;
+        if (_syncingNavSelection) return;
 
         _navFromSidebar = true;
 
@@ -620,48 +571,24 @@ public sealed partial class MainWindow : Window
     {
         var defaultPage = AppSettings.Get("DefaultPage") ?? "all";
 
-        if (_isTabMode)
-        {
-            TabViewItem? targetTab = null;
-            foreach (var item in MainTabView.TabItems)
-            {
-                if (item is TabViewItem tab && tab.Tag is string tag && tag == defaultPage)
-                {
-                    targetTab = tab;
-                    break;
-                }
-            }
+        NavigationViewItem? targetItem = null;
 
-            if (targetTab is not null)
+        foreach (var item in NavView.MenuItems)
+        {
+            if (item is NavigationViewItem navItem && navItem.Tag is string tag && tag == defaultPage)
             {
-                MainTabView.SelectedItem = targetTab;
+                targetItem = navItem;
+                break;
             }
-            else
-            {
-                TabNavFrame.Navigate(typeof(HomePage), null);
-            }
+        }
+
+        if (targetItem is not null)
+        {
+            NavView.SelectedItem = targetItem;
         }
         else
         {
-            NavigationViewItem? targetItem = null;
-
-            foreach (var item in NavView.MenuItems)
-            {
-                if (item is NavigationViewItem navItem && navItem.Tag is string tag && tag == defaultPage)
-                {
-                    targetItem = navItem;
-                    break;
-                }
-            }
-
-            if (targetItem is not null)
-            {
-                NavView.SelectedItem = targetItem;
-            }
-            else
-            {
-                NavFrame.Navigate(typeof(HomePage), null);
-            }
+            NavFrame.Navigate(typeof(HomePage), null);
         }
     }
 
@@ -757,8 +684,6 @@ public sealed partial class MainWindow : Window
                 try
                 {
                     PopulateCategories(categories);
-                    if (_isTabMode)
-                        PopulateTabItems(categories);
                 }
                 finally
                 {
@@ -793,160 +718,11 @@ public sealed partial class MainWindow : Window
 
     private void ApplyNavLayoutMode()
     {
-        _isTabMode = NavLayoutModeService.IsTabMode();
-
-        if (_isTabMode)
-        {
-            NavView.Visibility = Visibility.Collapsed;
-            TabModeGrid.Visibility = Visibility.Visible;
-            AppTitleBar.IsPaneToggleButtonVisible = false;
-            _ = PopulateTabItemsCoreAsync();
-        }
-        else
-        {
-            NavView.Visibility = Visibility.Visible;
-            TabModeGrid.Visibility = Visibility.Collapsed;
-            AppTitleBar.IsPaneToggleButtonVisible = true;
-        }
-    }
-
-    private async Task PopulateTabItemsCoreAsync()
-    {
-        try
-        {
-            var categories = await Task.Run(() => ToolCatalog.GetCategories().ToList());
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                try { PopulateTabItems(categories); } catch { }
-            });
-        }
-        catch { }
-    }
-
-    private void PopulateTabItems(IReadOnlyList<string> categories)
-    {
-        MainTabView.TabItems.Clear();
-
-        MainTabView.TabItems.Add(new TabViewItem
-        {
-            Header = "全部",
-            IconSource = new FontIconSource { Glyph = "\uE80F" },
-            Tag = "all",
-            IsClosable = false
-        });
-        MainTabView.TabItems.Add(new TabViewItem
-        {
-            Header = "常用",
-            IconSource = new FontIconSource { Glyph = "\uE735" },
-            Tag = "favorites",
-            IsClosable = false
-        });
-        MainTabView.TabItems.Add(new TabViewItem
-        {
-            Header = "硬件",
-            IconSource = new FontIconSource { Glyph = "\uE977" },
-            Tag = "hardware",
-            IsClosable = false
-        });
-        MainTabView.TabItems.Add(new TabViewItem
-        {
-            Header = "内置",
-            IconSource = new FontIconSource { Glyph = "\uE90F" },
-            Tag = "builtin",
-            IsClosable = false
-        });
-        MainTabView.TabItems.Add(new TabViewItem
-        {
-            Header = "性能",
-            IconSource = new FontIconSource { Glyph = "\uE9D9" },
-            Tag = "benchmark",
-            IsClosable = false
-        });
-
-        if (!RuntimeHelper.IsMsixPackaged)
-        {
-            MainTabView.TabItems.Add(new TabViewItem
-            {
-                Header = "社区",
-                IconSource = new FontIconSource { Glyph = "\uE779" },
-                Tag = "community",
-                IsClosable = false
-            });
-        }
-
-        var otherCategory = categories.FirstOrDefault(c => c.Contains("其他"));
-        var restCategories = categories.Where(c => !c.Contains("其他"));
-
-        foreach (var category in restCategories)
-        {
-            MainTabView.TabItems.Add(new TabViewItem
-            {
-                Header = category.Replace("工具", ""),
-                IconSource = new FontIconSource { Glyph = GetCategoryGlyphStatic(category) },
-                Tag = category,
-                IsClosable = false
-            });
-        }
-
-        if (otherCategory != null)
-        {
-            MainTabView.TabItems.Add(new TabViewItem
-            {
-                Header = otherCategory.Replace("工具", ""),
-                IconSource = new FontIconSource { Glyph = GetCategoryGlyphStatic(otherCategory) },
-                Tag = otherCategory,
-                IsClosable = false
-            });
-        }
-
-        MainTabView.TabItems.Add(new TabViewItem
-        {
-            Header = "设置",
-            IconSource = new FontIconSource { Glyph = "\uE713" },
-            Tag = "settings",
-            IsClosable = false
-        });
-    }
-
-    private void MainTabView_SelectionChanged(object sender, object args)
-    {
-        if (_syncingTabSelection) return;
-        if (MainTabView.SelectedItem is not TabViewItem tab) return;
-
-        var tag = tab.Tag?.ToString();
-        if (tag is null) return;
-
-        _navFromSidebar = true;
-
-        switch (tag)
-        {
-            case "all":
-                TabNavFrame.Navigate(typeof(HomePage), null);
-                break;
-            case "favorites":
-                TabNavFrame.Navigate(typeof(FavoritesPage));
-                break;
-            case "hardware":
-                TabNavFrame.Navigate(typeof(HardwarePage));
-                break;
-            case "builtin":
-                TabNavFrame.Navigate(typeof(BuiltinToolsPage));
-                break;
-            case "community":
-                if (RuntimeHelper.IsMsixPackaged) break;
-                TabNavFrame.Navigate(typeof(CommunityToolsPage));
-                break;
-            case "benchmark":
-                _navFromSidebar = false;
-                _ = ExecuteBenchmarkToolAsync();
-                break;
-            case "settings":
-                TabNavFrame.Navigate(typeof(SettingsPage));
-                break;
-            case string category:
-                TabNavFrame.Navigate(typeof(HomePage), category);
-                break;
-        }
+        var isTabMode = NavLayoutModeService.IsTabMode();
+        NavView.PaneDisplayMode = isTabMode
+            ? NavigationViewPaneDisplayMode.Top
+            : NavigationViewPaneDisplayMode.Auto;
+        AppTitleBar.IsPaneToggleButtonVisible = !isTabMode;
     }
 
     private async Task ExecuteBenchmarkToolAsync()
@@ -956,8 +732,7 @@ public sealed partial class MainWindow : Window
 
     public void NavigateToBenchmark()
     {
-        var frame = _isTabMode ? TabNavFrame : NavFrame;
-        frame.Navigate(typeof(PerformanceBenchmarkPage));
+        NavFrame.Navigate(typeof(PerformanceBenchmarkPage));
     }
 
     public void NavigateToToolPage(Type pageType, object? parameter = null)
@@ -971,14 +746,12 @@ public sealed partial class MainWindow : Window
             BuiltinToolWindow.Show(pageType, parameter, title);
             return;
         }
-        var frame = _isTabMode ? TabNavFrame : NavFrame;
-        frame.Navigate(pageType, parameter);
+        NavFrame.Navigate(pageType, parameter);
     }
 
     public void NavigateToSettings(string? highlightSettingKey = null)
     {
-        var frame = _isTabMode ? TabNavFrame : NavFrame;
-        frame.Navigate(typeof(SettingsPage),
+        NavFrame.Navigate(typeof(SettingsPage),
             highlightSettingKey is null
                 ? null
                 : new SearchNavigationTarget { HighlightSettingKey = highlightSettingKey });
@@ -993,15 +766,13 @@ public sealed partial class MainWindow : Window
             toolWindow.GoBackOrClose();
             return;
         }
-        var frame = _isTabMode ? TabNavFrame : NavFrame;
-        if (frame.CanGoBack)
-            frame.GoBack();
+        if (NavFrame.CanGoBack)
+            NavFrame.GoBack();
     }
 
     public bool CanNavigateBack()
     {
-        var frame = _isTabMode ? TabNavFrame : NavFrame;
-        return frame.CanGoBack;
+        return NavFrame.CanGoBack;
     }
 
     private void PopulateSearchSuggestions()
@@ -1180,7 +951,7 @@ public sealed partial class MainWindow : Window
 
     private void HandleSearchResult(SearchResult result)
     {
-        var frame = _isTabMode ? TabNavFrame : NavFrame;
+        var frame = NavFrame;
 
         switch (result.Kind)
         {
@@ -1207,32 +978,16 @@ public sealed partial class MainWindow : Window
 
     private void SyncNavSelection(string tag)
     {
-        if (_isTabMode)
+        _syncingNavSelection = true;
+        foreach (var item in NavView.MenuItems)
         {
-            _syncingTabSelection = true;
-            foreach (var item in MainTabView.TabItems)
+            if (item is NavigationViewItem navItem && navItem.Tag is string t && t == tag)
             {
-                if (item is TabViewItem tab && tab.Tag?.ToString() == tag)
-                {
-                    MainTabView.SelectedItem = tab;
-                    break;
-                }
+                NavView.SelectedItem = navItem;
+                break;
             }
-            _syncingTabSelection = false;
         }
-        else
-        {
-            _syncingNavSelection = true;
-            foreach (var item in NavView.MenuItems)
-            {
-                if (item is NavigationViewItem navItem && navItem.Tag is string t && t == tag)
-                {
-                    NavView.SelectedItem = navItem;
-                    break;
-                }
-            }
-            _syncingNavSelection = false;
-        }
+        _syncingNavSelection = false;
     }
 
     private void NavigateToTool(string toolPath)
@@ -1243,8 +998,7 @@ public sealed partial class MainWindow : Window
             var tool = tools.FirstOrDefault(t => t.Path.Equals(toolPath, StringComparison.OrdinalIgnoreCase));
             if (tool is not null)
             {
-                var frame = _isTabMode ? TabNavFrame : NavFrame;
-                frame.Navigate(typeof(HomePage),
+                NavFrame.Navigate(typeof(HomePage),
                     new SearchNavigationTarget { HighlightToolPath = toolPath });
 
                 if (!string.IsNullOrEmpty(tool.Category))
@@ -1258,7 +1012,7 @@ public sealed partial class MainWindow : Window
     {
         if (!action.StartsWith("navigate:")) return;
         var target = action["navigate:".Length..];
-        var frame = _isTabMode ? TabNavFrame : NavFrame;
+        var frame = NavFrame;
 
         switch (target)
         {

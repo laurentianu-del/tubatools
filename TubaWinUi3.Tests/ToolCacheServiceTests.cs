@@ -3,6 +3,8 @@ using TubaWinUi3.Services;
 
 namespace TubaWinUi3.Tests;
 
+// 依赖 ToolCatalog/ToolCacheService 全局状态,与 ToolCatalogTests/FavoritesServiceTests 串行执行
+[Collection("GlobalConfigTests")]
 public class ToolCacheServiceTests
 {
     private static string CreateTempToolsRoot()

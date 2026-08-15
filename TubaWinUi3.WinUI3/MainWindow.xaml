@@ -320,23 +320,6 @@
                 </NavigationView.MenuItems>
                 <Frame x:Name="NavFrame" CacheSize="10" />
             </NavigationView>
-
-            <Grid x:Name="TabModeGrid" Visibility="Collapsed">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-                <TabView
-                    x:Name="MainTabView"
-                    Grid.Row="0"
-                    IsAddTabButtonVisible="False"
-                    CanDragTabs="False"
-                    CanReorderTabs="False"
-                    SelectedIndex="0"
-                    SelectionChanged="MainTabView_SelectionChanged"
-                    Padding="16,4,16,0" />
-                <Frame x:Name="TabNavFrame" Grid.Row="1" CacheSize="10" />
-            </Grid>
         </Grid>
     </Grid>
 </Window>

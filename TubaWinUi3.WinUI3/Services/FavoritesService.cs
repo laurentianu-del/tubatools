@@ -77,6 +77,17 @@ public static class FavoritesService
             AddFavorite(toolPath);
     }
 
+    /// <summary>按给定顺序保存收藏(拖拽排序后调用)。</summary>
+    public static void SaveOrder(IEnumerable<string> orderedPaths)
+    {
+        var list = orderedPaths
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .ToList();
+
+        _cache = list;
+        Save(list);
+    }
+
     public static void InvalidateCache()
     {
         _cache = null;

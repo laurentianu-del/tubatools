@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Linq;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -34,6 +35,8 @@ public sealed partial class SettingsPage : Page
     private bool _watermarkTextInitializing;
     private bool _watermarkFontInitializing;
     private Border[] _backdropOptions = [];
+    private Border[] _tintSwatches = [];
+    private Color _currentTintColor = BackdropSettings.DefaultTintColor;
     private bool _hardwareFitScreenInitializing;
     private bool _hardwareMultiDeviceNewLineInitializing;
     private bool _cpuzBusy;
@@ -103,7 +106,7 @@ public sealed partial class SettingsPage : Page
     {
         ["Theme"] = "GeneralExpander",
         ["CompactMode"] = "GeneralExpander",
-        ["NavLayout"] = "GeneralExpander",
+        ["NavLayoutMode"] = "GeneralExpander",
         ["DefaultPage"] = "GeneralExpander",
         ["FastMode"] = "GeneralExpander",
         ["RememberWindow"] = "GeneralExpander",
@@ -136,7 +139,7 @@ public sealed partial class SettingsPage : Page
     {
         ["Theme"] = "SettingsThemeCard",
         ["CompactMode"] = "SettingsCompactModeCard",
-        ["NavLayout"] = "SettingsNavLayoutCard",
+        ["NavLayoutMode"] = "SettingsNavLayoutCard",
         ["DefaultPage"] = "SettingsDefaultPageCard",
         ["FastMode"] = "SettingsFastModeCard",
         ["RememberWindow"] = "SettingsRememberWindowCard",
@@ -587,9 +590,26 @@ public sealed partial class SettingsPage : Page
     private void InitBackdropSettings()
     {
         _backdropInitializing = true;
-        _backdropOptions = [BackdropMicaOption, BackdropMicaAltOption, BackdropAcrylicOption];
+        _backdropOptions = [BackdropMicaOption, BackdropMicaAltOption, BackdropAcrylicOption, BackdropAcrylicThinOption];
+        _tintSwatches = TintSwatchPanel.Children.OfType<Border>().ToArray();
+
         var currentType = BackdropService.GetBackdropType();
         UpdateBackdropOptionSelection(currentType);
+
+        var customization = BackdropService.GetCustomization();
+        CustomTintToggle.IsOn = customization.UseCustomTint;
+        TintOpacitySlider.Minimum = 0;
+        TintOpacitySlider.Maximum = 100;
+        TintOpacitySlider.StepFrequency = 5;
+        TintOpacitySlider.Value = customization.TintOpacity * 100;
+        TintLuminositySlider.Minimum = 0;
+        TintLuminositySlider.Maximum = 100;
+        TintLuminositySlider.StepFrequency = 5;
+        TintLuminositySlider.Value = customization.LuminosityOpacity * 100;
+        TintOpacityText.Text = $"{(int)(customization.TintOpacity * 100)}%";
+        TintLuminosityText.Text = $"{(int)(customization.LuminosityOpacity * 100)}%";
+        UpdateTintColorSelection(customization.TintColor);
+        UpdateCustomTintPanelVisibility();
         _backdropInitializing = false;
     }
 
@@ -630,6 +650,76 @@ public sealed partial class SettingsPage : Page
         {
             border.Opacity = 1.0;
         }
+    }
+
+    private void UpdateCustomTintPanelVisibility()
+    {
+        CustomTintPanel.Visibility = CustomTintToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void CustomTintToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_backdropInitializing) return;
+        UpdateCustomTintPanelVisibility();
+        SaveCustomization();
+    }
+
+    private void TintSwatch_Tapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (_backdropInitializing) return;
+        if (sender is not Border border) return;
+        var color = BackdropSettings.ParseColor(border.Tag?.ToString(), BackdropSettings.DefaultTintColor);
+        UpdateTintColorSelection(color);
+        SaveCustomization();
+    }
+
+    private void TintColorPicker_ColorChanged(ColorPicker sender, ColorChangedEventArgs args)
+    {
+        if (_backdropInitializing) return;
+        if (!CustomTintToggle.IsOn) return;
+        UpdateTintColorSelection(args.NewColor);
+        SaveCustomization();
+    }
+
+    private void TintOpacitySlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (_backdropInitializing) return;
+        TintOpacityText.Text = $"{(int)e.NewValue}%";
+        SaveCustomization();
+    }
+
+    private void TintLuminositySlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (_backdropInitializing) return;
+        TintLuminosityText.Text = $"{(int)e.NewValue}%";
+        SaveCustomization();
+    }
+
+    /// <summary>刷新色板选中环与"自定义颜色"色块,并同步 ColorPicker。</summary>
+    private void UpdateTintColorSelection(Color color)
+    {
+        _currentTintColor = color;
+        CustomTintColorChip.Background = new SolidColorBrush(color);
+        if (TintColorPicker.Color != color)
+            TintColorPicker.Color = color; // 赋值会触发 ColorChanged,值相同则跳过避免递归
+
+        foreach (var swatch in _tintSwatches)
+        {
+            var isSelected = BackdropSettings.ParseColor(swatch.Tag?.ToString(), Color.FromArgb(0, 0, 0, 0)) == color;
+            swatch.BorderBrush = isSelected
+                ? new SolidColorBrush(Color.FromArgb(255, 0, 120, 215))
+                : (Brush)App.Current.Resources["ControlStrokeColorDefaultBrush"];
+        }
+    }
+
+    private void SaveCustomization()
+    {
+        var customization = new BackdropCustomization(
+            CustomTintToggle.IsOn,
+            _currentTintColor,
+            TintOpacitySlider.Value / 100.0,
+            TintLuminositySlider.Value / 100.0);
+        BackdropService.SetCustomization(customization);
     }
 
     private void LoadBackgroundSettings()
