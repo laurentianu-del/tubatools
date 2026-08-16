@@ -196,6 +196,7 @@
             <Grid
                 x:Name="LayoutRoot"
                 Width="1100"
+                MaxWidth="1100"
                 Padding="32,20,32,20"
                 RowSpacing="16">
                 <Grid.RowDefinitions>

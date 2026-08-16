@@ -66,4 +66,71 @@ public class RogueCleanerViewFilterTests
             IsThirdParty = true
         }));
     }
+
+    [Fact]
+    public void MatchesKeyword_ContextMenuEntry_MatchesNameCommandAndLocation()
+    {
+        var entry = new ContextMenuEntry
+        {
+            Name = "上传到 WPS 云文档",
+            SoftwareName = "WPS Office",
+            Scope = "所有用户 / 64 位",
+            Command = "\"C:\\Program Files\\WPS\\wps.exe\" \"%1\"",
+            Clsid = "{11111111-2222-3333-4444-555555555555}",
+            SubKey = @"Software\Classes\*\shell\WPS"
+        };
+        Assert.True(RogueCleanerViewFilters.MatchesKeyword(entry, "wps"));
+        Assert.True(RogueCleanerViewFilters.MatchesKeyword(entry, "云文档"));
+        Assert.True(RogueCleanerViewFilters.MatchesKeyword(entry, "wps.exe"));
+        Assert.True(RogueCleanerViewFilters.MatchesKeyword(entry, "64 位"));
+        Assert.True(RogueCleanerViewFilters.MatchesKeyword(entry, "11111111"));
+        Assert.True(RogueCleanerViewFilters.MatchesKeyword(entry, "WPS"));
+        Assert.False(RogueCleanerViewFilters.MatchesKeyword(entry, "不存在关键字"));
+    }
+
+    [Fact]
+    public void MatchesKeyword_SpecialAndAdvancedEntries_MatchDetailAndModuleFields()
+    {
+        var special = new SpecialMenuEntry
+        {
+            Name = ".txt 新建文档",
+            Detail = "FileName=template.txt",
+            Scope = "当前用户 / 32 位",
+            SubKey = @"Software\Classes\.txt\ShellNew"
+        };
+        Assert.True(RogueCleanerViewFilters.MatchesKeyword(special, "template"));
+        Assert.True(RogueCleanerViewFilters.MatchesKeyword(special, "32 位"));
+        Assert.False(RogueCleanerViewFilters.MatchesKeyword(special, "wps"));
+
+        var advanced = new AdvancedMenuEntry
+        {
+            Name = "Windows 终端",
+            Detail = "{12345678-1234-1234-1234-123456789012} / * / 现代",
+            Scope = "当前用户 / Windows 11",
+            SubKey = @"Software\Microsoft\Windows\CurrentVersion\Shell Extensions\Blocked",
+            FilePath = @"C:\Program Files\WindowsApps\Microsoft.WindowsTerminal\terminal.exe"
+        };
+        Assert.True(RogueCleanerViewFilters.MatchesKeyword(advanced, "terminal"));
+        Assert.True(RogueCleanerViewFilters.MatchesKeyword(advanced, "12345678"));
+        Assert.True(RogueCleanerViewFilters.MatchesKeyword(advanced, "WindowsApps"));
+        Assert.False(RogueCleanerViewFilters.MatchesKeyword(advanced, "wps"));
+    }
+
+    [Fact]
+    public void MatchesKeyword_EmptyKeyword_MatchesEverything()
+    {
+        var entry = new ContextMenuEntry { Name = "任意菜单", SoftwareName = null, Command = null, Clsid = null, SubKey = null };
+        Assert.True(RogueCleanerViewFilters.MatchesKeyword(entry, ""));
+        Assert.True(RogueCleanerViewFilters.MatchesKeyword(entry, "   "));
+        Assert.True(RogueCleanerViewFilters.MatchesKeyword(new SpecialMenuEntry { Name = "x" }, null));
+        Assert.True(RogueCleanerViewFilters.MatchesKeyword(new AdvancedMenuEntry { Name = "x" }, ""));
+    }
+
+    [Fact]
+    public void MatchesKeyword_NullFields_DoNotThrow()
+    {
+        var entry = new ContextMenuEntry { Name = "测试" };
+        Assert.True(RogueCleanerViewFilters.MatchesKeyword(entry, "测试"));
+        Assert.False(RogueCleanerViewFilters.MatchesKeyword(entry, "其它"));
+    }
 }

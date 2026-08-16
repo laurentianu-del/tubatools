@@ -332,8 +332,40 @@
 
                 <!-- ============ 右键菜单管理 ============ -->
                 <Grid x:Name="ContextMenuPanel" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- 搜索条：跨主列表 / 更多位置 / 系统高级三个视图搜索并定位 -->
+                    <Grid Grid.Row="0" RowSpacing="6">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid Grid.Row="0" ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="CmSearchBox" Grid.Column="0"
+                                     PlaceholderText="搜索全部右键项目：名称、软件、命令、位置、组件编号…"
+                                     TextChanged="CmSearchBox_TextChanged"/>
+                            <Button x:Name="CmSearchClearBtn" Grid.Column="1" Content="&#xE711;" FontSize="12"
+                                    Width="34" Padding="0" Click="CmSearchClear_Click" Visibility="Collapsed"
+                                    ToolTipService.ToolTip="清空搜索" VerticalAlignment="Stretch"/>
+                        </Grid>
+                        <StackPanel x:Name="CmSearchHintPanel" Grid.Row="1" Orientation="Horizontal" Spacing="10"
+                                    Visibility="Collapsed">
+                            <TextBlock x:Name="CmSearchHintText" FontSize="12" VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
+                            <HyperlinkButton x:Name="CmJumpSpecialBtn" FontSize="12" Click="CmJumpSpecial_Click"/>
+                            <HyperlinkButton x:Name="CmJumpAdvancedBtn" FontSize="12" Click="CmJumpAdvanced_Click"/>
+                        </StackPanel>
+                    </Grid>
+
                     <!-- 主管理视图（对应原版 ContextMenuManagerForm） -->
-                    <Grid x:Name="CmMainView">
+                    <Grid x:Name="CmMainView" Grid.Row="1">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
@@ -433,7 +465,7 @@
                     </Grid>
 
                     <!-- 专用模块视图（对应原版 SpecialContextMenuForm） -->
-                    <Grid x:Name="CmSpecialView" Visibility="Collapsed">
+                    <Grid x:Name="CmSpecialView" Grid.Row="1" Visibility="Collapsed">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
@@ -475,7 +507,7 @@
                     </Grid>
 
                     <!-- 高级兼容视图（对应原版 AdvancedContextMenuForm） -->
-                    <Grid x:Name="CmAdvancedView" Visibility="Collapsed">
+                    <Grid x:Name="CmAdvancedView" Grid.Row="1" Visibility="Collapsed">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>

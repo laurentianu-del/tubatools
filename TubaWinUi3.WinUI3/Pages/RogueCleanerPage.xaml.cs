@@ -48,6 +48,7 @@ public sealed partial class RogueCleanerPage : Page
     private string _cmMode = "basic";
     private string _cmSubModule = "";
     private bool _cmAllMode;
+    private string _cmSearchKeyword = "";
     private List<ContextMenuEntry> _cmEntries = [];
     private List<SpecialMenuEntry> _specialEntries = [];
     private List<AdvancedMenuEntry> _advancedEntries = [];
@@ -973,6 +974,57 @@ public sealed partial class RogueCleanerPage : Page
         RefreshContextMenus();
     }
 
+    // ---------- 跨视图搜索（主列表 / 更多位置 / 系统高级） ----------
+
+    private void CmSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        _cmSearchKeyword = CmSearchBox.Text.Trim();
+        CmSearchClearBtn.Visibility = _cmSearchKeyword.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        // 专用/高级清单是懒加载的；搜索时后台补齐，保证跨视图计数与跳转准确
+        if (_cmSearchKeyword.Length > 0 && _specialEntries.Count == 0) RefreshSpecial();
+        if (_cmSearchKeyword.Length > 0 && _advancedEntries.Count == 0) RefreshAdvanced();
+        if (CmSpecialView.Visibility == Visibility.Visible) ApplySpecialFilter();
+        else if (CmAdvancedView.Visibility == Visibility.Visible) ApplyAdvancedFilter();
+        else ApplyCmFilter();
+        UpdateCmSearchHint();
+    }
+
+    private void CmSearchClear_Click(object sender, RoutedEventArgs e) => CmSearchBox.Text = string.Empty;
+
+    private void CmJumpSpecial_Click(object sender, RoutedEventArgs e)
+    {
+        CmMainView.Visibility = Visibility.Collapsed;
+        CmAdvancedView.Visibility = Visibility.Collapsed;
+        CmSpecialView.Visibility = Visibility.Visible;
+        InitSpecialView();
+    }
+
+    private void CmJumpAdvanced_Click(object sender, RoutedEventArgs e)
+    {
+        CmMainView.Visibility = Visibility.Collapsed;
+        CmSpecialView.Visibility = Visibility.Collapsed;
+        CmAdvancedView.Visibility = Visibility.Visible;
+        InitAdvancedView();
+    }
+
+    // 搜索提示行：统计三个视图的匹配数，提供跨视图跳转定位
+    private void UpdateCmSearchHint()
+    {
+        bool searching = !string.IsNullOrWhiteSpace(_cmSearchKeyword);
+        CmSearchHintPanel.Visibility = searching ? Visibility.Visible : Visibility.Collapsed;
+        if (!searching) return;
+        int mainCount = _cmInventory == null ? 0 : _cmInventory.Entries.Count(e => RogueCleanerViewFilters.MatchesKeyword(e, _cmSearchKeyword));
+        int specialCount = _specialEntries.Count(e => RogueCleanerViewFilters.MatchesKeyword(e, _cmSearchKeyword));
+        int advancedCount = _advancedEntries.Count(e => RogueCleanerViewFilters.MatchesKeyword(e, _cmSearchKeyword));
+        CmSearchHintText.Text = "搜索“" + _cmSearchKeyword + "” · 主列表 " + mainCount + " 项 · 更多位置 " + specialCount + " 项 · 系统高级 " + advancedCount + " 项";
+        bool inSpecial = CmSpecialView.Visibility == Visibility.Visible;
+        bool inAdvanced = CmAdvancedView.Visibility == Visibility.Visible;
+        CmJumpSpecialBtn.Visibility = !inSpecial && specialCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+        CmJumpAdvancedBtn.Visibility = !inAdvanced && advancedCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+        CmJumpSpecialBtn.Content = "去更多位置查看（" + specialCount + "）";
+        CmJumpAdvancedBtn.Content = "去系统高级查看（" + advancedCount + "）";
+    }
+
     // ---------- 主管理视图（对应原版 ContextMenuManagerForm） ----------
 
     private void CmRefresh_Click(object sender, RoutedEventArgs e) => RefreshContextMenus();
@@ -1017,29 +1069,47 @@ public sealed partial class RogueCleanerPage : Page
     private void ApplyCmFilter()
     {
         if (_cmInventory == null) return;
-        // 显示：已识别的第三方菜单 + 用户自己添加的菜单（UserAdded 标记）；「展示全部」时含系统内置与未识别项
-        _visibleCmEntries = _cmInventory.Entries.Where(e => _cmAllMode || RogueCleanerViewFilters.MatchesMainMenuList(e)).ToList();
-        int resolved = _cmInventory.Entries.Count(e => !e.AdvancedOnly && e.PresentationResolved);
-        int visible = _visibleCmEntries.Count;
-        int enabled = _visibleCmEntries.Count(e => e.Enabled);
-        int hiddenSystem = _cmInventory.Entries.Count(e => !e.AdvancedOnly && e.PresentationResolved && !e.IsThirdParty);
-        int hiddenInternal = _cmInventory.Entries.Count - _cmPresentationCandidates;
-        CmSummaryText.Text = "第三方菜单 " + visible + " 项  ·  已显示 " + enabled + "  ·  已隐藏 " + (visible - enabled) + "  ·  系统内置不显示";
-        CmStatusText.Text = resolved < _cmPresentationCandidates
-            ? "正在识别软件来源 " + resolved + " / " + _cmPresentationCandidates + "……"
-            : "已隐藏 " + hiddenSystem + " 项系统菜单、" + hiddenInternal + " 项内部技术记录；" + _cmInventory.Warnings.Count + " 个受保护位置未读取。";
+        bool searching = !string.IsNullOrWhiteSpace(_cmSearchKeyword);
+        if (searching)
+        {
+            // 搜索模式：从完整清单中匹配（含系统内置/未识别/技术记录），不受「仅第三方」限制
+            _visibleCmEntries = _cmInventory.Entries.Where(e => RogueCleanerViewFilters.MatchesKeyword(e, _cmSearchKeyword)).ToList();
+            CmSummaryText.Text = "搜索“" + _cmSearchKeyword + "”：主列表匹配 " + _visibleCmEntries.Count + " 项（含系统内置与未识别项）";
+            CmStatusText.Text = "当前为搜索模式，按名称、软件、命令、位置或组件编号过滤；清空搜索框返回常规列表。";
+        }
+        else
+        {
+            // 显示：已识别的第三方菜单 + 用户自己添加的菜单（UserAdded 标记）；「展示全部」时含系统内置与未识别项
+            _visibleCmEntries = _cmInventory.Entries.Where(e => _cmAllMode || RogueCleanerViewFilters.MatchesMainMenuList(e)).ToList();
+            int resolved = _cmInventory.Entries.Count(e => !e.AdvancedOnly && e.PresentationResolved);
+            int visible = _visibleCmEntries.Count;
+            int enabled = _visibleCmEntries.Count(e => e.Enabled);
+            int hiddenSystem = _cmInventory.Entries.Count(e => !e.AdvancedOnly && e.PresentationResolved && !e.IsThirdParty);
+            int hiddenInternal = _cmInventory.Entries.Count - _cmPresentationCandidates;
+            CmSummaryText.Text = "第三方菜单 " + visible + " 项  ·  已显示 " + enabled + "  ·  已隐藏 " + (visible - enabled) + "  ·  系统内置不显示";
+            CmStatusText.Text = resolved < _cmPresentationCandidates
+                ? "正在识别软件来源 " + resolved + " / " + _cmPresentationCandidates + "……"
+                : "已隐藏 " + hiddenSystem + " 项系统菜单、" + hiddenInternal + " 项内部技术记录；" + _cmInventory.Warnings.Count + " 个受保护位置未读取。";
+        }
         CmList.ItemsSource = null;
         CmList.ItemsSource = _visibleCmEntries;
         CmEmptyText.Visibility = _visibleCmEntries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        if (_visibleCmEntries.Count == 0) CmEmptyText.Text = "没有找到已识别的第三方右键菜单。";
+        if (_visibleCmEntries.Count == 0) CmEmptyText.Text = searching ? "没有找到匹配“" + _cmSearchKeyword + "”的右键菜单项目。" : "没有找到已识别的第三方右键菜单。";
         UpdateCmActions();
         ShowCmDetails();
         UpdateCmFooter();
+        UpdateCmSearchHint();
     }
 
     // 列表底部「展示全部」的提示与切换按钮
     private void UpdateCmFooter()
     {
+        // 搜索模式下列表已含全部匹配项，不再提示「展示全部」
+        if (!string.IsNullOrWhiteSpace(_cmSearchKeyword))
+        {
+            CmFooter.Visibility = Visibility.Collapsed;
+            return;
+        }
         if (_cmInventory == null) return;
         int filtered = _cmInventory.Entries.Count(RogueCleanerViewFilters.MatchesMainMenuList);
         int hidden = _cmInventory.Entries.Count - filtered;
@@ -1345,11 +1415,21 @@ public sealed partial class RogueCleanerPage : Page
 
     private void ApplySpecialFilter()
     {
-        string selected = SpecialMenuDisplay.Key(Convert.ToString(SpecialModuleCombo.SelectedItem));
-        _visibleSpecialEntries = _specialEntries.Where(e => selected == "全部模块" || e.Module == selected).ToList();
+        bool searching = !string.IsNullOrWhiteSpace(_cmSearchKeyword);
+        if (searching)
+        {
+            // 搜索模式：忽略模块下拉框，在全部专用模块里匹配
+            _visibleSpecialEntries = _specialEntries.Where(e => RogueCleanerViewFilters.MatchesKeyword(e, _cmSearchKeyword)).ToList();
+        }
+        else
+        {
+            string selected = SpecialMenuDisplay.Key(Convert.ToString(SpecialModuleCombo.SelectedItem));
+            _visibleSpecialEntries = _specialEntries.Where(e => selected == "全部模块" || e.Module == selected).ToList();
+        }
         SpecialList.ItemsSource = null;
         SpecialList.ItemsSource = _visibleSpecialEntries;
         UpdateSpecialActions();
+        UpdateCmSearchHint();
     }
 
     private void SpecialList_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateSpecialActions();
@@ -1488,11 +1568,21 @@ public sealed partial class RogueCleanerPage : Page
 
     private void ApplyAdvancedFilter()
     {
-        string selected = AdvancedMenuDisplay.Key(Convert.ToString(AdvancedModuleCombo.SelectedItem));
-        _visibleAdvancedEntries = _advancedEntries.Where(e => selected == "全部模块" || e.Module == selected).ToList();
+        bool searching = !string.IsNullOrWhiteSpace(_cmSearchKeyword);
+        if (searching)
+        {
+            // 搜索模式：忽略模块下拉框，在全部高级模块里匹配
+            _visibleAdvancedEntries = _advancedEntries.Where(e => RogueCleanerViewFilters.MatchesKeyword(e, _cmSearchKeyword)).ToList();
+        }
+        else
+        {
+            string selected = AdvancedMenuDisplay.Key(Convert.ToString(AdvancedModuleCombo.SelectedItem));
+            _visibleAdvancedEntries = _advancedEntries.Where(e => selected == "全部模块" || e.Module == selected).ToList();
+        }
         AdvancedList.ItemsSource = null;
         AdvancedList.ItemsSource = _visibleAdvancedEntries;
         UpdateAdvancedActions();
+        UpdateCmSearchHint();
     }
 
     private void AdvancedList_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateAdvancedActions();

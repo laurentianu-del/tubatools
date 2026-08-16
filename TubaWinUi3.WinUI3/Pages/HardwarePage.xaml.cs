@@ -763,7 +763,7 @@ public sealed partial class HardwarePage : Page
         else
         {
             LayoutRoot.Width = 1100;
-            LayoutRoot.MaxWidth = double.PositiveInfinity;
+            LayoutRoot.MaxWidth = 1100;
             LayoutRoot.HorizontalAlignment = HorizontalAlignment.Stretch;
 
             var viewbox = new Viewbox

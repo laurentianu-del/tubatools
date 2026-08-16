@@ -236,14 +236,13 @@ namespace TubaWinUi3.Services.RogueCleaner
         {
             List<ContextMenuEntry> entries = new List<ContextMenuEntry>();
             List<ScanWarning> warnings = new List<ScanWarning>();
-            HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (string hive in new string[] { "HKCU", "HKLM" })
             {
                 foreach (string view in new string[] { "Registry64", "Registry32" })
                 {
-                    foreach (RootDefinition root in Roots) EnumerateRoot(hive, view, root, entries, warnings, seen);
-                    EnumerateRoot(hive, view, Root("命令仓库", CommandStoreRoot, "命令仓库"), entries, warnings, seen, true);
-                    EnumerateFileTypes(hive, view, entries, warnings, seen);
+                    foreach (RootDefinition root in Roots) EnumerateRoot(hive, view, root, entries, warnings);
+                    EnumerateRoot(hive, view, Root("命令仓库", CommandStoreRoot, "命令仓库"), entries, warnings, true);
+                    EnumerateFileTypes(hive, view, entries, warnings);
                 }
             }
             return new ContextMenuInventory
@@ -253,7 +252,7 @@ namespace TubaWinUi3.Services.RogueCleaner
             };
         }
 
-        private void EnumerateFileTypes(string hive, string view, List<ContextMenuEntry> entries, List<ScanWarning> warnings, HashSet<string> seen)
+        private void EnumerateFileTypes(string hive, string view, List<ContextMenuEntry> entries, List<ScanWarning> warnings)
         {
             ActionTarget classes = Target(hive, view, @"Software\Classes");
             using (RegistryKey key = Open(classes, "文件类型", warnings))
@@ -273,14 +272,14 @@ namespace TubaWinUi3.Services.RogueCleaner
                         foreach (string suffix in new string[] { @"\shell", @"\shellex\ContextMenuHandlers" })
                         {
                             RootDefinition root = Root("文件类型 " + name, @"Software\Classes\" + owner + suffix, suffix.IndexOf("shellex", StringComparison.OrdinalIgnoreCase) >= 0 ? "Shell 扩展" : "Shell 命令");
-                            EnumerateRoot(hive, view, root, entries, warnings, seen, true);
+                            EnumerateRoot(hive, view, root, entries, warnings, true);
                         }
                     }
                 }
             }
         }
 
-        private void EnumerateRoot(string hive, string view, RootDefinition root, List<ContextMenuEntry> entries, List<ScanWarning> warnings, HashSet<string> seen, bool advancedOnly = false)
+        private void EnumerateRoot(string hive, string view, RootDefinition root, List<ContextMenuEntry> entries, List<ScanWarning> warnings, bool advancedOnly = false)
         {
             ActionTarget rootTarget = Target(hive, view, root.Path);
             using (RegistryKey key = Open(rootTarget, root.Scene, warnings))
@@ -289,10 +288,6 @@ namespace TubaWinUi3.Services.RogueCleaner
                 foreach (string childName in SafeNames(key))
                 {
                     ActionTarget childTarget = Target(hive, view, root.Path + "\\" + childName);
-                    // Software\Classes 在 64 位系统上 32/64 视图为同一数据（Windows 不重定向 Classes 根），
-                    // 按 hive+子键去重，避免同一菜单因视图不同而重复显示两次。
-                    string unique = hive + "|" + childTarget.SubKey;
-                    if (!seen.Add(unique)) continue;
                     using (RegistryKey child = Open(childTarget, root.Scene, warnings))
                     {
                         if (child == null) continue;
@@ -308,7 +303,7 @@ namespace TubaWinUi3.Services.RogueCleaner
                         bool userAdded = HasValue(child, "RogueCleanerUserAdded");
                         entries.Add(new ContextMenuEntry
                         {
-                            Id = unique,
+                            Id = hive + "|" + view + "|" + childTarget.SubKey,
                             Scene = root.Scene,
                             Name = display,
                             RawName = rawDisplay,
