@@ -57,6 +57,8 @@ public static class PathResolver
                 var relative = absolutePath[basePath.Length..];
                 if (relative.Length > 0 && (relative[0] == Path.DirectorySeparatorChar || relative[0] == Path.AltDirectorySeparatorChar))
                     relative = relative[1..];
+                else if (relative.Length > 0)
+                    continue; // 无路径分隔符边界（如 ToolsExtra），不视为该基准之下
 
                 if (relative.Length < bestLength)
                 {
@@ -92,6 +94,8 @@ public static class PathResolver
                 var relative = absolutePath[dataDir.Length..];
                 if (relative.Length > 0 && (relative[0] == Path.DirectorySeparatorChar || relative[0] == Path.AltDirectorySeparatorChar))
                     relative = relative[1..];
+                else if (relative.Length > 0)
+                    return MakeRelative(absolutePath); // 无路径分隔符边界，不属于数据目录
                 return "{DataDir}" + Path.DirectorySeparatorChar + relative;
             }
         }

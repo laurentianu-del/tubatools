@@ -195,4 +195,127 @@ public class ToolCacheServiceTests
         Assert.True(entry.IsFavorite);
         Assert.Equal("检测", Assert.Single(entry.Tags));
     }
+
+    [Fact]
+    public void TryLoadBundledCache_RejectsPathsOutsideToolsRoot()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), "tubacache_test_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(tempRoot, "处理器工具", "CPU-Z"));
+        Directory.CreateDirectory(Path.Combine(tempRoot, "处理器工具", "GPU-Z"));
+        ToolCatalog.SetToolsRootForBuild(tempRoot);
+        try
+        {
+            var bundledPath = ToolCacheService.BundledCachePath;
+            Assert.False(string.IsNullOrEmpty(bundledPath));
+
+            var entries = new List<ToolCacheEntry>
+            {
+                // 合法：占位符形式，展开后位于当前 ToolsRoot 之下
+                new()
+                {
+                    Name = "CPU-Z",
+                    Category = "处理器工具",
+                    Path = "{ToolsRoot}\\处理器工具\\CPU-Z\\cpuz_x64.exe",
+                    RelativePath = @"处理器工具\CPU-Z\cpuz_x64.exe",
+                    Extension = "EXE"
+                },
+                // 不合法：旧安装位置（非打包路径）的绝对路径 → 应被丢弃
+                new()
+                {
+                    Name = "GPU-Z",
+                    Category = "处理器工具",
+                    Path = @"C:\Program Files\TubaWinUi3\Tools\处理器工具\GPU-Z\gpu-z.exe",
+                    RelativePath = @"处理器工具\GPU-Z\gpu-z.exe",
+                    Extension = "EXE"
+                }
+            };
+            ToolCacheService.SaveCacheTo(entries, bundledPath);
+
+            Assert.True(ToolCacheService.TryLoadBundledCache(out var loaded));
+            var item = Assert.Single(loaded);
+            Assert.Equal("CPU-Z", item.Name);
+            Assert.StartsWith(tempRoot, item.Path);
+        }
+        finally
+        {
+            try { File.Delete(ToolCacheService.BundledCachePath); } catch { }
+            ToolCatalog.SetToolsRootForBuild(null);
+            Directory.Delete(tempRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void TryLoadBundledCache_MostlyOutsideToolsRoot_InvalidatesWholeCache()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), "tubacache_test_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(tempRoot, "处理器工具", "CPU-Z"));
+        ToolCatalog.SetToolsRootForBuild(tempRoot);
+        try
+        {
+            var bundledPath = ToolCacheService.BundledCachePath;
+
+            var entries = new List<ToolCacheEntry>
+            {
+                new()
+                {
+                    Name = "合法",
+                    Category = "处理器工具",
+                    Path = "{ToolsRoot}\\处理器工具\\CPU-Z\\cpuz_x64.exe",
+                    RelativePath = @"处理器工具\CPU-Z\cpuz_x64.exe",
+                    Extension = "EXE"
+                },
+                new()
+                {
+                    Name = "旧路径1",
+                    Category = "处理器工具",
+                    Path = @"C:\Old\Tools\a.exe",
+                    RelativePath = @"a.exe",
+                    Extension = "EXE"
+                },
+                new()
+                {
+                    Name = "旧路径2",
+                    Category = "处理器工具",
+                    Path = @"C:\Old\Tools\b.exe",
+                    RelativePath = @"b.exe",
+                    Extension = "EXE"
+                }
+            };
+            ToolCacheService.SaveCacheTo(entries, bundledPath);
+
+            // 过半条目指向 ToolsRoot 之外 → 缓存整体作废，回退全量扫描
+            Assert.False(ToolCacheService.TryLoadBundledCache(out _));
+        }
+        finally
+        {
+            try { File.Delete(ToolCacheService.BundledCachePath); } catch { }
+            ToolCatalog.SetToolsRootForBuild(null);
+            Directory.Delete(tempRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void MakeRelative_RespectsDirectoryBoundary()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), "tubacache_test_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(tempRoot, "工具"));
+        ToolCatalog.SetToolsRootForBuild(tempRoot);
+        try
+        {
+            // ToolsExtra 与 ToolsRoot 同名前缀但不在其下 → 不得匹配 {ToolsRoot}
+            var outside = Path.Combine(tempRoot + "Extra", "a.exe");
+            Assert.Equal(outside, PathResolver.MakeRelative(outside));
+
+            // 正常子路径 → {ToolsRoot}\...
+            var inside = Path.Combine(tempRoot, "工具", "a.exe");
+            var rel = PathResolver.MakeRelative(inside);
+            Assert.StartsWith("{ToolsRoot}", rel);
+            Assert.Contains("工具", rel);
+        }
+        finally
+        {
+            ToolCatalog.SetToolsRootForBuild(null);
+            Directory.Delete(tempRoot, recursive: true);
+        }
+    }
 }

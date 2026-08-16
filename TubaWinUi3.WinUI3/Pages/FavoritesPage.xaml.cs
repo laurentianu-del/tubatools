@@ -509,6 +509,11 @@ public sealed partial class FavoritesPage : Page
     {
         if (sender is FrameworkElement { DataContext: ToolItem tool })
         {
+            if (tool.IsBuiltinLink)
+            {
+                ShowStatus("无法创建", "内置工具不支持创建桌面快捷方式", InfoBarSeverity.Warning);
+                return;
+            }
             try
             {
                 CreateDesktopShortcut(tool);
@@ -528,6 +533,7 @@ public sealed partial class FavoritesPage : Page
             var flyout = (MenuFlyout)Resources["FavItemFlyout"];
             PopulateArchSubmenu(flyout, tool);
             UpdateTutorialVisibility(flyout, tool);
+            UpdateBuiltinLinkFlyoutItems(flyout, tool);
             UpdateFavoriteMenuItem(flyout, tool);
             flyout.ShowAt(fe, e.GetPosition(fe));
         }
@@ -565,6 +571,25 @@ public sealed partial class FavoritesPage : Page
             .FirstOrDefault(i => i.Text.Contains("教程"));
         if (tutorialItem is not null)
             tutorialItem.Visibility = tool.HasTutorial ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private static void UpdateBuiltinLinkFlyoutItems(MenuFlyout flyout, ToolItem tool)
+    {
+        var isBuiltin = tool.IsBuiltinLink;
+        var sendToDesktop = flyout.Items.OfType<MenuFlyoutItem>()
+            .FirstOrDefault(i => i.Text.Contains("桌面快捷方式"));
+        if (sendToDesktop is not null)
+            sendToDesktop.Visibility = isBuiltin ? Visibility.Collapsed : Visibility.Visible;
+
+        var runAsAdmin = flyout.Items.OfType<MenuFlyoutItem>()
+            .FirstOrDefault(i => i.Text.Contains("管理员"));
+        if (runAsAdmin is not null)
+            runAsAdmin.Visibility = isBuiltin ? Visibility.Collapsed : Visibility.Visible;
+
+        var openDir = flyout.Items.OfType<MenuFlyoutItem>()
+            .FirstOrDefault(i => i.Text.Contains("所在目录"));
+        if (openDir is not null)
+            openDir.Visibility = isBuiltin ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void FavMenu_SendToDesktop(object sender, RoutedEventArgs e)
@@ -705,6 +730,20 @@ public sealed partial class FavoritesPage : Page
 
     private void ShowToolDetail(ToolItem tool)
     {
+        if (tool.IsBuiltinLink)
+        {
+            ToolDetailTip.Title = tool.Name;
+            ToolDetailTip.Subtitle = tool.Category;
+            DetailDescriptionText.Text = string.IsNullOrWhiteSpace(tool.Description)
+                ? "暂无介绍。"
+                : tool.Description;
+            DetailPublisherText.Text = $"类型：{tool.BuiltinKindText ?? "内置"}";
+            DetailVersionText.Text = "";
+            DetailPathText.Text = "";
+            ToolDetailTip.IsOpen = true;
+            return;
+        }
+
         ToolDetailTip.Title = tool.Name;
         ToolDetailTip.Subtitle = tool.Category;
         DetailDescriptionText.Text = string.IsNullOrWhiteSpace(tool.Description)
@@ -718,6 +757,12 @@ public sealed partial class FavoritesPage : Page
 
     private void LaunchTool(ToolItem tool, bool runAsAdmin)
     {
+        if (tool.IsBuiltinLink)
+        {
+            _ = LaunchBuiltinToolAsync(tool);
+            return;
+        }
+
         if (!string.IsNullOrWhiteSpace(tool.RemoteUrl))
         {
             Pages.BrowserPage.Open(tool.RemoteUrl, tool.Name);
@@ -743,6 +788,38 @@ public sealed partial class FavoritesPage : Page
         catch (Exception ex)
         {
             ShowStatus("启动失败", ex.Message, InfoBarSeverity.Error);
+        }
+    }
+
+    private async Task LaunchBuiltinToolAsync(ToolItem tool)
+    {
+        var builtinTool = BuiltinToolRegistry.GetById(tool.BuiltinToolId!);
+        if (builtinTool is null)
+        {
+            ShowStatus("启动失败", "找不到对应的内置工具", InfoBarSeverity.Error);
+            return;
+        }
+
+        try
+        {
+            var context = new BuiltinToolContext
+            {
+                XamlRoot = XamlRoot,
+                OnProgress = msg => DispatcherQueue.TryEnqueue(() =>
+                    ShowStatus(builtinTool.Name, msg, InfoBarSeverity.Informational))
+            };
+            MainWindow.ActiveToolName = builtinTool.Name;
+            await builtinTool.ExecuteAsync(context);
+            LaunchHistoryService.RecordLaunch(tool.Path);
+            ShowStatus("已启动", tool.Name, InfoBarSeverity.Success);
+        }
+        catch (Exception ex)
+        {
+            ShowStatus("启动失败", ex.Message, InfoBarSeverity.Error);
+        }
+        finally
+        {
+            MainWindow.ActiveToolName = null;
         }
     }
 

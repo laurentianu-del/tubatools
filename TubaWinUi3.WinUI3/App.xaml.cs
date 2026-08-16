@@ -143,6 +143,13 @@ public partial class App : Application
 
     private static async Task RunStartupSequenceAsync()
     {
+        // MSIX 下包身份解析失败会回滚到共享 %LocalAppData%（非打包路径）：
+        // 工具根/数据目录将指向旧安装版位置，可能启动非打包路径的程序，输出诊断日志
+        if (RuntimeHelper.IsMsixPackaged && RuntimeHelper.LocalAppDataRootUsedFallback)
+        {
+            System.Diagnostics.Debug.WriteLine("[Startup] 警告：MSIX 包身份路径解析失败，数据根已回滚到共享 %LocalAppData%，工具根可能指向非打包路径");
+        }
+
         if (MainWindow?.DispatcherQueue is not null)
         {
             MainWindow.DispatcherQueue.TryEnqueue(() =>

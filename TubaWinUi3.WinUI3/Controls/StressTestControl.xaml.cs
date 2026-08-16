@@ -12,7 +12,6 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using SkiaSharp;
 using TubaWinUi3.Services;
-using Windows.UI;
 
 namespace TubaWinUi3.Controls;
 

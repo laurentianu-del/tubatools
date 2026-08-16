@@ -20,6 +20,16 @@ public static class ToolCacheService
     {
         get
         {
+            // MSIX 下随包缓存位于只读包目录 WindowsApps\<pkg>\Metadata\，
+            // 而 ToolsRoot 指向 LocalState 工具包目录（parent 计算会指向不存在的副本）。
+            // 包内缓存存在时才优先读取（Store 构建 ExcludeToolsFromPublish 通常不生成，行为不变）
+            if (RuntimeHelper.IsMsixPackaged)
+            {
+                var bundledInPackage = Path.Combine(ToolCatalog.AppDirectory, "Metadata", "tool_cache.json");
+                if (File.Exists(bundledInPackage))
+                    return bundledInPackage;
+            }
+
             var toolsRoot = ToolCatalog.ToolsRoot;
             var parent = Path.GetDirectoryName(toolsRoot);
             return string.IsNullOrEmpty(parent) ? "" : Path.Combine(parent, "Metadata", "tool_cache.json");
@@ -95,15 +105,28 @@ public static class ToolCacheService
             if (expected.Length == 0 || !string.Equals(data.Fingerprint, expected, StringComparison.Ordinal))
                 return false;
 
+            var toolsRoot = ToolCatalog.ToolsRoot;
+            var originalCount = data.Entries.Count;
+            var dropped = 0;
+
             foreach (var e in data.Entries)
             {
+                var expandedPath = PathResolver.MakeAbsolute(e.Path);
+                // 路径基准校验：工具必须位于当前 ToolsRoot 之下（含分隔符边界）。
+                // 拒绝旧安装位置/路径基准变化后残留的绝对路径条目，避免打开非打包路径的程序
+                if (!IsPathUnderToolsRoot(expandedPath, toolsRoot))
+                {
+                    dropped++;
+                    continue;
+                }
+
                 if (!string.IsNullOrEmpty(e.Path) && e.Path.Contains('{'))
                 {
                     var expanded = new ToolCacheEntry
                     {
                         Name = e.Name,
                         Category = e.Category,
-                        Path = PathResolver.MakeAbsolute(e.Path),
+                        Path = expandedPath,
                         RelativePath = e.RelativePath,
                         Extension = e.Extension,
                         Description = e.Description,
@@ -127,12 +150,35 @@ public static class ToolCacheService
                     entries.Add(e);
                 }
             }
+
+            // 大量条目指向 ToolsRoot 之外（旧安装位置等）→ 缓存整体作废，回退全量扫描，
+            // 避免只加载残缺列表（保留数不足原数量一半时作废）
+            if (dropped > 0 && entries.Count * 2 < originalCount)
+                return false;
+
             return true;
         }
         catch
         {
             return false;
         }
+    }
+
+    /// <summary>
+    /// 校验路径是否位于当前 ToolsRoot 之下（含路径分隔符边界，杜绝 ToolsExtra 误匹配）。
+    /// </summary>
+    private static bool IsPathUnderToolsRoot(string? path, string? toolsRoot)
+    {
+        if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(toolsRoot))
+            return false;
+        if (!Path.IsPathRooted(path) || !Path.IsPathRooted(toolsRoot))
+            return false;
+        if (!path.StartsWith(toolsRoot, StringComparison.OrdinalIgnoreCase))
+            return false;
+        if (path.Length == toolsRoot.Length)
+            return true;
+        var next = path[toolsRoot.Length];
+        return next == Path.DirectorySeparatorChar || next == Path.AltDirectorySeparatorChar;
     }
 
     public static void SaveCache(List<ToolCacheEntry> entries)

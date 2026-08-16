@@ -163,31 +163,24 @@ public static class ToolIconService
         if (itemsToLoad.Count == 0)
             return;
 
-        var alreadyCached = new List<ToolItem>();
-        var needExtract = new List<ToolItem>();
-
-        foreach (var tool in itemsToLoad)
+        // 缓存命中检查移入后台线程：每个工具 8~9 次同步文件系统调用
+        // （File.Exists / GetLastWriteTimeUtc / CreateDirectory），在 UI 线程
+        // 串行执行 142 个 exe 会造成 ~1200 次同步 syscall 卡顿。
+        // IconPath 为 INotifyPropertyChanged，绑定自动 marshal 到 UI 线程
+        // （与下方提取完成后的赋值模式一致），无需回到 UI 线程重查。
+        var needExtract = await Task.Run(() =>
         {
-            var cached = GetCachedIconPath(tool.Path);
-            if (cached is not null)
+            var extract = new List<ToolItem>();
+            foreach (var tool in itemsToLoad)
             {
-                tool.IconPath = cached;
-                alreadyCached.Add(tool);
+                var cached = GetCachedIconPath(tool.Path);
+                if (cached is not null)
+                    tool.IconPath = cached;
+                else
+                    extract.Add(tool);
             }
-            else
-            {
-                needExtract.Add(tool);
-            }
-        }
-
-        if (dispatcher is not null && alreadyCached.Count > 0)
-        {
-            dispatcher.TryEnqueue(() =>
-            {
-                foreach (var t in alreadyCached)
-                    t.IconPath = GetCachedIconPath(t.Path);
-            });
-        }
+            return extract;
+        });
 
         if (needExtract.Count == 0)
             return;

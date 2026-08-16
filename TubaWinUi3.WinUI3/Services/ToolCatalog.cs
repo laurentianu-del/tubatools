@@ -304,16 +304,19 @@ public static class ToolCatalog
         _isLoadingFromCache = true;
         try
         {
-            // ① AppData 运行时缓存（上次扫描/刷新写入）
+            // ① AppData 运行时缓存（上次扫描/刷新写入，指纹已验证匹配）。
+            //    不再无条件后台重扫：工具内容变化（更新/增删）都会走
+            //    InvalidateTagsCache/RefreshToolsRoot 显式失效，每次启动全量重扫
+            //    只会与首页渲染/图标加载竞争磁盘带宽
             if (ToolCacheService.TryLoadCache(out var cachedEntries) && cachedEntries.Count > 0)
             {
                 var cachedTools = BuildFromEntries(cachedEntries);
                 _cachedAllTools = cachedTools;
-                _ = Task.Run(RefreshCacheInBackground);
                 return cachedTools;
             }
 
-            // ② 构建时预生成的随包缓存（Metadata/tool_cache.json）→ 首次运行秒出
+            // ② 构建时预生成的随包缓存（Metadata/tool_cache.json）→ 首次运行秒出；
+            //    随包数据按发布时 Tools 生成，落到 AppData 并后台真实扫描修正一次
             if (ToolCacheService.TryLoadBundledCache(out var bundledEntries) && bundledEntries.Count > 0)
             {
                 var bundledTools = BuildFromEntries(bundledEntries);

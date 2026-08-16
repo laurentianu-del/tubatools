@@ -16,8 +16,8 @@
     <WindowsAppSDKSelfContained Condition="'$(WindowsAppSDKSelfContained)' == ''">true</WindowsAppSDKSelfContained>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>1.5.7</Version>
-    <DefaultItemExcludes>$(DefaultItemExcludes);artifacts\**</DefaultItemExcludes>
+    <Version>1.5.10</Version>
+    <DefaultItemExcludes>$(DefaultItemExcludes);artifacts\**;publish*\**</DefaultItemExcludes>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <NoWarn>CA2252;CA2014;NU1510</NoWarn>
   </PropertyGroup>
@@ -44,7 +44,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="Metadata\**\*">
+    <!-- tool_cache.json 排除在评估期 glob 之外：该文件由 GenerateBundledToolCache 在
+         publish 时动态生成并以 Content 项登记（同 TargetPath 去重时评估期项优先，
+         会覆盖掉新生成的缓存）；仅动态项携带它，保证发布产物是本次扫描结果 -->
+    <Content Include="Metadata\**\*" Exclude="Metadata\tool_cache.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </Content>
@@ -112,8 +115,25 @@
     Pre-build the bundled icon cache (IconCache/) before publish so first launch
     does not need to extract icons. Up-to-date files are skipped by the script.
   -->
-  <Target Name="GenerateBundledIconCache" BeforeTargets="Publish" Condition="'$(ExcludeToolsFromPublish)' != 'true'">
+  <Target Name="GenerateBundledIconCache" BeforeTargets="GetCopyToPublishDirectoryItems" Condition="'$(ExcludeToolsFromPublish)' != 'true'">
     <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\build-icon-cache.ps1&quot; -ToolsRoot &quot;$(MSBuildProjectDirectory)\Tools&quot; -OutputDir &quot;$(MSBuildProjectDirectory)\IconCache&quot;" />
+    <!-- IconCache/ 为 gitignored，CI 干净 checkout 下评估期 glob 为空；直接登记
+         ContentWithTargetPath（见 GenerateBundledToolCache 注释）才能随产物分发。
+         用 AssignTargetPath 任务而非 ItemGroup 内联 TargetPath：内联引用隐含元数据
+         （%(RecursiveDir)/%(Filename)）会触发批处理，把 TargetPath 错误套到其他
+         Content 项上（Assets/Tools 文件被平铺复制进 IconCache）。 -->
+    <ItemGroup>
+      <_IconCacheFiles Include="$(MSBuildProjectDirectory)\IconCache\**\*" />
+      <ContentWithTargetPath Remove="@(_IconCacheFiles)" />
+    </ItemGroup>
+    <AssignTargetPath Files="@(_IconCacheFiles)" RootFolder="$(MSBuildProjectDirectory)">
+      <Output TaskParameter="AssignedFiles" ItemName="ContentWithTargetPath" />
+    </AssignTargetPath>
+    <ItemGroup>
+      <ContentWithTargetPath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ContentWithTargetPath>
+    </ItemGroup>
   </Target>
 
   <!--
@@ -123,10 +143,20 @@
     launch without scanning 500+ MB of tools. Generated file ships via the
     Metadata/** Content group. Skipped for lite builds (no Tools folder).
   -->
-  <Target Name="GenerateBundledToolCache" BeforeTargets="Publish" Condition="'$(ExcludeToolsFromPublish)' != 'true'">
+  <Target Name="GenerateBundledToolCache" BeforeTargets="GetCopyToPublishDirectoryItems" Condition="'$(ExcludeToolsFromPublish)' != 'true'">
     <!-- 注意用 exe 而非 $(TargetPath)（dll）：unpackaged WinUI 必须经 exe 启动 -->
-    <Exec Command="&quot;$(TargetDir)$(TargetName).exe&quot; --build-tool-cache &quot;$(MSBuildProjectDirectory)\Tools&quot; &quot;$(MSBuildProjectDirectory)\Metadata\tool_cache.json&quot;" />
-    <!-- 生成发生在 Build 的内容复制之后，需补复制到输出目录才能随 publish 分发 -->
-    <Copy SourceFiles="$(MSBuildProjectDirectory)\Metadata\tool_cache.json" DestinationFolder="$(TargetDir)Metadata" />
+    <Exec Command="&quot;$(TargetDir)$(TargetName).exe&quot; --build-tool-cache &quot;$(MSBuildProjectDirectory)\Tools&quot; &quot;$(TargetDir)Metadata\tool_cache.json&quot;" />
+    <!--
+      直接登记 ContentWithTargetPath：publish 文件收集（GetCopyToPublishDirectoryItems）
+      只消费该列表，而它由 AssignTargetPaths 在 Build 阶段生成、不会重跑，动态添加
+      Content 项或 BeforeTargets="Publish" 钩子（晚于收集）都不会生效。
+      评估期 glob 已 Exclude 该文件，避免旧文件优先于新生成缓存。
+    -->
+    <ItemGroup>
+      <ContentWithTargetPath Remove="$(TargetDir)Metadata\tool_cache.json" />
+      <ContentWithTargetPath Include="$(TargetDir)Metadata\tool_cache.json"
+                             TargetPath="Metadata\tool_cache.json"
+                             CopyToPublishDirectory="PreserveNewest" />
+    </ItemGroup>
   </Target>
 </Project>

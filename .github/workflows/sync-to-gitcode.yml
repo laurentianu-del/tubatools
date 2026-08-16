@@ -22,8 +22,32 @@ env:
 
 jobs:
   sync-to-gitcode:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     steps:
+      - name: Optimize network for GitCode upload (official proxy IP)
+        run: |
+          set -e
+          PROXY_IP=159.138.147.37
+          for host in api.atomgit.com file.atomgit.com file.gitcode.com; do
+            if grep -qE "^[0-9.]+[[:space:]]+$host([[:space:]]|$)" /etc/hosts; then
+              echo "hosts entry already exists: $host"
+            else
+              echo "adding $PROXY_IP $host"
+              if [ -w /etc/hosts ]; then
+                echo "$PROXY_IP $host" >> /etc/hosts
+              elif command -v sudo >/dev/null; then
+                echo "$PROXY_IP $host" | sudo tee -a /etc/hosts >/dev/null
+              else
+                echo "::error::Cannot write /etc/hosts (no sudo available)"
+                exit 1
+              fi
+            fi
+          done
+          echo "--- verify DNS resolution ---"
+          getent hosts api.atomgit.com
+          getent hosts file.atomgit.com
+          getent hosts file.gitcode.com
+
       - name: Resolve release
         id: release-info
         env:

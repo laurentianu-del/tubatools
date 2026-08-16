@@ -191,7 +191,14 @@ public sealed partial class MainWindow : Window
                 {
                     PopulateCategories(categories);
                     ApplyNavLayoutMode();
-                    NavigateToDefaultPage();
+
+                    // 仅在「默认页 = 动态分类」时补一次导航：首次导航时分类菜单
+                    // 尚未填充无法选中，需要填充后重新定位；默认页为静态项（如"全部
+                    // 工具"）时首次导航已生效，跳过以免 HomePage 重复实例化
+                    var defaultPage = AppSettings.Get("DefaultPage") ?? "all";
+                    if (categories.Any(c => c.Equals(defaultPage, StringComparison.OrdinalIgnoreCase)))
+                        NavigateToDefaultPage();
+
                     NavLayoutModeService.NavLayoutModeChanged += OnNavLayoutModeChanged;
                 });
             }

@@ -28,6 +28,13 @@ public static class RuntimeHelper
     private static string? _localAppDataRoot;
 
     /// <summary>
+    /// 包身份解析失败、数据根目录回滚到共享 %LocalAppData% 的标志。
+    /// MSIX 下发生回滚时 ToolsRoot/数据目录会指向非打包路径（可能与旧安装版互相污染），
+    /// 启动时据此输出诊断日志。
+    /// </summary>
+    public static bool LocalAppDataRootUsedFallback { get; private set; }
+
+    /// <summary>
     /// 应用数据根目录（即 %LocalAppData%\TubaWinUi3 中的 %LocalAppData%）。
     /// 优先使用包身份(ApplicationData.Current.LocalFolder)解析 —— 它基于包身份，
     /// 即使进程以管理员身份(提权)运行也依然返回包内目录；而
@@ -50,10 +57,12 @@ public static class RuntimeHelper
                     return path;
                 }
                 System.Diagnostics.Debug.WriteLine("[RuntimeHelper] 包身份路径无效，回滚到 KnownFolder 解析");
+                LocalAppDataRootUsedFallback = true;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[RuntimeHelper] 包身份解析失败({ex.GetType().Name}: {ex.Message})，回滚到 KnownFolder 解析");
+                LocalAppDataRootUsedFallback = true;
             }
         }
 

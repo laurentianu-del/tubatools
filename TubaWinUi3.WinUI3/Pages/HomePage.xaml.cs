@@ -321,8 +321,13 @@ public sealed partial class HomePage : Page
 
         try
         {
-            IReadOnlyList<ToolItem> tools = await Task.Run(() =>
+            IReadOnlyList<ToolItem> tools = await Task.Run(async () =>
             {
+                // 缓存优先：磁盘/随包缓存命中则秒出并填充分类内存缓存；
+                // 仅当缓存缺失时才 single-flight 全量扫描一次（与 MainWindow 预热共享，
+                // 避免首页的 GetAllToolsCached 绕过磁盘缓存抢先触发全量扫描）
+                await ToolCatalog.GetAllToolsAsync();
+
                 if (query.Length > 0 || _selectedTag is not null)
                     return ToolCatalog.Search(query, _selectedTag);
                 if (_category is not null)

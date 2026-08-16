@@ -51,29 +51,41 @@ public sealed partial class BrowserPage : Page
         }
         catch (Exception ex)
         {
-            ShowError("WebView2 初始化失败", $"请确保已安装 WebView2 Runtime。\n\n{ex.Message}");
+            var dialog = new ContentDialog
+            {
+                Title = "WebView2 初始化失败",
+                Content = $"请确保已安装 WebView2 Runtime。\n\n{ex.Message}",
+                CloseButtonText = "确定",
+                XamlRoot = XamlRoot,
+                RequestedTheme = ThemeService.CurrentElementTheme
+            };
+            await dialog.ShowAsync();
+            CloseButton_Click(this, new RoutedEventArgs());
         }
     }
+
+    private ulong _currentNavigationId;
 
     private void OnNavigationStarting(
         Microsoft.Web.WebView2.Core.CoreWebView2 sender,
         Microsoft.Web.WebView2.Core.CoreWebView2NavigationStartingEventArgs args)
     {
+        _currentNavigationId = args.NavigationId;
         LoadingRing.IsActive = true;
-        ErrorPanel.Visibility = Visibility.Collapsed;
-        WebView.Visibility = Visibility.Visible;
     }
 
     private void OnNavigationCompleted(
         Microsoft.Web.WebView2.Core.CoreWebView2 sender,
         Microsoft.Web.WebView2.Core.CoreWebView2NavigationCompletedEventArgs args)
     {
+        // 忽略已被新导航顶掉的旧导航：重定向/JS 跳转会使上一次导航以
+        // IsSuccess=false、WebErrorStatus=Unknown 结束，但页面实际已由新导航加载成功
+        if (args.NavigationId != _currentNavigationId)
+            return;
+
         LoadingRing.IsActive = false;
 
-        if (!args.IsSuccess)
-        {
-            ShowError("无法加载页面", $"错误：{args.WebErrorStatus}");
-        }
+        // 加载失败时由 WebView2 原生错误页展示，不再使用自定义错误面板
     }
 
     private void OnDocumentTitleChanged(
@@ -113,25 +125,9 @@ public sealed partial class BrowserPage : Page
         catch { }
     }
 
-    private void RetryButton_Click(object sender, RoutedEventArgs e)
-    {
-        ErrorPanel.Visibility = Visibility.Collapsed;
-        WebView.Visibility = Visibility.Visible;
-        if (WebView.CoreWebView2 is not null)
-            WebView.CoreWebView2.Navigate(_url);
-    }
-
     private void CloseButton_Click(object sender, RoutedEventArgs e)
     {
         App.MainWindow?.NavigateBack();
-    }
-
-    private void ShowError(string title, string message)
-    {
-        WebView.Visibility = Visibility.Collapsed;
-        ErrorPanel.Visibility = Visibility.Visible;
-        ErrorTitle.Text = title;
-        ErrorMessage.Text = message;
     }
 
     public static void Open(string url, string? title = null)
