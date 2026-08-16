@@ -143,16 +143,30 @@
     launch without scanning 500+ MB of tools. Generated file ships via the
     Metadata/** Content group. Skipped for lite builds (no Tools folder).
   -->
+  <!-- 架构守卫：生成缓存需运行目标架构的 exe，且缓存内容取决于宿主 OS 架构
+       （ToolCatalog.PreferredArchPriority 按 RuntimeInformation.OSArchitecture 选择主架构），
+       因此仅当宿主 OS 架构与目标 RID 兼容时才生成（win-x86 可在 x64 宿主经 WOW64 运行，
+       行为同前；win-arm64 在 x64 宿主上无法运行，跳过时包内无 tool_cache.json，
+       应用回退为首次启动全量扫描并由后台刷新自愈，见 GetAllToolsAsync ③）。 -->
+  <PropertyGroup>
+    <_HostOSArchitecture>$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)</_HostOSArchitecture>
+    <_CanGenerateToolCache Condition="'$(RuntimeIdentifier)' == 'win-x64' and '$(_HostOSArchitecture)' == 'X64'">true</_CanGenerateToolCache>
+    <_CanGenerateToolCache Condition="'$(RuntimeIdentifier)' == 'win-arm64' and '$(_HostOSArchitecture)' == 'Arm64'">true</_CanGenerateToolCache>
+    <_CanGenerateToolCache Condition="'$(RuntimeIdentifier)' == 'win-x86' and ('$(_HostOSArchitecture)' == 'X64' or '$(_HostOSArchitecture)' == 'X86')">true</_CanGenerateToolCache>
+  </PropertyGroup>
   <Target Name="GenerateBundledToolCache" BeforeTargets="GetCopyToPublishDirectoryItems" Condition="'$(ExcludeToolsFromPublish)' != 'true'">
+    <Message Condition="'$(_CanGenerateToolCache)' != 'true'" Importance="High"
+             Text="Skipping bundled tool cache: target RID '$(RuntimeIdentifier)' cannot run on host OS architecture '$(_HostOSArchitecture)'" />
     <!-- 注意用 exe 而非 $(TargetPath)（dll）：unpackaged WinUI 必须经 exe 启动 -->
-    <Exec Command="&quot;$(TargetDir)$(TargetName).exe&quot; --build-tool-cache &quot;$(MSBuildProjectDirectory)\Tools&quot; &quot;$(TargetDir)Metadata\tool_cache.json&quot;" />
+    <Exec Condition="'$(_CanGenerateToolCache)' == 'true'"
+          Command="&quot;$(TargetDir)$(TargetName).exe&quot; --build-tool-cache &quot;$(MSBuildProjectDirectory)\Tools&quot; &quot;$(TargetDir)Metadata\tool_cache.json&quot;" />
     <!--
       直接登记 ContentWithTargetPath：publish 文件收集（GetCopyToPublishDirectoryItems）
       只消费该列表，而它由 AssignTargetPaths 在 Build 阶段生成、不会重跑，动态添加
       Content 项或 BeforeTargets="Publish" 钩子（晚于收集）都不会生效。
       评估期 glob 已 Exclude 该文件，避免旧文件优先于新生成缓存。
     -->
-    <ItemGroup>
+    <ItemGroup Condition="'$(_CanGenerateToolCache)' == 'true'">
       <ContentWithTargetPath Remove="$(TargetDir)Metadata\tool_cache.json" />
       <ContentWithTargetPath Include="$(TargetDir)Metadata\tool_cache.json"
                              TargetPath="Metadata\tool_cache.json"

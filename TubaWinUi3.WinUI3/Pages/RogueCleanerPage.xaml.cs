@@ -45,8 +45,6 @@ public sealed partial class RogueCleanerPage : Page
     private int _statReportOnly;
 
     // 右键菜单管理
-    private string _cmMode = "basic";
-    private string _cmSubModule = "";
     private bool _cmAllMode;
     private string _cmSearchKeyword = "";
     private List<ContextMenuEntry> _cmEntries = [];
