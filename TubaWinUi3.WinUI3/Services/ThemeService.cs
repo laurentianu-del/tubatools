@@ -8,6 +8,12 @@ public static class ThemeService
     private const string Key = "AppTheme";
     private static AppTheme _currentTheme = AppTheme.Default;
 
+    /// <summary>
+    /// 主题应用后触发（参数为解析后的 ElementTheme）。
+    /// 子窗口/对话框宿主订阅此事件以实现主题实时跟随。
+    /// </summary>
+    public static event Action<ElementTheme>? ThemeChanged;
+
     public static AppTheme CurrentTheme => _currentTheme;
 
     public static ElementTheme CurrentElementTheme => _currentTheme switch
@@ -50,6 +56,8 @@ public static class ThemeService
 
         if (window is MainWindow mw)
             mw.ApplyTitleBarTheme(elementTheme);
+
+        ThemeChanged?.Invoke(elementTheme);
     }
 }
 

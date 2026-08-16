@@ -41,4 +41,33 @@ public sealed class BuiltinToolContext
             RequestedTheme = ThemeService.CurrentElementTheme
         };
     }
+
+    /// <summary>
+    /// 统一错误对话框：标题 + 可滚动异常详情（等宽字体），按钮统一为「确定」。
+    /// </summary>
+    public async Task ShowError(string title, Exception ex)
+    {
+        var detail = new TextBlock
+        {
+            Text = ex.ToString(),
+            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap
+        };
+        var dialog = new ContentDialog
+        {
+            Title = title,
+            Content = new ScrollViewer
+            {
+                Content = detail,
+                MaxHeight = 320,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+            },
+            CloseButtonText = "确定",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = XamlRoot,
+            RequestedTheme = ThemeService.CurrentElementTheme
+        };
+        await dialog.ShowAsync();
+    }
 }

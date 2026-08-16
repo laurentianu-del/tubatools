@@ -29,6 +29,7 @@ public sealed class BuiltinToolWindow
         _frame.Navigate(pageType, parameter);
         _window.Content = _frame;
         BuiltinWindowHelper.ApplyStandardStyle(_window, title);
+        ThemeService.ThemeChanged += OnThemeChanged;
         _window.Activated += (_, e) =>
         {
             if (e.WindowActivationState != WindowActivationState.Deactivated)
@@ -36,6 +37,13 @@ public sealed class BuiltinToolWindow
         };
         _window.Closed += (_, _) => OnClosed();
         _openWindows.Add(this);
+    }
+
+    /// <summary>应用内主题切换时实时同步窗口主题与标题栏。</summary>
+    private void OnThemeChanged(ElementTheme theme)
+    {
+        _frame.RequestedTheme = theme;
+        BuiltinWindowHelper.ApplyTitleBarTheme(_window);
     }
 
     public static void Show(Type pageType, object? parameter, string title)
@@ -58,6 +66,7 @@ public sealed class BuiltinToolWindow
 
     private void OnClosed()
     {
+        ThemeService.ThemeChanged -= OnThemeChanged;
         // 窗口关闭时 Frame 不会触发 OnNavigatedFrom，需手动执行与嵌入模式一致的清理
         if (_frame.Content is ToolContentPage page)
             page.Detach();
