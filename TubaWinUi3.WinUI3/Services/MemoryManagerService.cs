@@ -37,6 +37,16 @@ public sealed class PageFileUsageInfo
     public long CurrentUsageMB { get; init; }
 }
 
+/// <summary>内存列表统计 (待机/已修改页), 用于计算清理量。</summary>
+public sealed class MemoryListInfo
+{
+    public long StandbyBytes { get; init; }
+    public long ModifiedBytes { get; init; }
+
+    /// <summary>待机列表 + 已修改列表合计, 即"清理待机内存"可释放的总量。</summary>
+    public long Total => StandbyBytes + ModifiedBytes;
+}
+
 /// <summary>一个分页文件条目 (虚拟内存设置)。</summary>
 public sealed class PageFileEntry
 {
@@ -80,11 +90,21 @@ public static class MemoryManagerService
     private const uint TOKEN_ADJUST_PRIVILEGES = 0x0020;
     private const uint TOKEN_QUERY = 0x0008;
 
+    /// <summary>LUID = LowPart + HighPart, 与 winnt.h 的 LUID 布局一致。</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Luid
+    {
+        public uint LowPart;
+        public int HighPart;
+    }
+
+    /// <summary>TOKEN_PRIVILEGES = PrivilegeCount + LUID_AND_ATTRIBUTES, 原生共 16 字节。
+    /// 注意不能把 Luid 写成 long: x64 下 8 字节对齐会插入 4 字节 padding 导致布局错位。</summary>
     [StructLayout(LayoutKind.Sequential)]
     private struct TokenPrivileges
     {
         public uint PrivilegeCount;
-        public long Luid;
+        public Luid Luid;
         public uint Attributes;
     }
 
@@ -100,6 +120,19 @@ public static class MemoryManagerService
     {
         public uint MinimumWorkingSet;
         public uint MaximumWorkingSet;
+    }
+
+    /// <summary>NtQuerySystemInformation(SystemMemoryListInformation) 返回的内存列表页数 (ULONG_PTR)。</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SystemMemoryListInfo
+    {
+        public IntPtr ZeroPageCount;
+        public IntPtr FreePageCount;
+        public IntPtr StandbyPageCount;
+        public IntPtr ModifiedPageCount;
+        public IntPtr ModifiedNoWritePageCount;
+        public IntPtr BadPageCount;
+        public IntPtr PageSize;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -122,11 +155,14 @@ public static class MemoryManagerService
     [DllImport("ntdll.dll")]
     private static extern uint NtSetSystemInformation(int SystemInformationClass, IntPtr SystemInformation, int SystemInformationLength);
 
+    [DllImport("ntdll.dll")]
+    private static extern uint NtQuerySystemInformation(int SystemInformationClass, IntPtr SystemInformation, int SystemInformationLength, out int ReturnLength);
+
     [DllImport("advapi32.dll", SetLastError = true)]
     private static extern bool OpenProcessToken(IntPtr processHandle, uint desiredAccess, out IntPtr tokenHandle);
 
     [DllImport("advapi32.dll", SetLastError = true)]
-    private static extern bool LookupPrivilegeValue(string systemName, string name, out long luid);
+    private static extern bool LookupPrivilegeValue(string systemName, string name, out Luid luid);
 
     [DllImport("advapi32.dll", SetLastError = true)]
     private static extern bool AdjustTokenPrivileges(IntPtr tokenHandle, bool disableAllPrivileges, ref TokenPrivileges newState, int bufferLength, IntPtr previousState, IntPtr returnLength);
@@ -136,6 +172,17 @@ public static class MemoryManagerService
 
     [DllImport("kernel32.dll")]
     private static extern bool CloseHandle(IntPtr handle);
+
+    // ---------- 文档化 API (收紧工作集回退方案) ----------
+
+    private const uint ProcessSetQuota = 0x0100;
+    private const uint ProcessQueryInformation = 0x0400;
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr OpenProcess(uint desiredAccess, bool inheritHandle, int processId);
+
+    [DllImport("psapi.dll", SetLastError = true)]
+    private static extern bool EmptyWorkingSet(IntPtr hProcess);
 
     private const string MemoryManagementKey = @"SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management";
 
@@ -295,28 +342,83 @@ public static class MemoryManagerService
         try { return Convert.ToInt64(value); } catch { return 0; }
     }
 
-    /// <summary>清理待机内存 (待机列表 + 已修改列表)。</summary>
-    public static void CleanStandbyMemory()
+    /// <summary>查询待机列表与已修改列表大小 (页数 × 页大小)。</summary>
+    public static MemoryListInfo GetMemoryLists()
     {
-        TrySetMemoryListCommand(MemoryPurgeStandbyList);
-        TrySetMemoryListCommand(MemoryFlushModifiedList);
+        var info = new SystemMemoryListInfo();
+        var size = Marshal.SizeOf<SystemMemoryListInfo>();
+        var ptr = Marshal.AllocHGlobal(size);
+        try
+        {
+            Marshal.StructureToPtr(info, ptr, false);
+            if (NtQuerySystemInformation(SystemMemoryListInformation, ptr, size, out _) != 0)
+                return new MemoryListInfo();
+            info = Marshal.PtrToStructure<SystemMemoryListInfo>(ptr);
+            var pageSize = info.PageSize.ToInt64();
+            return new MemoryListInfo
+            {
+                StandbyBytes = info.StandbyPageCount.ToInt64() * pageSize,
+                ModifiedBytes = (info.ModifiedPageCount.ToInt64() + info.ModifiedNoWritePageCount.ToInt64()) * pageSize
+            };
+        }
+        catch
+        {
+            return new MemoryListInfo();
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(ptr);
+        }
     }
 
-    /// <summary>收紧系统工作集 (清空所有进程工作集 + 收缩系统文件缓存)。</summary>
-    public static void TrimWorkingSets()
+    /// <summary>上次清理失败时的 NTSTATUS (0 表示成功), 供 UI 展示错误码。</summary>
+    public static uint LastCleanStatus { get; private set; }
+
+    /// <summary>清理待机内存 (待机列表 + 已修改列表), 返回释放的字节数; 失败返回 -1。</summary>
+    public static long CleanStandbyMemory()
+    {
+        // 清空内存列表需要 SeProfileSingleProcessPrivilege, 管理员令牌中该特权默认是禁用的, 必须先启用
+        EnablePrivilege("SeProfileSingleProcessPrivilege");
+        EnablePrivilege("SeIncreaseQuotaPrivilege");
+
+        var before = GetMemoryLists();
+        var s1 = SetMemoryListCommand(MemoryPurgeStandbyList);
+        var s2 = SetMemoryListCommand(MemoryFlushModifiedList);
+        var after = GetMemoryLists();
+
+        LastCleanStatus = s1 != 0 ? s1 : s2;
+        if (s1 != 0 || s2 != 0) return -1;
+        return Math.Max(0, before.Total - after.Total);
+    }
+
+    /// <summary>收紧系统工作集 (清空所有进程工作集 + 收缩系统文件缓存), 返回释放的字节数; 失败返回 -1。</summary>
+    public static long TrimWorkingSets()
     {
         EnablePrivilege("SeProfileSingleProcessPrivilege");
         EnablePrivilege("SeIncreaseQuotaPrivilege");
 
-        TrySetMemoryListCommand(MemoryEmptyWorkingSets);
-        TrimSystemFileCache();
+        var before = GetTotalWorkingSet();
+        var s1 = SetMemoryListCommand(MemoryEmptyWorkingSets);
+        if (s1 != 0)
+        {
+            // 内核级调用失败 (如缺少特权) 时, 回退到文档化 API 逐进程清空工作集
+            EmptyAllProcessWorkingSets();
+        }
+        var cacheStatus = TrimSystemFileCache();
+        var after = GetTotalWorkingSet();
+
+        LastCleanStatus = s1 != 0 ? s1 : cacheStatus;
+        if (s1 != 0 && cacheStatus != 0) return -1;
+        return Math.Max(0, before - after);
     }
 
-    /// <summary>全部清理。</summary>
-    public static void CleanAll()
+    /// <summary>全部清理, 返回释放的字节数; 失败返回 -1。</summary>
+    public static long CleanAll()
     {
-        CleanStandbyMemory();
-        TrimWorkingSets();
+        var standby = CleanStandbyMemory();
+        var trim = TrimWorkingSets();
+        if (standby < 0 && trim < 0) return -1;
+        return Math.Max(0, standby) + Math.Max(0, trim);
     }
 
     public static bool IsElevated
@@ -482,35 +584,82 @@ public static class MemoryManagerService
 
     // ---------- 内部实现 ----------
 
-    private static void TrySetMemoryListCommand(uint command)
+    /// <summary>所有进程工作集总和 (不含 Idle/System), 用于对比收紧前后的变化。</summary>
+    private static long GetTotalWorkingSet()
     {
-        SetSystemInfo(SystemMemoryListInformation, ref command);
+        long total = 0;
+        try
+        {
+            foreach (var p in Process.GetProcesses())
+            {
+                try
+                {
+                    if (p.Id != 0 && p.Id != 4)
+                        total += p.WorkingSet64;
+                }
+                catch { }
+                finally { p.Dispose(); }
+            }
+        }
+        catch { }
+        return total;
     }
 
-    private static void TrimSystemFileCache()
+    private static uint SetMemoryListCommand(uint command)
+    {
+        return SetSystemInfo(SystemMemoryListInformation, ref command);
+    }
+
+    private static uint TrimSystemFileCache()
     {
         if (IntPtr.Size == 8)
         {
             var info = new SystemCacheInfo64 { MinimumWorkingSet = -1, MaximumWorkingSet = -1 };
-            SetSystemInfo(SystemFileCacheInformation, ref info);
+            return SetSystemInfo(SystemFileCacheInformation, ref info);
         }
         else
         {
             var info = new SystemCacheInfo32 { MinimumWorkingSet = uint.MaxValue, MaximumWorkingSet = uint.MaxValue };
-            SetSystemInfo(SystemFileCacheInformation, ref info);
+            return SetSystemInfo(SystemFileCacheInformation, ref info);
         }
     }
 
-    private static void SetSystemInfo<T>(int infoClass, ref T data) where T : struct
+    /// <summary>文档化 API 回退: 用 EmptyWorkingSet 逐进程清空工作集 (需要 PROCESS_QUERY_INFORMATION | PROCESS_SET_QUOTA)。</summary>
+    private static void EmptyAllProcessWorkingSets()
+    {
+        try
+        {
+            foreach (var p in Process.GetProcesses())
+            {
+                try
+                {
+                    if (p.Id == 0 || p.Id == 4) continue;
+                    var handle = OpenProcess(ProcessQueryInformation | ProcessSetQuota, false, p.Id);
+                    if (handle == IntPtr.Zero) continue;
+                    try { EmptyWorkingSet(handle); }
+                    finally { CloseHandle(handle); }
+                }
+                catch { }
+                finally { p.Dispose(); }
+            }
+        }
+        catch { }
+    }
+
+    /// <summary>调用 NtSetSystemInformation, 返回 NTSTATUS (0 为成功), 失败不再静默吞掉。</summary>
+    private static uint SetSystemInfo<T>(int infoClass, ref T data) where T : struct
     {
         var size = Marshal.SizeOf<T>();
         var ptr = Marshal.AllocHGlobal(size);
         try
         {
             Marshal.StructureToPtr(data, ptr, false);
-            NtSetSystemInformation(infoClass, ptr, size);
+            return NtSetSystemInformation(infoClass, ptr, size);
         }
-        catch { }
+        catch
+        {
+            return uint.MaxValue;
+        }
         finally
         {
             Marshal.FreeHGlobal(ptr);
@@ -534,7 +683,8 @@ public static class MemoryManagerService
                     Luid = luid,
                     Attributes = SE_PRIVILEGE_ENABLED
                 };
-                AdjustTokenPrivileges(token, false, ref priv, Marshal.SizeOf<TokenPrivileges>(), IntPtr.Zero, IntPtr.Zero);
+                // PreviousState 为 NULL 时 BufferLength 必须为 0
+                AdjustTokenPrivileges(token, false, ref priv, 0, IntPtr.Zero, IntPtr.Zero);
             }
             finally
             {

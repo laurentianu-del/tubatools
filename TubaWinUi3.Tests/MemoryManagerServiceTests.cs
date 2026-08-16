@@ -1,9 +1,27 @@
+using System.Reflection;
+using System.Runtime.InteropServices;
 using TubaWinUi3.Services;
 
 namespace TubaWinUi3.Tests;
 
 public class MemoryManagerServiceTests
 {
+    /// <summary>
+    /// TOKEN_PRIVILEGES 原生布局: PrivilegeCount@0 + LUID(8B)@4 + Attributes@12, 共 16 字节。
+    /// 若写成 long Luid 会在 x64 上因 8 字节对齐产生 4 字节 padding, 导致 AdjustTokenPrivileges 收到错位的 LUID。
+    /// </summary>
+    [Fact]
+    public void TokenPrivilegesStruct_HasNativeLayout()
+    {
+        var type = typeof(MemoryManagerService).GetNestedType("TokenPrivileges", BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("TokenPrivileges struct not found");
+
+        Assert.Equal(16, Marshal.SizeOf(type));
+        Assert.Equal(0, (int)Marshal.OffsetOf(type, "PrivilegeCount"));
+        Assert.Equal(4, (int)Marshal.OffsetOf(type, "Luid"));
+        Assert.Equal(12, (int)Marshal.OffsetOf(type, "Attributes"));
+    }
+
     [Fact]
     public void ParsePageFileEntry_SystemManaged()
     {

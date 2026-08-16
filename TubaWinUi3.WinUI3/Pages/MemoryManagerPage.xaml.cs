@@ -284,30 +284,55 @@ public sealed partial class MemoryManagerPage : Page
 
     private void TrimWorkingSetButton_Click(object sender, RoutedEventArgs e) => RunClean(2, "收紧系统工作集");
 
-    private void RunClean(int type, string label)
+    private async void RunClean(int type, string label)
     {
         if (_cleaning) return;
         _cleaning = true;
         ShowToast($"正在执行{label}...", InfoBarSeverity.Informational);
 
-        Task.Run(() =>
+        try
         {
-            switch (type)
+            var freed = await Task.Run(() =>
             {
-                case 1: MemoryManagerService.CleanStandbyMemory(); break;
-                case 2: MemoryManagerService.TrimWorkingSets(); break;
-                default: MemoryManagerService.CleanAll(); break;
-            }
-        }).ContinueWith(t =>
-        {
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                _cleaning = false;
-                _lastScheduledClean = DateTime.Now;
-                LastCleanText.Text = $"上次清理: {DateTime.Now:HH:mm:ss}";
-                ShowToast($"{label}完成。", InfoBarSeverity.Success);
+                switch (type)
+                {
+                    case 1: return MemoryManagerService.CleanStandbyMemory();
+                    case 2: return MemoryManagerService.TrimWorkingSets();
+                    default: return MemoryManagerService.CleanAll();
+                }
             });
-        });
+
+            _lastScheduledClean = DateTime.Now;
+            if (freed < 0)
+            {
+                LastCleanText.Text = $"上次清理: {DateTime.Now:HH:mm:ss} · 失败";
+                var status = MemoryManagerService.LastCleanStatus;
+                ShowToast(status switch
+                {
+                    0xC0000061 => $"{label}失败：缺少 SeProfileSingleProcessPrivilege 特权 (0xC0000061)。",
+                    0xC0000022 => $"{label}失败：拒绝访问 (0xC0000022)。",
+                    _ when status != 0 => $"{label}失败 (0x{status:X8})。",
+                    _ => $"{label}失败。"
+                }, InfoBarSeverity.Error);
+                return;
+            }
+
+            var freedText = MemoryManagerService.FormatBytes(freed);
+            LastCleanText.Text = $"上次清理: {DateTime.Now:HH:mm:ss} · 释放 {freedText}";
+            ShowToast(freed > 0
+                ? $"{label}完成，释放约 {freedText}。"
+                : $"{label}完成，未检测到可释放内存。",
+                InfoBarSeverity.Success);
+        }
+        catch
+        {
+            LastCleanText.Text = $"上次清理: {DateTime.Now:HH:mm:ss} · 失败";
+            ShowToast($"{label}执行失败。", InfoBarSeverity.Error);
+        }
+        finally
+        {
+            _cleaning = false;
+        }
     }
 
     // ---------- 定时清理 ----------
