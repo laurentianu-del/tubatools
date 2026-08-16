@@ -12,7 +12,6 @@ public sealed partial class AntiMotionSicknessWindow : Page
 {
     private AntiMotionSicknessConfig _cfg;
     private bool _suppressEvents = true;
-    private bool _liteMode = false;
 
     public AntiMotionSicknessWindow()
     {
@@ -29,7 +28,7 @@ public sealed partial class AntiMotionSicknessWindow : Page
 
     private void OnPageUnloaded(object sender, RoutedEventArgs e)
     {
-        if (!_liteMode)
+        if (!App.IsLiteMode)
         {
             AntiMotionSicknessOverlay.CloseOverlay();
         }
@@ -220,7 +219,6 @@ public sealed partial class AntiMotionSicknessWindow : Page
 
     private void LiteModeButton_Click(object sender, RoutedEventArgs e)
     {
-        _liteMode = true;
         App.IsLiteMode = true;
 
         if (!AntiMotionSicknessOverlay.IsRunning)
@@ -231,7 +229,7 @@ public sealed partial class AntiMotionSicknessWindow : Page
         if (AntiMotionSicknessOverlay.IsRunning)
         {
             SaveConfigFromUI();
-            TrayIconService.Show();
+            TrayIconService.Show("游戏防晕3D", AntiMotionSicknessOverlay.CloseOverlay);
             App.MainWindow?.Close();
         }
     }

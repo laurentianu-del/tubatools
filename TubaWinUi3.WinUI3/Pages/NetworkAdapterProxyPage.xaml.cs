@@ -56,11 +56,27 @@ public sealed partial class NetworkAdapterProxyPage : Page
 
     private void OnPageUnloaded(object sender, RoutedEventArgs e)
     {
-        NetworkAdapterProxyService.StopAutoScheduling();
-        NetworkAdapterProxyService.StopMonitoring();
+        if (App.IsLiteMode) return;
+
+        StopServices();
         _refreshTimer?.Stop();
         NetworkAdapterProxyService.StatsUpdated -= OnStatsUpdated;
         NetworkAdapterProxyService.ScheduleUpdated -= OnScheduleUpdated;
+    }
+
+    private static void StopServices()
+    {
+        NetworkAdapterProxyService.StopAutoScheduling();
+        NetworkAdapterProxyService.StopMonitoring();
+    }
+
+    private void MinimizeToTrayButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_initialized) return;
+
+        App.IsLiteMode = true;
+        TrayIconService.Show("网络调度器", StopServices);
+        App.MainWindow?.Close();
     }
 
     private void MonitorToggle_Toggled(object sender, RoutedEventArgs e)

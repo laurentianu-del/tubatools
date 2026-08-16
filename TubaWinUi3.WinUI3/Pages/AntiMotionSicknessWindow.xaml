@@ -51,7 +51,7 @@
                     </Grid>
                 </Border>
 
-                <!-- Lite Mode Card -->
+                <!-- Minimize to tray -->
                 <Border Padding="14,10,14,10" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
                     <Grid ColumnSpacing="12">
                         <Grid.ColumnDefinitions>
@@ -61,13 +61,13 @@
                         </Grid.ColumnDefinitions>
                         <FontIcon FontSize="18" Glyph="&#xE73E;" Foreground="{ThemeResource SystemAccentColor}" />
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                            <TextBlock FontWeight="Bold" Text="精简模式" />
-                            <TextBlock FontSize="12" Opacity="1.0" TextWrapping="Wrap" Text="开启后关闭此窗口，只保留准星覆盖层，最小化内存占用" />
+                            <TextBlock FontWeight="Bold" Text="最小化的系统托盘" />
+                            <TextBlock FontSize="12" Opacity="1.0" TextWrapping="Wrap" Text="开启后隐藏主窗口，只保留准星覆盖层并驻留系统托盘" />
                         </StackPanel>
                         <Button x:Name="LiteModeButton" Grid.Column="2" VerticalAlignment="Center" Click="LiteModeButton_Click" Style="{ThemeResource AccentButtonStyle}">
                             <StackPanel Orientation="Horizontal" Spacing="4">
                                 <FontIcon FontSize="12" Glyph="&#xE73E;" />
-                                <TextBlock Text="进入精简" />
+                                <TextBlock Text="最小化的系统托盘" />
                             </StackPanel>
                         </Button>
                     </Grid>

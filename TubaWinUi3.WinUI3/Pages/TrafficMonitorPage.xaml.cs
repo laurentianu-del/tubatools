@@ -74,6 +74,8 @@ public sealed partial class TrafficMonitorPage : Page
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
         base.OnNavigatedFrom(e);
+        if (App.IsLiteMode) return;
+
         TrafficMonitorService.Tick -= OnServiceTick;
         TrafficMonitorService.Stop();
         ClosePopoutWindows();
@@ -81,6 +83,16 @@ public sealed partial class TrafficMonitorPage : Page
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => App.MainWindow?.NavigateBack();
+
+    private static void StopTrafficMonitoring() => TrafficMonitorService.Stop();
+
+    private void MinimizeToTrayButton_Click(object sender, RoutedEventArgs e)
+    {
+        ClosePopoutWindows();
+        App.IsLiteMode = true;
+        TrayIconService.Show("流量监控器", StopTrafficMonitoring);
+        App.MainWindow?.Close();
+    }
 
     #endregion
 
