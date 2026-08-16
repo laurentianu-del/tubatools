@@ -61,6 +61,10 @@ public sealed partial class AiAgentPage : UserControl
         InitializeComponent();
         _dq = DispatcherQueue.GetForCurrentThread();
 
+        // 输入法组合跟踪：组合中按 Enter 是确认候选词，不发送也不换行
+        InputBox.TextCompositionStarted += (_, _) => _isComposing = true;
+        InputBox.TextCompositionEnded += (_, _) => _isComposing = false;
+
         MsgPanel.ChildrenTransitions = new TransitionCollection
         {
             new EntranceThemeTransition { FromVerticalOffset = 16, IsStaggeringEnabled = true },
@@ -196,10 +200,15 @@ public sealed partial class AiAgentPage : UserControl
     private async void SendButton_Click(object sender, RoutedEventArgs e)
         => await SendAsync(InputBox.Text);
 
+    private bool _isComposing; // 输入法组合中（Enter 用于确认候选词）
+
     private void InputBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
-        if (e.Key == Windows.System.VirtualKey.Enter && !e.KeyStatus.IsMenuKeyDown &&
-            !Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)
+        if (e.OriginalKey != Windows.System.VirtualKey.Enter || _isComposing) return;
+
+        // Shift+Enter 换行；单独 Enter 发送（不用 e.KeyStatus.IsMenuKeyDown：
+        // CorePhysicalKeyStatus 在部分键盘驱动/输入法/远程桌面下误报，且 Alt+Enter 无实际用途）
+        if (!Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)
                 .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down))
         {
             e.Handled = true;

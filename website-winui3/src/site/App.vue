@@ -109,7 +109,7 @@ const pageSeo = {
   },
   download: {
     title: '图吧工具箱下载——免费PC硬件检测与系统维护工具集',
-    description: '图吧工具箱官方下载页。下载最新版图吧工具箱，完全免费、纯离线运行，支持x86/x64/ARM64全架构，一键安装即可使用82款专业硬件检测与系统维护工具。',
+    description: '图吧工具箱官方下载页。下载最新版图吧工具箱，完全免费、纯离线运行，支持x64/ARM64全架构，一键安装即可使用82款专业硬件检测与系统维护工具。',
     url: 'https://tubawinui3.cn/download'
   },
   about: {
@@ -124,7 +124,7 @@ const pageSeo = {
   },
   thanks: {
     title: '感谢下载图吧工具箱——免费PC硬件检测与系统维护工具集',
-    description: '感谢下载图吧工具箱，完全免费、纯离线运行，支持x86/x64/ARM64全架构。',
+    description: '感谢下载图吧工具箱，完全免费、纯离线运行，支持x64/ARM64全架构。',
     url: 'https://tubawinui3.cn/download/thanks'
   }
 };

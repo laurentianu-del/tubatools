@@ -19,7 +19,10 @@ public sealed class AgentSkill
     /// <summary>一句话简介（界面展示）。</summary>
     public required string Description { get; init; }
 
-    /// <summary>激活时注入系统提示词的 markdown 指导片段（触发条件 + 流程 + 工具调用约定）。</summary>
+    /// <summary>
+    /// 技能完整指导片段（触发条件 + 流程 + 工具调用约定）。按需加载：
+    /// 命中触发词时才随「系统指令」注入，不常驻系统提示词（索引仅含 DisplayName + Description）。
+    /// </summary>
     public required string SystemPromptFragment { get; init; }
 
     /// <summary>

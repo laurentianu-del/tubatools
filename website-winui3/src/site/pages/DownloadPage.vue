@@ -167,7 +167,7 @@
         </div>
       </div>
 
-      <!-- 系统要求 / 隐私 -->
+      <!-- 系统要求 -->
       <div class="dl-info-row">
         <div class="site-card dl-info-card">
           <h3>{{ t('download.sys-req') }}</h3>
@@ -191,14 +191,6 @@
               </tr>
             </tbody>
           </table>
-        </div>
-        <div class="site-card dl-info-card">
-          <h3>{{ t('download.privacy') }}</h3>
-          <ul class="site-check-list">
-            <li v-for="item in privacyItems" :key="item">
-              <span class="site-check-glyph" aria-hidden="true">&#xE73D;</span>{{ item }}
-            </li>
-          </ul>
         </div>
       </div>
 
@@ -233,7 +225,6 @@ const selectedArch = ref('x64');
 
 const archOptions = [
   { value: 'x64', label: 'x64' },
-  { value: 'x86', label: 'x86' },
   { value: 'arm64', label: 'ARM64' }
 ];
 
@@ -244,16 +235,13 @@ const detectedArch = computed(() => {
   if (!ua.includes('mobile') && !ua.includes('android') && !ua.includes('iphone') && !ua.includes('ipad')) {
     if (ua.includes('arm64') || ua.includes('aarch64') || platform.includes('arm')) return 'arm64';
   }
-  if (platform.includes('x86') && !ua.includes('wow64') && !ua.includes('win64')) return 'x86';
   return 'x64';
 });
 
 const detectedArchLabel = computed(() => {
-  const m = { x64: 'x64', x86: 'x86', arm64: 'ARM64', unknown: 'x64' };
+  const m = { x64: 'x64', arm64: 'ARM64', unknown: 'x64' };
   return m[detectedArch.value] || m.unknown;
 });
-
-const privacyItems = computed(() => t('download.privacy.items').split('|'));
 
 async function fetchGitCode() {
   try {

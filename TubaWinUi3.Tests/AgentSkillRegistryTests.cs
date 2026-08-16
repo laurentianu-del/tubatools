@@ -74,7 +74,7 @@ public class AgentSkillRegistryTests
     }
 
     [Fact]
-    public void BuildActiveSkillsContext_OnlyContainsActiveSkillFragments()
+    public void BuildActiveSkillsContext_OnlyContainsActiveSkillIndex()
     {
         ClearRegistry();
         AgentSkillRegistry.Register(MakeSkill("skill_a"));
@@ -83,8 +83,11 @@ public class AgentSkillRegistryTests
         var active = new[] { AgentSkillRegistry.Find("skill_a")! };
         var context = AgentSkillRegistry.BuildActiveSkillsContext(active);
 
+        // 索引：包含激活技能的名称与简介，不注入完整指导片段（按需加载）
         Assert.Contains("## 已加载技能", context);
-        Assert.Contains("这是 skill_a 的指导片段", context);
+        Assert.Contains("技能skill_a", context);
+        Assert.Contains("测试技能", context);
+        Assert.DoesNotContain("这是 skill_a 的指导片段", context);
         Assert.DoesNotContain("skill_b", context);
     }
 
