@@ -435,7 +435,11 @@ namespace TubaWinUi3.Services.RogueCleaner
             using (SHA256 sha = SHA256.Create()) using (FileStream stream = File.OpenRead(executablePath)) hash = BitConverter.ToString(sha.ComputeHash(stream)).Replace("-", string.Empty);
             FileVersionInfo version = FileVersionInfo.GetVersionInfo(executablePath);
             string signer = "未检测到有效签名";
+            // SYSLIB0057 无功能等价替代：X509CertificateLoader 只能解析 DER/PEM/PFX 证书文件，
+            // 无法从可执行文件中提取 Authenticode 签名证书（实测对嵌入签名 exe 全部失败），故保留旧 API。
+#pragma warning disable SYSLIB0057
             try { X509Certificate certificate = X509Certificate.CreateFromSignedFile(executablePath); if (certificate != null) signer = certificate.Subject; } catch { }
+#pragma warning restore SYSLIB0057
             string path = Path.Combine(store.Reports, "vendor-review-" + store.Timestamp() + ".md");
             string body = "# 安全软件误报复核材料\n\n- 产品：" + AppMeta.ProductName + "\n- 版本：" + AppMeta.Version + "\n- 文件名：" + Path.GetFileName(executablePath) + "\n- SHA-256：`" + hash + "`\n- 签名：" + signer + "\n- 生成时间：" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "\n\n该材料仅用于向安全软件厂商申请复核；程序不包含规避、绕过或对抗安全软件的功能。\n";
             File.WriteAllText(path, body, new UTF8Encoding(false));

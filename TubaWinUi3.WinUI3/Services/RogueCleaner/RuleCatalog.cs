@@ -523,10 +523,13 @@ namespace TubaWinUi3.Services.RogueCleaner
             {
                 try
                 {
+                    // SYSLIB0057 无功能等价替代：X509CertificateLoader 不能从可执行文件提取 Authenticode 签名证书，故保留旧 API
+#pragma warning disable SYSLIB0057
                     using (X509Certificate2 certificate = new X509Certificate2(X509Certificate.CreateFromSignedFile(path)))
                     {
                         identity.Signer = certificate.Subject;
                     }
+#pragma warning restore SYSLIB0057
                 }
                 catch { identity.SignatureValid = false; }
             }

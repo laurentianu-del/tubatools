@@ -156,7 +156,7 @@ namespace TubaWinUi3.Services.RogueCleaner
                 if (string.IsNullOrWhiteSpace(title) || bestScore < 16) return new ContextCommandProbeResult { Error = "未能读取动态命令文字。" };
                 return new ContextCommandProbeResult { Title = TranslateTitle(CleanTitle(title)), Icon = string.Empty, Source = "组件文字资源", Error = string.Empty };
             }
-            catch (Exception ex) { return new ContextCommandProbeResult { Error = "未能读取动态命令文字。" }; }
+            catch (Exception) { return new ContextCommandProbeResult { Error = "未能读取动态命令文字。" }; }
         }
 
         private static void CollectStrings(string text, HashSet<string> candidates)
