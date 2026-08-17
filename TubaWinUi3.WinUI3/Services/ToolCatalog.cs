@@ -722,6 +722,31 @@ public static class ToolCatalog
         "x86", "_x86", "32", "_32", "w32", "_Win32"
     ];
 
+    /// <summary>已知多架构工具的文件名模式映射（用于跨目录关联）。</summary>
+    private static readonly Dictionary<string, string[]> KnownMultiArchTools = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // CPUZ: cpuz_x64.exe, cpuz_x32.exe, cpuz_arm64.exe
+        ["cpuz"] = ["cpuz_x64.exe", "cpuz_x32.exe", "cpuz_arm64.exe", "cpuz64.exe", "cpuz32.exe"],
+        // hwinfo: HWiNFO64.exe, HWiNFO32.exe, HWiNFO_ARM64.exe
+        ["hwinfo"] = ["HWiNFO64.exe", "HWiNFO32.exe", "HWiNFO_ARM64.exe", "HWiNFO.exe"],
+        // HWMonitor: HWMonitor_x64.exe, HWMonitor_x32.exe, hwmonitor_arm64.exe
+        ["hwmonitor"] = ["HWMonitor_x64.exe", "HWMonitor_x32.exe", "hwmonitor_arm64.exe", "HWMonitor.exe"],
+        // Dism++: Dism++x64.exe, Dism++x86.exe, Dism++ARM64.exe
+        ["dism++"] = ["Dism++x64.exe", "Dism++x86.exe", "Dism++ARM64.exe", "Dism++.exe"],
+        // CoreTemp: Core Temp x64.exe, Core Temp x86.exe
+        ["coretemp"] = ["Core Temp x64.exe", "Core Temp x86.exe", "Core Temp.exe"],
+        // CrystalDiskInfo: DiskInfo64S.exe, DiskInfo32S.exe
+        ["crystaldiskinfo"] = ["DiskInfo64S.exe", "DiskInfo32S.exe", "DiskInfo.exe", "DiskInfo64.exe", "DiskInfo32.exe"],
+        // BOOTICE: BOOTICEx64.exe, BOOTICEx86.exe
+        ["bootice"] = ["BOOTICEx64.exe", "BOOTICEx86.exe", "BOOTICE.exe"],
+        // bluescreenview: BlueScreenViewx64.exe, BlueScreenViewx86.exe
+        ["bluescreenview"] = ["BlueScreenViewx64.exe", "BlueScreenViewx86.exe", "BlueScreenView.exe"],
+        // AIDA64: aida64.exe (通常只有一个版本，但可能有bench64.dll等)
+        ["aida64"] = ["aida64.exe", "aida64.exe.manifest"],
+        // LinX: linpack_xeon64.exe, linpack_xeon32.exe
+        ["linx"] = ["linpack_xeon64.exe", "linpack_xeon32.exe", "linpack_xeon.exe"]
+    };
+
     /// <summary>
     /// Architecture of the host OS (not the running process). Using <c>OSArchitecture</c>
     /// instead of <c>ProcessArchitecture</c> ensures correct detection even when the app
@@ -798,6 +823,7 @@ public static class ToolCatalog
         var dirName = Path.GetFileName(toolDir);
         var primaryExt = primaryPath is not null ? Path.GetExtension(primaryPath) : null;
 
+        // 1. 同目录内的架构变体
         var allLaunchables = Directory.EnumerateFiles(toolDir, "*", SearchOption.AllDirectories)
             .Where(IsLaunchable)
             .ToList();
@@ -827,6 +853,60 @@ public static class ToolCatalog
                 Path = filePath,
                 Arch = FormatArchDisplay(arch)
             });
+        }
+
+        // 2. 使用已知多架构工具映射表查找跨目录变体
+        if (primaryPath is not null)
+        {
+            var primaryFileName = Path.GetFileName(primaryPath);
+            var primaryBaseName = Path.GetFileNameWithoutExtension(primaryPath);
+
+            // 查找当前工具在映射表中的条目
+            foreach (var kvp in KnownMultiArchTools)
+            {
+                // 检查主文件是否匹配映射表中的任何模式
+                if (kvp.Value.Any(pattern => primaryFileName.Equals(pattern, StringComparison.OrdinalIgnoreCase)))
+                {
+                    // 在同分类目录下查找其他架构版本
+                    var categoryRoot = Path.GetDirectoryName(toolDir);
+                    if (categoryRoot is not null && Directory.Exists(categoryRoot))
+                    {
+                        foreach (var otherDir in Directory.GetDirectories(categoryRoot))
+                        {
+                            if (otherDir.Equals(toolDir, StringComparison.OrdinalIgnoreCase))
+                                continue;
+
+                            var otherDirName = Path.GetFileName(otherDir);
+                            // 检查目录名是否匹配（去除架构后缀后）
+                            var strippedOther = StripArchSuffix(otherDirName);
+                            var strippedCurrent = StripArchSuffix(dirName);
+                            if (!strippedOther.Equals(strippedCurrent, StringComparison.OrdinalIgnoreCase))
+                                continue;
+
+                            // 在该目录中查找匹配的架构版本
+                            foreach (var pattern in kvp.Value)
+                            {
+                                var candidatePath = Path.Combine(otherDir, pattern);
+                                if (File.Exists(candidatePath) && IsLaunchable(candidatePath))
+                                {
+                                    var candidateFileName = Path.GetFileNameWithoutExtension(candidatePath);
+                                    var candidateArch = DetectArch(candidateFileName);
+                                    if (candidateArch is not null && !variants.Any(v => v.Path.Equals(candidatePath, StringComparison.OrdinalIgnoreCase)))
+                                    {
+                                        variants.Add(new ArchVariant
+                                        {
+                                            Name = CleanupName(StripArchSuffix(candidateFileName)),
+                                            Path = candidatePath,
+                                            Arch = FormatArchDisplay(candidateArch)
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
         }
 
         return variants;
