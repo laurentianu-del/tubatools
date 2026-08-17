@@ -89,6 +89,7 @@ public static class MemoryManagerService
     private const uint SE_PRIVILEGE_ENABLED = 0x2;
     private const uint TOKEN_ADJUST_PRIVILEGES = 0x0020;
     private const uint TOKEN_QUERY = 0x0008;
+    private const int ERROR_NOT_ALL_ASSIGNED = 1300;
 
     /// <summary>LUID = LowPart + HighPart, 与 winnt.h 的 LUID 布局一致。</summary>
     [StructLayout(LayoutKind.Sequential)]
@@ -378,8 +379,11 @@ public static class MemoryManagerService
     public static long CleanStandbyMemory()
     {
         // 清空内存列表需要 SeProfileSingleProcessPrivilege, 管理员令牌中该特权默认是禁用的, 必须先启用
-        EnablePrivilege("SeProfileSingleProcessPrivilege");
-        EnablePrivilege("SeIncreaseQuotaPrivilege");
+        if (!EnablePrivilege("SeProfileSingleProcessPrivilege") || !EnablePrivilege("SeIncreaseQuotaPrivilege"))
+        {
+            LastCleanStatus = 0xC0000061; // STATUS_PRIVILEGE_NOT_HELD
+            return -1;
+        }
 
         var before = GetMemoryLists();
         var s1 = SetMemoryListCommand(MemoryPurgeStandbyList);
@@ -394,8 +398,11 @@ public static class MemoryManagerService
     /// <summary>收紧系统工作集 (清空所有进程工作集 + 收缩系统文件缓存), 返回释放的字节数; 失败返回 -1。</summary>
     public static long TrimWorkingSets()
     {
-        EnablePrivilege("SeProfileSingleProcessPrivilege");
-        EnablePrivilege("SeIncreaseQuotaPrivilege");
+        if (!EnablePrivilege("SeProfileSingleProcessPrivilege") || !EnablePrivilege("SeIncreaseQuotaPrivilege"))
+        {
+            LastCleanStatus = 0xC0000061;
+            return -1;
+        }
 
         var before = GetTotalWorkingSet();
         var s1 = SetMemoryListCommand(MemoryEmptyWorkingSets);
@@ -666,31 +673,36 @@ public static class MemoryManagerService
         }
     }
 
-    private static void EnablePrivilege(string privilegeName)
+    private static bool EnablePrivilege(string privilegeName)
     {
         try
         {
             var processHandle = GetCurrentProcess();
             if (!OpenProcessToken(processHandle, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, out var token))
-                return;
+                return false;
             try
             {
                 if (!LookupPrivilegeValue(null!, privilegeName, out var luid))
-                    return;
+                    return false;
                 var priv = new TokenPrivileges
                 {
                     PrivilegeCount = 1,
                     Luid = luid,
                     Attributes = SE_PRIVILEGE_ENABLED
                 };
-                // PreviousState 为 NULL 时 BufferLength 必须为 0
-                AdjustTokenPrivileges(token, false, ref priv, 0, IntPtr.Zero, IntPtr.Zero);
+                // AdjustTokenPrivileges 返回 TRUE 但部分特权未启用时, 需检查 GetLastError == ERROR_NOT_ALL_ASSIGNED
+                if (!AdjustTokenPrivileges(token, false, ref priv, 0, IntPtr.Zero, IntPtr.Zero))
+                    return false;
+                return Marshal.GetLastWin32Error() != ERROR_NOT_ALL_ASSIGNED;
             }
             finally
             {
                 CloseHandle(token);
             }
         }
-        catch { }
+        catch
+        {
+            return false;
+        }
     }
 }

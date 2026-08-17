@@ -155,10 +155,30 @@ internal sealed class BackendTrayHost : IDisposable
                 _iconOwned = false;
             }
 
+            // 等待 Explorer 通知区域就绪（开机自启时 Explorer 可能还没初始化完）。
+            // 最多重试 30 次，每次间隔 1 秒，共 30 秒。
             var nid = BuildNotifyIconData();
-            if (!Shell_NotifyIconW(NIM_ADD, ref nid))
+            const int maxRetries = 30;
+            bool trayAdded = false;
+            for (int i = 0; i < maxRetries; i++)
             {
-                BackEndLog.Warn($"托盘：Shell_NotifyIcon 添加失败 GLE={Marshal.GetLastWin32Error()}");
+                if (Shell_NotifyIconW(NIM_ADD, ref nid))
+                {
+                    trayAdded = true;
+                    break;
+                }
+                // 检查是否被要求退出（Dispose 发送了 WM_CLOSE）
+                if (_disposed) return;
+                // 检查 Explorer 托盘窗口是否存在，不存在则等 Explorer 启动
+                if (FindWindowW("Shell_TrayWnd", null) == IntPtr.Zero)
+                {
+                    BackEndLog.Info($"托盘：等待 Explorer 就绪（{i + 1}/{maxRetries}）...");
+                }
+                Thread.Sleep(1000);
+            }
+            if (!trayAdded)
+            {
+                BackEndLog.Warn($"托盘：Shell_NotifyIcon 添加失败（重试 {maxRetries} 次），GLE={Marshal.GetLastWin32Error()}");
                 RemoveIconAndWindow();
                 return;
             }
@@ -507,6 +527,9 @@ internal sealed class BackendTrayHost : IDisposable
 
     [DllImport("user32.dll")]
     private static extern bool DestroyIcon(IntPtr hIcon);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr FindWindowW(string? lpClassName, string? lpWindowName);
 
     [DllImport("user32.dll")]
     private static extern bool GetCursorPos(out POINT lpPoint);

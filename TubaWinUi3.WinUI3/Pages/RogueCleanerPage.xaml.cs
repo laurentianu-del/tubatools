@@ -82,6 +82,12 @@ public sealed partial class RogueCleanerPage : Page
         _store.Ensure();
         Logger.Initialize(_store);
         Loaded += OnLoaded;
+
+        // MSIX 沙箱下不支持主动拦截后端，隐藏导航项
+        if (RuntimeHelper.IsMsixPackaged)
+        {
+            NavActiveIntercept.Visibility = Visibility.Collapsed;
+        }
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -355,6 +361,8 @@ public sealed partial class RogueCleanerPage : Page
                 AiStatusDot.Fill = new SolidColorBrush(Color.FromArgb(255, 15, 157, 88));
                 AiRunningText.Text = "主动拦截后端：运行中";
                 CloseAiStatus();
+                // 后端已在运行但工作区未初始化（如开机自启场景），补初始化管道连接
+                InterceptWorkspace.Initialize(DispatcherQueue);
             }
             else
             {

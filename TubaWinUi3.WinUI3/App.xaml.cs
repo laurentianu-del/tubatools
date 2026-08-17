@@ -209,7 +209,8 @@ public partial class App : Application
         _ = Task.Run(() => ConfigManager.AutoMigratePathsIfNeeded());
 
         // 主动拦截：若用户开启了主动拦截，自动拉起 NativeAOT 后端（独立常驻进程）。
-        if (AppSettings.GetBool("ActiveInterceptEnabled", false))
+        // MSIX 沙箱下不支持启动独立后端进程。
+        if (!RuntimeHelper.IsMsixPackaged && AppSettings.GetBool("ActiveInterceptEnabled", false))
         {
             ActiveInterceptService.Start();
         }

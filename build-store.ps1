@@ -190,6 +190,11 @@ function Build-ArchPackage {
         Write-Host '  Removed Tools directory (downloaded at runtime in MSIX mode)' -ForegroundColor Yellow
     }
 
+    # Remove backend exe (MSIX sandbox cannot launch independent child processes)
+    Get-ChildItem -LiteralPath $archDir -Filter 'TubaWinUI3.BackEnd.*' -File -ErrorAction SilentlyContinue |
+        Remove-Item -Force -ErrorAction SilentlyContinue
+    Write-Host '  Removed TubaWinUI3.BackEnd.* (not supported in MSIX sandbox)' -ForegroundColor Yellow
+
     Write-Host '  Writing manifest...' -ForegroundColor Yellow
     Write-CleanManifest (Join-Path $archDir 'AppxManifest.xml') $Arch
 

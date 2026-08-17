@@ -1119,6 +1119,16 @@ public sealed partial class SettingsPage : Page
 
     private void InitActiveInterceptToggle()
     {
+        // MSIX 沙箱下不支持主动拦截后端，隐藏相关卡片
+        if (RuntimeHelper.IsMsixPackaged)
+        {
+            if (SettingsActiveInterceptCard is not null)
+                SettingsActiveInterceptCard.Visibility = Visibility.Collapsed;
+            if (SettingsActiveInterceptNotifyCard is not null)
+                SettingsActiveInterceptNotifyCard.Visibility = Visibility.Collapsed;
+            return;
+        }
+
         _activeInterceptInitializing = true;
         ActiveInterceptToggle.IsOn = AppSettings.GetBool("ActiveInterceptEnabled", false);
         _activeInterceptInitializing = false;

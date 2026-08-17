@@ -12,8 +12,8 @@ namespace TubaWinUi3.Pages;
 public sealed partial class WindowsOptimizePage : Page
 {
     private List<PcSetupAction> _actions = [];
-    private bool _suppressChecked;
-    private bool _applying;
+    private readonly Dictionary<PcSetupAction, ToggleSwitch> _toggleMap = [];
+    private bool _loading;
 
     public WindowsOptimizePage()
     {
@@ -21,126 +21,12 @@ public sealed partial class WindowsOptimizePage : Page
         Loaded += OnLoaded;
     }
 
-    private void OnLoaded(object sender, RoutedEventArgs e)
+    private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         _actions = SystemOptimizer.GetAllOptimizeActions();
-        BuildPresetCards();
         BuildOptimizeList();
-        RefreshSummary();
+        await LoadToggleStatesAsync();
     }
-
-    #region Preset Cards
-
-    private void BuildPresetCards()
-    {
-        PresetCardsPanel.ColumnDefinitions.Clear();
-        PresetCardsPanel.Children.Clear();
-        var presets = SystemOptimizer.GetVisualPresets();
-        for (var i = 0; i < presets.Count; i++)
-        {
-            PresetCardsPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            var card = CreatePresetCard(presets[i], presets[i].Name == "平衡");
-            Grid.SetColumn(card, i);
-            PresetCardsPanel.Children.Add(card);
-        }
-    }
-
-    private Border CreatePresetCard(VisualPreset preset, bool isSelected)
-    {
-        var card = new Border
-        {
-            Tag = preset.Name,
-            CornerRadius = new CornerRadius(12),
-            Padding = new Thickness(16, 12, 16, 12),
-            Background = isSelected
-                ? new SolidColorBrush(Color.FromArgb(30, 96, 165, 250))
-                : new SolidColorBrush(ThemeColors.CardBg),
-            BorderBrush = isSelected
-                ? new SolidColorBrush(ThemeColors.AccentBlue)
-                : new SolidColorBrush(ThemeColors.BorderColor),
-            BorderThickness = new Thickness(1.5)
-        };
-
-        var title = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        title.Children.Add(new FontIcon
-        {
-            Glyph = preset.Glyph,
-            FontSize = 15,
-            Foreground = isSelected ? new SolidColorBrush(ThemeColors.AccentBlue) : new SolidColorBrush(ThemeColors.DimText)
-        });
-        title.Children.Add(new TextBlock
-        {
-            Text = preset.Name,
-            FontSize = 14,
-            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
-            Foreground = new SolidColorBrush(ThemeColors.PrimaryText),
-            VerticalAlignment = VerticalAlignment.Center
-        });
-
-        card.Child = new StackPanel
-        {
-            Spacing = 4,
-            Children =
-            {
-                title,
-                new TextBlock
-                {
-                    Text = preset.Description,
-                    FontSize = 11.5,
-                    Foreground = new SolidColorBrush(ThemeColors.DimText),
-                    TextWrapping = TextWrapping.Wrap
-                }
-            }
-        };
-
-        card.PointerEntered += (_, _) =>
-        {
-            if (card.Tag as string != GetSelectedPreset())
-                card.Background = new SolidColorBrush(ThemeColors.RowHover);
-        };
-        card.PointerExited += (_, _) =>
-        {
-            if (card.Tag as string != GetSelectedPreset())
-                card.Background = new SolidColorBrush(ThemeColors.CardBg);
-        };
-        card.PointerPressed += (_, _) => SelectPreset(card.Tag as string ?? "");
-        return card;
-    }
-
-    private string GetSelectedPreset()
-    {
-        if (PresetCardsPanel.Children.Count == 0) return "";
-        for (var i = 0; i < PresetCardsPanel.Children.Count; i++)
-        {
-            if (PresetCardsPanel.Children[i] is Border b &&
-                b.BorderBrush is SolidColorBrush brush &&
-                brush.Color == ThemeColors.AccentBlue)
-                return b.Tag as string ?? "";
-        }
-        return "平衡";
-    }
-
-    private void SelectPreset(string presetName)
-    {
-        foreach (var child in PresetCardsPanel.Children)
-        {
-            if (child is not Border card) continue;
-            var selected = card.Tag as string == presetName;
-            card.Background = selected
-                ? new SolidColorBrush(Color.FromArgb(30, 96, 165, 250))
-                : new SolidColorBrush(ThemeColors.CardBg);
-            card.BorderBrush = selected
-                ? new SolidColorBrush(ThemeColors.AccentBlue)
-                : new SolidColorBrush(ThemeColors.BorderColor);
-            if (card.Child is StackPanel panel && panel.Children[0] is StackPanel title && title.Children[0] is FontIcon icon)
-                icon.Foreground = selected ? new SolidColorBrush(ThemeColors.AccentBlue) : new SolidColorBrush(ThemeColors.DimText);
-        }
-        SystemOptimizer.ApplyVisualPreset(_actions, presetName);
-        BuildOptimizeList();
-        RefreshSummary();
-    }
-
-    #endregion
 
     #region Optimize List
 
@@ -196,59 +82,70 @@ public sealed partial class WindowsOptimizePage : Page
             OptimizeList.Children.Add(header);
 
             foreach (var action in group)
-                OptimizeList.Children.Add(CreateOptimizeRow(action));
+                OptimizeList.Children.Add(action.IsToggle
+                    ? CreateToggleRow(action)
+                    : CreateRunRow(action));
         }
     }
 
-    private Border CreateOptimizeRow(PcSetupAction action)
+    private async Task LoadToggleStatesAsync()
     {
-        var cb = new CheckBox
+        _loading = true;
+        try
         {
-            IsChecked = action.IsSelected,
-            Tag = action.Id,
-            MinWidth = 0,
+            foreach (var (action, toggle) in _toggleMap)
+                toggle.IsOn = action.GetCurrentEnabled() ?? toggle.IsOn;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private Border CreateRunRow(PcSetupAction action)
+    {
+        var status = new TextBlock
+        {
+            Text = "点击执行",
+            FontSize = 11,
+            Foreground = new SolidColorBrush(ThemeColors.DimText),
+            HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center
         };
-        cb.Checked += async (_, _) =>
+
+        var row = BuildRow(action, status, withToggle: false);
+        row.PointerPressed += async (_, _) => await ExecuteRunAsync(action, row, status);
+        return row;
+    }
+
+    private Border CreateToggleRow(PcSetupAction action)
+    {
+        var status = new TextBlock
         {
-            if (_suppressChecked) return;
-            if (action.IsDangerous)
-            {
-                _suppressChecked = true;
-                cb.IsChecked = false;
-                _suppressChecked = false;
-                var dialog = new ContentDialog
-                {
-                    Title = "⚠ 高危操作确认",
-                    Content = $"「{action.Name}」属于高危操作：\n\n{action.Description}\n\n确定要启用此操作吗？",
-                    PrimaryButtonText = "确定启用",
-                    CloseButtonText = "取消",
-                    XamlRoot = XamlRoot,
-                    RequestedTheme = ThemeService.CurrentElementTheme
-                };
-                var result = await dialog.ShowAsync();
-                if (result == ContentDialogResult.Primary)
-                {
-                    action.IsSelected = true;
-                    _suppressChecked = true;
-                    cb.IsChecked = true;
-                    _suppressChecked = false;
-                    RefreshSummary();
-                }
-            }
-            else
-            {
-                action.IsSelected = true;
-                RefreshSummary();
-            }
-        };
-        cb.Unchecked += (_, _) =>
-        {
-            if (_suppressChecked) return;
-            action.IsSelected = false;
-            RefreshSummary();
+            Text = "",
+            FontSize = 11,
+            Foreground = new SolidColorBrush(ThemeColors.DimText),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center
         };
 
+        var toggle = new ToggleSwitch
+        {
+            OnContent = "已开启",
+            OffContent = "已关闭",
+            MinWidth = 120,
+            IsOn = false,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        _toggleMap[action] = toggle;
+
+        var row = BuildRow(action, status, withToggle: true, toggle: toggle);
+        toggle.Toggled += async (_, _) => await ExecuteToggleAsync(action, row, status, toggle);
+        return row;
+    }
+
+    private Border BuildRow(PcSetupAction action, TextBlock status, bool withToggle, ToggleSwitch? toggle = null)
+    {
         var iconBorder = new Border
         {
             Width = 34,
@@ -293,6 +190,22 @@ public sealed partial class WindowsOptimizePage : Page
                 }
             });
         }
+        if (action.IsToggle)
+        {
+            nameRow.Children.Add(new Border
+            {
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(6, 1, 6, 1),
+                Background = new SolidColorBrush(Color.FromArgb(30, 96, 165, 250)),
+                VerticalAlignment = VerticalAlignment.Center,
+                Child = new TextBlock
+                {
+                    Text = "开关",
+                    FontSize = 9.5,
+                    Foreground = new SolidColorBrush(ThemeColors.AccentBlue)
+                }
+            });
+        }
         nameStack.Children.Add(nameRow);
         nameStack.Children.Add(new TextBlock
         {
@@ -304,14 +217,21 @@ public sealed partial class WindowsOptimizePage : Page
 
         var grid = new Grid { ColumnSpacing = 10 };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        Grid.SetColumn(cb, 0);
-        Grid.SetColumn(iconBorder, 1);
-        Grid.SetColumn(nameStack, 2);
-        grid.Children.Add(cb);
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
+        if (withToggle)
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
+        Grid.SetColumn(iconBorder, 0);
+        Grid.SetColumn(nameStack, 1);
+        Grid.SetColumn(status, 2);
         grid.Children.Add(iconBorder);
         grid.Children.Add(nameStack);
+        grid.Children.Add(status);
+        if (withToggle && toggle is not null)
+        {
+            Grid.SetColumn(toggle, 3);
+            grid.Children.Add(toggle);
+        }
 
         var row = new Border
         {
@@ -331,211 +251,103 @@ public sealed partial class WindowsOptimizePage : Page
 
     #endregion
 
-    #region Summary & Selection
+    #region Execute
 
-    private void RefreshSummary()
+    private async Task ExecuteRunAsync(PcSetupAction action, Border row, TextBlock status)
     {
-        var selected = _actions.Count(a => a.IsSelected);
-        var dangerous = _actions.Count(a => a.IsSelected && a.IsDangerous);
-        SummaryText.Text = selected > 0
-            ? $"已选择 {selected} 项优化" + (dangerous > 0 ? $"（其中高危 {dangerous} 项）" : "")
-            : "勾选需要应用的优化项，或使用「推荐方案」快速选择";
-        ApplyBtn.IsEnabled = selected > 0 && !_applying;
-    }
+        if (action.State == PcSetupActionState.Running) return;
 
-    private void Recommended_Click(object sender, RoutedEventArgs e)
-    {
-        SystemOptimizer.ApplyRecommendedSelection(_actions);
-        BuildOptimizeList();
-        RefreshSummary();
-    }
+        if (action.IsDangerous && !await ConfirmDangerousAsync(action)) return;
 
-    private void SelectSafe_Click(object sender, RoutedEventArgs e)
-    {
-        SystemOptimizer.SelectAllSafe(_actions);
-        BuildOptimizeList();
-        RefreshSummary();
-    }
-
-    private void Clear_Click(object sender, RoutedEventArgs e)
-    {
-        SystemOptimizer.DeselectAll(_actions);
-        BuildOptimizeList();
-        RefreshSummary();
-    }
-
-    #endregion
-
-    #region Apply
-
-    private async void Apply_Click(object sender, RoutedEventArgs e)
-    {
-        if (_applying) return;
-
-        var actions = _actions.Where(a => a.IsSelected).ToList();
-        if (actions.Count == 0) return;
-
-        // 系统还原点必须最先执行，确保后续优化可回滚
-        actions = [.. actions.Where(a => a.Id == "sec-restore-point"), .. actions.Where(a => a.Id != "sec-restore-point")];
-
-        _applying = true;
-        ApplyBtn.IsEnabled = false;
-
-        var cts = new CancellationTokenSource();
-        var (dialog, rowUpdaters) = BuildApplyDialog(actions, cts);
-        var showTask = dialog.ShowAsync();
-
-        var successCount = 0;
-        var failCount = 0;
-        var doneCount = 0;
-
-        foreach (var action in actions)
+        SetRunning(row, status, "正在执行...");
+        try
         {
-            if (cts.IsCancellationRequested) break;
-            if (rowUpdaters.TryGetValue(action.Id, out var running))
-                running.Text = "正在执行...";
-            UpdateApplyProgress(dialog, doneCount, actions.Count, action.Name, running: true);
             var result = await action.ExecuteAsync(
                 new Progress<string>(line =>
                 {
-                    if (rowUpdaters.TryGetValue(action.Id, out var row))
-                        row.Text = line;
-                }), cts.Token);
-            doneCount++;
-            if (result.Success) successCount++;
-            else failCount++;
-            if (rowUpdaters.TryGetValue(action.Id, out var status))
-                status.Text = result.Success ? "✔ 完成" : $"✘ {result.Message}";
-            UpdateApplyProgress(dialog, doneCount, actions.Count, action.Name, running: false);
+                    if (status.Text == "正在执行...") status.Text = line;
+                }), CancellationToken.None);
+            SetResult(status, result.Success, result.Message);
         }
-
-        dialog.Hide();
-        await showTask;
-        cts.Dispose();
-
-        _applying = false;
-        ApplyBtn.IsEnabled = true;
-
-        var summary = $"优化完成：成功 {successCount} 项";
-        if (failCount > 0) summary += $"，失败 {failCount} 项";
-        var note = "";
-        if (failCount == 0 && actions.Any(a => a.Id == "sec-restore-point"))
-            note = "\n\n提示：部分优化需要重启电脑后生效。";
-        var doneDialog = new ContentDialog
+        catch (Exception ex)
         {
-            Title = successCount > 0 ? "优化完成" : "优化结果",
-            Content = summary + note,
-            CloseButtonText = "确定",
-            XamlRoot = XamlRoot,
-            RequestedTheme = ThemeService.CurrentElementTheme
-        };
-        await doneDialog.ShowAsync();
+            SetResult(status, false, ex.Message);
+        }
+        finally
+        {
+            row.Background = new SolidColorBrush(ThemeColors.CardBg);
+        }
     }
 
-    private (ContentDialog Dialog, Dictionary<string, TextBlock> StatusMap) BuildApplyDialog(
-        List<PcSetupAction> actions, CancellationTokenSource cts)
+    private async Task ExecuteToggleAsync(PcSetupAction action, Border row, TextBlock status, ToggleSwitch toggle)
     {
-        var statusMap = new Dictionary<string, TextBlock>();
-        var rows = new StackPanel { Spacing = 4 };
-        foreach (var action in actions)
-        {
-            var status = new TextBlock
-            {
-                Text = "排队中",
-                FontSize = 11,
-                Foreground = new SolidColorBrush(ThemeColors.DimText),
-                HorizontalAlignment = HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            statusMap[action.Id] = status;
+        if (_loading || action.State == PcSetupActionState.Running) return;
 
-            var row = new Border
-            {
-                CornerRadius = new CornerRadius(6),
-                Padding = new Thickness(10, 6, 10, 6),
-                Background = new SolidColorBrush(ThemeColors.CardBg),
-                BorderBrush = new SolidColorBrush(ThemeColors.BorderColor),
-                BorderThickness = new Thickness(1),
-                Child = new Grid
-                {
-                    ColumnSpacing = 8,
-                    ColumnDefinitions =
-                    {
-                        new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) },
-                        new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) }
-                    },
-                    Children =
-                    {
-                        new TextBlock
-                        {
-                            Text = action.Name,
-                            FontSize = 12.5,
-                            Foreground = new SolidColorBrush(ThemeColors.PrimaryText),
-                            VerticalAlignment = VerticalAlignment.Center,
-                            TextTrimming = TextTrimming.CharacterEllipsis
-                        },
-                        status
-                    }
-                }
-            };
-            Grid.SetColumn(status, 1);
-            rows.Children.Add(row);
+        var enabled = toggle.IsOn;
+        if (enabled && action.IsDangerous && !await ConfirmDangerousAsync(action))
+        {
+            toggle.IsOn = false;
+            return;
         }
 
-        var scroll = new ScrollViewer
+        toggle.IsEnabled = false;
+        SetRunning(row, status, enabled ? "正在启用..." : "正在还原...");
+        try
         {
-            MaxHeight = 340,
-            Content = rows,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
-        };
-
-        var cancelBtn = new Button
-        {
-            Content = "取消剩余优化",
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            Margin = new Thickness(0, 8, 0, 0)
-        };
-        cancelBtn.Click += (_, _) => cts.Cancel();
-
-        var panel = new StackPanel
-        {
-            Spacing = 8,
-            Children =
-            {
-                new ProgressBar { IsIndeterminate = false, Value = 0, Maximum = actions.Count },
-                new TextBlock
+            var result = await action.ExecuteAsync(enabled,
+                new Progress<string>(line =>
                 {
-                    Text = $"共 {actions.Count} 项优化，正在应用...",
-                    FontSize = 12,
-                    Foreground = new SolidColorBrush(ThemeColors.DimText)
-                },
-                scroll,
-                cancelBtn
+                    if (status.Text is "正在启用..." or "正在还原...") status.Text = line;
+                }), CancellationToken.None);
+            if (result.Success)
+            {
+                SetResult(status, true, enabled ? "已开启" : "已还原");
             }
-        };
+            else
+            {
+                SetResult(status, false, result.Message);
+                toggle.IsOn = !enabled;
+            }
+        }
+        catch (Exception ex)
+        {
+            SetResult(status, false, ex.Message);
+            toggle.IsOn = !enabled;
+        }
+        finally
+        {
+            toggle.IsEnabled = true;
+            row.Background = new SolidColorBrush(ThemeColors.CardBg);
+        }
+    }
 
+    private async Task<bool> ConfirmDangerousAsync(PcSetupAction action)
+    {
         var dialog = new ContentDialog
         {
-            Title = "正在应用优化",
-            Content = panel,
+            Title = "⚠ 高危操作确认",
+            Content = $"「{action.Name}」属于高危操作：\n\n{action.Description}\n\n确定要执行此操作吗？",
+            PrimaryButtonText = "确定执行",
+            CloseButtonText = "取消",
             XamlRoot = XamlRoot,
             RequestedTheme = ThemeService.CurrentElementTheme
         };
-        return (dialog, statusMap);
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 
-    private void UpdateApplyProgress(ContentDialog dialog, int done, int total, string name, bool running)
+    private void SetRunning(Border row, TextBlock status, string text)
     {
-        if (dialog.Content is StackPanel panel &&
-            panel.Children[0] is ProgressBar bar &&
-            panel.Children[1] is TextBlock info)
-        {
-            bar.Maximum = total;
-            bar.Value = done;
-            info.Text = running
-                ? $"正在应用: {name} ({done}/{total})"
-                : $"已完成: {name} ({done}/{total})";
-        }
+        row.Background = new SolidColorBrush(ThemeColors.SubtleBg);
+        status.Text = text;
+        status.Foreground = new SolidColorBrush(ThemeColors.AccentBlue);
+    }
+
+    private void SetResult(TextBlock status, bool success, string message)
+    {
+        status.Text = success ? "✔ 完成" : $"✘ {message}";
+        status.Foreground = new SolidColorBrush(success
+            ? ThemeColors.AccentGreen
+            : ThemeColors.AccentRed);
     }
 
     #endregion

@@ -72,6 +72,13 @@ public static class ActiveInterceptService
     /// <summary>启动后端（幂等）。写配置 + 拉起进程，失败不抛出。</summary>
     public static bool Start()
     {
+        // MSIX 打包模式下不支持主动拦截后端（沙箱限制无法启动独立进程）
+        if (RuntimeHelper.IsMsixPackaged)
+        {
+            System.Diagnostics.Debug.WriteLine("[ActiveIntercept] MSIX 模式下不支持主动拦截后端");
+            return false;
+        }
+
         lock (_lock)
         {
             if (_process is not null && !_process.HasExited) return true;
@@ -165,6 +172,16 @@ public static class ActiveInterceptService
                     }
                     _process.WaitForExit(2000);
                     _process = null;
+                }
+                else
+                {
+                    // _process 为空（后端非本次拉起），按进程名查找并杀掉
+                    var exe = Path.GetFileNameWithoutExtension(BackEndExePath);
+                    foreach (var p in Process.GetProcessesByName(exe))
+                    {
+                        try { p.Kill(entireProcessTree: true); p.WaitForExit(2000); } catch { }
+                        p.Dispose();
+                    }
                 }
             }
             catch
