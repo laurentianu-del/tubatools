@@ -48,7 +48,7 @@ public sealed partial class RogueCleanerPage : Page
     private readonly ScannerEngine _scanner = new();
     private readonly CleanerEngine _cleaner;
     private List<Finding> _allFindings = [];
-    private string _filter = "overview";
+    private string _filter = "popup";
     private CancellationTokenSource? _cts;
     private bool _scanning;
     private bool _suppressRender;
@@ -86,7 +86,7 @@ public sealed partial class RogueCleanerPage : Page
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        if (Nav.SelectedItem is null) Nav.SelectedItem = NavOverview;
+        if (Nav.SelectedItem is null) Nav.SelectedItem = NavContextMenu;
         BuildStatCards();
         RefreshContextMenus();
         RefreshRecovery();
@@ -118,8 +118,8 @@ public sealed partial class RogueCleanerPage : Page
 
     private void Nav_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
-        var tag = (args.SelectedItem as NavigationViewItem)?.Tag as string ?? "overview";
-        bool scanPanel = tag is "overview" or "startup" or "popup";
+        var tag = (args.SelectedItem as NavigationViewItem)?.Tag as string ?? "contextmenu";
+        bool scanPanel = tag is "popup";
         ScanPanel.Visibility = scanPanel ? Visibility.Visible : Visibility.Collapsed;
         ContextMenuPanel.Visibility = tag == "contextmenu" ? Visibility.Visible : Visibility.Collapsed;
         ActiveInterceptPanel.Visibility = tag == "activeintercept" ? Visibility.Visible : Visibility.Collapsed;
@@ -139,10 +139,6 @@ public sealed partial class RogueCleanerPage : Page
     private List<Finding> FilteredFindings()
     {
         if (_findingsAllMode) return _allFindings;
-        if (_filter == "startup")
-        {
-            return _allFindings.Where(RogueCleanerViewFilters.MatchesStartupTab).ToList();
-        }
         if (_filter == "popup")
         {
             return _allFindings.Where(RogueCleanerViewFilters.MatchesPopupTab).ToList();
@@ -316,6 +312,7 @@ public sealed partial class RogueCleanerPage : Page
     private bool _aiBusy;
     private bool _aiSuppressSelection;
     private bool _aiSubscribed;
+    private bool _aiStartupInitializing;
     private CancellationTokenSource? _aiRefreshCts;
 
     // ================= 生命周期与订阅 =================
@@ -337,6 +334,14 @@ public sealed partial class RogueCleanerPage : Page
         if (ActiveInterceptPanel is null) return;
         _aiPageActive = true;
         EnsureAiSubscriptions();
+
+        // 非管理员模式下显示遮罩，阻止使用
+        if (!AdminUtil.IsAdministrator())
+        {
+            AiAdminMask.Visibility = Visibility.Visible;
+            return;
+        }
+        AiAdminMask.Visibility = Visibility.Collapsed;
 
         var enabled = AppSettings.GetBool("ActiveInterceptEnabled", false);
         var running = ActiveInterceptService.IsRunning;
@@ -367,7 +372,65 @@ public sealed partial class RogueCleanerPage : Page
             ShowAiStatus("主动拦截后端已关闭：新增第三方右键菜单不会被自动拦截。可在上方或设置页开启。", InfoBarSeverity.Warning);
         }
 
+        _ = AiRefreshStartupStateAsync();
         _ = AiRefreshAllAsync(quiet: false);
+    }
+
+    /// <summary>读取开机自启计划任务状态并刷新开关 UI。</summary>
+    private async Task AiRefreshStartupStateAsync()
+    {
+        if (AiStartupToggle is null) return;
+        try
+        {
+            var type = await ActiveInterceptStartupService.GetStartupTypeAsync();
+            var on = type != ActiveInterceptStartupService.StartupType.None;
+            _aiStartupInitializing = true;
+            AiStartupToggle.IsOn = on;
+            _aiStartupInitializing = false;
+            AiStartupHint.Text = on
+                ? $"计划任务：{ActiveInterceptStartupService.ScheduleTaskName}"
+                : "未配置开机自启";
+        }
+        catch (Exception ex)
+        {
+            AiStartupHint.Text = $"读取开机自启状态失败：{ex.Message}";
+        }
+    }
+
+    private async void AiStartupToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_aiStartupInitializing) return;
+        var desired = AiStartupToggle.IsOn;
+        AiStartupToggle.IsEnabled = false;
+        try
+        {
+            var ok = await ActiveInterceptStartupService.SetStartupEnabledAsync(desired);
+            if (ok)
+            {
+                AiStartupHint.Text = desired
+                    ? $"计划任务：{ActiveInterceptStartupService.ScheduleTaskName}"
+                    : "未配置开机自启";
+                ShowAiStatus(desired ? "已设置主动拦截后端开机自启。" : "已取消主动拦截后端开机自启。", InfoBarSeverity.Success);
+            }
+            else
+            {
+                AiStartupToggle.IsOn = !desired;
+                AiStartupHint.Text = desired
+                    ? "开机自启设置失败：后端程序缺失，或计划任务创建未成功（需要管理员权限）。"
+                    : "取消失败：计划任务删除未成功。";
+                ShowAiStatus(desired ? "开机自启设置失败。" : "取消开机自启失败。", InfoBarSeverity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            AiStartupToggle.IsOn = !desired;
+            AiStartupHint.Text = $"操作失败：{ex.Message}";
+            ShowAiStatus("操作开机自启失败。", InfoBarSeverity.Error);
+        }
+        finally
+        {
+            AiStartupToggle.IsEnabled = true;
+        }
     }
 
     /// <summary>页面离开时调用：停止活动状态（托管于 OnNavigatedFrom）。</summary>
@@ -444,7 +507,11 @@ public sealed partial class RogueCleanerPage : Page
         try
         {
             var ok = await InterceptWorkspace.RefreshAsync();
-            if (!ok && !quiet)
+            if (ok)
+            {
+                CloseAiStatus();
+            }
+            else if (!quiet)
             {
                 ShowAiStatus("无法连接主动拦截后端（命名管道未就绪），请确认后端已启用。", InfoBarSeverity.Warning);
             }
@@ -2156,34 +2223,23 @@ public sealed partial class RogueCleanerPage : Page
         try
         {
             list = FilteredFindings();
-            bool allMode = _filter == "startup" && _startupAllMode;
-            ResultsList.Visibility = allMode ? Visibility.Collapsed : Visibility.Visible;
-            StartupAllList.Visibility = allMode ? Visibility.Visible : Visibility.Collapsed;
-            ShowAllStartupBtn.Visibility = _filter == "startup" && !allMode ? Visibility.Visible : Visibility.Collapsed;
-            BackToFindingsBtn.Visibility = allMode ? Visibility.Visible : Visibility.Collapsed;
+            ResultsList.Visibility = Visibility.Visible;
+            StartupAllList.Visibility = Visibility.Collapsed;
+            ShowAllStartupBtn.Visibility = Visibility.Collapsed;
+            BackToFindingsBtn.Visibility = Visibility.Collapsed;
 
-            if (!allMode)
+            ResultsList.ItemsSource = null;
+            ResultsList.ItemsSource = list;
+            FilterTitle.Text = _findingsAllMode ? "全部发现" : _filter switch
             {
-                ResultsList.ItemsSource = null;
-                ResultsList.ItemsSource = list;
-                FilterTitle.Text = _findingsAllMode ? "全部发现" : _filter switch
-                {
-                    "startup" => "开机启动相关",
-                    "popup" => "弹窗与守护进程诊断",
-                    _ => "全部发现"
-                };
-                RefreshCountText();
-            }
-            else
-            {
-                FilterTitle.Text = "全部启动项（只读，仅核对）";
-                CountText.Text = "";
-                CleanBtn.IsEnabled = false;
-            }
+                "popup" => "弹窗与守护进程诊断",
+                _ => "全部发现"
+            };
+            RefreshCountText();
             UpdateStatCards();
             ReportBtn.IsEnabled = _allFindings.Count > 0;
 
-            if (list.Count == 0 && !allMode)
+            if (list.Count == 0)
             {
                 EmptyPanel.Visibility = Visibility.Visible;
                 if (!_hasScanned)
@@ -2193,10 +2249,6 @@ public sealed partial class RogueCleanerPage : Page
                 else if (_findingsAllMode)
                 {
                     EmptyText.Text = "扫描完成，未发现可疑项。";
-                }
-                else if (_filter == "startup")
-                {
-                    EmptyText.Text = "扫描完成，未发现可疑启动项。\n可点击上方「查看全部启动项（只读）」核对全部开机启动项。";
                 }
                 else if (_filter == "popup")
                 {
@@ -2231,14 +2283,12 @@ public sealed partial class RogueCleanerPage : Page
     // 列表底部「展示全部」的提示与切换按钮；总览 tab 已显示全部，不显示
     private void UpdateFindingsFooter()
     {
-        if (_filter is not ("startup" or "popup"))
+        if (_filter is not "popup")
         {
             FindingsFooter.Visibility = Visibility.Collapsed;
             return;
         }
-        int filtered = _allFindings.Count(_filter == "startup"
-            ? RogueCleanerViewFilters.MatchesStartupTab
-            : RogueCleanerViewFilters.MatchesPopupTab);
+        int filtered = _allFindings.Count(RogueCleanerViewFilters.MatchesPopupTab);
         int hidden = _allFindings.Count - filtered;
         if (_findingsAllMode)
         {

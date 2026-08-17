@@ -473,7 +473,9 @@ internal sealed class BackendTrayHost : IDisposable
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr LoadIconW(IntPtr hInstance, IntPtr lpIconName);
 
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    // 注意：Shell_NotifyIcon 的 W/A 变体导出自 shell32.dll（user32.dll 中不存在该入口点，
+    // NativeAOT 下会抛 EntryPointNotFoundException 导致托盘线程崩溃、图标不显示）。
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     private static extern bool Shell_NotifyIconW(uint dwMessage, ref NOTIFYICONDATA lpData);
 
     [DllImport("user32.dll")]

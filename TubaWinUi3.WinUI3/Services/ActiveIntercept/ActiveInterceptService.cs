@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Toolkit.Uwp.Notifications;
@@ -66,6 +67,8 @@ public static class ActiveInterceptService
         }
     }
 
+    private const int ErrorNotSupported = 0x32;
+
     /// <summary>启动后端（幂等）。写配置 + 拉起进程，失败不抛出。</summary>
     public static bool Start()
     {
@@ -81,23 +84,47 @@ public static class ActiveInterceptService
 
                 WriteConfig();
 
-                var psi = new ProcessStartInfo
+                var args = $"\"--config\" \"{ConfigPath}\"";
+                try
                 {
-                    FileName = exePath,
-                    Arguments = $"\"--config\" \"{ConfigPath}\"",
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    WindowStyle = ProcessWindowStyle.Hidden,
-                };
-                _process = Process.Start(psi);
-                if (_process is null) return false;
+                    // UseShellExecute=true 通过 Shell 启动，避免 MSIX AppContainer 沙箱阻止子进程。
+                    _process = Process.Start(new ProcessStartInfo
+                    {
+                        FileName = exePath,
+                        Arguments = args,
+                        UseShellExecute = true,
+                        Verb = "open",
+                    });
+                }
+                catch (Win32Exception ex) when (ex.NativeErrorCode == ErrorNotSupported && RuntimeHelper.IsMsixPackaged)
+                {
+                    // MSIX 沙箱下 ShellExecuteEx 也受限时，以 cmd.exe 为载体启动（实测可行）。
+                    _process = Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "cmd.exe",
+                        Arguments = $"/c start \"\" \"{exePath}\" {args}",
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                    });
+                }
 
-                _process.EnableRaisingEvents = true;
-                // 后端是独立常驻进程：进程退出只清句柄，不自动重启（避免崩溃循环）。
-                _process.Exited += (_, _) =>
+                if (_process is not null)
                 {
-                    lock (_lock) _process = null;
-                };
+                    try
+                    {
+                        _process.EnableRaisingEvents = true;
+                        // 后端是独立常驻进程：进程退出只清句柄，不自动重启（避免崩溃循环）。
+                        _process.Exited += (_, _) =>
+                        {
+                            lock (_lock) _process = null;
+                        };
+                    }
+                    catch
+                    {
+                        // cmd.exe 载体的 Process 可能不支持 Exited 事件，忽略。
+                    }
+                }
+
                 _startedHere = true;
                 StartNotificationWatcher();
                 // 管道工作区：与后端建立常开通知订阅（推送驱动刷新，取代轮询）
@@ -148,6 +175,8 @@ public static class ActiveInterceptService
     }
 
     /// <summary>写后端配置文件到数据目录（JSON，JsonSerializer 保证转义正确）。</summary>
+    public static void EnsureConfigWritten() => WriteConfig();
+
     private static void WriteConfig()
     {
         try

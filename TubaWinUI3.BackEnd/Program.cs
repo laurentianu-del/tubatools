@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using TubaWinUI3.BackEnd.Models;
 
 namespace TubaWinUI3.BackEnd;
@@ -18,6 +19,13 @@ internal static class Program
 
     private static int Main(string[] args)
     {
+        // 常驻托盘服务：隐藏自身控制台窗口（后台服务不弹黑窗口）。
+        // 但 --help 时保留控制台方便查看用法。
+        if (!args.Any(a => a is "--help" or "-h" or "-?"))
+        {
+            HideConsoleWindow();
+        }
+
         if (args.Any(a => string.Equals(a, "--help", StringComparison.OrdinalIgnoreCase) ||
                           string.Equals(a, "-h", StringComparison.OrdinalIgnoreCase) ||
                           string.Equals(a, "-?", StringComparison.OrdinalIgnoreCase)))
@@ -168,6 +176,30 @@ internal static class Program
     private static void SafeCancel(CancellationTokenSource cts)
     {
         try { cts.Cancel(); } catch { }
+    }
+
+    // ---------- 控制台窗口隐藏 ----------
+
+    private const int SW_HIDE = 0;
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetConsoleWindow();
+
+    [DllImport("user32.dll")]
+    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    /// <summary>隐藏后端自身的控制台窗口（常驻托盘服务无黑窗口）。失败静默忽略。</summary>
+    private static void HideConsoleWindow()
+    {
+        try
+        {
+            var hwnd = GetConsoleWindow();
+            if (hwnd != IntPtr.Zero) ShowWindow(hwnd, SW_HIDE);
+        }
+        catch
+        {
+            // 非交互环境（如服务/无控制台）下静默忽略
+        }
     }
 
     private static void LaunchMainApp(string arg)

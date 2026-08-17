@@ -289,16 +289,10 @@
                         IsBackButtonVisible="Collapsed" IsPaneToggleButtonVisible="False"
                         SelectionChanged="Nav_SelectionChanged" Margin="0,4,0,0">
             <NavigationView.MenuItems>
-                <NavigationViewItem x:Name="NavOverview" Content="总览" Tag="overview">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE8FD;"/></NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem x:Name="NavStartup" Content="启动项管理" Tag="startup">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE91B;"/></NavigationViewItem.Icon>
-                </NavigationViewItem>
                 <NavigationViewItem x:Name="NavContextMenu" Content="右键菜单管理" Tag="contextmenu">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xE74C;"/></NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem x:Name="NavActiveIntercept" Content="主动拦截" Tag="activeintercept">
+                <NavigationViewItem x:Name="NavActiveIntercept" Content="右键菜单管理-顽固软件版" Tag="activeintercept">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xE899;"/></NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <NavigationViewItem x:Name="NavPopup" Content="弹窗/流氓诊断" Tag="popup">
@@ -675,6 +669,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
@@ -724,8 +719,26 @@
                     <!-- 操作反馈 -->
                     <InfoBar x:Name="AiStatusBar" Grid.Row="2" IsOpen="False" IsClosable="True" IsIconVisible="True"/>
 
+                    <!-- 开机自启 -->
+                    <Border Grid.Row="3" BorderThickness="1" CornerRadius="6" Padding="14,8"
+                            BorderBrush="{ThemeResource SubtleFillColorSecondaryBrush}" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock FontSize="13" FontWeight="SemiBold" Text="开机自启主动拦截后端"/>
+                                <TextBlock x:Name="AiStartupHint" FontSize="11" Opacity="0.6" TextWrapping="Wrap"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            </StackPanel>
+                            <ToggleSwitch x:Name="AiStartupToggle" Grid.Column="1" VerticalAlignment="Center"
+                                          OnContent="已启用" OffContent="未启用" Toggled="AiStartupToggle_Toggled"/>
+                        </Grid>
+                    </Border>
+
                     <!-- 视图切换：拦截列表 / 操作记录 -->
-                    <SelectorBar x:Name="AiViewBar" Grid.Row="3" SelectionChanged="AiViewBar_SelectionChanged">
+                    <SelectorBar x:Name="AiViewBar" Grid.Row="4" SelectionChanged="AiViewBar_SelectionChanged">
                         <SelectorBar.Items>
                             <SelectorBarItem Text="拦截列表" Tag="items" IsSelected="True"/>
                             <SelectorBarItem Text="操作记录" Tag="events"/>
@@ -733,7 +746,7 @@
                     </SelectorBar>
 
                     <!-- 筛选（拦截列表视图：状态） -->
-                    <SelectorBar x:Name="AiFilterBar" Grid.Row="4" SelectionChanged="AiFilterBar_SelectionChanged">
+                    <SelectorBar x:Name="AiFilterBar" Grid.Row="5" SelectionChanged="AiFilterBar_SelectionChanged">
                         <SelectorBar.Items>
                             <SelectorBarItem Text="全部" Tag="all" IsSelected="True"/>
                             <SelectorBarItem Text="待审核" Tag="pending"/>
@@ -745,7 +758,7 @@
                     </SelectorBar>
 
                     <!-- 搜索框 -->
-                    <Grid Grid.Row="5" Margin="0,4,0,0" ColumnSpacing="8">
+                    <Grid Grid.Row="6" Margin="0,4,0,0" ColumnSpacing="8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
@@ -759,7 +772,7 @@
                     </Grid>
 
                     <!-- 列表 + 详情 -->
-                    <Grid Grid.Row="6" Margin="0,6,0,0" ColumnSpacing="12">
+                    <Grid Grid.Row="7" Margin="0,6,0,0" ColumnSpacing="12">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="320"/>
@@ -892,6 +905,19 @@
                                 </StackPanel>
                             </Grid>
                         </Border>
+                    </Grid>
+
+                    <!-- 非管理员遮罩 -->
+                    <Grid x:Name="AiAdminMask" Grid.RowSpan="7" Visibility="Collapsed"
+                          Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" Opacity="0.92">
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
+                            <FontIcon Glyph="&#xE730;" FontSize="48"
+                                      Foreground="{ThemeResource SystemFillColorCriticalBrush}" HorizontalAlignment="Center"/>
+                            <TextBlock Text="请用管理员打开本软件再使用该功能！" FontSize="18" FontWeight="SemiBold"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}" HorizontalAlignment="Center"/>
+                            <TextBlock Text="右键菜单管理-顽固软件版需要管理员权限才能正常运行" FontSize="13"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center"/>
+                        </StackPanel>
                     </Grid>
                 </Grid>
                 <!-- ============ 恢复中心 ============ -->

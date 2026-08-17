@@ -17,8 +17,7 @@ public sealed class RogueCleanerTool : IBuiltinTool
 
     public Task ExecuteAsync(BuiltinToolContext context)
     {
-        // 参数 "contextmenu"：让右键菜单管理工具（ContextMenuMgrTool）直接定位到右键管理分区。
-        App.MainWindow?.NavigateToToolPage(typeof(RogueCleanerPage), "overview");
+        App.MainWindow?.NavigateToToolPage(typeof(RogueCleanerPage), "contextmenu");
         return Task.CompletedTask;
     }
 }
