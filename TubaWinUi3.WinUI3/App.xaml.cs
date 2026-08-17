@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using TubaWinUi3.Pages;
 using TubaWinUi3.Services;
+using TubaWinUi3.Services.ActiveIntercept;
 using TubaWinUi3.Services.Agent;
 using TubaWinUi3.Models;
 namespace TubaWinUi3;
@@ -85,6 +86,41 @@ public partial class App : Application
             return;
         }
 
+        // 后端 --toast 模式：读取通知文件，弹出 Windows 原生 Toast 后立即退出（不显示主窗口）。
+        // 双通道防重复：主程序已运行时 FileSystemWatcher 先消费文件，此处读不到即跳过。
+        var toastIndex = Array.FindIndex(cmdLine, a => string.Equals(a, "--toast", StringComparison.OrdinalIgnoreCase));
+        if (toastIndex >= 0 && toastIndex + 1 < cmdLine.Length)
+        {
+            var notifFile = cmdLine[toastIndex + 1];
+            try
+            {
+                // 延迟等待 FileSystemWatcher 先处理（主程序已运行时）
+                Thread.Sleep(500);
+                if (File.Exists(notifFile))
+                {
+                    var json = File.ReadAllText(notifFile);
+                    var req = System.Text.Json.JsonSerializer.Deserialize(
+                        json, Services.ActiveIntercept.ActiveInterceptJsonContext.Default.NotificationRequest);
+                    if (req is not null && !string.IsNullOrWhiteSpace(req.Title))
+                    {
+                        new Microsoft.Toolkit.Uwp.Notifications.ToastContentBuilder()
+                            .AddText(req.Title)
+                            .AddText(req.Body)
+                            .AddArgument("action", "show-active-intercept")
+                            .Show(toast =>
+                            {
+                                toast.ExpirationTime = DateTimeOffset.Now.AddMinutes(10);
+                            });
+                    }
+                    try { File.Delete(notifFile); } catch { }
+                }
+                // 文件已被 FileSystemWatcher 消费 → 无需重复弹通知
+            }
+            catch { }
+            Exit();
+            return;
+        }
+
         // 构建工具缓存模式（publish 时由 GenerateBundledToolCache MSBuild target 调用）：
         // 扫描 Tools 目录并把结果写入 Metadata/tool_cache.json 随包分发，
         // 运行时直接读取免去全量扫描。复用全部扫描逻辑，无窗口后台运行。
@@ -98,8 +134,8 @@ public partial class App : Application
                 try
                 {
                     ToolCatalog.SetToolsRootForBuild(toolsRoot);
-                    var tools = ToolCatalog.GetAllToolsCached();
-                    ToolCacheService.SaveCacheTo(ToolCatalog.ToCacheEntries(tools), outJson);
+                    ToolCatalog.GetAllToolsCached(); // 预热扫描（构建环境）
+                    ToolCacheService.SaveCacheTo(ToolCatalog.BuildCacheEntries(), outJson);
                 }
                 catch (Exception ex)
                 {
@@ -138,6 +174,15 @@ public partial class App : Application
         ToolItem.SetUIDispatcher(_window.DispatcherQueue);
         BrowserAutomationService.Initialize(_window.DispatcherQueue);
 
+        // 主动拦截 Toast 通知被点击时，后端以 --show-active-intercept 启动主程序，
+        // 直接跳转「流氓软件的克星 → 主动拦截」审核页。
+        var showActiveIntercept = cmdLine
+            .Any(a => string.Equals(a, "--show-active-intercept", StringComparison.OrdinalIgnoreCase));
+        if (showActiveIntercept)
+        {
+            _window.NavigateToToolPage(typeof(Pages.RogueCleanerPage), "activeintercept");
+        }
+
         _ = RunStartupSequenceAsync();
     }
 
@@ -162,6 +207,12 @@ public partial class App : Application
         // 硬件 WMI 盘点（20+ 条查询）移到首次打开硬件信息页时预热。
         _ = DelayThenRunAsync(TimeSpan.FromSeconds(15), () => { ToolIconService.CleanExpiredCache(); return Task.CompletedTask; });
         _ = Task.Run(() => ConfigManager.AutoMigratePathsIfNeeded());
+
+        // 主动拦截：若用户开启了主动拦截，自动拉起 NativeAOT 后端（独立常驻进程）。
+        if (AppSettings.GetBool("ActiveInterceptEnabled", false))
+        {
+            ActiveInterceptService.Start();
+        }
 
         try
         {

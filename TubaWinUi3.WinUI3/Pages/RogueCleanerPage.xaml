@@ -164,6 +164,38 @@
                 </Border>
             </Grid>
         </DataTemplate>
+
+<!-- 主动拦截事件行模板：复选框 / 动作标签 / 名称+位置 / 程序 / 时间 -->
+        <local:ActionToBrushConverter x:Key="ActionBrush"/>
+        <DataTemplate x:Key="AiEventRowTemplate">
+            <Grid Padding="2,6" ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="36"/>
+                    <ColumnDefinition Width="76"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="130"/>
+                </Grid.ColumnDefinitions>
+                <CheckBox Grid.Column="0" IsChecked="{Binding Selected, Mode=TwoWay}"
+                          MinWidth="0" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <Border Grid.Column="1" CornerRadius="4" Padding="8,3" VerticalAlignment="Center" HorizontalAlignment="Left"
+                        Background="{Binding Action, Converter={StaticResource ActionBrush}}">
+                    <TextBlock Text="{Binding ActionText}" FontSize="11" Foreground="White"/>
+                </Border>
+                <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="1">
+                    <TextBlock Text="{Binding Name}" FontSize="13" TextTrimming="CharacterEllipsis"
+                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                    <TextBlock Text="{Binding SubKeyShort}" FontSize="11" TextTrimming="CharacterEllipsis"
+                               Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                </StackPanel>
+                <TextBlock Grid.Column="3" Text="{Binding ExeFileName}" FontSize="12" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           ToolTipService.ToolTip="{Binding ExePath}"/>
+                <TextBlock Grid.Column="4" Text="{Binding TimeText}" FontSize="12" VerticalAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </Grid>
+        </DataTemplate>
     </Page.Resources>
 
     <Grid>
@@ -192,6 +224,9 @@
                 </NavigationViewItem>
                 <NavigationViewItem x:Name="NavContextMenu" Content="右键菜单管理" Tag="contextmenu">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xE74C;"/></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem x:Name="NavActiveIntercept" Content="主动拦截" Tag="activeintercept">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE899;"/></NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <NavigationViewItem x:Name="NavPopup" Content="弹窗/流氓诊断" Tag="popup">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xE783;"/></NavigationViewItem.Icon>
@@ -558,6 +593,190 @@
                     </Grid>
                 </Grid>
 
+<!-- ============ 主动拦截（后端审核） ============ -->
+                <Grid x:Name="ActiveInterceptPanel" Visibility="Collapsed" RowSpacing="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- 状态 / 统计 -->
+                    <Grid Grid.Row="0" ColumnSpacing="14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                            <Ellipse x:Name="AiStatusDot" Width="10" Height="10" VerticalAlignment="Center" Fill="Gray"/>
+                            <TextBlock x:Name="AiRunningText" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="主动拦截后端：检测中…"/>
+                        </StackPanel>
+                        <TextBlock x:Name="AiCountText" Grid.Column="1" FontSize="12" VerticalAlignment="Center"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis"/>
+                        <Border x:Name="AiSelectionPill" Grid.Column="2" CornerRadius="12" Padding="12,3"
+                                Background="{ThemeResource AccentFillColorDefaultBrush}" Visibility="Collapsed"
+                                VerticalAlignment="Center">
+                            <TextBlock x:Name="AiSelectionText" FontSize="12" FontWeight="SemiBold" Foreground="White" Text="已选 0 项"/>
+                        </Border>
+                    </Grid>
+
+                    <!-- 工具栏 -->
+                    <ScrollViewer Grid.Row="1" HorizontalScrollMode="Auto" VerticalScrollMode="Disabled"
+                                  HorizontalScrollBarVisibility="Hidden">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button x:Name="AiRefreshBtn" Content="刷新" Style="{ThemeResource AccentButtonStyle}" Click="AiRefresh_Click"/>
+                            <Button x:Name="AiSelectAllBtn" Content="全选" Click="AiSelectAll_Click"/>
+                            <Button x:Name="AiDeselectAllBtn" Content="取消全选" Click="AiDeselectAll_Click"/>
+                            <Border Width="1" Height="20" VerticalAlignment="Center" Background="{ThemeResource CardStrokeColorDefaultBrush}"/>
+                            <Button x:Name="AiBatchAllowBtn" Content="放行选中" IsEnabled="False" Click="AiBatchAllow_Click"/>
+                            <Button x:Name="AiBatchReblockBtn" Content="重新拦截选中" IsEnabled="False" Click="AiBatchReblock_Click"/>
+                            <Button x:Name="AiBatchDeleteBtn" Content="删除记录" IsEnabled="False" Click="AiBatchDelete_Click"/>
+                            <Button x:Name="AiBatchTrackBtn" Content="停止追踪" IsEnabled="False" Click="AiBatchTrack_Click"/>
+                            <Border Width="1" Height="20" VerticalAlignment="Center" Background="{ThemeResource CardStrokeColorDefaultBrush}"/>
+                            <Button x:Name="AiClearAllBtn" Content="清空记录" Click="AiClearAll_Click"/>
+                            <Button x:Name="AiShowIgnoredBtn" Content="已忽略（0）" Click="AiShowIgnored_Click"/>
+                            <Button x:Name="AiOpenSettingsBtn" Content="通知设置" Click="AiOpenSettings_Click"/>
+                            <Border Width="1" Height="20" VerticalAlignment="Center" Background="{ThemeResource CardStrokeColorDefaultBrush}"/>
+                            <Button x:Name="AiEnableBackendBtn" Content="启用主动拦截" Click="AiEnableBackend_Click" Visibility="Collapsed"/>
+                            <Button x:Name="AiDisableBackendBtn" Content="关闭主动拦截" Click="AiDisableBackend_Click" Visibility="Collapsed"/>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- 操作反馈 -->
+                    <InfoBar x:Name="AiStatusBar" Grid.Row="2" IsOpen="False" IsClosable="True" IsIconVisible="True"/>
+
+                    <!-- 筛选 -->
+                    <SelectorBar x:Name="AiFilterBar" Grid.Row="3" SelectionChanged="AiFilterBar_SelectionChanged">
+                        <SelectorBar.Items>
+                            <SelectorBarItem Text="全部" Tag="all" IsSelected="True"/>
+                            <SelectorBarItem Text="已拦截" Tag="blocked"/>
+                            <SelectorBarItem Text="已放行" Tag="allowed"/>
+                            <SelectorBarItem Text="拦截失败" Tag="failed"/>
+                        </SelectorBar.Items>
+                    </SelectorBar>
+
+                    <!-- 搜索框 -->
+                    <Grid Grid.Row="4" Margin="0,4,0,0" ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="AiSearchBox" Grid.Column="0"
+                                 PlaceholderText="搜索拦截记录：名称、注册表位置、程序路径…"
+                                 TextChanged="AiSearchBox_TextChanged"/>
+                        <Button x:Name="AiSearchClearBtn" Grid.Column="1" Content="&#xE711;" FontSize="12"
+                                Width="34" Padding="0" Click="AiSearchClear_Click" Visibility="Collapsed"
+                                ToolTipService.ToolTip="清空搜索" VerticalAlignment="Stretch"/>
+                    </Grid>
+
+                    <!-- 列表 + 详情 -->
+                    <Grid Grid.Row="5" Margin="0,6,0,0" ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="320"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- 事件列表 -->
+                        <Grid Grid.Column="0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <!-- 表头 -->
+                            <Grid Padding="2,0" ColumnSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="36"/>
+                                    <ColumnDefinition Width="76"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="180"/>
+                                    <ColumnDefinition Width="130"/>
+                                </Grid.ColumnDefinitions>
+                                <CheckBox x:Name="AiMasterCheck" Grid.Column="0" IsThreeState="True"
+                                          MinWidth="0" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          ToolTipService.ToolTip="全选 / 取消全选当前列表" Click="AiMasterCheck_Click"/>
+                                <TextBlock Grid.Column="1" Text="动作" FontSize="11" FontWeight="Bold"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <TextBlock Grid.Column="2" Text="名称 / 注册表位置" FontSize="11" FontWeight="Bold"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <TextBlock Grid.Column="3" Text="所属程序" FontSize="11" FontWeight="Bold"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <TextBlock Grid.Column="4" Text="时间" FontSize="11" FontWeight="Bold"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            </Grid>
+                            <ListView x:Name="AiEventList" Grid.Row="1" Margin="0,4,0,0"
+                                      ItemTemplate="{StaticResource AiEventRowTemplate}"
+                                      SelectionMode="Single"
+                                      SelectionChanged="AiEventList_SelectionChanged"
+                                      RightTapped="AiEventList_RightTapped">
+                                <ListView.ContextFlyout>
+                                    <MenuFlyout x:Name="AiFlyout">
+                                        <MenuFlyoutItem x:Name="AiFlyAllow" Text="放行" Click="AiFlyAllow_Click"/>
+                                        <MenuFlyoutItem x:Name="AiFlyTrust" Text="放行并信任此程序" Click="AiFlyTrust_Click"/>
+                                        <MenuFlyoutItem x:Name="AiFlyReblock" Text="重新拦截" Click="AiFlyReblock_Click"/>
+                                        <MenuFlyoutSeparator/>
+                                        <MenuFlyoutItem x:Name="AiFlyDelete" Text="删除记录" Click="AiFlyDelete_Click"/>
+                                        <MenuFlyoutItem x:Name="AiFlyIgnore" Text="停止追踪（不再拦截/提醒）" Click="AiFlyIgnore_Click"/>
+                                        <MenuFlyoutSeparator/>
+                                        <MenuFlyoutItem x:Name="AiFlyCopy" Text="复制详情" Click="AiCopyDetail_Click"/>
+                                        <MenuFlyoutSeparator/>
+                                        <MenuFlyoutItem x:Name="AiFlyPolicy" Text="设置信任策略" Click="AiFlyPolicy_Click"/>
+                                    </MenuFlyout>
+                                </ListView.ContextFlyout>
+                            </ListView>
+                            <TextBlock x:Name="AiEmptyText" Grid.Row="1" Margin="0,30,0,0" HorizontalAlignment="Center"
+                                       Text="暂无拦截记录" FontSize="13"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        </Grid>
+
+                        <!-- 详情面板 -->
+                        <Border Grid.Column="1" Padding="12,10,10,10" CornerRadius="8" BorderThickness="1"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="详情" FontSize="13" FontWeight="Bold"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <ScrollViewer Grid.Row="1" Margin="0,6,0,0" VerticalScrollBarVisibility="Auto">
+                                    <TextBlock x:Name="AiDetailsText" FontSize="12" TextWrapping="Wrap"
+                                               IsTextSelectionEnabled="True"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                               Text="选中一条记录查看详情"/>
+                                </ScrollViewer>
+                                <!-- 详情区操作按钮 -->
+                                <StackPanel x:Name="AiDetailActions" Grid.Row="2" Margin="0,10,0,0" Spacing="6" Visibility="Collapsed">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Button x:Name="AiAllowBtn" Content="放行" Style="{ThemeResource AccentButtonStyle}" Click="AiAllow_Click"/>
+                                        <Button x:Name="AiAllowTrustBtn" Content="放行并信任" Click="AiAllowTrust_Click"/>
+                                        <Button x:Name="AiReblockBtn" Content="重新拦截" Click="AiReblock_Click"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Button x:Name="AiIgnoreBtn" Content="停止追踪" Click="AiIgnore_Click"/>
+                                        <Button x:Name="AiDeleteBtn" Content="删除记录" Click="AiDelete_Click"/>
+                                        <Button x:Name="AiCopyBtn" Content="复制详情" Click="AiCopyDetail_Click"/>
+                                    </StackPanel>
+                                </StackPanel>
+                                <!-- 信任策略 -->
+                                <StackPanel x:Name="AiPolicySection" Grid.Row="3" Spacing="6" Margin="0,10,0,0" Visibility="Collapsed">
+                                    <TextBlock FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="程序信任策略"/>
+                                    <ComboBox x:Name="AiPolicyComboBox" MinWidth="200"/>
+                                    <Button x:Name="AiSavePolicyBtn" Content="保存策略" FontSize="12" Padding="10,4"
+                                            Click="AiSavePolicy_Click"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
                 <!-- ============ 恢复中心 ============ -->
                 <Grid x:Name="RecoveryPanel" Visibility="Collapsed">
                     <Grid.RowDefinitions>

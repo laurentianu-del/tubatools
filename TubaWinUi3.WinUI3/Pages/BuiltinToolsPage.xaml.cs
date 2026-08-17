@@ -13,10 +13,12 @@ public sealed partial class BuiltinToolsPage : Page
     private CancellationTokenSource? _activeCts;
     private CancellationTokenSource? _highlightCts;
     private string? _pendingHighlightId;
+    private bool _builtinToolOpenModeInitializing;
 
     public BuiltinToolsPage()
     {
         InitializeComponent();
+        InitBuiltinToolOpenModeComboBox();
         LoadTools();
     }
 
@@ -29,11 +31,39 @@ public sealed partial class BuiltinToolsPage : Page
             _pendingHighlightId = target.HighlightBuiltinId;
         }
 
+        // 与设置页共用同一配置，导航回来时同步选择框状态
+        SyncBuiltinToolOpenMode();
+
         if (_pendingHighlightId is not null)
         {
             StartHighlight(_pendingHighlightId);
             _pendingHighlightId = null;
         }
+    }
+
+    private void InitBuiltinToolOpenModeComboBox()
+    {
+        _builtinToolOpenModeInitializing = true;
+        BuiltinToolOpenModeComboBox.Items.Clear();
+        BuiltinToolOpenModeComboBox.Items.Add("嵌入页面");
+        BuiltinToolOpenModeComboBox.Items.Add("独立窗口");
+        BuiltinToolOpenModeComboBox.SelectedIndex = AppSettings.GetBool("BuiltinToolsOpenInWindow", false) ? 1 : 0;
+        _builtinToolOpenModeInitializing = false;
+    }
+
+    private void SyncBuiltinToolOpenMode()
+    {
+        var expected = AppSettings.GetBool("BuiltinToolsOpenInWindow", false) ? 1 : 0;
+        if (BuiltinToolOpenModeComboBox.SelectedIndex == expected) return;
+        _builtinToolOpenModeInitializing = true;
+        BuiltinToolOpenModeComboBox.SelectedIndex = expected;
+        _builtinToolOpenModeInitializing = false;
+    }
+
+    private void BuiltinToolOpenModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_builtinToolOpenModeInitializing) return;
+        AppSettings.Set("BuiltinToolsOpenInWindow", BuiltinToolOpenModeComboBox.SelectedIndex == 1);
     }
 
     private void StartHighlight(string builtinId)

@@ -11,6 +11,7 @@ using System.Drawing.Text;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using TubaWinUi3.Services;
+using TubaWinUi3.Services.ActiveIntercept;
 using TubaWinUi3.Services.Ai;
 using TubaWinUi3.Models;
 using Windows.UI;
@@ -133,6 +134,8 @@ public sealed partial class SettingsPage : Page
         ["CustomToolManager"] = "ToolsCommunityExpander",
         ["ExportApp"] = "ToolsCommunityExpander",
         ["CommunityTool"] = "ToolsCommunityExpander",
+        ["ActiveInterceptEnabled"] = "ToolsCommunityExpander",
+        ["ActiveInterceptNotifyMode"] = "ToolsCommunityExpander",
     };
 
     private static readonly Dictionary<string, string> SettingKeyToCardName = new(StringComparer.OrdinalIgnoreCase)
@@ -166,6 +169,8 @@ public sealed partial class SettingsPage : Page
         ["CustomToolManager"] = "SettingsCustomToolCard",
         ["ExportApp"] = "SettingsExportAppCard",
         ["CommunityTool"] = "SettingsCommunityCard",
+        ["ActiveInterceptEnabled"] = "SettingsActiveInterceptCard",
+        ["ActiveInterceptNotifyMode"] = "SettingsActiveInterceptNotifyCard",
     };
 
     public SettingsPage()
@@ -205,6 +210,8 @@ public sealed partial class SettingsPage : Page
         LoadCreditsAvatar();
         InitBuiltinToolOpenModeComboBox();
         InitHttpDownloadSettings();
+        InitActiveInterceptToggle();
+        InitActiveInterceptNotifyModeComboBox();
 
         if (RuntimeHelper.IsMsixPackaged)
         {
@@ -1106,6 +1113,92 @@ public sealed partial class SettingsPage : Page
         if (_hardwareMultiDeviceNewLineInitializing) return;
         AppSettings.Set("HardwareMultiDeviceNewLine", HardwareMultiDeviceNewLineToggle.IsOn);
         HardwareInfoService.InvalidateCache();
+    }
+
+    private bool _activeInterceptInitializing;
+
+    private void InitActiveInterceptToggle()
+    {
+        _activeInterceptInitializing = true;
+        ActiveInterceptToggle.IsOn = AppSettings.GetBool("ActiveInterceptEnabled", false);
+        _activeInterceptInitializing = false;
+        UpdateActiveInterceptStatus();
+    }
+
+    private void ActiveInterceptToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_activeInterceptInitializing) return;
+        var enabled = ActiveInterceptToggle.IsOn;
+        AppSettings.Set("ActiveInterceptEnabled", enabled);
+
+        if (enabled)
+        {
+            ActiveInterceptService.Start();
+        }
+        else
+        {
+            ActiveInterceptService.Stop();
+        }
+        UpdateActiveInterceptStatus();
+    }
+
+    private void UpdateActiveInterceptStatus()
+    {
+        var enabled = AppSettings.GetBool("ActiveInterceptEnabled", false);
+        if (ActiveInterceptStatusText is null) return;
+
+        if (!enabled)
+        {
+            ActiveInterceptStatusText.Text = "已关闭";
+            ActiveInterceptStatusText.Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gray);
+        }
+        else if (ActiveInterceptService.IsRunning)
+        {
+            ActiveInterceptStatusText.Text = "运行中";
+            ActiveInterceptStatusText.Foreground = new SolidColorBrush(Microsoft.UI.Colors.LimeGreen);
+        }
+        else
+        {
+            ActiveInterceptStatusText.Text = "未运行（后端缺失）";
+            ActiveInterceptStatusText.Foreground = new SolidColorBrush(Microsoft.UI.Colors.OrangeRed);
+        }
+    }
+
+    private bool _activeInterceptNotifyModeInitializing;
+
+    private void InitActiveInterceptNotifyModeComboBox()
+    {
+        _activeInterceptNotifyModeInitializing = true;
+        ActiveInterceptNotifyModeComboBox.Items.Add("每次拦截都通知");
+        ActiveInterceptNotifyModeComboBox.Items.Add("仅批量时通知");
+        ActiveInterceptNotifyModeComboBox.Items.Add("从不通知");
+
+        var mode = AppSettings.Get("ActiveInterceptNotifyMode") ?? "always";
+        ActiveInterceptNotifyModeComboBox.SelectedIndex = mode switch
+        {
+            "batch_only" => 1,
+            "never" => 2,
+            _ => 0,
+        };
+        _activeInterceptNotifyModeInitializing = false;
+    }
+
+    private void ActiveInterceptNotifyModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_activeInterceptNotifyModeInitializing) return;
+        var mode = ActiveInterceptNotifyModeComboBox.SelectedIndex switch
+        {
+            1 => "batch_only",
+            2 => "never",
+            _ => "always",
+        };
+        AppSettings.Set("ActiveInterceptNotifyMode", mode);
+        // 重启后端使新配置生效
+        if (AppSettings.GetBool("ActiveInterceptEnabled", false))
+        {
+            ActiveInterceptService.Stop();
+            ActiveInterceptService.Start();
+        }
     }
 
     private void InitCpuzDataSourceStatus()

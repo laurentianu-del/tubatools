@@ -126,6 +126,9 @@ public static class ToolCacheService
                     {
                         Name = e.Name,
                         Category = e.Category,
+                        PrimaryCategory = e.PrimaryCategory,
+                        Categories = e.Categories,
+                        IsLinked = e.IsLinked,
                         Path = expandedPath,
                         RelativePath = e.RelativePath,
                         Extension = e.Extension,
@@ -199,6 +202,9 @@ public static class ToolCacheService
             {
                 Name = e.Name,
                 Category = e.Category,
+                PrimaryCategory = e.PrimaryCategory,
+                Categories = e.Categories,
+                IsLinked = e.IsLinked,
                 Path = PathResolver.MakeRelative(e.Path),
                 RelativePath = e.RelativePath,
                 Extension = e.Extension,
@@ -254,6 +260,9 @@ public sealed record ToolCacheEntry
 {
     public string Name { get; init; } = "";
     public string Category { get; init; } = "";
+    public string? PrimaryCategory { get; init; }
+    public List<string> Categories { get; init; } = [];
+    public bool IsLinked { get; init; }
     public string Path { get; init; } = "";
     public string RelativePath { get; init; } = "";
     public string Extension { get; init; } = "";

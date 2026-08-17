@@ -231,7 +231,7 @@ public static class ToolCatalog
     private static readonly object _cacheLock = new();
     private static readonly object _scanLock = new();
     private static readonly Dictionary<string, IReadOnlyList<ToolItem>> _toolsCache = new(StringComparer.OrdinalIgnoreCase);
-    private static int _cacheVersion = 4; // v4: 缓存携带 Tools 指纹、命中后填充分类缓存、构建时预生成随包缓存
+    private static int _cacheVersion = 5; // v5: 缓存存储各分类原始列表（含 link.json 跨分类副本）+ 多分类字段，去重只在内存汇总做
 
     public static int CacheVersion => _cacheVersion;
 
@@ -263,7 +263,15 @@ public static class ToolCatalog
             return [];
 
         var allItems = GetCategories().SelectMany(GetTools).ToList();
+        return DeduplicateAllTools(allItems);
+    }
 
+    /// <summary>
+    /// 对各分类的原始扫描结果做跨分类去重，生成「全部工具」一览。
+    /// 同名工具（含 link.json 关联副本）只保留一份，并把该名称出现的所有分类合并到 Categories 上。
+    /// </summary>
+    private static IReadOnlyList<ToolItem> DeduplicateAllTools(List<ToolItem> allItems)
+    {
         var nameToCategories = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (var item in allItems)
         {
@@ -331,19 +339,24 @@ public static class ToolCatalog
             _isLoadingFromCache = false;
         }
 
-        // ③ 无可用缓存 → 全量扫描（single-flight 合并并发调用），完成后写盘供下次启动秒读
+        // ③ 无可用缓存 → 全量扫描（single-flight 合并并发调用），完成后写盘供下次启动秒读。
+        //    写盘必须用各分类原始列表（含 link.json 跨分类副本），不能只存去重后的全部工具一览，
+        //    否则目标分类页会丢失关联工具、多分类信息也无从恢复。
         var scanned = await Task.Run(() => GetAllToolsCached());
-        _ = Task.Run(() => ToolCacheService.SaveCache(ToCacheEntries(scanned)));
+        _ = Task.Run(() => ToolCacheService.SaveCache(BuildCacheEntries()));
         return scanned;
     }
 
-    /// <summary>从缓存条目恢复 ToolItem 列表，并填充分类缓存（分类页/首页全部秒出）。</summary>
+    /// <summary>从缓存条目恢复 ToolItem：分类缓存按各分类原始列表填充（含 link.json 跨分类副本），「全部工具」一览再跨分类去重并合并多分类。</summary>
     private static IReadOnlyList<ToolItem> BuildFromEntries(List<ToolCacheEntry> entries)
     {
         var tools = entries.Select(e => new ToolItem
         {
             Name = e.Name,
             Category = e.Category,
+            PrimaryCategory = e.PrimaryCategory,
+            Categories = e.Categories ?? [],
+            IsLinked = e.IsLinked,
             Path = e.Path,
             RelativePath = e.RelativePath,
             Extension = e.Extension,
@@ -363,7 +376,7 @@ public static class ToolCatalog
         }).ToList();
 
         FillCategoryCache(tools);
-        return tools;
+        return DeduplicateAllTools(tools);
     }
 
     private static void FillCategoryCache(IReadOnlyList<ToolItem> tools)
@@ -382,6 +395,9 @@ public static class ToolCatalog
         {
             Name = t.Name,
             Category = t.Category,
+            PrimaryCategory = t.PrimaryCategory,
+            Categories = t.Categories.ToList(),
+            IsLinked = t.IsLinked,
             Path = t.Path,
             RelativePath = t.RelativePath,
             Extension = t.Extension,
@@ -407,22 +423,35 @@ public static class ToolCatalog
         _cachedToolsRoot = toolsRoot;
     }
 
+    /// <summary>
+    /// 生成落盘缓存条目：保留各分类的完整原始列表（含 link.json 关联的跨分类副本）。
+    /// 缓存必须存原始列表，跨分类去重只在内存「全部工具」一览中做；
+    /// 若把去重后的列表落盘，关联工具在目标分类页中会直接消失、多分类信息也无法恢复。
+    /// </summary>
+    public static List<ToolCacheEntry> BuildCacheEntries()
+    {
+        if (!Directory.Exists(ToolsRoot))
+            return [];
+        return ToCacheEntries(GetCategories().SelectMany(GetTools).ToList());
+    }
+
     private static void RefreshCacheInBackground()
     {
         try
         {
-            // 真实扫描一次（绕过内存缓存）修正过期数据，并更新内存与磁盘缓存
-            var scanned = ScanAllTools();
-            if (scanned.Count == 0)
+            // 真实扫描一次（清空分类缓存强制重读磁盘）修正过期数据，并更新内存与磁盘缓存
+            lock (_cacheLock) { _toolsCache.Clear(); }
+            var raw = GetCategories().SelectMany(GetTools).ToList();
+            if (raw.Count == 0)
                 return;
 
+            var deduped = DeduplicateAllTools(raw);
             lock (_cacheLock)
             {
-                _cachedAllTools = scanned;
-                _toolsCache.Clear();
+                _cachedAllTools = deduped;
             }
-            FillCategoryCache(scanned);
-            ToolCacheService.SaveCache(ToCacheEntries(scanned));
+            FillCategoryCache(raw);
+            ToolCacheService.SaveCache(ToCacheEntries(raw));
         }
         catch { }
     }

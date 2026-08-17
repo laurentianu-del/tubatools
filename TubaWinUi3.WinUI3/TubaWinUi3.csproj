@@ -173,4 +173,59 @@
                              CopyToPublishDirectory="PreserveNewest" />
     </ItemGroup>
   </Target>
+
+  <!--
+    开发运行时后端（Build/Run）：把后端托管版 exe 拷贝到主程序输出目录。
+    Debug 构建主程序是 framework-dependent，后端托管版同样依赖系统 .NET 10，
+    因此 dotnet run 时后端能直接运行。Publish 时才用下面的 PublishBackend 做 AOT。
+    触发时机：Build 阶段（BeforeTargets="AfterTargets=..." 之后的 Build），
+    保证拷到 $(TargetDir)（即 AppContext.BaseDirectory），ActiveInterceptService 能定位。
+  -->
+  <Target Name="CopyBackendForBuild" AfterTargets="Build" Condition="'$(ExcludeToolsFromPublish)' != 'true'">
+    <PropertyGroup>
+      <_BackEndHostDir>$(MSBuildProjectDirectory)\..\TubaWinUI3.BackEnd\bin\$(Configuration)\net10.0-windows\$(RuntimeIdentifier)</_BackEndHostDir>
+      <_BackEndHostExe>$(_BackEndHostDir)\TubaWinUI3.BackEnd.exe</_BackEndHostExe>
+    </PropertyGroup>
+    <!-- 始终以 SelfContained=false 构建后端：后端 csproj 声明了 SelfContained=true（给 AOT 用），
+         但 Debug 阶段只拷 TubaWinUI3.BackEnd.*（不含运行时），必须用 framework-dependent 模式
+         让 runtimeconfig.json 指向系统 .NET 10 运行时。不加 Condition：避免残留的
+         self-contained 产物被复用导致 hostpolicy.dll 找不到。 -->
+    <MSBuild Projects="$(MSBuildProjectDirectory)\..\TubaWinUI3.BackEnd\TubaWinUi3.BackEnd.csproj"
+             Targets="Build"
+             Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=false" />
+    <!-- apphost exe 只是薄壳，实际代码在同名 .dll，需要把后端产物 TubaWinUI3.BackEnd.* 全部拷贝。
+         ContinueOnError=WarnAndContinue：后端正在运行时文件被锁，跳过拷贝不阻断 build。 -->
+    <ItemGroup>
+      <_BackEndBuildFiles Include="$(_BackEndHostDir)\TubaWinUI3.BackEnd.*" Condition="Exists('$(_BackEndHostExe)')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_BackEndBuildFiles)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true"
+          ContinueOnError="WarnAndContinue"
+          Condition="Exists('$(_BackEndHostExe)')" />
+    <Message Importance="High" Text="已拷贝开发后端: $(TargetDir)TubaWinUI3.BackEnd.exe"
+             Condition="Exists('$(TargetDir)TubaWinUI3.BackEnd.exe')" />
+  </Target>
+
+  <!--
+    主动拦截后端（NativeAOT）发布：把 TubaWinUI3.BackEnd 编译为单文件原生 exe，
+    随主程序一起分发（主程序运行根目录，ActiveInterceptService 直接启动）。
+    NativeAOT 需要 MSVC 链接器。build-backend-aot.ps1 负责定位 vcvars64 并在其
+    环境下以 IlcUseEnvironmentalTools=true 发布，兼容 vswhere 元数据缺失的机器。
+  -->
+  <Target Name="PublishBackend" BeforeTargets="GetCopyToPublishDirectoryItems" Condition="'$(ExcludeToolsFromPublish)' != 'true'">
+    <PropertyGroup>
+      <_BackEndOutDir>$(MSBuildProjectDirectory)\artifacts\backend-aot\$(RuntimeIdentifier)</_BackEndOutDir>
+    </PropertyGroup>
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\build-backend-aot.ps1&quot; -Rid $(RuntimeIdentifier) -OutputDir &quot;$(_BackEndOutDir)&quot; -Configuration $(Configuration)" />
+    <ItemGroup>
+      <_BackEndExe Include="$(_BackEndOutDir)\TubaWinUI3.BackEnd.exe" />
+    </ItemGroup>
+    <AssignTargetPath Files="@(_BackEndExe)" RootFolder="$(_BackEndOutDir)">
+      <Output TaskParameter="AssignedFiles" ItemName="ContentWithTargetPath" />
+    </AssignTargetPath>
+    <ItemGroup>
+      <ContentWithTargetPath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ContentWithTargetPath>
+    </ItemGroup>
+  </Target>
 </Project>

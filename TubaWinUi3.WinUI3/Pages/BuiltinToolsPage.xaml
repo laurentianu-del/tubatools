@@ -106,6 +106,7 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <Border
@@ -127,6 +128,17 @@
                         <TextBlock
                             x:Name="ToolCountText"
                             Opacity="1.0" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="2">
+                        <TextBlock
+                            FontSize="12"
+                            Opacity="0.7"
+                            Text="打开方式" />
+                        <ComboBox
+                            x:Name="BuiltinToolOpenModeComboBox"
+                            MinWidth="120"
+                            SelectionChanged="BuiltinToolOpenModeComboBox_SelectionChanged" />
                     </StackPanel>
                 </Grid>
             </Border>

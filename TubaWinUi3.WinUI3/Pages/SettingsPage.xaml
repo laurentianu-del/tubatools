@@ -1051,6 +1051,46 @@
                                     </Grid>
                                 </Border>
 
+                                <Border x:Name="SettingsActiveInterceptCard" Style="{StaticResource SettingsCardStyle}">
+                                    <Grid ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource IconBorderStyle}">
+                                            <FontIcon FontSize="18" Glyph="&#xE899;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <TextBlock FontWeight="Bold" Text="主动拦截流氓软件" />
+                                                <TextBlock x:Name="ActiveInterceptStatusText" Opacity="1.0" FontSize="12" Foreground="{ThemeResource SystemFillColorCautionBrush}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="后台常驻监控右键菜单注册项，自动屏蔽新增的第三方右键菜单（先拦截再审核），可在「流氓软件的克星 - 主动拦截」中审核放行" />
+                                        </StackPanel>
+                                        <ToggleSwitch x:Name="ActiveInterceptToggle" Grid.Column="2" VerticalAlignment="Center" Toggled="ActiveInterceptToggle_Toggled" />
+                                    </Grid>
+                                </Border>
+
+                                <Border x:Name="SettingsActiveInterceptNotifyCard" Style="{StaticResource SettingsCardStyle}">
+                                    <Grid ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource IconBorderStyle}">
+                                            <FontIcon FontSize="18" Glyph="&#xE767;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                            <TextBlock FontWeight="Bold" Text="拦截通知模式" />
+                                            <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="设置拦截到新增右键菜单时是否弹出 Windows 通知" />
+                                        </StackPanel>
+                                        <ComboBox x:Name="ActiveInterceptNotifyModeComboBox" Grid.Column="2" MinWidth="120"
+                                                  SelectionChanged="ActiveInterceptNotifyModeComboBox_SelectionChanged" />
+                                    </Grid>
+                                </Border>
+
                                 <Border x:Name="SettingsHttpDownloadCard" Style="{StaticResource SettingsCardStyle}">
                                     <Grid RowSpacing="12">
                                         <Grid.RowDefinitions>

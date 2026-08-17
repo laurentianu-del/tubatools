@@ -132,13 +132,13 @@ public class ToolCacheServiceTests
         if (!Directory.Exists(ToolCatalog.ToolsRoot))
             return;
 
-        // 1. 生成随包缓存（与 --build-tool-cache 构建模式同款逻辑）
+        // 1. 生成随包缓存（与 --build-tool-cache 构建模式同款逻辑：各分类原始列表）
         var bundledPath = ToolCacheService.BundledCachePath;
         Assert.False(string.IsNullOrEmpty(bundledPath));
         Directory.CreateDirectory(Path.GetDirectoryName(bundledPath)!);
         var tools = ToolCatalog.GetAllToolsCached();
         Assert.True(tools.Count > 0);
-        ToolCacheService.SaveCacheTo(ToolCatalog.ToCacheEntries(tools), bundledPath);
+        ToolCacheService.SaveCacheTo(ToolCatalog.BuildCacheEntries(), bundledPath);
 
         try
         {
@@ -165,12 +165,55 @@ public class ToolCacheServiceTests
     }
 
     [Fact]
+    public async Task BundledCache_AllToolsList_MatchesLiveScan()
+    {
+        // 需要真实 Tools 目录（开发/CI 环境存在；否则跳过）
+        if (!Directory.Exists(ToolCatalog.ToolsRoot))
+            return;
+
+        // 从磁盘真实扫描得到「全部工具」一览
+        var live = ToolCatalog.GetAllToolsCached().ToList();
+
+        // 从缓存加载（模拟冷启动），应得到与实时扫描完全一致的列表
+        var bundledPath = ToolCacheService.BundledCachePath;
+        Assert.False(string.IsNullOrEmpty(bundledPath));
+        Directory.CreateDirectory(Path.GetDirectoryName(bundledPath)!);
+        ToolCacheService.SaveCacheTo(ToolCatalog.BuildCacheEntries(), bundledPath);
+        try
+        {
+            ToolCacheService.Invalidate();
+            ToolCatalog.InvalidateTagsCache();
+            var loaded = (await ToolCatalog.GetAllToolsAsync()).ToList();
+
+            // 逐项对比名称 + 主分类（去重 key 为 PrimaryCategory|Name），找出差异工具
+            var liveKeys = live.Select(t => (Key: (t.PrimaryCategory ?? t.Category) + "|" + t.Name, Name: t.Name, Cat: t.Category)).ToList();
+            var loadedKeys = loaded.Select(t => (Key: (t.PrimaryCategory ?? t.Category) + "|" + t.Name, Name: t.Name, Cat: t.Category)).ToList();
+            var onlyLive = liveKeys.Where(l => !loadedKeys.Any(x => x.Key.Equals(l.Key, StringComparison.OrdinalIgnoreCase))).ToList();
+            var onlyLoaded = loadedKeys.Where(l => !liveKeys.Any(x => x.Key.Equals(l.Key, StringComparison.OrdinalIgnoreCase))).ToList();
+
+            Assert.True(liveKeys.Count == loadedKeys.Count,
+                $"全部工具一览不一致: live={liveKeys.Count} cache={loadedKeys.Count} | 仅实时扫描有: {string.Join(", ", onlyLive.Select(x => $"{x.Name}@{x.Cat}"))} | 仅缓存有: {string.Join(", ", onlyLoaded.Select(x => $"{x.Name}@{x.Cat}"))}");
+
+            foreach (var l in liveKeys)
+                Assert.Contains(l.Key, loadedKeys.Select(x => x.Key), StringComparer.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            ToolCatalog.InvalidateTagsCache();
+            try { File.Delete(bundledPath); } catch { }
+        }
+    }
+
+    [Fact]
     public void ToCacheEntries_MapsAllFields()
     {
         var tool = new TubaWinUi3.Models.ToolItem
         {
             Name = "鲁大师",
             Category = "综合检测",
+            PrimaryCategory = "工具集",
+            IsLinked = true,
+            Categories = ["综合检测", "工具集"],
             Path = @"D:\tools\综合检测\鲁大师\master.exe",
             RelativePath = @"鲁大师\master.exe",
             Extension = "EXE",
@@ -189,11 +232,71 @@ public class ToolCacheServiceTests
 
         Assert.Equal(tool.Name, entry.Name);
         Assert.Equal(tool.Category, entry.Category);
+        Assert.Equal(tool.PrimaryCategory, entry.PrimaryCategory);
+        Assert.Equal(["综合检测", "工具集"], entry.Categories);
+        Assert.True(entry.IsLinked);
         Assert.Equal(tool.Path, entry.Path);
         Assert.Equal(tool.Description, entry.Description);
         Assert.Equal(tool.WingetId, entry.WingetId);
         Assert.True(entry.IsFavorite);
         Assert.Equal("检测", Assert.Single(entry.Tags));
+    }
+
+    [Fact]
+    public async Task CacheLoad_Preserves_LinkedMultiCategoryTools()
+    {
+        // 回归：缓存构建不能把 link.json 关联工具的「目标分类」副本搞没，
+        // 也不能丢失多分类信息（此前 v4 缓存存的是去重后的全部工具一览）。
+        var root = CreateTempToolsRoot();
+        ToolCatalog.SetToolsRootForBuild(root);
+        try
+        {
+            // 真实工具在「综合检测」，处理器工具通过 link.json 关联它 → 多分类
+            Directory.CreateDirectory(Path.Combine(root, "综合检测", "CPUZ"));
+            File.WriteAllText(Path.Combine(root, "综合检测", "CPUZ", "cpuz.exe"), "x");
+            Directory.CreateDirectory(Path.Combine(root, "处理器工具", "CPUZ"));
+            File.WriteAllText(Path.Combine(root, "处理器工具", "CPUZ", "link.json"),
+                """{"target":"综合检测/CPUZ"}""");
+
+            ToolCatalog.InvalidateTagsCache();
+            var all = ToolCatalog.GetAllToolsCached();
+            var scanned = Assert.Single(all.Where(t => t.Name.Equals("cpuz", StringComparison.OrdinalIgnoreCase)));
+            Assert.Contains("综合检测", scanned.Categories);
+
+            // 模拟 --build-tool-cache：按各分类原始列表写盘
+            var bundledPath = ToolCacheService.BundledCachePath;
+            Assert.False(string.IsNullOrEmpty(bundledPath));
+            Directory.CreateDirectory(Path.GetDirectoryName(bundledPath)!);
+            ToolCacheService.SaveCacheTo(ToolCatalog.BuildCacheEntries(), bundledPath);
+
+            // 模拟冷启动：清空内存 + AppData 缓存 → 从随包缓存加载
+            ToolCacheService.Invalidate();
+            ToolCatalog.InvalidateTagsCache();
+            var loaded = await ToolCatalog.GetAllToolsAsync();
+
+            // ① 全部工具一览只保留一份，多分类信息不丢失
+            var loadedCuz = Assert.Single(loaded.Where(t => t.Name.Equals("cpuz", StringComparison.OrdinalIgnoreCase)));
+            Assert.Contains("综合检测", loadedCuz.Categories);
+            Assert.Contains("处理器工具", loadedCuz.Categories);
+
+            // ② 目标分类「综合检测」下仍有该工具（此前从缓存加载后消失）
+            Assert.Contains(ToolCatalog.GetTools("综合检测"),
+                t => t.Name.Equals("cpuz", StringComparison.OrdinalIgnoreCase));
+
+            // ③ 链接分类「处理器工具」下仍有关联副本
+            var linked = Assert.Single(ToolCatalog.GetTools("处理器工具"));
+            Assert.Equal("处理器工具", linked.Category);
+            Assert.True(linked.IsLinked);
+            Assert.Equal("综合检测", linked.PrimaryCategory);
+            Assert.Contains("综合检测", linked.Categories);
+        }
+        finally
+        {
+            ToolCatalog.SetToolsRootForBuild(null);
+            try { File.Delete(ToolCacheService.BundledCachePath); } catch { }
+            try { ToolCatalog.InvalidateTagsCache(); } catch { }
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     [Fact]

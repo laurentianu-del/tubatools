@@ -19,6 +19,7 @@ public static class BuiltinToolRegistry
     {
         Register(new CertBlockTool());
         Register(new RogueCleanerTool());
+        Register(new ActiveInterceptTool());
         Register(new PortViewerTool());
         Register(new HostsEditorTool());
         Register(new KeyboardTestTool());
