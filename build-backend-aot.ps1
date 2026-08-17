@@ -16,33 +16,53 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $backendProj = Join-Path $repoRoot "TubaWinUI3.BackEnd\TubaWinUi3.BackEnd.csproj"
 
-# 定位 vcvars64.bat：覆盖 VS2022 各版本（Enterprise/Professional/Community/BuildTools）
-# 与自定义目录。找不到则直接发布（依赖机器上已配置的 link.exe/lib.exe 环境）。
-$vcvarsCandidates = @()
+# 从 RID 解析目标架构（win-x64 -> x64，win-x86 -> x86，win-arm64 -> arm64）。
+$targetArch = if ($Rid -match '^win-(x64|x86|arm64)$') { $Matches[1] } else { 'x64' }
+
+# 清除可能残留的 Platform 环境变量（外层构建/命令提示符泄漏的 Platform 会被 MSBuild
+# 当作属性导入并覆盖平台目标，导致 -r win-arm64 与 x64 平台不匹配 NETSDK1032）。
+Remove-Item Env:Platform -ErrorAction SilentlyContinue
+
+# 定位 vcvars：优先 vcvarsall.bat（按目标架构选择本机/交叉工具链；arm64 必须用
+# arm64 的 LIB/link.exe，vcvars64 的 x64 库无法链接 arm64 AOT 产物），
+# 找不到则退回 vcvars64.bat（仅 x64）。覆盖 VS2022 各版本（Enterprise/Professional/Community/BuildTools）
+# 与自定义目录。都找不到则直接发布（依赖机器上已配置的 link.exe/lib.exe 环境）。
+$vcvarsBases = @()
 foreach ($vsEdition in @("BuildTools", "Enterprise", "Professional", "Community")) {
     foreach ($base in @("${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022",
                         "${env:ProgramFiles}\Microsoft Visual Studio\2022")) {
         if ($base -and (Test-Path $base)) {
-            $vcvarsCandidates += (Join-Path $base (Join-Path $vsEdition "VC\Auxiliary\Build\vcvars64.bat"))
+            $vcvarsBases += (Join-Path $base (Join-Path $vsEdition "VC\Auxiliary\Build"))
         }
     }
 }
-# 也允许通过环境变量显式指定
-if ($env:VCVARS64_PATH) { $vcvarsCandidates += $env:VCVARS64_PATH }
+$vcvarsAll = $vcvarsBases | ForEach-Object { Join-Path $_ "vcvarsall.bat" } | Where-Object { Test-Path $_ } | Select-Object -First 1
+$vcvars64 = $vcvarsBases | ForEach-Object { Join-Path $_ "vcvars64.bat" } | Where-Object { Test-Path $_ } | Select-Object -First 1
+# 也允许通过环境变量显式指定（指向 vcvarsall.bat 或 vcvars64.bat）
+if ($env:VCVARS64_PATH) {
+    if ([IO.Path]::GetFileName($env:VCVARS64_PATH) -eq "vcvarsall.bat") { $vcvarsAll = $env:VCVARS64_PATH }
+    else { $vcvars64 = $env:VCVARS64_PATH }
+}
 
-$vcvars = $vcvarsCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-
+# 显式固定 Platform/PlatformTarget 与 RID 一致，防止环境/外部属性覆盖。
+$baseSwitches = "-p:Platform=$targetArch -p:PlatformTarget=$targetArch"
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
-if ($vcvars) {
-    Write-Host "使用 vcvars64: $vcvars"
-    $cmd = "call `"$vcvars`" >nul 2>&1 && dotnet publish `"$backendProj`" -c $Configuration -r $Rid -p:IlcUseEnvironmentalTools=true -o `"$OutputDir`""
+if ($vcvarsAll) {
+    Write-Host "使用 vcvarsall ($targetArch): $vcvarsAll"
+    $cmd = "call `"$vcvarsAll`" $targetArch >nul 2>&1 && dotnet publish `"$backendProj`" -c $Configuration -r $Rid $baseSwitches -p:IlcUseEnvironmentalTools=true -o `"$OutputDir`""
+    cmd /c $cmd
+    if ($LASTEXITCODE -ne 0) { throw "dotnet publish 失败 (exit $LASTEXITCODE)" }
+}
+elseif ($vcvars64) {
+    Write-Host "使用 vcvars64: $vcvars64"
+    $cmd = "call `"$vcvars64`" >nul 2>&1 && dotnet publish `"$backendProj`" -c $Configuration -r $Rid $baseSwitches -p:IlcUseEnvironmentalTools=true -o `"$OutputDir`""
     cmd /c $cmd
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish 失败 (exit $LASTEXITCODE)" }
 }
 else {
-    Write-Host "未找到 vcvars64.bat，尝试直接发布（依赖现有环境）"
-    & dotnet publish $backendProj -c $Configuration -r $Rid -o $OutputDir
+    Write-Host "未找到 vcvars，尝试直接发布（依赖现有环境）"
+    & dotnet publish $backendProj -c $Configuration -r $Rid $baseSwitches -o $OutputDir
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish 失败 (exit $LASTEXITCODE)" }
 }
 
