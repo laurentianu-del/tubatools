@@ -32,8 +32,6 @@ public static class BuiltinToolRegistry
         Register(new ContextMenuMgrTool());
         Register(new HardwareSpooferTool());
         Register(new NetworkAdapterProxyTool());
-        Register(new CommonSoftwareTool());
-        Register(new WindowsOptimizeTool());
         Register(new UniGetUITool());
         Register(new OptimizerDuckTool());
         Register(new AiAssistantTool());
