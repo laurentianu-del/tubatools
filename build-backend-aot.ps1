@@ -45,7 +45,9 @@ if ($env:VCVARS64_PATH) {
 }
 
 # 显式固定 Platform/PlatformTarget 与 RID 一致，防止环境/外部属性覆盖。
-$baseSwitches = "-p:Platform=$targetArch -p:PlatformTarget=$targetArch"
+# 注意用分号合并为单个 -p: 参数：某些 CI runner 的 cmd/参数解析会把相邻的
+# 两个 -p:xxx 拼成一个（值变成 "x64 -p:PlatformTarget=x64"），分号形式不可能被拼接。
+$baseSwitches = "-p:Platform=$targetArch;PlatformTarget=$targetArch"
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
 if ($vcvarsAll) {
