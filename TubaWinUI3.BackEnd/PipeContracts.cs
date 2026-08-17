@@ -218,6 +218,9 @@ public sealed class InterceptItemDto
     public string Command { get; set; } = "";
     public string ExePath { get; set; } = "";
 
+    /// <summary>是否现代菜单（Windows 11 新右键菜单 / AppX 打包应用扩展）。</summary>
+    public bool IsModernMenu { get; set; }
+
     /// <summary>期望状态：blocked / allowed / none（未审核）。</summary>
     public string DesiredState { get; set; } = "none";
 
@@ -271,6 +274,10 @@ public sealed class InterceptEventDto
     public string Command { get; set; } = "";
     public string ExePath { get; set; } = "";
     public string Source { get; set; } = "";
+
+    /// <summary>是否现代菜单（Windows 11 新右键菜单 / AppX 打包应用扩展）。</summary>
+    public bool IsModernMenu { get; set; }
+
     public string Note { get; set; } = "";
 }
 

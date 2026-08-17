@@ -16,14 +16,12 @@ namespace TubaWinUI3.BackEnd;
 public sealed class NamedPipeBackendServer
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly BackEndJsonContext JsonContext = new(JsonOptions);
 
     private readonly Func<InterceptPipeRequest, CancellationToken, Task<InterceptPipeResponse>> _dispatch;
     private readonly ConcurrentDictionary<Guid, PipeClientConnection> _clients = new();
     private CancellationTokenSource? _acceptLoopCts;
     private Task? _acceptLoopTask;
-
-    /// <summary>客户端请求后端退出时触发（宿主据此优雅停机）。</summary>
-    public event EventHandler? BackendShutdownRequested;
 
     public NamedPipeBackendServer(Func<InterceptPipeRequest, CancellationToken, Task<InterceptPipeResponse>> dispatch)
     {
@@ -174,7 +172,7 @@ public sealed class NamedPipeBackendServer
                 InterceptPipeEnvelope? envelope;
                 try
                 {
-                    envelope = JsonSerializer.Deserialize<InterceptPipeEnvelope>(line, JsonOptions);
+                    envelope = JsonSerializer.Deserialize(line, JsonContext.InterceptPipeEnvelope);
                 }
                 catch (JsonException)
                 {
@@ -274,7 +272,7 @@ public sealed class NamedPipeBackendServer
 
         public async Task SendAsync(InterceptPipeEnvelope envelope, CancellationToken cancellationToken)
         {
-            var payload = JsonSerializer.Serialize(envelope, JsonOptions);
+            var payload = JsonSerializer.Serialize(envelope, JsonContext.InterceptPipeEnvelope);
             await _writeLock.WaitAsync(cancellationToken);
             try
             {

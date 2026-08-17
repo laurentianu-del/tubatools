@@ -350,29 +350,40 @@ public static class ToolCatalog
     /// <summary>从缓存条目恢复 ToolItem：分类缓存按各分类原始列表填充（含 link.json 跨分类副本），「全部工具」一览再跨分类去重并合并多分类。</summary>
     private static IReadOnlyList<ToolItem> BuildFromEntries(List<ToolCacheEntry> entries)
     {
-        var tools = entries.Select(e => new ToolItem
+        var tools = entries.Select(e =>
         {
-            Name = e.Name,
-            Category = e.Category,
-            PrimaryCategory = e.PrimaryCategory,
-            Categories = e.Categories ?? [],
-            IsLinked = e.IsLinked,
-            Path = e.Path,
-            RelativePath = e.RelativePath,
-            Extension = e.Extension,
-            Description = e.Description,
-            Publisher = e.Publisher,
-            Version = e.Version,
-            DownloadUrl = e.DownloadUrl,
-            WingetId = e.WingetId,
-            IconGlyph = e.IconGlyph,
-            PrimaryArch = e.PrimaryArch,
-            Tags = e.Tags,
-            IsFavorite = FavoritesService.IsFavorite(e.Path), // 收藏实时读取，缓存中的收藏状态可能过期
-            IsBuiltinLink = e.IsBuiltinLink,
-            BuiltinToolId = e.BuiltinToolId,
-            BuiltinKindText = e.BuiltinKindText,
-            TutorialUrl = e.TutorialUrl
+            var item = new ToolItem
+            {
+                Name = e.Name,
+                Category = e.Category,
+                PrimaryCategory = e.PrimaryCategory,
+                Categories = e.Categories ?? [],
+                IsLinked = e.IsLinked,
+                Path = e.Path,
+                RelativePath = e.RelativePath,
+                Extension = e.Extension,
+                Description = e.Description,
+                Publisher = e.Publisher,
+                Version = e.Version,
+                DownloadUrl = e.DownloadUrl,
+                WingetId = e.WingetId,
+                IconGlyph = e.IconGlyph,
+                PrimaryArch = e.PrimaryArch,
+                AlternateVersions = e.AlternateVersions.Select(a => new ArchVariant
+                {
+                    Name = a.Name,
+                    Path = a.Path,
+                    Arch = a.Arch
+                }).ToList(),
+                Tags = e.Tags,
+                IsFavorite = FavoritesService.IsFavorite(e.Path), // 收藏实时读取，缓存中的收藏状态可能过期
+                IsBuiltinLink = e.IsBuiltinLink,
+                BuiltinToolId = e.BuiltinToolId,
+                BuiltinKindText = e.BuiltinKindText,
+                TutorialUrl = e.TutorialUrl
+            };
+            item.InitArchOptions();
+            return item;
         }).ToList();
 
         FillCategoryCache(tools);
@@ -408,6 +419,12 @@ public static class ToolCatalog
             WingetId = t.WingetId,
             IconGlyph = t.IconGlyph,
             PrimaryArch = t.PrimaryArch,
+            AlternateVersions = t.AlternateVersions.Select(a => new ArchVariantEntry
+            {
+                Name = a.Name,
+                Path = a.Path,
+                Arch = a.Arch
+            }).ToList(),
             Tags = t.Tags.ToList(),
             IsFavorite = t.IsFavorite,
             IsBuiltinLink = t.IsBuiltinLink,

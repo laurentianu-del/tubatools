@@ -95,7 +95,7 @@ public static class PackagedComScanner
             {
                 var verbClsid = GetAttr(verb, "Clsid");
                 var itemType = verb.ParentNode is not null ? GetAttr(verb.ParentNode, "Type") : "";
-                AddEntry(verbClsid, itemType, package, packageName, publisher, "现代", items, seen);
+                AddEntry(verbClsid, itemType, package, packageName, publisher, "现代", modern: true, items, seen);
             }
         }
 
@@ -109,13 +109,13 @@ public static class PackagedComScanner
             {
                 var handlerClsid = GetAttr(handler, "Clsid");
                 var itemType = GetAttr(handler, "Type");
-                AddEntry(handlerClsid, itemType, package, packageName, publisher, "传统兼容", items, seen);
+                AddEntry(handlerClsid, itemType, package, packageName, publisher, "传统兼容", modern: false, items, seen);
             }
         }
     }
 
     private static void AddEntry(string clsid, string itemType, string package,
-        string packageName, string publisher, string kind,
+        string packageName, string publisher, string kind, bool modern,
         List<ContextMenuItem> items, HashSet<string> seen)
     {
         if (!Guid.TryParse(clsid, out _)) return;
@@ -155,6 +155,7 @@ public static class PackagedComScanner
             Name = $"{packageName}（{kind}）",
             Command = "", // Packaged COM 通过 manifest 声明，无 command
             ExePath = ResolvePackagePath(package),
+            IsModernMenu = modern,
             Writable = true,
         });
     }

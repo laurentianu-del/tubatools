@@ -240,7 +240,20 @@ public sealed class InterceptEventDto : INotifyPropertyChanged
     public string Command { get; set; } = "";
     public string ExePath { get; set; } = "";
     public string Source { get; set; } = "";
+
+    /// <summary>是否现代菜单（Windows 11 新右键菜单 / AppX 打包应用扩展）。</summary>
+    public bool IsModernMenu { get; set; }
+
     public string Note { get; set; } = "";
+
+    /// <summary>注册表 hive（0=HKCU，1=HKLM；管道快照字段，文件读取时缺省 0）。</summary>
+    public int Hive { get; set; }
+
+    /// <summary>WOW64 视图（0=Default，1=Registry64，2=Registry32）。</summary>
+    public int View { get; set; }
+
+    /// <summary>条目类型（0=ShellVerb，1=ShellExtension）。</summary>
+    public int Kind { get; set; }
 
     private bool _selected;
 
@@ -269,6 +282,14 @@ public sealed class InterceptEventDto : INotifyPropertyChanged
         "Allowed" => "已放行",
         "Unblocked" => "已解除",
         "BlockedFailed" => "拦截失败",
+        "Removed" => "已移除",
+        "Restored" => "已撤销恢复",
+        "Reappeared" => "重现拦截",
+        "Ignored" => "停止追踪",
+        "Tracking" => "恢复追踪",
+        "Pending" => "待审核",
+        "Purged" => "永久清除",
+        "Modified" => "外部修改",
         _ => Action,
     };
 
@@ -304,6 +325,27 @@ public sealed class InterceptEventDto : INotifyPropertyChanged
             }
             return TimestampUtc;
         }
+    }
+
+    /// <summary>就地同步新快照数据（保留本实例勾选状态；触发全部显示属性刷新）。</summary>
+    public void CopyFrom(InterceptEventDto other)
+    {
+        RowId = other.RowId;
+        TimestampUtc = other.TimestampUtc;
+        Action = other.Action;
+        Id = other.Id;
+        SubKey = other.SubKey;
+        Clsid = other.Clsid;
+        Name = other.Name;
+        Command = other.Command;
+        ExePath = other.ExePath;
+        Source = other.Source;
+        IsModernMenu = other.IsModernMenu;
+        Note = other.Note;
+        Hive = other.Hive;
+        View = other.View;
+        Kind = other.Kind;
+        OnPropertyChanged("");
     }
 }
 

@@ -129,6 +129,7 @@ public sealed class InterceptMonitor
                 Name = item.Name,
                 Command = item.Command,
                 ExePath = item.ExePath,
+                IsModernMenu = item.IsModernMenu,
                 DesiredState = DesiredState.Allowed,
                 FirstSeenUtc = DateTime.UtcNow.ToString("o"),
                 UpdatedAtUtc = DateTime.UtcNow.ToString("o"),
@@ -277,7 +278,7 @@ public sealed class InterceptMonitor
         entry.DeletedAtUtc = "";
         entry.SuppressNextDetection = true;
 
-        // 信任策略为权威
+        // 信任策略为权威（用户显式配置优先于系统默认放行）
         var policy = string.IsNullOrWhiteSpace(entry.ExePath)
             ? TrustPolicyKind.Ask
             : _policies.GetPolicy(entry.ExePath);
@@ -311,6 +312,20 @@ public sealed class InterceptMonitor
             return true;
         }
 
+        // 系统/内置程序（位于 Windows 目录 / WindowsApps / MS 目录）：默认放行
+        if (IsLikelySystemItem(entry))
+        {
+            entry.DesiredState = DesiredState.Allowed;
+            entry.IsPendingApproval = false;
+            entry.PendingChangeKind = "";
+            entry.Note = "系统程序，默认放行";
+            entry.UpdatedAtUtc = DateTime.UtcNow.ToString("o");
+            _state.Upsert(entry);
+            _events.Append(ToEvent(entry, "Allowed", entry.Note));
+            BackEndLog.Info($"系统程序默认放行：{entry.Name}");
+            return true;
+        }
+
         // 默认：先拦截后审核
         var blockNote = "";
         if (item.Writable && !_blockEngine.IsBlocked(item))
@@ -340,7 +355,7 @@ public sealed class InterceptMonitor
         return true;
     }
 
-    /// <summary>启动期新增/重现：仅进入待审核（不拦截、不通知）。</summary>
+    /// <summary>启动期新增/重现：仅进入待审核（不拦截、不通知）。系统程序直接默认放行。</summary>
     private bool MarkPending(InterceptStateEntry? state, ContextMenuItem item, string changeKind, bool offline)
     {
         var entry = state ?? StateFromScan(item);
@@ -358,6 +373,20 @@ public sealed class InterceptMonitor
             ? "监视器未运行期间出现，待审核（未拦截）"
             : "待审核";
         entry.UpdatedAtUtc = DateTime.UtcNow.ToString("o");
+
+        // 系统程序：默认放行（不拦截、不进入待审核）
+        if (IsLikelySystemItem(entry))
+        {
+            entry.DesiredState = DesiredState.Allowed;
+            entry.IsPendingApproval = false;
+            entry.PendingChangeKind = "";
+            entry.Note = "系统程序，默认放行";
+            _state.Upsert(entry);
+            _events.Append(ToEvent(entry, "Allowed", entry.Note));
+            BackEndLog.Info($"启动期系统程序默认放行：{entry.Name}");
+            return true;
+        }
+
         _state.Upsert(entry);
         _events.Append(ToEvent(entry, "Pending", entry.Note));
         BackEndLog.Info($"启动期{changeKind}（仅挂起审核）：{entry.Name}");
@@ -373,6 +402,7 @@ public sealed class InterceptMonitor
         if (!string.Equals(state.Clsid, item.Clsid, StringComparison.OrdinalIgnoreCase)) { state.Clsid = item.Clsid; changed = true; }
         if (!string.Equals(state.ExePath, item.ExePath, StringComparison.OrdinalIgnoreCase)) { state.ExePath = item.ExePath; changed = true; }
         if (state.Kind != item.Kind) { state.Kind = item.Kind; changed = true; }
+        if (state.IsModernMenu != item.IsModernMenu) { state.IsModernMenu = item.IsModernMenu; changed = true; }
         var observed = item.Writable && _blockEngine.IsBlocked(item);
         if (state.ObservedBlocked != observed)
         {
@@ -420,11 +450,52 @@ public sealed class InterceptMonitor
             Name = item.Name,
             Command = item.Command,
             ExePath = item.ExePath,
+            IsModernMenu = item.IsModernMenu,
             DesiredState = DesiredState.Allowed,
             FirstSeenUtc = DateTime.UtcNow.ToString("o"),
             UpdatedAtUtc = DateTime.UtcNow.ToString("o"),
             Source = "runtime",
         };
+    }
+
+    /// <summary>系统/内置程序：位于 Windows 目录 / WindowsApps / Microsoft 目录下。</summary>
+    private static bool IsLikelySystemItem(InterceptStateEntry entry)
+        => IsLikelySystemPath(entry.ExePath);
+
+    private static bool IsLikelySystemPath(string? exePath)
+    {
+        if (string.IsNullOrWhiteSpace(exePath)) return false;
+        try
+        {
+            var full = Path.GetFullPath(Environment.ExpandEnvironmentVariables(exePath));
+            if (full.Contains("\\WindowsApps\\", StringComparison.OrdinalIgnoreCase)) return true;
+
+            var win = Environment.ExpandEnvironmentVariables("%WINDIR%");
+            if (!string.IsNullOrWhiteSpace(win)
+                && full.StartsWith(win.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            var pf = Environment.ExpandEnvironmentVariables("%ProgramFiles%");
+            if (!string.IsNullOrWhiteSpace(pf)
+                && full.StartsWith(pf.TrimEnd('\\') + "\\Microsoft\\", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            var pf86 = Environment.ExpandEnvironmentVariables("%ProgramFiles(x86)%");
+            if (!string.IsNullOrWhiteSpace(pf86)
+                && full.StartsWith(pf86.TrimEnd('\\') + "\\Microsoft\\", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        catch
+        {
+            // 路径解析失败按非系统处理
+        }
+        return false;
     }
 
     private static InterceptEvent ToEvent(InterceptStateEntry state, string action, string note)
@@ -441,6 +512,7 @@ public sealed class InterceptMonitor
             Name = state.Name,
             Command = state.Command,
             ExePath = state.ExePath,
+            IsModernMenu = state.IsModernMenu,
             Source = state.Source,
             Note = note,
         };
@@ -459,6 +531,7 @@ public sealed class InterceptMonitor
             Name = state.Name,
             Command = state.Command,
             ExePath = state.ExePath,
+            IsModernMenu = state.IsModernMenu,
             DesiredState = state.DesiredState switch
             {
                 DesiredState.Blocked => "blocked",

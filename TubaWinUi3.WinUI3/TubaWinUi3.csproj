@@ -51,11 +51,15 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </Content>
-    <!-- CLI 工具文档单一事实来源：仓库根目录（AI Agent 解析用） -->
+    <!-- CLI 工具文档单一事实来源：仓库根目录（AI Agent 解析用）。
+         注意：根目录文档已于提交 7442ad2 删除，此处引用会导致 MSB3030 构建失败故移除。
+         如后续恢复该文档，请将下面三行加回。 -->
+    <!--
     <Content Include="..\CLI工具使用文档.md" Link="Metadata\CLI工具使用文档.md">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </Content>
+    -->
     <Content Include="CertBlock\Certificates\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>

@@ -126,6 +126,42 @@ public sealed class InterceptRequestHandler
             }
         }
 
+        // 「停止追踪」的条目：state 中已移除，但必须仍出现在快照里（IsIgnored），
+        // 否则「已停止追踪」筛选/计数/恢复追踪全部不可见
+        foreach (var ignoredEntry in _ignore.GetAll())
+        {
+            if (!seen.Add(ignoredEntry.Id)) continue;
+            scanById.TryGetValue(ignoredEntry.Id, out var scanItem);
+            items.Add(new InterceptItemDto
+            {
+                Id = ignoredEntry.Id,
+                Hive = ParseHiveFromId(ignoredEntry.Id),
+                View = RegView.Default,
+                SubKey = ignoredEntry.SubKey,
+                Kind = scanItem?.Kind ?? ContextMenuKind.ShellVerb,
+                Clsid = scanItem?.Clsid ?? "",
+                Name = ignoredEntry.Name,
+                Command = scanItem?.Command ?? "",
+                ExePath = ignoredEntry.ExePath,
+                IsModernMenu = scanItem?.IsModernMenu ?? false,
+                DesiredState = "none",
+                IsBlocked = false,
+                IsPendingApproval = false,
+                IsIgnored = true,
+                Source = "ignored",
+                FirstSeenUtc = "",
+                UpdatedAtUtc = ignoredEntry.CreatedUtc,
+                Note = ignoredEntry.Note,
+            });
+        }
+
+        // 名称排序，保证列表顺序稳定
+        items.Sort((a, b) =>
+        {
+            var cmp = string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
+            return cmp != 0 ? cmp : string.Compare(a.Id, b.Id, StringComparison.OrdinalIgnoreCase);
+        });
+
         var events = EventLog.ReadAll(_activeInterceptDir)
             .Select(e => new InterceptEventDto
             {
@@ -142,6 +178,7 @@ public sealed class InterceptRequestHandler
                 Command = e.Command,
                 ExePath = e.ExePath,
                 Source = e.Source,
+                IsModernMenu = e.IsModernMenu,
                 Note = e.Note,
             })
             .ToList();
@@ -202,8 +239,9 @@ public sealed class InterceptRequestHandler
         var hasBackup = !string.IsNullOrWhiteSpace(entry.BackupFilePath)
                         && File.Exists(Path.Combine(_backupDir, entry.BackupFilePath));
 
+        var isBlockedLive = scanItem is not null && scanItem.Writable && _blockEngine.IsBlocked(scanItem);
         var consistencyIssue = scanItem is not null && scanItem.Writable
-            ? ChangeClassifier.GetConsistencyIssue(scanItem, entry)
+            ? ChangeClassifier.GetConsistencyIssue(scanItem, isBlockedLive, entry)
             : null;
 
         return new InterceptItemDto
@@ -217,6 +255,7 @@ public sealed class InterceptRequestHandler
             Name = entry.Name,
             Command = entry.Command,
             ExePath = entry.ExePath,
+            IsModernMenu = entry.IsModernMenu,
             DesiredState = desired,
             IsBlocked = isBlocked,
             IsPendingApproval = entry.IsPendingApproval,
@@ -285,13 +324,11 @@ public sealed class InterceptRequestHandler
 
     private InterceptPipeResponse ApplyAllow(InterceptStateEntry state, ContextMenuItem? scan, bool trust, Guid? clientOperationId)
     {
-        var changed = false;
         if (scan is not null && scan.Writable && _blockEngine.IsBlocked(scan))
         {
             _blockEngine.Unblock(scan, out _);
             state.ObservedBlocked = false;
             state.SuppressNextDetection = true;
-            changed = true;
         }
 
         state.DesiredState = DesiredState.Allowed;
@@ -586,7 +623,7 @@ public sealed class InterceptRequestHandler
 
     // ================= 操作记录 =================
 
-    private Task<InterceptPipeResponse> RemoveEventRowsAsync(ICollection<string>? rowIds, CancellationToken cancellationToken)
+    private Task<InterceptPipeResponse> RemoveEventRowsAsync(IReadOnlyCollection<string>? rowIds, CancellationToken cancellationToken)
     {
         var removed = _events.RemoveRows(rowIds ?? []);
         return Task.FromResult(Ok($"已删除 {removed} 条操作记录"));
@@ -753,6 +790,10 @@ public sealed class InterceptRequestHandler
         return $"{hive}\\{item.SubKey}";
     }
 
+    /// <summary>从条目 Id（hive|view|subkey）解析 hive，用于停止追踪条目的展示。</summary>
+    private static RegHive ParseHiveFromId(string id)
+        => id.StartsWith("HKLM", StringComparison.OrdinalIgnoreCase) ? RegHive.HKLM : RegHive.HKCU;
+
     private static InterceptStateEntry StateFromScan(ContextMenuItem item)
     {
         return new InterceptStateEntry
@@ -766,6 +807,7 @@ public sealed class InterceptRequestHandler
             Name = item.Name,
             Command = item.Command,
             ExePath = item.ExePath,
+            IsModernMenu = item.IsModernMenu,
             DesiredState = DesiredState.Allowed,
             FirstSeenUtc = DateTime.UtcNow.ToString("o"),
             UpdatedAtUtc = DateTime.UtcNow.ToString("o"),
@@ -787,6 +829,7 @@ public sealed class InterceptRequestHandler
             Name = state.Name,
             Command = state.Command,
             ExePath = state.ExePath,
+            IsModernMenu = state.IsModernMenu,
             Source = state.Source,
             Note = note,
         };

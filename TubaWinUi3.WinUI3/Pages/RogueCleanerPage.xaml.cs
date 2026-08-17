@@ -12,6 +12,7 @@ using Microsoft.UI.Xaml.Navigation;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.ComponentModel;
+using System.Collections.ObjectModel;
 using TubaWinUi3.Services;
 using TubaWinUi3.Services.ActiveIntercept;
 using TubaWinUi3.Services.RogueCleaner;
@@ -19,6 +20,26 @@ using Windows.ApplicationModel.DataTransfer;
 using Windows.UI;
 
 namespace TubaWinUi3.Pages;
+
+/// <summary>拦截列表分区标题行（现代菜单 / 非现代菜单 分界线，不可选中）。</summary>
+public sealed class AiSectionHeaderVm
+{
+    public string Key { get; init; } = "";
+    public string Text { get; init; } = "";
+}
+
+/// <summary>拦截列表行模板选择器：分区标题用标题模板，条目用条目模板。</summary>
+public sealed class AiRowTemplateSelector : DataTemplateSelector
+{
+    public DataTemplate? ItemTemplate { get; set; }
+    public DataTemplate? HeaderTemplate { get; set; }
+
+    protected override DataTemplate SelectTemplateCore(object item)
+        => item is AiSectionHeaderVm ? HeaderTemplate! : ItemTemplate!;
+
+    protected override DataTemplate SelectTemplateCore(object item, DependencyObject container)
+        => SelectTemplateCore(item);
+}
 
 /// <summary>「流氓软件的克星」内置工具页面（移植自 RogueCleaner，MIT）。</summary>
 public sealed partial class RogueCleanerPage : Page
@@ -133,769 +154,1643 @@ public sealed partial class RogueCleanerPage : Page
 
 #region 主动拦截（后端审核）
 
-    private InterceptEventDto? _aiSelectedEvent;
-    private bool _aiPolicyInitializing;
-    private readonly List<InterceptEventDto> _aiAllEvents = [];
-    private List<InterceptEventDto> _aiVisible = [];
-    private string _aiSearchKeyword = "";
+    // ================= 条目视图模型（前台渲染，勾选计数实时刷新） =================
+
+    /// <summary>拦截条目 UI 模型：包装后端 InterceptItemDto，提供显示属性与勾选状态。</summary>
+    public sealed class AiItemVm : INotifyPropertyChanged
+    {
+        private static readonly SolidColorBrush BrPending = new(Color.FromArgb(255, 79, 124, 255));
+        private static readonly SolidColorBrush BrBlocked = new(Color.FromArgb(255, 196, 43, 28));
+        private static readonly SolidColorBrush BrAllowed = new(Color.FromArgb(255, 15, 123, 15));
+        private static readonly SolidColorBrush BrIgnored = new(Color.FromArgb(255, 138, 143, 152));
+        private static readonly SolidColorBrush BrDeleted = new(Color.FromArgb(255, 110, 112, 120));
+        private static readonly SolidColorBrush BrNone = new(Color.FromArgb(255, 107, 107, 107));
+
+        public AiItemVm(InterceptItemDto dto)
+        {
+            Dto = dto;
+        }
+
+        public InterceptItemDto Dto { get; private set; }
+
+        public string Id => Dto.Id;
+        public string Name => Dto.Name;
+        public string SubKey => Dto.SubKey;
+        public string ExePath => Dto.ExePath;
+        public string Command => Dto.Command;
+        public string Note => Dto.Note;
+        public string Clsid => Dto.Clsid;
+
+        public bool IsPending => Dto.IsPendingApproval && !Dto.IsDeleted;
+        public bool IsDeleted => Dto.IsDeleted;
+        public bool IsIgnored => Dto.IsIgnored;
+        public bool HasBackup => Dto.HasBackup;
+
+        /// <summary>程序图标（异步加载后设置，行内就地更新，不触发整表重建）。</summary>
+        private ImageSource? _iconDisplay;
+
+        public ImageSource? IconDisplay
+        {
+            get => _iconDisplay;
+            set
+            {
+                if (ReferenceEquals(_iconDisplay, value)) return;
+                _iconDisplay = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IconDisplay)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IconFallbackVisibility)));
+            }
+        }
+
+        /// <summary>图标未加载出来时显示的占位图标（现代菜单等多数字标无法提取时兜底）。</summary>
+        public Visibility IconFallbackVisibility => _iconDisplay is null
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        /// <summary>图标是否已发起加载（避免每次刷新重复请求）。</summary>
+        public bool IconRequested { get; set; }
+
+        /// <summary>用新 DTO 就地同步（触发全部显示属性刷新，勾选状态保留）。</summary>
+        public void UpdateFrom(InterceptItemDto dto)
+        {
+            Dto = dto;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
+        }
+
+        /// <summary>是否现代菜单（Windows 11 新右键菜单 / AppX 打包应用扩展，来自后端扫描分类）。
+        /// 现代菜单行不参与勾选/批量操作（复选框隐藏），并默认放行。</summary>
+        public bool IsModernMenu => Dto.IsModernMenu;
+
+        /// <summary>现代菜单与已停止追踪的行不参与勾选/批量操作（复选框隐藏）。</summary>
+        public Visibility CheckVisibility => IsModernMenu || IsIgnored
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+
+        public string StateText => IsIgnored ? "已停止追踪" : IsDeleted ? "已删除" : IsPending ? "待审核" : Dto.DesiredState switch
+        {
+            "blocked" => "已拦截",
+            "allowed" => "已放行",
+            _ => "未审核",
+        };
+
+        public SolidColorBrush StateBrush => IsIgnored ? BrIgnored : IsDeleted ? BrDeleted : IsPending
+            ? BrPending
+            : Dto.DesiredState switch
+            {
+                "blocked" => BrBlocked,
+                "allowed" => BrAllowed,
+                _ => BrNone,
+            };
+
+        public string PendingChipText => Dto.PendingChangeKind == "reappeared" ? "重现待审" : "新增待审";
+
+        public Visibility PendingChipVisibility => IsPending ? Visibility.Visible : Visibility.Collapsed;
+
+        public Visibility IssueVisibility => string.IsNullOrWhiteSpace(Dto.ConsistencyIssue)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+
+        public string SubKeyShort
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(Dto.SubKey)) return "";
+                return Dto.SubKey.Length <= 60 ? Dto.SubKey : "…" + Dto.SubKey[^60..];
+            }
+        }
+
+        public string ExeFileName
+        {
+            get
+            {
+                if (string.IsNullOrWhiteSpace(Dto.ExePath)) return "";
+                try { return Path.GetFileName(Dto.ExePath); } catch { return Dto.ExePath; }
+            }
+        }
+
+        public string TimeText => LocalTime(Dto.UpdatedAtUtc, "MM-dd HH:mm");
+
+        public string FirstSeenText => LocalTime(Dto.FirstSeenUtc, "yyyy-MM-dd HH:mm");
+
+        private static string LocalTime(string utc, string format)
+        {
+            if (DateTime.TryParse(utc, null, DateTimeStyles.RoundtripKind, out var dt))
+            {
+                return dt.ToLocalTime().ToString(format);
+            }
+            return utc;
+        }
+
+        private bool _selected;
+
+        public bool Selected
+        {
+            get => _selected;
+            set
+            {
+                if (_selected == value) return;
+                _selected = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Selected)));
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+    }
+
+    // ================= 页面状态 =================
+
+    private List<AiItemVm> _aiItemVms = [];
+    private List<AiItemVm> _aiUserVms = [];
+    private List<AiItemVm> _aiModernVms = [];
+    private List<InterceptEventDto> _aiEventVms = [];
+
+    /// <summary>操作记录绑定集合：就地增量增删（绝不整表重建，杜绝列表闪烁）。</summary>
+    private readonly ObservableCollection<InterceptEventDto> _aiEventCollection = [];
+    private string _aiView = "items";
     private string _aiFilter = "all";
-    private readonly HashSet<string> _aiPendingRemovedRows = new(StringComparer.OrdinalIgnoreCase);
-    private DispatcherTimer? _aiPollTimer;
+    private string _aiSearch = "";
+    private AiItemVm? _aiSelectedItem;
+    private InterceptEventDto? _aiSelectedEvent;
+    private AiItemVm? _aiContextItem;
+    private InterceptEventDto? _aiContextEvent;
+    private bool _aiPageActive;
+    private bool _aiBusy;
+    private bool _aiSuppressSelection;
+    private bool _aiSubscribed;
+    private CancellationTokenSource? _aiRefreshCts;
 
-    // ---------- 生命周期与刷新 ----------
+    // ================= 生命周期与订阅 =================
 
+    private void EnsureAiSubscriptions()
+    {
+        if (_aiSubscribed) return;
+        _aiSubscribed = true;
+        InterceptWorkspace.ItemsChanged += AiOnWorkspaceItemsChanged;
+        InterceptWorkspace.EventsChanged += AiOnWorkspaceEventsChanged;
+        InterceptWorkspace.PendingApprovalDetected += AiOnPendingDetected;
+        InterceptWorkspace.ServiceAttention += AiOnServiceAttention;
+        InterceptWorkspace.ConnectionChanged += AiOnConnectionChanged;
+    }
+
+    /// <summary>导航到「主动拦截」时调用（也由 Nav_SelectionChanged 触发）。</summary>
     private void RefreshActiveIntercept()
     {
         if (ActiveInterceptPanel is null) return;
+        _aiPageActive = true;
+        EnsureAiSubscriptions();
 
         var enabled = AppSettings.GetBool("ActiveInterceptEnabled", false);
         var running = ActiveInterceptService.IsRunning;
 
-        AiStatusDot.Fill = new SolidColorBrush(
-            running ? Microsoft.UI.Colors.LimeGreen : enabled ? Microsoft.UI.Colors.OrangeRed : Microsoft.UI.Colors.Gray);
-        AiRunningText.Text = running
-            ? "主动拦截后端：运行中"
-            : enabled
-                ? "主动拦截后端：未运行"
-                : "主动拦截后端：已关闭";
-        AiRunningText.Foreground = new SolidColorBrush(
-            running ? Microsoft.UI.Colors.LimeGreen : enabled ? Microsoft.UI.Colors.OrangeRed : Microsoft.UI.Colors.Gray);
-
-        AiEnableBackendBtn.Visibility = enabled ? Visibility.Collapsed : Visibility.Visible;
-        AiDisableBackendBtn.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
-
-        if (!enabled)
+        if (enabled)
         {
-            ShowAiStatus("主动拦截后端已关闭：新增第三方右键菜单不会被自动拦截。可在上方或设置页开启。", InfoBarSeverity.Warning);
-        }
-        else if (!running)
-        {
-            ShowAiStatus("主动拦截后端未在运行，请点击「启用主动拦截」启动常驻后端。", InfoBarSeverity.Warning);
+            AiEnableBackendBtn.Visibility = Visibility.Collapsed;
+            AiDisableBackendBtn.Visibility = Visibility.Visible;
+            if (running)
+            {
+                AiStatusDot.Fill = new SolidColorBrush(Color.FromArgb(255, 15, 157, 88));
+                AiRunningText.Text = "主动拦截后端：运行中";
+                CloseAiStatus();
+            }
+            else
+            {
+                AiStatusDot.Fill = new SolidColorBrush(Color.FromArgb(255, 234, 88, 12));
+                AiRunningText.Text = "主动拦截后端：未运行";
+                ShowAiStatus("主动拦截后端未在运行，请点击「启用主动拦截」启动常驻后端。", InfoBarSeverity.Warning);
+            }
         }
         else
         {
-            CloseAiStatus();
+            AiStatusDot.Fill = new SolidColorBrush(Color.FromArgb(255, 138, 143, 152));
+            AiRunningText.Text = "主动拦截后端：已关闭";
+            AiDisableBackendBtn.Visibility = Visibility.Collapsed;
+            AiEnableBackendBtn.Visibility = Visibility.Visible;
+            ShowAiStatus("主动拦截后端已关闭：新增第三方右键菜单不会被自动拦截。可在上方或设置页开启。", InfoBarSeverity.Warning);
         }
 
-        StartAiPolling();
-        LoadActiveInterceptEvents(quiet: false);
-        RefreshIgnoredCount();
+        _ = AiRefreshAllAsync(quiet: false);
     }
 
-    private void LoadActiveInterceptEvents(bool quiet)
-    {
-        if (AiEventList is null) return;
-
-        List<InterceptEventDto> fresh;
-        try { fresh = ActiveInterceptData.ReadEvents(); }
-        catch { fresh = []; }
-
-        bool changed = !quiet && AiContentChanged(fresh);
-
-        // 保留勾选与详情选中（按 RowId 归并）；行内 CheckBox 勾选计数通过 INPC 实时刷新
-        var checkedRowIds = new HashSet<string>(_aiAllEvents.Where(e => e.Selected).Select(e => e.RowId), StringComparer.OrdinalIgnoreCase);
-        var detailRowId = _aiSelectedEvent?.RowId;
-
-        _aiAllEvents.Clear();
-        foreach (var evt in fresh)
-        {
-            if (_aiPendingRemovedRows.Contains(evt.RowId)) continue; // 已乐观删除、后端尚未消费
-            evt.Selected = checkedRowIds.Contains(evt.RowId);
-            evt.PropertyChanged += OnAiEventPropertyChanged;
-            if (!string.IsNullOrEmpty(detailRowId) && string.Equals(evt.RowId, detailRowId, StringComparison.OrdinalIgnoreCase))
-            {
-                _aiSelectedEvent = evt;
-            }
-            _aiAllEvents.Add(evt);
-        }
-        if (_aiSelectedEvent is not null && _aiAllEvents.All(e => !ReferenceEquals(e, _aiSelectedEvent)))
-        {
-            _aiSelectedEvent = null; // 详情行已被删除
-        }
-
-        // 后端已消费删除指令：清除 pending 标记
-        if (_aiPendingRemovedRows.Count > 0)
-        {
-            var rowsOnDisk = new HashSet<string>(fresh.Select(e => e.RowId), StringComparer.OrdinalIgnoreCase);
-            _aiPendingRemovedRows.RemoveWhere(id => !rowsOnDisk.Contains(id));
-        }
-
-        if (changed || !quiet || AiEventList.ItemsSource is null)
-        {
-            ApplyAiFilter();
-            if (_aiSelectedEvent is null) RenderAiDetails(null);
-        }
-        UpdateAiSummary();
-        UpdateAiBatch();
-        RefreshIgnoredCount();
-    }
-
-    private bool AiContentChanged(List<InterceptEventDto> fresh)
-    {
-        if (_aiAllEvents.Count != fresh.Count) return true;
-        if (fresh.Count == 0) return false;
-        return !string.Equals(_aiAllEvents[0].RowId, fresh[0].RowId, StringComparison.OrdinalIgnoreCase)
-            || !string.Equals(_aiAllEvents[^1].RowId, fresh[^1].RowId, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private void ApplyAiFilter()
-    {
-        if (AiEventList is null) return;
-
-        List<InterceptEventDto> filtered = _aiFilter switch
-        {
-            "blocked" => _aiAllEvents.Where(e => e.Action is "Blocked" or "Reblocked").ToList(),
-            "allowed" => _aiAllEvents.Where(e => e.Action is "Allowed" or "Unblocked").ToList(),
-            "failed" => _aiAllEvents.Where(e => e.Action is "BlockedFailed").ToList(),
-            _ => new List<InterceptEventDto>(_aiAllEvents),
-        };
-
-        if (!string.IsNullOrWhiteSpace(_aiSearchKeyword))
-        {
-            var kw = _aiSearchKeyword;
-            filtered = filtered.Where(e =>
-                (!string.IsNullOrEmpty(e.Name) && e.Name.Contains(kw, StringComparison.OrdinalIgnoreCase)) ||
-                (!string.IsNullOrEmpty(e.SubKey) && e.SubKey.Contains(kw, StringComparison.OrdinalIgnoreCase)) ||
-                (!string.IsNullOrEmpty(e.ExePath) && e.ExePath.Contains(kw, StringComparison.OrdinalIgnoreCase)) ||
-                (!string.IsNullOrEmpty(e.Clsid) && e.Clsid.Contains(kw, StringComparison.OrdinalIgnoreCase))
-            ).ToList();
-        }
-        _aiVisible = filtered;
-
-        var keepRowId = _aiSelectedEvent?.RowId;
-        AiEventList.ItemsSource = null;
-        AiEventList.ItemsSource = filtered;
-        if (!string.IsNullOrEmpty(keepRowId))
-        {
-            AiEventList.SelectedItem = filtered.FirstOrDefault(e => string.Equals(e.RowId, keepRowId, StringComparison.OrdinalIgnoreCase));
-        }
-
-        AiEmptyText.Visibility = filtered.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        AiEmptyText.Text = string.IsNullOrWhiteSpace(_aiSearchKeyword)
-            ? _aiFilter switch
-            {
-                "blocked" => "没有已拦截的记录",
-                "allowed" => "没有已放行的记录",
-                "failed" => "没有拦截失败的记录",
-                _ => "暂无拦截记录",
-            }
-            : $"没有匹配\u201C{_aiSearchKeyword}\u201D的拦截记录";
-    }
-
-    // ---------- 轮询刷新 ----------
-
-    private void StartAiPolling()
-    {
-        if (_aiPollTimer is null)
-        {
-            _aiPollTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
-            _aiPollTimer.Tick += (_, _) => LoadActiveInterceptEvents(quiet: true);
-        }
-        if (!_aiPollTimer.IsEnabled) _aiPollTimer.Start();
-    }
-
+    /// <summary>页面离开时调用：停止活动状态（托管于 OnNavigatedFrom）。</summary>
     private void StopAiPolling()
     {
-        if (_aiPollTimer is not null && _aiPollTimer.IsEnabled) _aiPollTimer.Stop();
+        _aiPageActive = false;
+        _aiRefreshCts?.Cancel();
     }
 
-    /// <summary>操作提交后短延时刷新一次，让后端处理结果尽快回显。</summary>
+    private void AiOnWorkspaceItemsChanged(object? sender, EventArgs e)
+    {
+        if (_aiPageActive) AiScheduleRefresh();
+    }
+
+    private void AiOnWorkspaceEventsChanged(object? sender, EventArgs e)
+    {
+        if (_aiPageActive) AiScheduleRefresh();
+    }
+
+    private void AiOnPendingDetected(object? sender, InterceptItemDto item)
+    {
+        if (!_aiPageActive) return;
+        ShowAiStatus($"检测到新的待审核项：{item.Name}，已拦截（先拦截后审核）", InfoBarSeverity.Informational);
+        AiScheduleRefresh();
+    }
+
+    private void AiOnServiceAttention(object? sender, string message)
+    {
+        if (_aiPageActive) ShowAiStatus(message, InfoBarSeverity.Warning);
+    }
+
+    private void AiOnConnectionChanged(object? sender, bool connected)
+    {
+        if (!_aiPageActive) return;
+        if (connected)
+        {
+            CloseAiStatus();
+            AiStatusDot.Fill = new SolidColorBrush(Color.FromArgb(255, 15, 157, 88));
+            AiRunningText.Text = "主动拦截后端：运行中";
+        }
+        else
+        {
+            AiStatusDot.Fill = new SolidColorBrush(Color.FromArgb(255, 234, 88, 12));
+            AiRunningText.Text = "主动拦截后端：连接中断";
+        }
+        _ = AiRefreshAllAsync(quiet: true);
+    }
+
     private void AiScheduleRefresh()
     {
-        Task.Delay(2500).ContinueWith(_ =>
-            DispatcherQueue.TryEnqueue(() => LoadActiveInterceptEvents(quiet: true)));
-    }
-
-    // ---------- 统计 / 多选计数（实时） ----------
-
-    private void UpdateAiSummary()
-    {
-        if (AiCountText is null) return;
-        var total = _aiAllEvents.Count;
-        var blocked = _aiAllEvents.Count(e => e.Action is "Blocked" or "Reblocked");
-        var allowed = _aiAllEvents.Count(e => e.Action is "Allowed" or "Unblocked");
-        var failed = _aiAllEvents.Count(e => e.Action is "BlockedFailed");
-        AiCountText.Text = total == 0
-            ? "暂无拦截记录"
-            : $"共 {total} 条 · 拦截 {blocked} 次 · 放行 {allowed} 次" + (failed > 0 ? $" · 失败 {failed}" : "");
-    }
-
-    private void UpdateAiBatch()
-    {
-        if (AiSelectionText is null) return;
-        var checkedCount = _aiVisible.Count(e => e.Selected);
-
-        // 「已选 N 项」主多选指示
-        AiSelectionPill.Visibility = checkedCount > 0 ? Visibility.Visible : Visibility.Collapsed;
-        AiSelectionText.Text = $"已选 {checkedCount} 项";
-
-        if (AiBatchAllowBtn is not null)
+        _aiRefreshCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _aiRefreshCts = cts;
+        _ = Task.Delay(250).ContinueWith(_ =>
         {
-            AiBatchAllowBtn.Content = checkedCount > 0 ? $"放行选中（{checkedCount}）" : "放行选中";
-            AiBatchAllowBtn.IsEnabled = checkedCount > 0;
-        }
-        if (AiBatchReblockBtn is not null)
-        {
-            AiBatchReblockBtn.Content = checkedCount > 0 ? $"重新拦截选中（{checkedCount}）" : "重新拦截选中";
-            AiBatchReblockBtn.IsEnabled = checkedCount > 0;
-        }
-        if (AiBatchDeleteBtn is not null)
-        {
-            AiBatchDeleteBtn.Content = checkedCount > 0 ? $"删除记录（{checkedCount}）" : "删除记录";
-            AiBatchDeleteBtn.IsEnabled = checkedCount > 0;
-        }
-        if (AiBatchTrackBtn is not null)
-        {
-            AiBatchTrackBtn.Content = checkedCount > 0 ? $"停止追踪（{checkedCount}）" : "停止追踪";
-            AiBatchTrackBtn.IsEnabled = checkedCount > 0;
-        }
-
-        // 表头全选框状态（三态）
-        if (AiMasterCheck is not null)
-        {
-            AiMasterCheck.IsChecked = _aiVisible.Count > 0 && _aiVisible.All(e => e.Selected)
-                ? true
-                : _aiVisible.Any(e => e.Selected) ? (bool?)null : false;
-        }
-
-        if (_aiSelectedEvent is null && AiDetailsText is not null)
-        {
-            AiDetailsText.Text = checkedCount > 0
-                ? $"已勾选 {checkedCount} 条记录，可使用上方批量操作"
-                : "选中一条记录查看详情";
-        }
-    }
-
-    private void RefreshIgnoredCount()
-    {
-        if (AiShowIgnoredBtn is null) return;
-        var count = 0;
-        try { count = ActiveInterceptData.ReadIgnored().Count; } catch { }
-        AiShowIgnoredBtn.Content = $"已忽略（{count}）";
-    }
-
-    private List<InterceptEventDto> GetCheckedEvents() => _aiVisible.Where(e => e.Selected).ToList();
-
-    private void OnAiEventPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName != nameof(InterceptEventDto.Selected)) return;
-        DispatcherQueue.TryEnqueue(() =>
-        {
-            UpdateAiBatch();
-            if (_aiSelectedEvent is null) RenderAiDetails(null);
+            if (cts.IsCancellationRequested) return;
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (_aiPageActive && !_aiBusy) _ = AiRefreshAllAsync(quiet: true);
+            });
         });
     }
 
-    // ---------- 搜索 / 筛选 ----------
+    // ================= 刷新 =================
 
-    private void AiSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    private async Task AiRefreshAllAsync(bool quiet)
     {
-        _aiSearchKeyword = AiSearchBox.Text.Trim();
-        AiSearchClearBtn.Visibility = _aiSearchKeyword.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-        ApplyAiFilter();
-        UpdateAiBatch();
+        if (_aiBusy)
+        {
+            AiScheduleRefresh();
+            return;
+        }
+        _aiBusy = true;
+        try
+        {
+            var ok = await InterceptWorkspace.RefreshAsync();
+            if (!ok && !quiet)
+            {
+                ShowAiStatus("无法连接主动拦截后端（命名管道未就绪），请确认后端已启用。", InfoBarSeverity.Warning);
+            }
+            ApplyAiView();
+        }
+        finally
+        {
+            _aiBusy = false;
+        }
     }
 
-    private void AiSearchClear_Click(object sender, RoutedEventArgs e) => AiSearchBox.Text = string.Empty;
+    private void AiRefresh_Click(object sender, RoutedEventArgs e) => _ = AiRefreshAllAsync(quiet: false);
+
+    // ================= 列表构建 / 筛选 / 搜索 =================
+
+    private void ApplyAiView()
+    {
+        // 1) 条目：就地同步（复用 VM 实例 → 行内 INPC 更新，绝不整表重建，杜绝闪烁）
+        var existingItems = _aiItemVms.ToDictionary(v => v.Id, StringComparer.OrdinalIgnoreCase);
+        var removedIds = new HashSet<string>(existingItems.Keys, StringComparer.OrdinalIgnoreCase);
+        var nextItems = new List<AiItemVm>(InterceptWorkspace.Items.Count);
+        foreach (var dto in InterceptWorkspace.Items)
+        {
+            removedIds.Remove(dto.Id);
+            if (existingItems.TryGetValue(dto.Id, out var vm))
+            {
+                vm.UpdateFrom(dto);
+                nextItems.Add(vm);
+            }
+            else
+            {
+                var created = new AiItemVm(dto);
+                created.PropertyChanged += AiOnItemVmPropertyChanged;
+                nextItems.Add(created);
+            }
+        }
+        foreach (var id in removedIds)
+        {
+            if (existingItems.TryGetValue(id, out var gone))
+            {
+                gone.PropertyChanged -= AiOnItemVmPropertyChanged;
+            }
+        }
+        _aiItemVms = nextItems;
+        _aiUserVms = _aiItemVms.Where(v => !v.IsModernMenu).ToList();
+        _aiModernVms = _aiItemVms.Where(v => v.IsModernMenu).ToList();
+
+        // 2) 操作记录：同样复用 DTO 实例（保留勾选），行内 CopyFrom 更新
+        var existingEvents = _aiEventVms.ToDictionary(ev => ev.RowId, StringComparer.OrdinalIgnoreCase);
+        var removedEventIds = new HashSet<string>(existingEvents.Keys, StringComparer.OrdinalIgnoreCase);
+        var nextEvents = new List<InterceptEventDto>(InterceptWorkspace.Events.Count);
+        foreach (var ev in InterceptWorkspace.Events)
+        {
+            removedEventIds.Remove(ev.RowId);
+            if (existingEvents.TryGetValue(ev.RowId, out var old))
+            {
+                old.CopyFrom(ev);
+                nextEvents.Add(old);
+            }
+            else
+            {
+                nextEvents.Add(ev);
+            }
+        }
+        _aiEventVms = nextEvents;
+
+        // 3) 可见列表：操作记录走就地增量同步（仅增删真正变化的行，绝不再整体重建）；
+        //    拦截列表 = 现代菜单在上 + 分界线 + 非现代菜单在下，合并进同一个列表；
+        //    仅当内容（Id / 分区 Key 序列）真正变化才重新绑定，否则行内更新即可
+        var visibleEvents = FilteredEvents();
+        if (AiEventList.ItemsSource is null)
+        {
+            AiEventList.ItemsSource = _aiEventCollection;
+        }
+        AiSyncEventRows(visibleEvents);
+
+        var visibleItems = AiBuildItemDisplay(FilteredItemVms(), FilteredModernVms());
+        if (!SameItemKeys(AiItemList.ItemsSource as System.Collections.IList, visibleItems))
+        {
+            AiItemList.ItemsSource = visibleItems;
+        }
+
+        // 4) 选中修复（实例复用后引用天然保持；仅当选中项被筛选掉时清除）
+        _aiSuppressSelection = true;
+        try
+        {
+            if (_aiView == "items")
+            {
+                if (_aiSelectedItem is not null && !visibleItems.Any(v => ReferenceEquals(v, _aiSelectedItem)))
+                {
+                    AiItemList.SelectedItem = null;
+                    _aiSelectedItem = null;
+                }
+                else if (_aiSelectedItem is null && visibleItems.Count > 0 && AiItemList.SelectedItem is null)
+                {
+                    // 跳过分区标题行，选中第一条真实条目
+                    var firstSelectable = visibleItems.OfType<AiItemVm>().FirstOrDefault();
+                    if (firstSelectable is not null) AiItemList.SelectedItem = firstSelectable;
+                }
+            }
+            else
+            {
+                if (_aiSelectedEvent is not null && !visibleEvents.Any(ev => ReferenceEquals(ev, _aiSelectedEvent)))
+                {
+                    AiEventList.SelectedItem = null;
+                    _aiSelectedEvent = null;
+                }
+                else if (_aiSelectedEvent is null && visibleEvents.Count > 0 && AiEventList.SelectedItem is null)
+                {
+                    AiEventList.SelectedItem = visibleEvents[0];
+                }
+            }
+        }
+        finally
+        {
+            _aiSuppressSelection = false;
+        }
+
+        // 5) 视图可见性
+        AiItemsSection.Visibility = _aiView == "items" ? Visibility.Visible : Visibility.Collapsed;
+        AiItemList.Visibility = _aiView == "items" ? Visibility.Visible : Visibility.Collapsed;
+        AiEventList.Visibility = _aiView == "events" ? Visibility.Visible : Visibility.Collapsed;
+        AiFilterBar.Visibility = _aiView == "items" ? Visibility.Visible : Visibility.Collapsed;
+        AiStateHeader.Text = _aiView == "items" ? "状态" : "动作";
+
+        int shown = _aiView == "items" ? visibleItems.Count : visibleEvents.Count;
+        AiEmptyText.Visibility = shown == 0 ? Visibility.Visible : Visibility.Collapsed;
+        AiEmptyText.Text = _aiView == "items"
+            ? (InterceptWorkspace.Items.Count == 0 ? "暂无拦截记录：新增右键项会自动进入这里等待审核" : "没有符合筛选条件的拦截项")
+            : (InterceptWorkspace.Events.Count == 0 ? "暂无操作记录" : "没有符合筛选条件的记录");
+
+        // 6) 详情同步 + 图标（仅新条目发起加载）
+        if (_aiView == "items")
+        {
+            if (_aiSelectedItem is not null)
+            {
+                AiRenderDetail(_aiSelectedItem);
+            }
+            else
+            {
+                AiRenderDetail(null);
+            }
+            foreach (var vm in _aiItemVms)
+            {
+                if (!vm.IconRequested)
+                {
+                    vm.IconRequested = true;
+                    _ = AiEnsureIconAsync(vm);
+                }
+            }
+        }
+        else
+        {
+            if (_aiSelectedEvent is not null)
+            {
+                AiRenderEventDetail(_aiSelectedEvent);
+            }
+            else
+            {
+                AiRenderEventDetail(null);
+            }
+        }
+
+        UpdateAiSummary();
+    }
+
+    /// <summary>两个条目列表（含分区标题行）的 Key 序列是否完全一致（一致则无需重绑定）。</summary>
+    private static bool SameItemKeys(System.Collections.IList? current, List<object> next)
+    {
+        if (current is null || current.Count != next.Count) return false;
+        for (int i = 0; i < current.Count; i++)
+        {
+            var a = KeyOf(current[i]);
+            var b = KeyOf(next[i]);
+            if (!string.Equals(a, b, StringComparison.OrdinalIgnoreCase)) return false;
+        }
+        return true;
+    }
+
+    private static string KeyOf(object row)
+        => row switch
+        {
+            AiItemVm vm => vm.Id,
+            AiSectionHeaderVm h => h.Key,
+            _ => "",
+        };
+
+    /// <summary>操作记录就地增量同步：只增删/移动真正变化的行，绝不整表重建（杜绝 ListView 重新实例化导致的闪烁）。</summary>
+    private void AiSyncEventRows(List<InterceptEventDto> next)
+    {
+        var current = _aiEventCollection;
+
+        // 1) 删除已不在集合中的行（倒序删除，避免索引位移）
+        var nextKeys = new HashSet<string>(next.Count, StringComparer.OrdinalIgnoreCase);
+        foreach (var e in next) nextKeys.Add(e.RowId);
+        for (int i = current.Count - 1; i >= 0; i--)
+        {
+            if (!nextKeys.Contains(current[i].RowId)) current.RemoveAt(i);
+        }
+
+        // 2) 逐位对齐：缺失行插入、乱序行移动（增量操作，List 本身绝不被替换）
+        for (int i = 0; i < next.Count; i++)
+        {
+            if (i < current.Count
+                && string.Equals(current[i].RowId, next[i].RowId, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+            int src = -1;
+            for (int k = i; k < current.Count; k++)
+            {
+                if (string.Equals(current[k].RowId, next[i].RowId, StringComparison.OrdinalIgnoreCase))
+                {
+                    src = k;
+                    break;
+                }
+            }
+            if (src >= 0)
+            {
+                var dto = current[src];
+                current.RemoveAt(src);
+                current.Insert(i, dto);
+            }
+            else
+            {
+                current.Insert(i, next[i]);
+            }
+        }
+        while (current.Count > next.Count) current.RemoveAt(current.Count - 1);
+    }
+
+    // ================= 程序图标（ToolIconService 缓存 PNG，异步加载后行内赋值） =================
+
+    private readonly Dictionary<string, BitmapImage> _aiIcons = [];
+
+    private async Task AiEnsureIconAsync(AiItemVm vm)
+    {
+        if (vm.IconDisplay is not null) return;
+        var exe = vm.ExePath;
+        if (string.IsNullOrWhiteSpace(exe)) return;
+
+        if (!_aiIcons.TryGetValue(exe, out var bmp))
+        {
+            // 现代菜单/AppX 包的 ExePath 是包目录：走 manifest Logo；其余走 exe 图标提取
+            bmp = Directory.Exists(exe)
+                ? await AiLoadPackageIconAsync(exe)
+                : await AiLoadIconAsync(exe);
+            if (bmp is null)
+            {
+                _aiIcons[exe] = null!;
+                return;
+            }
+            _aiIcons[exe] = bmp;
+        }
+        if (bmp is not null && vm.IconDisplay is null)
+        {
+            vm.IconDisplay = bmp;
+        }
+    }
+
+    private static async Task<BitmapImage?> AiLoadIconAsync(string exePath)
+    {
+        try
+        {
+            var cached = ToolIconService.GetCachedIconPath(exePath);
+            if (string.IsNullOrEmpty(cached))
+            {
+                cached = await ToolIconService.ExtractIconToCacheAsync(exePath);
+            }
+            if (string.IsNullOrEmpty(cached) || !File.Exists(cached)) return null;
+
+            var bitmap = new BitmapImage();
+            using var stream = File.OpenRead(cached);
+            await bitmap.SetSourceAsync(stream.AsRandomAccessStream());
+            return bitmap;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>从 AppX 包目录读取应用 Logo（AppxManifest.xml Properties/Logo，含 scale 变体兜底）。</summary>
+    private static async Task<BitmapImage?> AiLoadPackageIconAsync(string packageDir)
+    {
+        try
+        {
+            var logo = ResolveAppxLogoPath(packageDir);
+            if (string.IsNullOrEmpty(logo) || !File.Exists(logo)) return null;
+
+            var bitmap = new BitmapImage();
+            using var stream = File.OpenRead(logo);
+            await bitmap.SetSourceAsync(stream.AsRandomAccessStream());
+            return bitmap;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string ResolveAppxLogoPath(string packageDir)
+    {
+        try
+        {
+            var manifest = Path.Combine(packageDir, "AppxManifest.xml");
+            if (!File.Exists(manifest)) return "";
+
+            var xml = new System.Xml.XmlDocument { XmlResolver = null };
+            xml.Load(manifest);
+            var logoNode = xml.SelectSingleNode(
+                "/*[local-name()='Package']/*[local-name()='Properties']/*[local-name()='Logo']");
+            var relative = logoNode?.InnerText?.Trim() ?? "";
+            if (!string.IsNullOrEmpty(relative))
+            {
+                var direct = Path.Combine(packageDir, relative);
+                if (File.Exists(direct)) return direct;
+
+                // 资源限定符变体：StoreLogo.scale-100/200/400.png 等
+                var dir = Path.GetDirectoryName(relative) ?? "";
+                var name = Path.GetFileNameWithoutExtension(relative);
+                var ext = Path.GetExtension(relative);
+                foreach (var scale in new[] { ".scale-100", ".scale-200", ".scale-400", ".scale-125", ".scale-150" })
+                {
+                    var variant = Path.Combine(packageDir, dir, name + scale + ext);
+                    if (File.Exists(variant)) return variant;
+                }
+            }
+
+            // 兜底：Assets 目录里任意的 Logo/Store 型图片
+            var assets = Path.Combine(packageDir, "Assets");
+            if (Directory.Exists(assets))
+            {
+                var images = Directory.EnumerateFiles(assets, "*", SearchOption.TopDirectoryOnly)
+                    .Where(f => f.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
+                             || f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase)
+                             || f.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                var byName = images.FirstOrDefault(f =>
+                {
+                    var n = Path.GetFileName(f);
+                    return n.Contains("logo", StringComparison.OrdinalIgnoreCase)
+                        || n.Contains("store", StringComparison.OrdinalIgnoreCase);
+                });
+                if (byName is not null) return byName;
+                return images.FirstOrDefault() ?? "";
+            }
+        }
+        catch
+        {
+        }
+        return "";
+    }
+
+    private List<AiItemVm> FilteredItemVms()
+    {
+        IEnumerable<AiItemVm> q = _aiUserVms;
+        q = _aiFilter switch
+        {
+            "pending" => q.Where(v => v.IsPending),
+            "blocked" => q.Where(v => !v.IsPending && !v.IsDeleted && !v.IsIgnored && v.Dto.DesiredState == "blocked"),
+            "allowed" => q.Where(v => !v.IsDeleted && !v.IsIgnored && v.Dto.DesiredState == "allowed"),
+            "ignored" => q.Where(v => v.IsIgnored),
+            "deleted" => q.Where(v => v.IsDeleted),
+            _ => q,
+        };
+
+        if (!string.IsNullOrWhiteSpace(_aiSearch))
+        {
+            var kw = _aiSearch.Trim();
+            q = q.Where(v => ContainsIgnoreCase(v.Name, kw)
+                             || ContainsIgnoreCase(v.SubKey, kw)
+                             || ContainsIgnoreCase(v.ExePath, kw)
+                             || ContainsIgnoreCase(v.ExeFileName, kw)
+                             || ContainsIgnoreCase(v.Command, kw));
+        }
+        return q.ToList();
+    }
+
+    /// <summary>现代菜单的筛选搜索（与 FilteredItemVms 同规则）。</summary>
+    private List<AiItemVm> FilteredModernVms()
+    {
+        IEnumerable<AiItemVm> q = _aiModernVms;
+        q = _aiFilter switch
+        {
+            "pending" => q.Where(v => v.IsPending),
+            "blocked" => q.Where(v => !v.IsPending && !v.IsDeleted && !v.IsIgnored && v.Dto.DesiredState == "blocked"),
+            "allowed" => q.Where(v => !v.IsDeleted && !v.IsIgnored && v.Dto.DesiredState == "allowed"),
+            "ignored" => q.Where(v => v.IsIgnored),
+            "deleted" => q.Where(v => v.IsDeleted),
+            _ => q,
+        };
+        if (!string.IsNullOrWhiteSpace(_aiSearch))
+        {
+            var kw = _aiSearch.Trim();
+            q = q.Where(v => ContainsIgnoreCase(v.Name, kw)
+                             || ContainsIgnoreCase(v.SubKey, kw)
+                             || ContainsIgnoreCase(v.ExePath, kw)
+                             || ContainsIgnoreCase(v.ExeFileName, kw)
+                             || ContainsIgnoreCase(v.Command, kw));
+        }
+        return q.ToList();
+    }
+
+    /// <summary>合并拦截列表：现代菜单在上 + 分界线 + 非现代菜单在下（同一个列表）。</summary>
+    private static List<object> AiBuildItemDisplay(List<AiItemVm> classic, List<AiItemVm> modern)
+    {
+        var rows = new List<object>();
+        if (modern.Count > 0)
+        {
+            rows.Add(new AiSectionHeaderVm { Key = "header:modern", Text = $"现代菜单（{modern.Count}）· 默认放行" });
+            rows.AddRange(modern);
+        }
+        if (classic.Count > 0)
+        {
+            rows.Add(new AiSectionHeaderVm { Key = "header:classic", Text = $"非现代菜单（{classic.Count}）" });
+            rows.AddRange(classic);
+        }
+        return rows;
+    }
+
+    private List<InterceptEventDto> FilteredEvents()
+    {
+        IEnumerable<InterceptEventDto> q = _aiEventVms;
+        if (!string.IsNullOrWhiteSpace(_aiSearch))
+        {
+            var kw = _aiSearch.Trim();
+            q = q.Where(e => ContainsIgnoreCase(e.Name, kw)
+                             || ContainsIgnoreCase(e.SubKey, kw)
+                             || ContainsIgnoreCase(e.ExePath, kw)
+                             || ContainsIgnoreCase(e.Command, kw));
+        }
+        return q.ToList();
+    }
+
+    private static bool ContainsIgnoreCase(string? source, string keyword)
+        => source is not null && source.Contains(keyword, StringComparison.OrdinalIgnoreCase);
+
+    // ================= 计数 / 勾选联动 =================
+
+    private void UpdateAiSummary()
+    {
+        var items = _aiUserVms;
+        int pending = items.Count(v => v.IsPending);
+        int blocked = items.Count(v => !v.IsPending && !v.IsDeleted && !v.IsIgnored && v.Dto.DesiredState == "blocked");
+        int allowed = items.Count(v => !v.IsDeleted && !v.IsIgnored && v.Dto.DesiredState == "allowed");
+        int ignored = items.Count(v => v.IsIgnored);
+        int deleted = items.Count(v => v.IsDeleted);
+
+        AiCountText.Text = _aiView == "items"
+            ? $"条目 {items.Count} · 现代菜单 {_aiModernVms.Count} · 待审核 {pending} · 已拦截 {blocked} · 已放行 {allowed} · 已停止追踪 {ignored} · 已删除 {deleted}"
+            : $"操作记录 {InterceptWorkspace.Events.Count}";
+
+        int total;
+        int selected;
+        if (_aiView == "items")
+        {
+            var list = FilteredItemVms();
+            total = list.Count;
+            selected = list.Count(v => v.Selected);
+        }
+        else
+        {
+            var visibleRows = FilteredEvents().Select(e => e.RowId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            total = _aiEventVms.Count(e => visibleRows.Contains(e.RowId));
+            selected = _aiEventVms.Count(e => e.Selected && visibleRows.Contains(e.RowId));
+        }
+
+        AiSelectionPill.Visibility = selected > 0 ? Visibility.Visible : Visibility.Collapsed;
+        AiSelectionText.Text = $"已选 {selected} 项";
+
+        // 批量按钮按视图启用
+        var canBatch = selected > 0;
+        AiBatchAllowBtn.IsEnabled = canBatch && _aiView == "items";
+        AiBatchReblockBtn.IsEnabled = canBatch && _aiView == "items";
+        AiBatchTrackBtn.IsEnabled = canBatch && _aiView == "items";
+        AiBatchDeleteBtn.IsEnabled = canBatch && _aiView == "events";
+        AiClearAllBtn.IsEnabled = _aiView == "events" && InterceptWorkspace.Events.Count > 0;
+        AiShowIgnoredBtn.Content = $"已停止追踪（{InterceptWorkspace.Ignored.Count}）";
+
+        // 表头全选（三态）
+        AiMasterCheck.IsChecked = total == 0 ? false : selected == 0 ? false : selected == total ? true : (bool?)null;
+    }
+
+    private void AiOnItemVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AiItemVm.Selected))
+        {
+            UpdateAiSummary();
+        }
+    }
+
+    private void AiMasterCheck_Click(object sender, RoutedEventArgs e)
+    {
+        var check = !(AiMasterCheck.IsChecked == true);
+        if (_aiView == "items")
+        {
+            foreach (var vm in FilteredItemVms()) vm.Selected = check;
+        }
+        else
+        {
+            foreach (var ev in _aiEventVms.Where(ev => FilteredEvents().Any(ve => string.Equals(ve.RowId, ev.RowId, StringComparison.OrdinalIgnoreCase))))
+            {
+                ev.Selected = check;
+            }
+        }
+        UpdateAiSummary();
+    }
+
+    private void AiSelectAll_Click(object sender, RoutedEventArgs e)
+    {
+        if (_aiView == "items")
+        {
+            foreach (var vm in FilteredItemVms()) vm.Selected = true;
+        }
+        else
+        {
+            foreach (var ev in _aiEventVms.Where(ev => FilteredEvents().Any(ve => string.Equals(ve.RowId, ev.RowId, StringComparison.OrdinalIgnoreCase))))
+            {
+                ev.Selected = true;
+            }
+        }
+        UpdateAiSummary();
+    }
+
+    private void AiDeselectAll_Click(object sender, RoutedEventArgs e)
+    {
+        foreach (var vm in _aiItemVms) vm.Selected = false;
+        foreach (var ev in _aiEventVms) ev.Selected = false;
+        UpdateAiSummary();
+    }
+
+    private void AiViewBar_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    {
+        var tag = (sender.SelectedItem as SelectorBarItem)?.Tag as string ?? "items";
+        _aiView = tag;
+        ApplyAiView();
+    }
 
     private void AiFilterBar_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
     {
         var tag = (sender.SelectedItem as SelectorBarItem)?.Tag as string ?? "all";
         _aiFilter = tag;
-        ApplyAiFilter();
-        UpdateAiBatch();
+        ApplyAiView();
     }
 
-    // ---------- 全选 ----------
-
-    private void AiSelectAll_Click(object sender, RoutedEventArgs e)
+    private void AiSearchBox_TextChanged(object sender, TextChangedEventArgs e)
     {
-        foreach (var evt in _aiVisible) evt.Selected = true;   // INPC → 行内复选框自动同步
-        UpdateAiBatch();
+        _aiSearch = AiSearchBox.Text;
+        AiSearchClearBtn.Visibility = string.IsNullOrEmpty(_aiSearch) ? Visibility.Collapsed : Visibility.Visible;
+        ApplyAiView();
     }
 
-    private void AiDeselectAll_Click(object sender, RoutedEventArgs e)
+    private void AiSearchClear_Click(object sender, RoutedEventArgs e)
     {
-        foreach (var evt in _aiVisible) evt.Selected = false;
-        UpdateAiBatch();
+        AiSearchBox.Text = "";
     }
 
-    private void AiMasterCheck_Click(object sender, RoutedEventArgs e)
+    // ================= 列表选中 / 右键 =================
+
+    private void AiItemList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        var target = AiMasterCheck.IsChecked == true;
-        foreach (var evt in _aiVisible) evt.Selected = target;
-        UpdateAiBatch();
+        if (_aiSuppressSelection) return;
+        // 分区标题行不可选中；只有真实条目才进入详情
+        if (AiItemList.SelectedItem is not AiItemVm item) return;
+        _aiSelectedItem = item;
+        if (_aiView == "items")
+        {
+            AiRenderDetail(_aiSelectedItem);
+        }
     }
-
-    // ---------- 选择与详情 ----------
 
     private void AiEventList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        var evt = AiEventList.SelectedItem as InterceptEventDto;
-        _aiSelectedEvent = evt;
-        RenderAiDetails(evt);
+        if (_aiSuppressSelection) return;
+        _aiSelectedEvent = AiEventList.SelectedItem as InterceptEventDto;
+        if (_aiView == "events")
+        {
+            AiRenderEventDetail(_aiSelectedEvent);
+        }
+    }
+
+    private void AiItemList_RightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if ((e.OriginalSource as FrameworkElement)?.DataContext is AiItemVm vm)
+        {
+            _aiContextItem = vm;
+            AiItemList.SelectedItem = vm;
+            AiPrepareItemFlyout(vm);
+        }
+    }
+
+    /// <summary>按条目状态启用/禁用右键菜单项（主列表与系统列表共用）。</summary>
+    private void AiPrepareItemFlyout(AiItemVm vm)
+    {
+        var canReview = !vm.IsDeleted && !vm.IsIgnored;
+        // 待审核（先拦截后审核）与已拦截项均可直接放行；已放行项显示「保持拦截」
+        var allowable = canReview && (vm.IsPending || (!vm.IsPending && vm.Dto.DesiredState == "blocked"));
+        AiFlyAllow.IsEnabled = allowable;
+        AiFlyTrust.IsEnabled = allowable && !string.IsNullOrWhiteSpace(vm.ExePath);
+        AiFlyReblock.IsEnabled = canReview && !vm.IsPending && vm.Dto.DesiredState == "allowed";
+        AiFlyDeleteItem.IsEnabled = !vm.IsDeleted && !vm.IsIgnored;
+        AiFlyUndo.IsEnabled = vm.IsDeleted && vm.HasBackup;
+        AiFlyPurge.IsEnabled = vm.IsDeleted;
+        AiFlyIgnore.IsEnabled = !vm.IsIgnored && !vm.IsDeleted;
+        AiFlyResume.IsEnabled = vm.IsIgnored;
+        AiFlyPolicy.IsEnabled = !string.IsNullOrWhiteSpace(vm.ExePath);
     }
 
     private void AiEventList_RightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         if ((e.OriginalSource as FrameworkElement)?.DataContext is InterceptEventDto evt)
         {
+            _aiContextEvent = evt;
             AiEventList.SelectedItem = evt;
-            _aiSelectedEvent = evt;
-            var isBlocked = evt.Action is "Blocked" or "Reblocked";
-            AiFlyAllow.IsEnabled = isBlocked;
-            AiFlyTrust.IsEnabled = isBlocked && !string.IsNullOrWhiteSpace(evt.ExePath);
-            AiFlyReblock.IsEnabled = !isBlocked;
-            AiFlyPolicy.IsEnabled = !string.IsNullOrWhiteSpace(evt.ExePath);
-            RenderAiDetails(evt);
         }
     }
 
-    private void RenderAiDetails(InterceptEventDto? evt)
-    {
-        if (AiDetailsText is null) return;
+    // ================= 详情渲染 =================
 
+    private void AiRenderDetail(AiItemVm? vm)
+    {
+        AiPolicySection.Visibility = Visibility.Collapsed;
+        AiDetailActions.Visibility = Visibility.Collapsed;
+        if (vm is null)
+        {
+            AiDetailsText.Text = "选中一条拦截项查看详情";
+            return;
+        }
+
+        var d = vm.Dto;
+        var sb = new StringBuilder();
+        sb.AppendLine($"名称：{d.Name}");
+        sb.AppendLine($"状态：{vm.StateText}");
+        sb.AppendLine($"菜单类型：{(d.IsModernMenu ? "现代菜单（AppX 打包应用）" : "非现代菜单（经典注册表项）")}");
+        if (vm.IsPending) sb.AppendLine($"来源：{(d.PendingChangeKind == "reappeared" ? "已删除项重现" : "新增项")}（先拦截后审核）");
+        if (!string.IsNullOrWhiteSpace(d.ExePath)) sb.AppendLine($"程序：{d.ExePath}");
+        if (!string.IsNullOrWhiteSpace(d.Command)) sb.AppendLine($"命令：{d.Command}");
+        if (!string.IsNullOrWhiteSpace(d.Clsid)) sb.AppendLine($"CLSID：{d.Clsid}");
+        sb.AppendLine($"注册表：{HiveName(d.Hive)}\\{d.SubKey}");
+        if (!string.IsNullOrWhiteSpace(d.ConsistencyIssue)) sb.AppendLine($"提示：{d.ConsistencyIssue}");
+        if (!string.IsNullOrWhiteSpace(d.Note)) sb.AppendLine($"说明：{d.Note}");
+        sb.AppendLine($"首次出现：{vm.FirstSeenText}");
+        sb.AppendLine($"最近更新：{vm.TimeText}");
+        if (vm.IsDeleted) sb.AppendLine($"已删除（{(d.HasBackup ? "含备份，可撤销" : "无备份")}）");
+        var text = sb.ToString().TrimEnd();
+        if (AiDetailsText.Text != text) AiDetailsText.Text = text;
+
+        var canReview = !vm.IsDeleted && !vm.IsIgnored;
+        var allowable = canReview && (vm.IsPending || (!vm.IsPending && d.DesiredState == "blocked"));
+        AiAllowBtn.Visibility = allowable ? Visibility.Visible : Visibility.Collapsed;
+        AiAllowTrustBtn.Visibility = allowable && !string.IsNullOrWhiteSpace(d.ExePath) ? Visibility.Visible : Visibility.Collapsed;
+        AiReblockBtn.Visibility = canReview && !vm.IsPending && d.DesiredState == "allowed" ? Visibility.Visible : Visibility.Collapsed;
+        AiDeleteItemBtn.Visibility = canReview ? Visibility.Visible : Visibility.Collapsed;
+        AiUndoBtn.Visibility = vm.IsDeleted && d.HasBackup ? Visibility.Visible : Visibility.Collapsed;
+        AiPurgeBtn.Visibility = vm.IsDeleted ? Visibility.Visible : Visibility.Collapsed;
+        AiIgnoreBtn.Visibility = canReview ? Visibility.Visible : Visibility.Collapsed;
+        AiResumeBtn.Visibility = vm.IsIgnored ? Visibility.Visible : Visibility.Collapsed;
+        AiOpenLocationBtn.Visibility = string.IsNullOrWhiteSpace(d.ExePath) ? Visibility.Collapsed : Visibility.Visible;
+        AiOpenRegistryBtn.Visibility = Visibility.Visible;
+        AiCopyBtn.Visibility = Visibility.Visible;
+        AiDetailActions.Visibility = Visibility.Visible;
+
+        if (!string.IsNullOrWhiteSpace(d.ExePath))
+        {
+            AiPolicySection.Visibility = Visibility.Visible;
+            AiFillPolicyComboBox(d.ExePath);
+        }
+    }
+
+    private void AiRenderEventDetail(InterceptEventDto? evt)
+    {
+        AiPolicySection.Visibility = Visibility.Collapsed;
+        AiDetailActions.Visibility = Visibility.Collapsed;
+        AiAllowBtn.Visibility = Visibility.Collapsed;
+        AiAllowTrustBtn.Visibility = Visibility.Collapsed;
+        AiReblockBtn.Visibility = Visibility.Collapsed;
+        AiDeleteItemBtn.Visibility = Visibility.Collapsed;
+        AiUndoBtn.Visibility = Visibility.Collapsed;
+        AiPurgeBtn.Visibility = Visibility.Collapsed;
+        AiIgnoreBtn.Visibility = Visibility.Collapsed;
+        AiResumeBtn.Visibility = Visibility.Collapsed;
+        AiOpenLocationBtn.Visibility = Visibility.Collapsed;
+        AiOpenRegistryBtn.Visibility = Visibility.Collapsed;
         if (evt is null)
         {
-            AiDetailsText.Text = _aiVisible.Count(e => e.Selected) > 0
-                ? $"已勾选 {_aiVisible.Count(e => e.Selected)} 条记录，可使用上方批量操作"
-                : "选中一条记录查看详情";
-            if (AiDetailActions is not null) AiDetailActions.Visibility = Visibility.Collapsed;
-            if (AiPolicySection is not null) AiPolicySection.Visibility = Visibility.Collapsed;
+            AiDetailsText.Text = "选中一条操作记录查看详情";
             return;
         }
 
         var sb = new StringBuilder();
-        sb.AppendLine($"动作：{evt.ActionText}");
-        sb.AppendLine($"时间：{evt.TimeText}");
+        sb.AppendLine($"动作：{AiEventActionText(evt.Action)}");
         sb.AppendLine($"名称：{evt.Name}");
-        if (!string.IsNullOrWhiteSpace(evt.SubKey)) sb.AppendLine($"位置：{evt.SubKey}");
         if (!string.IsNullOrWhiteSpace(evt.ExePath)) sb.AppendLine($"程序：{evt.ExePath}");
-        if (!string.IsNullOrWhiteSpace(evt.Clsid)) sb.AppendLine($"CLSID：{evt.Clsid}");
-        if (!string.IsNullOrWhiteSpace(evt.Note)) sb.AppendLine($"备注：{evt.Note}");
-        AiDetailsText.Text = sb.ToString();
+        if (!string.IsNullOrWhiteSpace(evt.Command)) sb.AppendLine($"命令：{evt.Command}");
+        sb.AppendLine($"注册表：{HiveName((int)evt.Hive)}\\{evt.SubKey}");
+        if (!string.IsNullOrWhiteSpace(evt.Note)) sb.AppendLine($"说明：{evt.Note}");
+        sb.AppendLine($"时间：{AiEventTimeText(evt.TimestampUtc)}");
+        var text = sb.ToString().TrimEnd();
+        if (AiDetailsText.Text != text) AiDetailsText.Text = text;
 
-        if (AiDetailActions is not null)
-        {
-            AiDetailActions.Visibility = Visibility.Visible;
-            var isBlocked = evt.Action is "Blocked" or "Reblocked";
-            AiAllowBtn.IsEnabled = isBlocked;
-            AiAllowTrustBtn.IsEnabled = isBlocked && !string.IsNullOrWhiteSpace(evt.ExePath);
-            AiReblockBtn.IsEnabled = evt.Action is "Allowed" or "Unblocked";
-            AiIgnoreBtn.IsEnabled = true;
-            AiDeleteBtn.IsEnabled = true;
-        }
+        AiCopyBtn.Visibility = Visibility.Visible;
+        AiDetailActions.Visibility = Visibility.Visible;
+    }
 
-        if (!string.IsNullOrWhiteSpace(evt.ExePath) && AiPolicySection is not null)
+    private static string AiEventActionText(string action) => action switch
+    {
+        "Blocked" => "已拦截",
+        "Reblocked" => "自动纠偏/重新拦截",
+        "Allowed" => "已放行",
+        "Unblocked" => "已解除",
+        "BlockedFailed" => "拦截失败",
+        "Removed" => "已移除",
+        "Restored" => "已撤销恢复",
+        "Reappeared" => "已拦截（重现）",
+        "Ignored" => "已停止追踪",
+        "Tracking" => "已恢复追踪",
+        "Pending" => "待审核（新增）",
+        "Purged" => "已永久清除",
+        "Modified" => "外部修改",
+        _ => action,
+    };
+
+    private static string AiEventTimeText(string utc)
+    {
+        if (DateTime.TryParse(utc, null, DateTimeStyles.RoundtripKind, out var dt))
         {
-            AiPolicySection.Visibility = Visibility.Visible;
-            InitPolicyComboBox(evt.ExePath);
+            return dt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
         }
-        else if (AiPolicySection is not null)
+        return utc;
+    }
+
+    private static string HiveName(int hive) => hive == 1 ? "HKLM" : "HKCU";
+
+    // ================= 单项操作 =================
+
+    private bool AiTryGetSelectedItem(out AiItemVm? vm)
+    {
+        vm = _aiContextItem ?? _aiSelectedItem;
+        if (vm is null && AiItemList.SelectedItem is AiItemVm listSelected)
         {
-            AiPolicySection.Visibility = Visibility.Collapsed;
+            vm = listSelected;
+        }
+        return vm is not null;
+    }
+
+    private async Task<bool> AiEnsureBackendReadyAsync()
+    {
+        if (!AppSettings.GetBool("ActiveInterceptEnabled", false) || !ActiveInterceptService.IsRunning)
+        {
+            ShowAiStatus("主动拦截后端未在运行，请先点击「启用主动拦截」。", InfoBarSeverity.Warning);
+            return false;
+        }
+        return true;
+    }
+
+    private async Task AiAllowCoreAsync(AiItemVm vm, bool trust)
+    {
+        if (!await AiEnsureBackendReadyAsync()) return;
+        try
+        {
+            if (trust)
+            {
+                var name = string.IsNullOrWhiteSpace(vm.Name) ? vm.ExeFileName : vm.Name;
+                if (!await AiConfirmAsync("放行并信任此程序",
+                        $"将放行「{name}」，并把该程序（{vm.ExePath}）加入信任名单：以后该程序新增的右键项都会自动放行。\n确定？",
+                        "放行并信任"))
+                {
+                    return;
+                }
+            }
+            await InterceptWorkspace.ApplyDecisionAsync(vm.Id, InterceptDecision.Allow, trust);
+            ShowAiStatus(trust ? "已放行并信任此程序" : "已放行", InfoBarSeverity.Success);
+        }
+        catch (Exception ex)
+        {
+            ShowAiStatus($"操作失败:{ex.Message}", InfoBarSeverity.Error);
+        }
+    }
+
+    private async Task AiDenyCoreAsync(AiItemVm vm)
+    {
+        if (!await AiEnsureBackendReadyAsync()) return;
+        try
+        {
+            await InterceptWorkspace.ApplyDecisionAsync(vm.Id, InterceptDecision.Deny, false);
+            ShowAiStatus("已保持拦截（该软件若再改回启用，将自动重新拦截且不打扰您）", InfoBarSeverity.Success);
+        }
+        catch (Exception ex)
+        {
+            ShowAiStatus($"操作失败:{ex.Message}", InfoBarSeverity.Error);
+        }
+    }
+
+    private async Task AiDeleteItemCoreAsync(AiItemVm vm)
+    {
+        if (!await AiEnsureBackendReadyAsync()) return;
+        var name = string.IsNullOrWhiteSpace(vm.Name) ? vm.ExeFileName : vm.Name;
+        if (!await AiConfirmAsync("删除条目",
+                $"将删除「{name}」的注册表项（删除前自动导出 .reg 备份，可随时撤销）。\n确定删除？",
+                "删除"))
+        {
+            return;
+        }
+        try
+        {
+            await InterceptWorkspace.DeleteItemAsync(vm.Id);
+            ShowAiStatus("条目已删除（已备份，可在「撤销删除」中恢复）", InfoBarSeverity.Success);
+        }
+        catch (Exception ex)
+        {
+            ShowAiStatus($"删除失败:{ex.Message}", InfoBarSeverity.Error);
+        }
+    }
+
+    private async Task AiUndoCoreAsync(AiItemVm vm)
+    {
+        if (!await AiEnsureBackendReadyAsync()) return;
+        try
+        {
+            await InterceptWorkspace.UndoDeleteAsync(vm.Id);
+            ShowAiStatus("已从备份恢复注册表项，并重新进入待审核", InfoBarSeverity.Success);
+        }
+        catch (Exception ex)
+        {
+            ShowAiStatus($"撤销失败:{ex.Message}", InfoBarSeverity.Error);
+        }
+    }
+
+    private async Task AiPurgeCoreAsync(AiItemVm vm)
+    {
+        if (!await AiEnsureBackendReadyAsync()) return;
+        if (!await AiConfirmAsync("永久清除",
+                $"将永久删除「{vm.Name}」的备份文件与状态记录，删除后【不可恢复】。\n确定永久清除？",
+                "永久清除"))
+        {
+            return;
+        }
+        try
+        {
+            await InterceptWorkspace.PurgeDeletedItemAsync(vm.Id);
+            ShowAiStatus("已永久清除", InfoBarSeverity.Success);
+        }
+        catch (Exception ex)
+        {
+            ShowAiStatus($"操作失败:{ex.Message}", InfoBarSeverity.Error);
+        }
+    }
+
+    private async Task AiIgnoreCoreAsync(AiItemVm vm)
+    {
+        if (!await AiEnsureBackendReadyAsync()) return;
+        if (!await AiConfirmAsync("停止追踪",
+                $"将停止追踪「{vm.Name}」：保留注册表现状，不再拦截、不再提醒。\n可在「已停止追踪」管理中恢复。\n确定？",
+                "停止追踪"))
+        {
+            return;
+        }
+        try
+        {
+            await InterceptWorkspace.StopTrackingAsync(vm.Id);
+            ShowAiStatus("已停止追踪（可在「已停止追踪」中恢复）", InfoBarSeverity.Success);
+        }
+        catch (Exception ex)
+        {
+            ShowAiStatus($"操作失败:{ex.Message}", InfoBarSeverity.Error);
+        }
+    }
+
+    private async Task AiResumeCoreAsync(AiItemVm vm)
+    {
+        if (!await AiEnsureBackendReadyAsync()) return;
+        try
+        {
+            await InterceptWorkspace.ResumeTrackingAsync(vm.Id);
+            ShowAiStatus($"已恢复追踪：{vm.Name}（后续出现将重新进入拦截流程）", InfoBarSeverity.Success);
+        }
+        catch (Exception ex)
+        {
+            ShowAiStatus($"操作失败:{ex.Message}", InfoBarSeverity.Error);
+        }
+    }
+
+    // ---- 详情区按钮 ----
+
+    private async void AiAllow_Click(object sender, RoutedEventArgs e)
+    {
+        if (AiTryGetSelectedItem(out var vm) && vm is not null) await AiAllowCoreAsync(vm, trust: false);
+    }
+
+    private async void AiAllowTrust_Click(object sender, RoutedEventArgs e)
+    {
+        if (AiTryGetSelectedItem(out var vm) && vm is not null) await AiAllowCoreAsync(vm, trust: true);
+    }
+
+    private async void AiReblock_Click(object sender, RoutedEventArgs e)
+    {
+        if (AiTryGetSelectedItem(out var vm) && vm is not null) await AiDenyCoreAsync(vm);
+    }
+
+    private async void AiDeleteItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (AiTryGetSelectedItem(out var vm) && vm is not null) await AiDeleteItemCoreAsync(vm);
+    }
+
+    private async void AiUndo_Click(object sender, RoutedEventArgs e)
+    {
+        if (AiTryGetSelectedItem(out var vm) && vm is not null) await AiUndoCoreAsync(vm);
+    }
+
+    private async void AiPurge_Click(object sender, RoutedEventArgs e)
+    {
+        if (AiTryGetSelectedItem(out var vm) && vm is not null) await AiPurgeCoreAsync(vm);
+    }
+
+    private async void AiIgnore_Click(object sender, RoutedEventArgs e)
+    {
+        if (AiTryGetSelectedItem(out var vm) && vm is not null) await AiIgnoreCoreAsync(vm);
+    }
+
+    private async void AiResume_Click(object sender, RoutedEventArgs e)
+    {
+        if (AiTryGetSelectedItem(out var vm) && vm is not null) await AiResumeCoreAsync(vm);
+    }
+
+    // ---- 右键菜单 ----
+
+    private async void AiFlyAllow_Click(object sender, RoutedEventArgs e)
+    {
+        if (_aiContextItem is not null) await AiAllowCoreAsync(_aiContextItem, trust: false);
+    }
+
+    private async void AiFlyTrust_Click(object sender, RoutedEventArgs e)
+    {
+        if (_aiContextItem is not null) await AiAllowCoreAsync(_aiContextItem, trust: true);
+    }
+
+    private async void AiFlyReblock_Click(object sender, RoutedEventArgs e)
+    {
+        if (_aiContextItem is not null) await AiDenyCoreAsync(_aiContextItem);
+    }
+
+    private async void AiFlyDeleteItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (_aiContextItem is not null) await AiDeleteItemCoreAsync(_aiContextItem);
+    }
+
+    private async void AiFlyUndo_Click(object sender, RoutedEventArgs e)
+    {
+        if (_aiContextItem is not null) await AiUndoCoreAsync(_aiContextItem);
+    }
+
+    private async void AiFlyPurge_Click(object sender, RoutedEventArgs e)
+    {
+        if (_aiContextItem is not null) await AiPurgeCoreAsync(_aiContextItem);
+    }
+
+    private async void AiFlyIgnore_Click(object sender, RoutedEventArgs e)
+    {
+        if (_aiContextItem is not null) await AiIgnoreCoreAsync(_aiContextItem);
+    }
+
+    private async void AiFlyResume_Click(object sender, RoutedEventArgs e)
+    {
+        if (_aiContextItem is not null) await AiResumeCoreAsync(_aiContextItem);
+    }
+
+    private async void AiFlyDelete_Click(object sender, RoutedEventArgs e)
+    {
+        if (_aiContextEvent is null) return;
+        if (!await AiConfirmAsync("删除记录", $"将删除这条操作记录（不影响拦截状态）。\n确定？", "删除")) return;
+        try
+        {
+            await InterceptWorkspace.RemoveEventRowsAsync(new[] { _aiContextEvent.RowId });
+            ShowAiStatus("记录已删除", InfoBarSeverity.Success);
+        }
+        catch (Exception ex)
+        {
+            ShowAiStatus($"删除失败:{ex.Message}", InfoBarSeverity.Error);
+        }
+    }
+
+    // ================= 批量操作 =================
+
+    private List<AiItemVm> AiSelectedItemVms()
+    {
+        var selected = new HashSet<string>(
+            FilteredItemVms().Where(v => v.Selected).Select(v => v.Id),
+            StringComparer.OrdinalIgnoreCase);
+        return _aiItemVms.Where(v => selected.Contains(v.Id)).ToList();
+    }
+
+    private List<InterceptEventDto> AiSelectedEvents()
+    {
+        var visible = FilteredEvents().Select(e => e.RowId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return _aiEventVms.Where(e => e.Selected && visible.Contains(e.RowId)).ToList();
+    }
+
+    private async void AiBatchAllow_Click(object sender, RoutedEventArgs e)
+    {
+        var vms = AiSelectedItemVms();
+        if (vms.Count == 0) return;
+        if (!await AiEnsureBackendReadyAsync()) return;
+        int ok = 0;
+        foreach (var vm in vms)
+        {
+            try
+            {
+                await InterceptWorkspace.ApplyDecisionAsync(vm.Id, InterceptDecision.Allow, false);
+                ok++;
+            }
+            catch { }
+        }
+        ShowAiStatus(ok > 0 ? $"已放行 {ok} 项" : "没有条目被放行", ok > 0 ? InfoBarSeverity.Success : InfoBarSeverity.Error);
+    }
+
+    private async void AiBatchReblock_Click(object sender, RoutedEventArgs e)
+    {
+        var vms = AiSelectedItemVms();
+        if (vms.Count == 0) return;
+        if (!await AiEnsureBackendReadyAsync()) return;
+        int ok = 0;
+        foreach (var vm in vms)
+        {
+            try
+            {
+                await InterceptWorkspace.ApplyDecisionAsync(vm.Id, InterceptDecision.Deny, false);
+                ok++;
+            }
+            catch { }
+        }
+        ShowAiStatus(ok > 0 ? $"已保持拦截 {ok} 项" : "没有条目被拦截", ok > 0 ? InfoBarSeverity.Success : InfoBarSeverity.Error);
+    }
+
+    private async void AiBatchTrack_Click(object sender, RoutedEventArgs e)
+    {
+        var vms = AiSelectedItemVms();
+        if (vms.Count == 0) return;
+        if (!await AiEnsureBackendReadyAsync()) return;
+        if (!await AiConfirmAsync("停止追踪",
+                $"将停止追踪选中的 {vms.Count} 项：保留注册表现状，不再拦截、不再提醒。\n确定？",
+                "停止追踪"))
+        {
+            return;
+        }
+        int ok = 0;
+        foreach (var vm in vms)
+        {
+            try
+            {
+                await InterceptWorkspace.StopTrackingAsync(vm.Id);
+                ok++;
+            }
+            catch { }
+        }
+        ShowAiStatus(ok > 0 ? $"已停止追踪 {ok} 项" : "没有条目被停止追踪", ok > 0 ? InfoBarSeverity.Success : InfoBarSeverity.Error);
+    }
+
+    private async void AiBatchDelete_Click(object sender, RoutedEventArgs e)
+    {
+        var events = AiSelectedEvents();
+        if (events.Count == 0) return;
+        if (!await AiEnsureBackendReadyAsync()) return;
+        if (!await AiConfirmAsync("删除记录", $"将删除选中的 {events.Count} 条操作记录（不影响拦截状态）。\n确定？", "删除")) return;
+        try
+        {
+            await InterceptWorkspace.RemoveEventRowsAsync(events.Select(ev => ev.RowId));
+            ShowAiStatus($"已删除 {events.Count} 条操作记录", InfoBarSeverity.Success);
+        }
+        catch (Exception ex)
+        {
+            ShowAiStatus($"删除失败:{ex.Message}", InfoBarSeverity.Error);
+        }
+    }
+
+    private async void AiClearAll_Click(object sender, RoutedEventArgs e)
+    {
+        if (!await AiEnsureBackendReadyAsync()) return;
+        if (!await AiConfirmAsync("清空记录",
+                "将清空全部操作记录（不影响拦截列表与信任策略）。\n确定？",
+                "清空")) return;
+        try
+        {
+            await InterceptWorkspace.ClearEventsAsync();
+            ShowAiStatus("操作记录已清空", InfoBarSeverity.Success);
+        }
+        catch (Exception ex)
+        {
+            ShowAiStatus($"清空失败:{ex.Message}", InfoBarSeverity.Error);
+        }
+    }
+
+    // ================= 打开位置 / 注册表 / 复制 =================
+
+    private void AiOpenLocation_Click(object sender, RoutedEventArgs e)
+    {
+        if (!AiTryGetSelectedItem(out var vm) || vm is null) return;
+        var raw = vm.ExePath;
+        if (string.IsNullOrWhiteSpace(raw)) return;
+        try
+        {
+            var path = Environment.ExpandEnvironmentVariables(raw).Trim();
+            if (Directory.Exists(path))
+            {
+                // 现代菜单/AppX 包目录：直接打开该目录
+                Process.Start(new ProcessStartInfo("explorer.exe", $"\"{path}\"") { UseShellExecute = true });
+                return;
+            }
+            if (File.Exists(path))
+            {
+                // 文件：资源管理器中选中它
+                Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true });
+                return;
+            }
+
+            // 路径已失效：逐级向上找最近一个存在的目录
+            var dir = Path.GetDirectoryName(path);
+            while (!string.IsNullOrWhiteSpace(dir) && !Directory.Exists(dir))
+            {
+                var parent = Path.GetDirectoryName(dir);
+                if (string.IsNullOrWhiteSpace(parent)
+                    || string.Equals(parent, dir, StringComparison.OrdinalIgnoreCase)) break;
+                dir = parent;
+            }
+            if (!string.IsNullOrWhiteSpace(dir) && Directory.Exists(dir))
+            {
+                Process.Start(new ProcessStartInfo("explorer.exe", $"\"{dir}\"") { UseShellExecute = true });
+            }
+            else
+            {
+                ShowAiStatus($"无法打开位置：路径无效（{raw}）", InfoBarSeverity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowAiStatus($"打开位置失败:{ex.Message}", InfoBarSeverity.Error);
+        }
+    }
+
+    private void AiOpenRegistry_Click(object sender, RoutedEventArgs e)
+    {
+        if (!AiTryGetSelectedItem(out var vm) || vm is null) return;
+        try
+        {
+            var hiveText = HiveName(vm.Dto.Hive);
+            var full = $"{hiveText}\\{vm.SubKey}";
+            // 让 regedit 打开到目标键（ContextMenuMgr 的 LastKey 技巧）
+            try
+            {
+                using var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(
+                    @"Software\Microsoft\Windows\CurrentVersion\Applets\Regedit");
+                key.SetValue("LastKey", $"计算机\\HKEY_{hiveText}\\{vm.SubKey}", Microsoft.Win32.RegistryValueKind.String);
+            }
+            catch { }
+            Process.Start(new ProcessStartInfo("regedit.exe") { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            ShowAiStatus($"打开注册表失败:{ex.Message}", InfoBarSeverity.Error);
         }
     }
 
     private void AiCopyDetail_Click(object sender, RoutedEventArgs e)
     {
-        var evt = _aiSelectedEvent ?? AiEventList?.SelectedItem as InterceptEventDto;
-        if (evt is null) return;
-        var text = $"动作：{evt.ActionText}\n时间：{evt.TimeText}\n名称：{evt.Name}\n位置：{evt.SubKey}\n程序：{evt.ExePath}\nCLSID：{evt.Clsid}\n备注：{evt.Note}";
+        var text = AiDetailsText.Text;
+        if (string.IsNullOrWhiteSpace(text)) return;
         try
         {
-            var data = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            data.SetText(text);
-            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(data);
-            Windows.ApplicationModel.DataTransfer.Clipboard.Flush();
+            var package = new DataPackage { RequestedOperation = DataPackageOperation.Copy };
+            package.SetText(text);
+            Clipboard.SetContent(package);
+            ShowAiStatus("详情已复制到剪贴板", InfoBarSeverity.Success);
         }
-        catch { }
-    }
-
-    private void AiFlyPolicy_Click(object sender, RoutedEventArgs e)
-    {
-        if (_aiSelectedEvent is null || string.IsNullOrWhiteSpace(_aiSelectedEvent.ExePath)) return;
-        if (AiPolicySection is null) return;
-        AiPolicySection.Visibility = Visibility.Visible;
-        InitPolicyComboBox(_aiSelectedEvent.ExePath);
-    }
-
-    // ---------- 信任策略 ----------
-
-    private void InitPolicyComboBox(string exePath)
-    {
-        _aiPolicyInitializing = true;
-        AiPolicyComboBox.Items.Clear();
-        AiPolicyComboBox.Items.Add("每次都询问（默认）");
-        AiPolicyComboBox.Items.Add("总是放行（信任此程序）");
-        AiPolicyComboBox.Items.Add("总是拦截（阻止此程序）");
-        AiPolicyComboBox.SelectedIndex = ActiveInterceptData.ReadTrustPolicy(exePath) switch
+        catch (Exception ex)
         {
-            "allow" => 1,
-            "block" => 2,
-            _ => 0,
-        };
-        _aiPolicyInitializing = false;
-    }
-
-    private void AiSavePolicy_Click(object sender, RoutedEventArgs e)
-    {
-        if (_aiSelectedEvent is null || string.IsNullOrWhiteSpace(_aiSelectedEvent.ExePath)) return;
-        if (_aiPolicyInitializing) return;
-
-        var policy = AiPolicyComboBox.SelectedIndex switch
-        {
-            1 => "allow",
-            2 => "block",
-            _ => "ask",
-        };
-        ActiveInterceptData.WritePolicyCommand(_aiSelectedEvent.ExePath, policy);
-
-        var policyText = AiPolicyComboBox.SelectedIndex switch
-        {
-            1 => "总是放行",
-            2 => "总是拦截",
-            _ => "每次都询问",
-        };
-        ShowAiStatus($"已提交信任策略：{policyText}（对该程序所有条目生效，后端下一轮轮询时应用）", InfoBarSeverity.Success);
-    }
-
-    // ---------- 单条操作 ----------
-
-    private void AiAllow_Click(object sender, RoutedEventArgs e) => AiAllowTrustOrAllow(trust: false);
-    private void AiFlyAllow_Click(object sender, RoutedEventArgs e) => AiAllowTrustOrAllow(trust: false);
-    private void AiAllowTrust_Click(object sender, RoutedEventArgs e) => AiAllowTrustOrAllow(trust: true);
-    private void AiFlyTrust_Click(object sender, RoutedEventArgs e) => AiAllowTrustOrAllow(trust: true);
-
-    private async void AiAllowTrustOrAllow(bool trust)
-    {
-        var evt = _aiSelectedEvent;
-        if (evt is null || string.IsNullOrWhiteSpace(evt.Id)) return;
-
-        if (trust)
-        {
-            var dialog = new ContentDialog
-            {
-                Title = "放行并信任此程序？",
-                Content = new TextBlock
-                {
-                    Text = $"将放行「{evt.Name}」，并把 {evt.ExePath} 加入信任列表：\n\n" +
-                           "· 该程序当前所有被拦截的右键菜单立即解除屏蔽\n" +
-                           "· 该程序以后新增的右键菜单自动放行，不再拦截、不再提醒\n\n" +
-                           "可在详情面板的「程序信任策略」中随时改回。",
-                    IsTextSelectionEnabled = true,
-                    TextWrapping = TextWrapping.Wrap,
-                },
-                PrimaryButtonText = "放行并信任",
-                CloseButtonText = "取消",
-                DefaultButton = ContentDialogButton.Primary,
-                XamlRoot = XamlRoot,
-                RequestedTheme = ThemeService.CurrentElementTheme,
-            };
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+            ShowAiStatus($"复制失败:{ex.Message}", InfoBarSeverity.Error);
         }
-
-        ActiveInterceptData.WriteAllowCommand(evt.Id, trust);
-        evt.Action = "Allowed";
-        evt.TimestampUtc = DateTime.UtcNow.ToString("o");
-        evt.Selected = false;
-        ApplyAiFilter();
-        UpdateAiSummary();
-        UpdateAiBatch();
-        ShowAiStatus(trust
-            ? "已提交放行并信任此程序，同名程序的新增菜单将自动放行"
-            : "已提交放行，后端将在数秒内生效", InfoBarSeverity.Success);
-        AiScheduleRefresh();
     }
 
-    private void AiReblock_Click(object sender, RoutedEventArgs e) => AiReblockCore();
+    // ================= 信任策略 =================
 
-    private void AiFlyReblock_Click(object sender, RoutedEventArgs e) => AiReblockCore();
+    private string _aiPolicyExe = "";
+    private string _aiPolicyCurrent = "";
 
-    private void AiReblockCore()
+    private void AiFillPolicyComboBox(string exePath)
     {
-        var evt = _aiSelectedEvent;
-        if (evt is null || string.IsNullOrWhiteSpace(evt.Id)) return;
-
-        ActiveInterceptData.WriteReblockCommand(evt.Id);
-        evt.Action = "Reblocked";
-        evt.TimestampUtc = DateTime.UtcNow.ToString("o");
-        evt.Selected = false;
-        ApplyAiFilter();
-        UpdateAiSummary();
-        UpdateAiBatch();
-        ShowAiStatus("已提交重新拦截，后端将在数秒内重新屏蔽", InfoBarSeverity.Success);
-        AiScheduleRefresh();
-    }
-
-    private void AiDelete_Click(object sender, RoutedEventArgs e) => _ = AiDeleteCoreAsync(_aiSelectedEvent);
-
-    private async void AiFlyDelete_Click(object sender, RoutedEventArgs e) => await AiDeleteCoreAsync(_aiSelectedEvent);
-
-    private async Task AiDeleteCoreAsync(InterceptEventDto? evt)
-    {
-        if (evt is null || string.IsNullOrWhiteSpace(evt.RowId)) return;
-
-        var dialog = new ContentDialog
+        var current = InterceptWorkspace.Policies.TryGetValue(exePath, out var policy) ? policy : "ask";
+        // 同一条目、同一策略时不重建列表 —— 否则每次后台刷新都会重置 ComboBox，
+        // 用户一打开下拉就被打断关闭
+        if (string.Equals(_aiPolicyExe, exePath, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(_aiPolicyCurrent, current, StringComparison.OrdinalIgnoreCase))
         {
-            Title = "删除这条记录？",
-            Content = new TextBlock
-            {
-                Text = "只删除这条事件记录（历史），不改变该条目的屏蔽/放行状态。\n\n" +
-                       "若想彻底不再拦截与提醒，请使用「停止追踪」。",
-                IsTextSelectionEnabled = true,
-                TextWrapping = TextWrapping.Wrap,
-            },
-            PrimaryButtonText = "删除记录",
-            CloseButtonText = "取消",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot,
-            RequestedTheme = ThemeService.CurrentElementTheme,
-        };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
-
-        ActiveInterceptData.WriteRemoveRowsCommand(new[] { evt.RowId });
-        AiOptimisticRemoveRows(new[] { evt.RowId });
-        ShowAiStatus("已提交删除记录，正在与后端同步", InfoBarSeverity.Success);
-        AiScheduleRefresh();
-    }
-
-    private void AiIgnore_Click(object sender, RoutedEventArgs e) => _ = AiIgnoreCoreAsync(_aiSelectedEvent);
-
-    private async void AiFlyIgnore_Click(object sender, RoutedEventArgs e) => await AiIgnoreCoreAsync(_aiSelectedEvent);
-
-    private async Task AiIgnoreCoreAsync(InterceptEventDto? evt)
-    {
-        if (evt is null || string.IsNullOrWhiteSpace(evt.Id)) return;
-
-        var dialog = new ContentDialog
-        {
-            Title = "停止追踪？",
-            Content = new TextBlock
-            {
-                Text = $"将删除「{evt.Name}」的全部拦截记录，并停止追踪：\n\n" +
-                       "· 该条目的屏蔽状态保持当前状态（不会主动解除）\n" +
-                       "· 之后该条目再次出现也不会拦截、不会提醒\n\n" +
-                       "可在「已忽略」列表中随时恢复追踪。",
-                IsTextSelectionEnabled = true,
-                TextWrapping = TextWrapping.Wrap,
-            },
-            PrimaryButtonText = "停止追踪",
-            CloseButtonText = "取消",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot,
-            RequestedTheme = ThemeService.CurrentElementTheme,
-        };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
-
-        ActiveInterceptData.WriteIgnoreCommand(evt.Id);
-        var rows = _aiAllEvents.Where(x => string.Equals(x.Id, evt.Id, StringComparison.OrdinalIgnoreCase))
-            .Select(x => x.RowId).ToList();
-        AiOptimisticRemoveRows(rows);
-        ShowAiStatus("已提交停止追踪，该条目不再拦截、不再提醒", InfoBarSeverity.Success);
-        AiScheduleRefresh();
-    }
-
-    /// <summary>乐观删除：立即从界面移除，后端稍后落盘（pending 集合防轮询复活）。</summary>
-    private void AiOptimisticRemoveRows(IEnumerable<string> rowIds)
-    {
-        var set = new HashSet<string>(rowIds, StringComparer.OrdinalIgnoreCase);
-        foreach (var id in set) _aiPendingRemovedRows.Add(id);
-        _aiAllEvents.RemoveAll(e => set.Contains(e.RowId));
-        if (_aiSelectedEvent is not null && set.Contains(_aiSelectedEvent.RowId)) _aiSelectedEvent = null;
-        ApplyAiFilter();
-        UpdateAiSummary();
-        UpdateAiBatch();
-    }
-
-    // ---------- 批量操作（带确认对话框） ----------
-
-    private async void AiBatchAllow_Click(object sender, RoutedEventArgs e) => await AiBatchAllowCoreAsync();
-
-    private async Task AiBatchAllowCoreAsync()
-    {
-        var selected = GetCheckedEvents();
-        if (selected.Count == 0) return;
-
-        var dialog = new ContentDialog
-        {
-            Title = $"确认放行 {selected.Count} 项？",
-            Content = new TextBlock
-            {
-                Text = "以下项目将被放行（解除屏蔽并加入白名单）：\n\n" + BuildPreview(selected),
-                IsTextSelectionEnabled = true,
-                TextWrapping = TextWrapping.Wrap,
-            },
-            PrimaryButtonText = "确认放行",
-            CloseButtonText = "取消",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot,
-            RequestedTheme = ThemeService.CurrentElementTheme,
-        };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
-
-        foreach (var evt in selected)
-        {
-            if (string.IsNullOrWhiteSpace(evt.Id)) continue;
-            ActiveInterceptData.WriteAllowCommand(evt.Id, trust: false);
-            evt.Action = "Allowed";
-            evt.TimestampUtc = DateTime.UtcNow.ToString("o");
-            evt.Selected = false;
-        }
-        ApplyAiFilter();
-        UpdateAiSummary();
-        UpdateAiBatch();
-        ShowAiStatus($"已提交放行 {selected.Count} 项，后端将在数秒内生效", InfoBarSeverity.Success);
-        AiScheduleRefresh();
-    }
-
-    private async void AiBatchReblock_Click(object sender, RoutedEventArgs e) => await AiBatchReblockCoreAsync();
-
-    private async Task AiBatchReblockCoreAsync()
-    {
-        var selected = GetCheckedEvents();
-        if (selected.Count == 0) return;
-
-        var dialog = new ContentDialog
-        {
-            Title = $"确认重新拦截 {selected.Count} 项？",
-            Content = new TextBlock
-            {
-                Text = "以下项目将被重新拦截（设置期望状态为屏蔽，下轮轮询时自动执行）：\n\n" + BuildPreview(selected),
-                IsTextSelectionEnabled = true,
-                TextWrapping = TextWrapping.Wrap,
-            },
-            PrimaryButtonText = "确认拦截",
-            CloseButtonText = "取消",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot,
-            RequestedTheme = ThemeService.CurrentElementTheme,
-        };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
-
-        foreach (var evt in selected)
-        {
-            if (string.IsNullOrWhiteSpace(evt.Id)) continue;
-            ActiveInterceptData.WriteReblockCommand(evt.Id);
-            evt.Action = "Reblocked";
-            evt.TimestampUtc = DateTime.UtcNow.ToString("o");
-            evt.Selected = false;
-        }
-        ApplyAiFilter();
-        UpdateAiSummary();
-        UpdateAiBatch();
-        ShowAiStatus($"已提交重新拦截 {selected.Count} 项", InfoBarSeverity.Success);
-        AiScheduleRefresh();
-    }
-
-    private async void AiBatchDelete_Click(object sender, RoutedEventArgs e) => await AiBatchDeleteCoreAsync();
-
-    private async Task AiBatchDeleteCoreAsync()
-    {
-        var selected = GetCheckedEvents();
-        if (selected.Count == 0) return;
-
-        var dialog = new ContentDialog
-        {
-            Title = $"确认删除 {selected.Count} 条记录？",
-            Content = new TextBlock
-            {
-                Text = "以下记录将从事件日志中永久删除（不改变屏蔽/放行状态）：\n\n" + BuildPreview(selected),
-                IsTextSelectionEnabled = true,
-                TextWrapping = TextWrapping.Wrap,
-            },
-            PrimaryButtonText = "确认删除",
-            CloseButtonText = "取消",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot,
-            RequestedTheme = ThemeService.CurrentElementTheme,
-        };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
-
-        var rows = selected.Select(e => e.RowId).Where(r => !string.IsNullOrWhiteSpace(r)).ToList();
-        if (rows.Count > 0)
-        {
-            ActiveInterceptData.WriteRemoveRowsCommand(rows);
-            AiOptimisticRemoveRows(rows);
-        }
-        ShowAiStatus($"已提交删除 {selected.Count} 条记录，正在与后端同步", InfoBarSeverity.Success);
-        AiScheduleRefresh();
-    }
-
-    private async void AiBatchTrack_Click(object sender, RoutedEventArgs e) => await AiBatchTrackCoreAsync();
-
-    private async Task AiBatchTrackCoreAsync()
-    {
-        var selected = GetCheckedEvents();
-        if (selected.Count == 0) return;
-
-        var dialog = new ContentDialog
-        {
-            Title = $"确认停止追踪 {selected.Count} 项？",
-            Content = new TextBlock
-            {
-                Text = "以下项目将删除全部相关记录并停止追踪：之后再次出现也不拦截、不提醒。\n\n" + BuildPreview(selected) +
-                       "\n可在「已忽略」列表中随时恢复追踪。",
-                IsTextSelectionEnabled = true,
-                TextWrapping = TextWrapping.Wrap,
-            },
-            PrimaryButtonText = "停止追踪",
-            CloseButtonText = "取消",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot,
-            RequestedTheme = ThemeService.CurrentElementTheme,
-        };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
-
-        var ids = selected.Select(e => e.Id).Where(i => !string.IsNullOrWhiteSpace(i)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        var idSet = new HashSet<string>(ids, StringComparer.OrdinalIgnoreCase);
-        var rows = _aiAllEvents.Where(e => idSet.Contains(e.Id)).Select(e => e.RowId).ToList();
-        foreach (var id in ids) ActiveInterceptData.WriteIgnoreCommand(id);
-        _aiPendingRemovedRows.UnionWith(rows);
-        AiOptimisticRemoveRows(rows);
-        ShowAiStatus($"已提交停止追踪 {ids.Count} 项", InfoBarSeverity.Success);
-        AiScheduleRefresh();
-    }
-
-    private async void AiClearAll_Click(object sender, RoutedEventArgs e)
-    {
-        if (_aiAllEvents.Count == 0)
-        {
-            await ShowInfo("清空记录", "当前没有任何拦截记录。");
             return;
         }
+        _aiPolicyExe = exePath;
+        _aiPolicyCurrent = current;
+
+        AiPolicyComboBox.Items.Clear();
+        AiPolicyComboBox.Items.Add(new ComboBoxItem { Content = "每次询问（默认）", Tag = "ask" });
+        AiPolicyComboBox.Items.Add(new ComboBoxItem { Content = "总是放行", Tag = "allow" });
+        AiPolicyComboBox.Items.Add(new ComboBoxItem { Content = "总是拦截", Tag = "block" });
+        for (int i = 0; i < AiPolicyComboBox.Items.Count; i++)
+        {
+            if (string.Equals((AiPolicyComboBox.Items[i] as ComboBoxItem)?.Tag as string, current, StringComparison.OrdinalIgnoreCase))
+            {
+                AiPolicyComboBox.SelectedIndex = i;
+                break;
+            }
+        }
+    }
+
+    private async void AiSavePolicy_Click(object sender, RoutedEventArgs e)
+    {
+        if (!AiTryGetSelectedItem(out var vm) || string.IsNullOrWhiteSpace(vm.ExePath)) return;
+        if (!await AiEnsureBackendReadyAsync()) return;
+        var policy = (AiPolicyComboBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "ask";
+        var policyText = policy switch { "allow" => "总是放行", "block" => "总是拦截", _ => "每次询问" };
+        try
+        {
+            await InterceptWorkspace.SetTrustPolicyAsync(vm.ExePath, policy);
+            ShowAiStatus($"信任策略已设为「{policyText}」，对该程序所有待审核条目立即生效", InfoBarSeverity.Success);
+        }
+        catch (Exception ex)
+        {
+            ShowAiStatus($"保存失败:{ex.Message}", InfoBarSeverity.Error);
+        }
+    }
+
+    private async void AiFlyPolicy_Click(object sender, RoutedEventArgs e)
+    {
+        if (_aiContextItem is null || string.IsNullOrWhiteSpace(_aiContextItem.ExePath)) return;
+        if (!await AiEnsureBackendReadyAsync()) return;
+        var dialog = new ContentDialog
+        {
+            Title = "设置信任策略",
+            Content = $"选择「{_aiContextItem.Name}」（{_aiContextItem.ExePath}）的信任策略：",
+            PrimaryButtonText = "保存",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot,
+        };
+        var combo = new ComboBox { Width = 260, Header = "信任策略" };
+        combo.Items.Add(new ComboBoxItem { Content = "每次询问（默认）", Tag = "ask" });
+        combo.Items.Add(new ComboBoxItem { Content = "总是放行", Tag = "allow" });
+        combo.Items.Add(new ComboBoxItem { Content = "总是拦截", Tag = "block" });
+        var current = InterceptWorkspace.Policies.TryGetValue(_aiContextItem.ExePath, out var policy) ? policy : "ask";
+        for (int i = 0; i < combo.Items.Count; i++)
+        {
+            if (string.Equals((combo.Items[i] as ComboBoxItem)?.Tag as string, current, StringComparison.OrdinalIgnoreCase))
+            {
+                combo.SelectedIndex = i;
+                break;
+            }
+        }
+        dialog.Content = new StackPanel { Spacing = 8, Children = { new TextBlock { Text = $"选择「{_aiContextItem.Name}」的信任策略：", TextWrapping = TextWrapping.Wrap }, combo } };
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+        {
+            var value = (combo.SelectedItem as ComboBoxItem)?.Tag as string ?? "ask";
+            var policyText = value switch { "allow" => "总是放行", "block" => "总是拦截", _ => "每次询问" };
+            try
+            {
+                await InterceptWorkspace.SetTrustPolicyAsync(_aiContextItem.ExePath, value);
+                ShowAiStatus($"信任策略已设为「{policyText}」", InfoBarSeverity.Success);
+            }
+            catch (Exception ex)
+            {
+                ShowAiStatus($"保存失败:{ex.Message}", InfoBarSeverity.Error);
+            }
+        }
+    }
+
+    // ================= 已停止追踪管理 =================
+
+    private async void AiShowIgnored_Click(object sender, RoutedEventArgs e)
+    {
+        var items = ActiveInterceptData.ReadIgnored();
+        var stack = new StackPanel { Spacing = 8, MinWidth = 460, MaxHeight = 420 };
+
+        if (items.Count == 0)
+        {
+            stack.Children.Add(new TextBlock { Text = "暂无已停止追踪的条目", Foreground = new SolidColorBrush(Color.FromArgb(255, 120, 120, 120)) });
+        }
+        else
+        {
+            foreach (var item in items.OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                var border = new Border
+                {
+                    Padding = new Thickness(10, 8, 10, 8),
+                    CornerRadius = new CornerRadius(6),
+                    Background = new SolidColorBrush(Color.FromArgb(20, 128, 128, 128)),
+                    Child = new Grid { ColumnSpacing = 8 },
+                };
+                var grid = (Grid)border.Child;
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                var info = new StackPanel { Spacing = 2 };
+                info.Children.Add(new TextBlock { Text = item.Name, FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
+                info.Children.Add(new TextBlock { Text = item.SubKey, FontSize = 11, Foreground = new SolidColorBrush(Color.FromArgb(255, 130, 130, 130)), TextTrimming = TextTrimming.CharacterEllipsis });
+                grid.Children.Add(info);
+                var captured = item;
+                var btn = new Button { Content = "恢复追踪", VerticalAlignment = VerticalAlignment.Center, Padding = new Thickness(10, 4, 10, 4) };
+                btn.Click += async (_, _) =>
+                {
+                    try
+                    {
+                        await InterceptWorkspace.ResumeTrackingAsync(captured.Id);
+                        ShowAiStatus($"已恢复追踪：{captured.Name}", InfoBarSeverity.Success);
+                    }
+                    catch (Exception ex)
+                    {
+                        ShowAiStatus($"恢复失败:{ex.Message}", InfoBarSeverity.Error);
+                    }
+                };
+                grid.Children.Add(btn);
+                stack.Children.Add(border);
+            }
+        }
 
         var dialog = new ContentDialog
         {
-            Title = $"确认清空全部 {_aiAllEvents.Count} 条记录？",
-            Content = new TextBlock
-            {
-                Text = "仅清空事件记录（历史），不影响屏蔽状态、信任策略与停止追踪列表。\n\n后续新的拦截事件仍会继续记录。",
-                IsTextSelectionEnabled = true,
-                TextWrapping = TextWrapping.Wrap,
-            },
-            PrimaryButtonText = "清空记录",
-            CloseButtonText = "取消",
+            Title = "已停止追踪",
+            Content = new ScrollViewer { Content = stack, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled },
+            PrimaryButtonText = "全部恢复追踪",
+            CloseButtonText = "关闭",
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = XamlRoot,
-            RequestedTheme = ThemeService.CurrentElementTheme,
         };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
-
-        ActiveInterceptData.WriteClearEventsCommand();
-        _aiAllEvents.Clear();
-        _aiPendingRemovedRows.Clear();
-        _aiSelectedEvent = null;
-        ApplyAiFilter();
-        UpdateAiSummary();
-        UpdateAiBatch();
-        ShowAiStatus("已提交清空记录", InfoBarSeverity.Success);
-        AiScheduleRefresh();
+        var result = await dialog.ShowAsync();
+        if (result == ContentDialogResult.Primary && items.Count > 0)
+        {
+            int ok = 0;
+            foreach (var item in items)
+            {
+                try
+                {
+                    await InterceptWorkspace.ResumeTrackingAsync(item.Id);
+                    ok++;
+                }
+                catch { }
+            }
+            ShowAiStatus(ok > 0 ? $"已恢复 {ok} 项的追踪" : "没有条目被恢复", ok > 0 ? InfoBarSeverity.Success : InfoBarSeverity.Error);
+        }
     }
 
-    // ---------- 后端开关 / 已忽略管理 ----------
-
-    private void AiRefresh_Click(object sender, RoutedEventArgs e) => RefreshActiveIntercept();
+    // ================= 后端开关 / 设置 =================
 
     private void AiOpenSettings_Click(object sender, RoutedEventArgs e)
     {
@@ -916,121 +1811,32 @@ public sealed partial class RogueCleanerPage : Page
         RefreshActiveIntercept();
     }
 
-    private async void AiShowIgnored_Click(object sender, RoutedEventArgs e)
-    {
-        var items = ActiveInterceptData.ReadIgnored();
-        if (items.Count == 0)
-        {
-            await ShowInfo("已忽略（停止追踪）", "当前没有已停止追踪的项目。\n\n停止追踪后，对应右键菜单项将不再被拦截、不再提醒。");
-            return;
-        }
-
-        var rows = new StackPanel { Spacing = 4 };
-
-        void AddRow(IgnoredItemDto item)
-        {
-            var row = new Grid { ColumnSpacing = 10 };
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            var info = new TextBlock
-            {
-                Text = $"{item.Name}\n{item.ExePath}\n{item.SubKey}\n{item.TimeText}",
-                FontSize = 12,
-                TextWrapping = TextWrapping.Wrap,
-            };
-            var btn = new Button
-            {
-                Content = "恢复追踪",
-                FontSize = 12,
-                Padding = new Thickness(10, 4, 10, 4),
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            var captured = item;
-            btn.Click += (_, _) =>
-            {
-                ActiveInterceptData.WriteUnignoreCommand(captured.Id);
-                rows.Children.Remove(row);
-                RefreshIgnoredCount();
-                ShowAiStatus($"已提交恢复追踪：{captured.Name}", InfoBarSeverity.Success);
-                AiScheduleRefresh();
-            };
-            Grid.SetColumn(info, 0);
-            Grid.SetColumn(btn, 1);
-            row.Children.Add(info);
-            row.Children.Add(btn);
-            rows.Children.Add(row);
-        }
-        foreach (var item in items) AddRow(item);
-
-        var scroll = new ScrollViewer
-        {
-            MaxHeight = 340,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = rows,
-        };
-        var allBtn = new Button
-        {
-            Content = "全部恢复追踪",
-            FontSize = 12,
-            Padding = new Thickness(12, 5, 12, 5),
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 8, 0, 0),
-        };
-        allBtn.Click += (_, _) =>
-        {
-            foreach (var item in items) ActiveInterceptData.WriteUnignoreCommand(item.Id);
-            rows.Children.Clear();
-            RefreshIgnoredCount();
-            ShowAiStatus($"已提交恢复 {items.Count} 项的追踪", InfoBarSeverity.Success);
-            AiScheduleRefresh();
-        };
-
-        var panel = new StackPanel
-        {
-            Spacing = 6,
-            Children =
-            {
-                new TextBlock { Text = $"共 {items.Count} 项已停止追踪（不再拦截、不再提醒）：", FontSize = 12, TextWrapping = TextWrapping.Wrap },
-                scroll,
-                allBtn,
-            },
-        };
-
-        var dialog = new ContentDialog
-        {
-            Title = "已忽略（停止追踪）",
-            Content = panel,
-            PrimaryButtonText = "关闭",
-            DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = XamlRoot,
-            RequestedTheme = ThemeService.CurrentElementTheme,
-        };
-        await dialog.ShowAsync();
-    }
-
-    // ---------- 反馈 ----------
+    // ================= 反馈条 =================
 
     private void ShowAiStatus(string message, InfoBarSeverity severity)
     {
-        if (AiStatusBar is null) return;
         AiStatusBar.Severity = severity;
-        AiStatusBar.Message = message;
+        AiStatusBar.Title = message;
         AiStatusBar.IsOpen = true;
     }
 
     private void CloseAiStatus()
     {
-        if (AiStatusBar is not null) AiStatusBar.IsOpen = false;
+        AiStatusBar.IsOpen = false;
     }
 
-    private static string BuildPreview(List<InterceptEventDto> selected)
+    private async Task<bool> AiConfirmAsync(string title, string message, string confirmText)
     {
-        var sb = new StringBuilder();
-        foreach (var evt in selected.Take(15))
-            sb.AppendLine($"· {evt.Name}（{evt.ActionText}）");
-        if (selected.Count > 15) sb.AppendLine($"… 还有 {selected.Count - 15} 项");
-        return sb.ToString();
+        var dialog = new ContentDialog
+        {
+            Title = title,
+            Content = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap },
+            PrimaryButtonText = confirmText,
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot,
+        };
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 
     #endregion

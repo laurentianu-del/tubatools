@@ -8,6 +8,18 @@ namespace TubaWinUi3.Services.ActiveIntercept;
 // 协议移植自 ContextMenuMgr（GPL-3.0，https://github.com/PLFJY/ContextMenuMgr）。
 // =====================================================================
 
+public static class InterceptPipeConstants
+{
+    /// <summary>后端管道名（与后端 InterceptPipeConstants.PipeName 一致）。</summary>
+    public const string PipeName = "TubaWinUi3.Intercept.Backend";
+
+    /// <summary>连接超时（毫秒）。</summary>
+    public const int ConnectTimeoutMs = 2000;
+
+    /// <summary>通知订阅断线重连间隔（秒）。</summary>
+    public const int NotificationReconnectDelaySeconds = 1;
+}
+
 public enum InterceptPipeMessageType
 {
     Request = 0,
@@ -122,6 +134,7 @@ public sealed class InterceptItemDto
     public string Name { get; set; } = "";
     public string Command { get; set; } = "";
     public string ExePath { get; set; } = "";
+    public bool IsModernMenu { get; set; }
     public string DesiredState { get; set; } = "none";
     public bool IsBlocked { get; set; }
     public bool IsPendingApproval { get; set; }
@@ -133,24 +146,6 @@ public sealed class InterceptItemDto
     public string Source { get; set; } = "";
     public string FirstSeenUtc { get; set; } = "";
     public string UpdatedAtUtc { get; set; } = "";
-    public string Note { get; set; } = "";
-}
-
-public sealed class InterceptEventDto
-{
-    public string RowId { get; set; } = "";
-    public string TimestampUtc { get; set; } = "";
-    public string Action { get; set; } = "";
-    public string Id { get; set; } = "";
-    public int Hive { get; set; }
-    public int View { get; set; }
-    public string SubKey { get; set; } = "";
-    public int Kind { get; set; }
-    public string Clsid { get; set; } = "";
-    public string Name { get; set; } = "";
-    public string Command { get; set; } = "";
-    public string ExePath { get; set; } = "";
-    public string Source { get; set; } = "";
     public string Note { get; set; } = "";
 }
 

@@ -139,6 +139,12 @@ public static class ToolCacheService
                         WingetId = e.WingetId,
                         IconGlyph = e.IconGlyph,
                         PrimaryArch = e.PrimaryArch,
+                        AlternateVersions = e.AlternateVersions.Select(a => new ArchVariantEntry
+                        {
+                            Name = a.Name,
+                            Path = PathResolver.MakeAbsolute(a.Path),
+                            Arch = a.Arch
+                        }).ToList(),
                         Tags = e.Tags,
                         IsFavorite = e.IsFavorite,
                         IsBuiltinLink = e.IsBuiltinLink,
@@ -215,6 +221,12 @@ public static class ToolCacheService
                 WingetId = e.WingetId,
                 IconGlyph = e.IconGlyph,
                 PrimaryArch = e.PrimaryArch,
+                AlternateVersions = e.AlternateVersions.Select(a => new ArchVariantEntry
+                {
+                    Name = a.Name,
+                    Path = PathResolver.MakeRelative(a.Path),
+                    Arch = a.Arch
+                }).ToList(),
                 Tags = e.Tags,
                 IsFavorite = e.IsFavorite,
                 IsBuiltinLink = e.IsBuiltinLink,
@@ -273,10 +285,19 @@ public sealed record ToolCacheEntry
     public string? WingetId { get; init; }
     public string? IconGlyph { get; init; }
     public string? PrimaryArch { get; init; }
+    public List<ArchVariantEntry> AlternateVersions { get; init; } = [];
     public List<string> Tags { get; init; } = [];
     public bool IsFavorite { get; init; }
     public bool IsBuiltinLink { get; init; }
     public string? BuiltinToolId { get; init; }
     public string? BuiltinKindText { get; init; }
     public string? TutorialUrl { get; init; }
+}
+
+/// <summary><see cref="ArchVariant"/> 的可序列化缓存表示。</summary>
+public sealed record ArchVariantEntry
+{
+    public string Name { get; init; } = "";
+    public string Path { get; init; } = "";
+    public string Arch { get; init; } = "";
 }

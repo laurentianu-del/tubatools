@@ -100,6 +100,15 @@ public static class ActiveInterceptService
                 };
                 _startedHere = true;
                 StartNotificationWatcher();
+                // 管道工作区：与后端建立常开通知订阅（推送驱动刷新，取代轮询）
+                try
+                {
+                    InterceptWorkspace.Initialize(Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread());
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[ActiveIntercept] 工作区初始化失败：{ex.Message}");
+                }
                 return true;
             }
             catch (Exception ex)
@@ -117,6 +126,7 @@ public static class ActiveInterceptService
         {
             _startedHere = false;
             StopNotificationWatcher();
+            InterceptWorkspace.Shutdown();
             try
             {
                 if (_process is not null && !_process.HasExited)
