@@ -1,4 +1,4 @@
-# 主动拦截后端 NativeAOT 发布辅助脚本。
+﻿# 主动拦截后端 NativeAOT 发布辅助脚本。
 # 用途：定位 MSVC vcvars64.bat（VS2022 各版本/目录），在其环境下以
 #   IlcUseEnvironmentalTools=true 发布 NativeAOT 单文件 exe，
 #   兼容 vswhere 元数据缺失（仅装 BuildTools）的机器与 CI。
