@@ -102,6 +102,20 @@ Users in China can download from the [GitCode mirror](https://gitcode.com/luolan
 winget install luolangaga.tubatools
 ```
 
+### Scoop (Windows Package Manager)
+
+```powershell
+# 1. Add the Tuba toolbox bucket
+scoop bucket add tubatools https://github.com/luolangaga/scoop-tubatools
+
+# 2. Install (automatically picks x64 / arm64 portable build)
+scoop install tubatools/tubatool
+```
+
+Update to the latest version: `scoop update tubatool`
+
+> Scoop bucket repository: [luolangaga/scoop-tubatools](https://github.com/luolangaga/scoop-tubatools)
+
 ---
 
 ## Feature Highlights
