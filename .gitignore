@@ -51,6 +51,7 @@ _ReSharper*/
 *.DotSettings.user
 *.dotCover
 .idea/
+.zcode/
 
 # Generated files
 Generated\ Files/

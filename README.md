@@ -13,7 +13,7 @@
 <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&size=28&pause=1000&color=0078D4&center=true&vCenter=true&width=600&lines=PC+%E7%A1%AC%E4%BB%B6%E5%B7%A5%E5%85%B7%E9%9B%86%E5%90%88;WinUI+3+%C2%B7+.NET+10;82+%E6%AC%BE%E5%B7%A5%E5%85%B7+%C2%B7+%E4%B8%80%E9%94%AE%E5%90%AF%E5%8A%A8" alt="Typing SVG" />
 </a>
 
-[![GPL-3.0](https://img.shields.io/badge/License-GPL--3.0+附加条款-blue?style=flat-square)](LICENSE)
+[![GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue?style=flat-square)](LICENSE)
 [![.NET 10](https://img.shields.io/badge/.NET-10-512bd4?style=flat-square&logo=dotnet)](https://dotnet.microsoft.com/)
 [![WinUI 3](https://img.shields.io/badge/WinUI-3-0078d4?style=flat-square&logo=windows)](https://learn.microsoft.com/windows/apps/winui/)
 [![Stars](https://img.shields.io/github/stars/luolangaga/tubatool?style=flat-square&logo=github)](https://github.com/luolangaga/tubatool)
@@ -70,11 +70,11 @@
 
 ## 许可证
 
-本项目采用 **GPL-3.0 + 附加条款** 开源协议。
+本项目采用 **GPL-3.0** 开源协议。
 
 - 源代码可自由使用、修改和分发
 - 衍生作品必须以相同协议开源
-- 详见 [LICENSE](LICENSE) 和 [LICENSE-ADDITIONAL](LICENSE-ADDITIONAL)
+- 详见 [LICENSE](LICENSE)；附带的 [License.txt](License.txt) 为软件使用须知与网络/隐私声明，不构成对 GPL-3.0 的附加限制
 
 ---
 

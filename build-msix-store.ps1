@@ -61,30 +61,50 @@ $CertPath     = Join-Path $ProjectDir 'TubaWinUi3_StoreKey.pfx'
 $CertPassword = 'EasyNote2026'
 
 # ── Auto-detect SDK tools ──────────────────────────────────────
+# 查找顺序：系统 Windows SDK（C:\Program Files (x86)\Windows Kits）→
+# NuGet 缓存中的 Microsoft.Windows.SDK.BuildTools 包（dotnet publish 会拉取，
+# 自带 makeappx/signtool，用于未安装完整 Windows SDK 的机器）。
 function Find-SdkTool {
     param([string]$ToolName)
 
+    # 1) 系统 Windows SDK
     $sdkRoot = 'C:\Program Files (x86)\Windows Kits\10\bin'
-    if (-not (Test-Path -LiteralPath $sdkRoot)) {
-        throw "Windows SDK not found at $sdkRoot"
+    if (Test-Path -LiteralPath $sdkRoot) {
+        $latestVersion = Get-ChildItem -LiteralPath $sdkRoot -Directory |
+            Where-Object { $_.Name -match '^\d+\.\d+\.\d+\.\d+$' } |
+            Sort-Object { [version]$_.Name } -Descending |
+            Select-Object -First 1
+
+        if ($null -ne $latestVersion) {
+            $toolPath = Join-Path $latestVersion.FullName "x64\$ToolName"
+            if (Test-Path -LiteralPath $toolPath) {
+                Write-Host "  Using $ToolName from Windows SDK $($latestVersion.Name)" -ForegroundColor Gray
+                return $toolPath
+            }
+        }
     }
 
-    $latestVersion = Get-ChildItem -LiteralPath $sdkRoot -Directory |
-        Where-Object { $_.Name -match '^\d+\.\d+\.\d+\.\d+$' } |
-        Sort-Object { [version]$_.Name } -Descending |
-        Select-Object -First 1
+    # 2) NuGet 缓存中的 BuildTools 包
+    $nugetRoot = Join-Path $env:USERPROFILE '.nuget\packages\microsoft.windows.sdk.buildtools'
+    if (Test-Path -LiteralPath $nugetRoot) {
+        $latestPkg = Get-ChildItem -LiteralPath $nugetRoot -Directory |
+            Sort-Object { [version]$_.Name } -Descending |
+            Select-Object -First 1
 
-    if ($null -eq $latestVersion) {
-        throw "No numbered SDK version directory found under $sdkRoot"
+        if ($null -ne $latestPkg) {
+            $toolPath = Get-ChildItem -LiteralPath $latestPkg.FullName -Recurse -Filter $ToolName |
+                Where-Object { $_.FullName -match '\\x64\\' } |
+                Sort-Object FullName -Descending |
+                Select-Object -First 1
+
+            if ($null -ne $toolPath) {
+                Write-Host "  Using $ToolName from NuGet BuildTools $($latestPkg.Name)" -ForegroundColor Gray
+                return $toolPath.FullName
+            }
+        }
     }
 
-    $toolPath = Join-Path $latestVersion.FullName "x64\$ToolName"
-    if (-not (Test-Path -LiteralPath $toolPath)) {
-        throw "$ToolName not found at $toolPath"
-    }
-
-    Write-Host "  Using $ToolName from SDK $($latestVersion.Name)" -ForegroundColor Gray
-    return $toolPath
+    throw "$ToolName not found in Windows SDK or NuGet BuildTools"
 }
 
 $MakeAppxPath = Find-SdkTool 'makeappx.exe'
@@ -130,8 +150,8 @@ function Write-CleanManifest {
         '    <Logo>Assets\StoreLogo.png</Logo>'
         '  </Properties>'
         '  <Dependencies>'
-        '    <TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26226.0" />'
-        '    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />'
+        '    <TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26226.0" />'
+        '    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />'
         '  </Dependencies>'
         '  <Resources>'
         '    <Resource Language="zh-CN" />'

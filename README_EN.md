@@ -14,7 +14,7 @@ English | [中文](README.md)
 <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&size=28&pause=1000&color=0078D4&center=true&vCenter=true&width=600&lines=PC+Hardware+Toolbox;WinUI+3+%C2%B7+.NET+10;82+Tools+%C2%B7+One-Click+Launch" alt="Typing SVG" />
 </a>
 
-[![GPL-3.0](https://img.shields.io/badge/License-GPL--3.0+Additional_Terms-blue?style=flat-square)](LICENSE)
+[![GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue?style=flat-square)](LICENSE)
 [![.NET 10](https://img.shields.io/badge/.NET-10-512bd4?style=flat-square&logo=dotnet)](https://dotnet.microsoft.com/)
 [![WinUI 3](https://img.shields.io/badge/WinUI-3-0078d4?style=flat-square&logo=windows)](https://learn.microsoft.com/windows/apps/winui/)
 [![Stars](https://img.shields.io/github/stars/luolangaga/tubatool?style=flat-square&logo=github)](https://github.com/luolangaga/tubatool)
@@ -74,11 +74,11 @@ Join the QQ group for discussion: **485079194**
 
 ## License
 
-This project is licensed under **GPL-3.0 + Additional Terms**.
+This project is licensed under **GPL-3.0**.
 
 - Source code may be freely used, modified, and distributed
 - Derivative works must be open-sourced under the same license
-- See [LICENSE](LICENSE) and [LICENSE-ADDITIONAL](LICENSE-ADDITIONAL) for details
+- See [LICENSE](LICENSE) for details; the accompanying [License.txt](License.txt) is a software usage notice (network/privacy disclosure) and does not add further restrictions on top of GPL-3.0
 
 ---
 

@@ -129,9 +129,9 @@ var
   Version: TWindowsVersion;
 begin
   GetWindowsVersionEx(Version);
-  // Windows 10 1809 = Build 17763
+  // Windows 10 2004/20H1 = Build 19041 (与 MSIX 商店版门禁一致)
   Result := (Version.Major > 10) or
-            ((Version.Major = 10) and (Version.Build >= 17763));
+            ((Version.Major = 10) and (Version.Build >= 19041));
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
@@ -140,7 +140,7 @@ var
 begin
   if not IsWindowsVersionOk then
   begin
-    Msg := '本程序需要 Windows 10 1809 (Build 17763) 或更高版本。' + #13#10 +
+    Msg := '本程序需要 Windows 10 2004 (Build 19041) 或更高版本。' + #13#10 +
            '您当前的系统版本过低，无法运行本程序。' + #13#10#13#10 +
            '请先更新 Windows 系统后再安装。';
     MsgBox(Msg, mbCriticalError, MB_OK);
