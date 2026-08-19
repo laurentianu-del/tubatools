@@ -98,6 +98,20 @@
 winget install luolangaga.tubatools
 ```
 
+### Scoop（Windows 包管理器）
+
+```powershell
+# 1. 添加图吧工具箱 bucket
+scoop bucket add tubatools https://github.com/luolangaga/scoop-tubatools
+
+# 2. 安装（自动根据系统架构选择 x64 / arm64 便携版）
+scoop install tubatools/tubatool
+```
+
+更新到最新版：`scoop update tubatool`
+
+> 图吧工具箱的 Scoop 源仓库：[luolangaga/scoop-tubatools](https://github.com/luolangaga/scoop-tubatools)
+
 ### Microsoft Store（微软商店）
 
 <a href="https://apps.microsoft.com/detail/9P15095X7MGB?referrer=appbadge&mode=full" target="_blank" rel="noopener noreferrer">
