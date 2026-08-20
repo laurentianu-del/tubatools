@@ -152,6 +152,44 @@
         </div>
       </div>
 
+      <!-- 命令行安装 -->
+      <div class="site-card dl-cli-card">
+        <div class="dl-card-header">
+          <span class="icon" aria-hidden="true">&#xE756;</span>
+          <h3>{{ t('download.cli') }}</h3>
+        </div>
+        <p class="dl-card-desc">{{ t('download.cli-desc') }}</p>
+        <div class="dl-cli-grid">
+          <div class="dl-cli-item">
+            <div class="dl-cli-label">{{ t('download.winget') }}</div>
+            <div class="dl-cli-cmd">
+              <code>winget install luolangaga.tubatools</code>
+              <WinButton
+                class="dl-cli-copy"
+                :Content="copiedWinget ? '✓' : '📋'"
+                @Click="copyCmd('winget install luolangaga.tubatools', 'winget')" />
+            </div>
+          </div>
+          <div class="dl-cli-item">
+            <div class="dl-cli-label">{{ t('download.scoop') }}</div>
+            <div class="dl-cli-cmd">
+              <code>scoop bucket add tubatools https://github.com/luolangaga/scoop-tubatools</code>
+              <WinButton
+                class="dl-cli-copy"
+                :Content="copiedScoop1 ? '✓' : '📋'"
+                @Click="copyCmd('scoop bucket add tubatools https://github.com/luolangaga/scoop-tubatools', 'scoop1')" />
+            </div>
+            <div class="dl-cli-cmd dl-cli-cmd-follow">
+              <code>scoop install tubatools/tubatool</code>
+              <WinButton
+                class="dl-cli-copy"
+                :Content="copiedScoop2 ? '✓' : '📋'"
+                @Click="copyCmd('scoop install tubatools/tubatool', 'scoop2')" />
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 旧版本 -->
       <div class="dl-older">
         <h3>{{ t('download.older-title') }}</h3>
@@ -323,6 +361,29 @@ function handleCloudDownload(e, url) {
   params.set('type', 'portable');
   params.set('url', url);
   window.location.href = `/download/thanks?${params.toString()}`;
+}
+
+/* 命令行复制 */
+const copiedWinget = ref(false);
+const copiedScoop1 = ref(false);
+const copiedScoop2 = ref(false);
+
+async function copyCmd(text, key) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // 回退方案
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  }
+  const target = key === 'winget' ? copiedWinget : key === 'scoop1' ? copiedScoop1 : copiedScoop2;
+  target.value = true;
+  setTimeout(() => { target.value = false; }, 1500);
 }
 
 onMounted(() => {
@@ -514,5 +575,63 @@ onMounted(() => {
 
 .dl-sys-table tr:last-child td {
   border-bottom: 0;
+}
+
+/* 命令行安装卡片 */
+.dl-cli-card {
+  padding: 20px 24px;
+  margin-bottom: 20px;
+}
+
+.dl-cli-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.dl-cli-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dl-cli-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.dl-cli-cmd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--ctrl-fill-default);
+  border: 1px solid var(--card-stroke);
+  border-radius: 6px;
+}
+
+.dl-cli-cmd code {
+  flex: 1;
+  font-family: 'Cascadia Code', 'Consolas', 'SF Mono', monospace;
+  font-size: 13px;
+  color: var(--text-primary);
+  word-break: break-all;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.dl-cli-cmd-follow {
+  margin-top: -4px;
+}
+
+.dl-cli-copy {
+  flex: 0 0 auto;
+  min-width: 36px !important;
+  height: 28px !important;
+  padding: 0 6px !important;
+  font-size: 14px;
+  border-radius: 4px;
 }
 </style>

@@ -122,6 +122,16 @@ const pageSeo = {
     description: '对比图吧工具箱WinUI3与原版：多渠道高速下载、WinUI3精美界面、完美UTF-8支持、20+FluentUI内置工具、AI智能体驱动。',
     url: 'https://tubawinui3.cn/why'
   },
+  ranking: {
+    title: '跑分排行——图吧工具箱社区跑分排行榜',
+    description: '查看图吧工具箱社区用户上传的性能跑分排行榜，按游戏性能、办公性能、CPU、GPU、硬盘、浏览器等维度排序，与全球用户对比电脑性能。',
+    url: 'https://tubawinui3.cn/ranking'
+  },
+  latency: {
+    title: '核间延迟查询——CPU核心间通信延迟热力图',
+    description: '查看社区上传的 CPU 核间延迟热力图，对比不同处理器型号的核心间通信延迟，了解跨核心通信延迟表现。',
+    url: 'https://tubawinui3.cn/latency'
+  },
   thanks: {
     title: '感谢下载图吧工具箱——免费PC硬件检测与系统维护工具集',
     description: '感谢下载图吧工具箱，完全免费、纯离线运行，支持x64/ARM64全架构。',
@@ -175,6 +185,8 @@ const navMenuItems = [
   { Tag: 'home', Icon: '\uE80F', Content: t('nav.home') },
   { Tag: 'download', Icon: '\uE896', Content: t('nav.download') },
   { Tag: 'docs', Icon: '\uE8A1', Content: t('nav.docs') },
+  { Tag: 'ranking', Icon: '\uE9D5', Content: t('nav.ranking') },
+  { Tag: 'latency', Icon: '\uE9D9', Content: t('nav.latency') },
   { Tag: 'about', Icon: '\uE946', Content: t('nav.about') }
 ];
 
