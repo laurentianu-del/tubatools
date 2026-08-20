@@ -18,6 +18,8 @@ public sealed class MonitorSample
     public bool BatCharging;
 
     public float Fps = -1;
+    public float FpsLow1 = -1;
+    public float FpsLow01 = -1;
     public string FpsProcess = "";
 }
 

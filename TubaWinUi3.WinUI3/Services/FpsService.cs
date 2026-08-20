@@ -94,15 +94,33 @@ public sealed class FpsService : IDisposable
             }
         }
 
+        /// <summary>
+        /// Computes the average FPS of the slowest `percentile` fraction of frames.
+        /// e.g. percentile=0.01 → 1% low (worst 1% frames), percentile=0.001 → 0.1% low.
+        /// Frame times are sorted ascending; the worst frames have the LARGEST frame times.
+        /// </summary>
         private double CalcPercentileLow(double percentile)
         {
             if (_frameTimes.Count < 10) return 0;
             var sorted = _frameTimes.ToList();
-            sorted.Sort();
-            var idx = (int)Math.Ceiling(sorted.Count * percentile) - 1;
-            if (idx < 0) idx = 0;
-            var ft = sorted[idx];
-            return ft > 0 ? 1.0 / ft : 0;
+            sorted.Sort(); // ascending: smallest (fastest) frame times first
+
+            int n = sorted.Count;
+            // Start at the worst `percentile` fraction of frames (largest frame times)
+            int start = Math.Clamp((int)Math.Ceiling(n * (1 - percentile)), 0, n - 1);
+
+            double fpsSum = 0;
+            int count = 0;
+            for (int i = start; i < n; i++)
+            {
+                double ft = sorted[i];
+                if (ft > 0)
+                {
+                    fpsSum += 1.0 / ft; // convert frame time → FPS
+                    count++;
+                }
+            }
+            return count > 0 ? fpsSum / count : 0;
         }
 
         public FpsSnapshot TakeSnapshot(string processName)
@@ -154,11 +172,20 @@ public sealed class FpsService : IDisposable
 
     public (float fps, string process) GetFps()
     {
+        var stats = GetFpsStats();
+        return (stats.fps, stats.process);
+    }
+
+    /// <summary>
+    /// Returns FPS plus 1% low and 0.1% low for the target (focused) process.
+    /// </summary>
+    public (float fps, string process, float low1, float low01) GetFpsStats()
+    {
         _lastAccess = DateTime.Now;
-        if (_paused) return (0, "");
+        if (_paused) return (0, "", 0, 0);
         EnsureRunning();
 
-        if (_trackers.IsEmpty) return (0, "");
+        if (_trackers.IsEmpty) return (0, "", 0, 0);
 
         int targetPid;
 
@@ -180,8 +207,14 @@ public sealed class FpsService : IDisposable
         }
 
         if (targetPid != 0 && _trackers.TryGetValue(targetPid, out var tracker))
-            return ((float)Math.Round(tracker.Fps), GetProcessName(targetPid));
-        return (0, "");
+        {
+            return (
+                (float)Math.Round(tracker.Fps),
+                GetProcessName(targetPid),
+                (float)Math.Round(tracker.OnePercentLow),
+                (float)Math.Round(tracker.PointOnePercentLow));
+        }
+        return (0, "", 0, 0);
     }
 
     private int GetForegroundWindowPid()
