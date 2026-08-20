@@ -203,6 +203,8 @@ public sealed class GameOverlayWindow : IDisposable
         public int X, Y, Width, Height;
         public int FontSize = 16;
         public string Prefix = "";
+        public bool ShowPrefix = true;
+        public int Layer;
         public string CurrentText = "--";
         public bool IsChart;
         // Custom content
@@ -381,7 +383,10 @@ public sealed class GameOverlayWindow : IDisposable
             }
             else
             {
-                w.CurrentText = FormatWidgetText(w.Type, w.Prefix, sample);
+                var value = FormatWidgetValue(w.Type, sample);
+                w.CurrentText = w.ShowPrefix && !string.IsNullOrEmpty(w.Prefix)
+                    ? $"{w.Prefix}{value}"
+                    : value;
             }
         }
 
@@ -459,8 +464,8 @@ public sealed class GameOverlayWindow : IDisposable
 
         DeleteObject(hBgBrush);
 
-        // Draw each widget
-        foreach (var w in _widgets)
+        // Draw each widget — sort by layer so higher layers render on top
+        foreach (var w in _widgets.OrderBy(x => x.Layer))
         {
             if (w.IsChart) DrawChartGdi(hdcMem, w);
             else if (w.Type == OverlayWidgetType.ColorBlock) DrawColorBlock(hdcMem, w);
@@ -787,30 +792,61 @@ public sealed class GameOverlayWindow : IDisposable
 
     #region Widget text formatting
 
-    private static string FormatWidgetText(OverlayWidgetType type, string prefix, MonitorSample s)
+    /// <summary>
+    /// Returns the default prefix label for a widget type, e.g. "FPS：", "CPU 温度：".
+    /// Used when adding a widget so the overlay reads "FPS：120" instead of "120".
+    /// </summary>
+    public static string GetDefaultPrefix(OverlayWidgetType type)
     {
         return type switch
         {
-            OverlayWidgetType.FpsText => s.Fps >= 0 ? $"{prefix}{s.Fps:F0} FPS" : $"{prefix}-- FPS",
-            OverlayWidgetType.CpuTempText => s.CpuTemp >= 0 ? $"{prefix}{s.CpuTemp:F0}°C" : $"{prefix}--°C",
-            OverlayWidgetType.CpuLoadText => s.CpuLoad >= 0 ? $"{prefix}{s.CpuLoad:F0}%" : $"{prefix}--%",
-            OverlayWidgetType.CpuClockText => s.CpuClock > 0 ? $"{prefix}{s.CpuClock / 1000f:F1} GHz" : $"{prefix}-- GHz",
-            OverlayWidgetType.CpuPowerText => s.CpuPower > 0 ? $"{prefix}{s.CpuPower:F1} W" : $"{prefix}-- W",
-            OverlayWidgetType.GpuTempText => s.GpuTemp >= 0 ? $"{prefix}{s.GpuTemp:F0}°C" : $"{prefix}--°C",
-            OverlayWidgetType.GpuLoadText => s.GpuLoad >= 0 ? $"{prefix}{s.GpuLoad:F0}%" : $"{prefix}--%",
-            OverlayWidgetType.GpuClockText => s.GpuClock > 0 ? $"{prefix}{s.GpuClock:F0} MHz" : $"{prefix}-- MHz",
-            OverlayWidgetType.GpuPowerText => s.GpuPower > 0 ? $"{prefix}{s.GpuPower:F1} W" : $"{prefix}-- W",
-            OverlayWidgetType.GpuVramText => s.GpuVramUsedGB >= 0 ? $"{prefix}{s.GpuVramUsedGB:F1} GB" : $"{prefix}-- GB",
-            OverlayWidgetType.MemLoadText => s.MemLoad >= 0 ? $"{prefix}{s.MemLoad:F0}%" : $"{prefix}--%",
-            OverlayWidgetType.MemUsedText => s.MemUsedGB >= 0 ? $"{prefix}{s.MemUsedGB:F1} GB" : $"{prefix}-- GB",
-            OverlayWidgetType.DiskReadText => s.DiskReadMBs >= 0 ? $"{prefix}{s.DiskReadMBs:F1} MB/s" : $"{prefix}-- MB/s",
-            OverlayWidgetType.DiskWriteText => s.DiskWriteMBs >= 0 ? $"{prefix}{s.DiskWriteMBs:F1} MB/s" : $"{prefix}-- MB/s",
-            OverlayWidgetType.NetUpText => s.NetUpMBs >= 0 ? $"{prefix}{s.NetUpMBs:F2} MB/s" : $"{prefix}-- MB/s",
-            OverlayWidgetType.NetDownText => s.NetDownMBs >= 0 ? $"{prefix}{s.NetDownMBs:F2} MB/s" : $"{prefix}-- MB/s",
-            OverlayWidgetType.FpsLow1Text => s.FpsLow1 >= 0 ? $"{prefix}{s.FpsLow1:F0}" : $"{prefix}--",
-            OverlayWidgetType.FpsLow01Text => s.FpsLow01 >= 0 ? $"{prefix}{s.FpsLow01:F0}" : $"{prefix}--",
-            OverlayWidgetType.CpuNameText => string.IsNullOrEmpty(s.CpuName) ? $"{prefix}CPU" : $"{prefix}{s.CpuName}",
-            OverlayWidgetType.GpuNameText => string.IsNullOrEmpty(s.GpuName) ? $"{prefix}GPU" : $"{prefix}{s.GpuName}",
+            OverlayWidgetType.FpsText => "FPS: ",
+            OverlayWidgetType.CpuTempText => "CPU 温度: ",
+            OverlayWidgetType.CpuLoadText => "CPU 负载: ",
+            OverlayWidgetType.CpuClockText => "CPU 频率: ",
+            OverlayWidgetType.CpuPowerText => "CPU 功耗: ",
+            OverlayWidgetType.CpuNameText => "CPU: ",
+            OverlayWidgetType.GpuTempText => "GPU 温度: ",
+            OverlayWidgetType.GpuLoadText => "GPU 负载: ",
+            OverlayWidgetType.GpuClockText => "GPU 频率: ",
+            OverlayWidgetType.GpuPowerText => "GPU 功耗: ",
+            OverlayWidgetType.GpuVramText => "显存: ",
+            OverlayWidgetType.GpuNameText => "GPU: ",
+            OverlayWidgetType.MemLoadText => "内存负载: ",
+            OverlayWidgetType.MemUsedText => "内存使用: ",
+            OverlayWidgetType.DiskReadText => "磁盘读取: ",
+            OverlayWidgetType.DiskWriteText => "磁盘写入: ",
+            OverlayWidgetType.NetUpText => "网络上传: ",
+            OverlayWidgetType.NetDownText => "网络下载: ",
+            _ => ""
+        };
+    }
+
+    /// <summary>
+    /// Returns just the value portion (no prefix), e.g. "120", "65°C", "3.8 GHz".
+    /// </summary>
+    private static string FormatWidgetValue(OverlayWidgetType type, MonitorSample s)
+    {
+        return type switch
+        {
+            OverlayWidgetType.FpsText => s.Fps >= 0 ? $"{s.Fps:F0} FPS" : "-- FPS",
+            OverlayWidgetType.CpuTempText => s.CpuTemp >= 0 ? $"{s.CpuTemp:F0}°C" : "--°C",
+            OverlayWidgetType.CpuLoadText => s.CpuLoad >= 0 ? $"{s.CpuLoad:F0}%" : "--%",
+            OverlayWidgetType.CpuClockText => s.CpuClock > 0 ? $"{s.CpuClock / 1000f:F1} GHz" : "-- GHz",
+            OverlayWidgetType.CpuPowerText => s.CpuPower > 0 ? $"{s.CpuPower:F1} W" : "-- W",
+            OverlayWidgetType.GpuTempText => s.GpuTemp >= 0 ? $"{s.GpuTemp:F0}°C" : "--°C",
+            OverlayWidgetType.GpuLoadText => s.GpuLoad >= 0 ? $"{s.GpuLoad:F0}%" : "--%",
+            OverlayWidgetType.GpuClockText => s.GpuClock > 0 ? $"{s.GpuClock:F0} MHz" : "-- MHz",
+            OverlayWidgetType.GpuPowerText => s.GpuPower > 0 ? $"{s.GpuPower:F1} W" : "-- W",
+            OverlayWidgetType.GpuVramText => s.GpuVramUsedGB >= 0 ? $"{s.GpuVramUsedGB:F1} GB" : "-- GB",
+            OverlayWidgetType.MemLoadText => s.MemLoad >= 0 ? $"{s.MemLoad:F0}%" : "--%",
+            OverlayWidgetType.MemUsedText => s.MemUsedGB >= 0 ? $"{s.MemUsedGB:F1} GB" : "-- GB",
+            OverlayWidgetType.DiskReadText => s.DiskReadMBs >= 0 ? $"{s.DiskReadMBs:F1} MB/s" : "-- MB/s",
+            OverlayWidgetType.DiskWriteText => s.DiskWriteMBs >= 0 ? $"{s.DiskWriteMBs:F1} MB/s" : "-- MB/s",
+            OverlayWidgetType.NetUpText => s.NetUpMBs >= 0 ? $"{s.NetUpMBs:F2} MB/s" : "-- MB/s",
+            OverlayWidgetType.NetDownText => s.NetDownMBs >= 0 ? $"{s.NetDownMBs:F2} MB/s" : "-- MB/s",
+            OverlayWidgetType.CpuNameText => string.IsNullOrEmpty(s.CpuName) ? "CPU" : s.CpuName,
+            OverlayWidgetType.GpuNameText => string.IsNullOrEmpty(s.GpuName) ? "GPU" : s.GpuName,
             _ => "--"
         };
     }

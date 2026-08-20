@@ -208,13 +208,23 @@ public sealed class FpsService : IDisposable
 
         if (targetPid != 0 && _trackers.TryGetValue(targetPid, out var tracker))
         {
+            float low1 = -1, low01 = -1;
+            // 1% low / 0.1% low need enough accumulated frames to be meaningful.
+            // With too few frames they're noise (single digits / zeros), so report -1 → "--".
+            if (tracker.TotalFrames >= 30)
+            {
+                low1 = (float)Math.Round(tracker.OnePercentLow);
+                low01 = (float)Math.Round(tracker.PointOnePercentLow);
+                if (low1 < 1) low1 = -1;
+                if (low01 < 1) low01 = -1;
+            }
             return (
                 (float)Math.Round(tracker.Fps),
                 GetProcessName(targetPid),
-                (float)Math.Round(tracker.OnePercentLow),
-                (float)Math.Round(tracker.PointOnePercentLow));
+                low1,
+                low01);
         }
-        return (0, "", 0, 0);
+        return (0, "", -1, -1);
     }
 
     private int GetForegroundWindowPid()

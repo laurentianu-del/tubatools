@@ -27,7 +27,6 @@ public enum OverlayWidgetType
     MemLoadText, MemUsedText,
     DiskReadText, DiskWriteText,
     NetUpText, NetDownText,
-    FpsLow1Text, FpsLow01Text,
     CpuNameText, GpuNameText,
     FpsChart, CpuTempChart,
     CustomText, CustomImage, ColorBlock
@@ -62,6 +61,8 @@ public sealed partial class GameOverlayPage : Page
         public double X, Y, Width = 140, Height = 32;
         public double FontSize = 14;
         public string Prefix = "";
+        public bool ShowPrefix = true;
+        public int Layer;
         public string Label = "";
         public bool IsChart;
         // Custom content
@@ -215,8 +216,6 @@ public sealed partial class GameOverlayPage : Page
     private static readonly (OverlayWidgetType Type, string Label, string Icon, bool IsChart)[] PaletteItems =
     [
         (OverlayWidgetType.FpsText, "FPS", "\uE9F5", false),
-        (OverlayWidgetType.FpsLow1Text, "FPS 1% Low", "\uE9F5", false),
-        (OverlayWidgetType.FpsLow01Text, "FPS 0.1% Low", "\uE9F5", false),
         (OverlayWidgetType.CpuTempText, "CPU 温度", "\uE9B0", false),
         (OverlayWidgetType.CpuLoadText, "CPU 负载", "\uE9B0", false),
         (OverlayWidgetType.CpuClockText, "CPU 频率", "\uE9B0", false),
@@ -351,7 +350,6 @@ public sealed partial class GameOverlayPage : Page
                 OverlayWidgetType.CustomImage => 120,
                 OverlayWidgetType.ColorBlock => 48,
                 OverlayWidgetType.CpuNameText or OverlayWidgetType.GpuNameText => 220,
-                OverlayWidgetType.FpsLow1Text or OverlayWidgetType.FpsLow01Text => 120,
                 _ when info.IsChart => 160,
                 _ => 140
             },
@@ -365,7 +363,10 @@ public sealed partial class GameOverlayPage : Page
             FontSize = type == OverlayWidgetType.CpuNameText || type == OverlayWidgetType.GpuNameText ? 13 : 14,
             CustomText = type == OverlayWidgetType.CustomText ? "自定义文字" : "",
             ImagePath = type == OverlayWidgetType.CustomImage ? "" : "",
-            ColorArgb = 0xFF00A0FF
+            ColorArgb = 0xFF00A0FF,
+            ShowPrefix = !info.IsChart && type != OverlayWidgetType.CustomText,
+            Prefix = GameOverlayWindow.GetDefaultPrefix(type),
+            Layer = 0
         };
 
         CreateWidgetElement(widget);
@@ -436,7 +437,9 @@ public sealed partial class GameOverlayPage : Page
         {
             string preview = widget.Type == OverlayWidgetType.CustomText
                 ? (string.IsNullOrEmpty(widget.CustomText) ? "自定义文字" : widget.CustomText)
-                : $"{widget.Prefix}--";
+                : widget.ShowPrefix
+                    ? $"{widget.Prefix}--"
+                    : "--";
             var tb = new TextBlock
             {
                 Text = preview,
@@ -460,6 +463,7 @@ public sealed partial class GameOverlayPage : Page
 
         Canvas.SetLeft(container, widget.X);
         Canvas.SetTop(container, widget.Y);
+        Canvas.SetZIndex(container, widget.Layer);
         DesignCanvas.Children.Add(container);
 
         // Resize thumb
@@ -610,6 +614,11 @@ public sealed partial class GameOverlayPage : Page
             PropPrefix.Text = widget.Prefix;
             PropFS.IsEnabled = !widget.IsChart;
             PropPrefix.IsEnabled = !widget.IsChart;
+            PropShowPrefix.IsEnabled = !widget.IsChart && widget.Type != OverlayWidgetType.CustomText;
+            PropShowPrefix.IsOn = widget.ShowPrefix;
+            TxtLayer.Text = $"图层 {widget.Layer}";
+            BtnLayerUp.IsEnabled = true;
+            BtnLayerDown.IsEnabled = true;
 
             // Custom content panels
             bool isCustomText = widget.Type == OverlayWidgetType.CustomText;
@@ -679,7 +688,55 @@ public sealed partial class GameOverlayPage : Page
     {
         if (_suppressEvents || _selectedWidget == null || _selectedWidget.IsChart) return;
         _selectedWidget.Prefix = PropPrefix.Text ?? "";
+        RefreshSelectedPreview();
         SaveConfig();
+    }
+
+    private void PropShowPrefix_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_suppressEvents || _selectedWidget == null || _selectedWidget.IsChart) return;
+        _selectedWidget.ShowPrefix = PropShowPrefix.IsOn;
+        RefreshSelectedPreview();
+        SaveConfig();
+    }
+
+    private void LayerUp_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedWidget == null) return;
+        _selectedWidget.Layer++;
+        ApplySelectedLayer();
+    }
+
+    private void LayerDown_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedWidget == null) return;
+        _selectedWidget.Layer--;
+        ApplySelectedLayer();
+    }
+
+    private void ApplySelectedLayer()
+    {
+        if (_selectedWidget == null) return;
+        TxtLayer.Text = $"图层 {_selectedWidget.Layer}";
+        if (_selectedWidget.Container != null)
+            Canvas.SetZIndex(_selectedWidget.Container, _selectedWidget.Layer);
+        SaveConfig();
+    }
+
+    private void RefreshSelectedPreview()
+    {
+        if (_selectedWidget?.TextElement == null) return;
+        if (_selectedWidget.Type == OverlayWidgetType.CustomText)
+        {
+            _selectedWidget.TextElement.Text = string.IsNullOrEmpty(_selectedWidget.CustomText)
+                ? "自定义文字" : _selectedWidget.CustomText;
+        }
+        else
+        {
+            _selectedWidget.TextElement.Text = _selectedWidget.ShowPrefix
+                ? $"{_selectedWidget.Prefix}--"
+                : "--";
+        }
     }
 
     private void PropCustomText_Changed(object sender, TextChangedEventArgs e)
@@ -1092,6 +1149,8 @@ public sealed partial class GameOverlayPage : Page
             Height = (int)w.Height,
             FontSize = (int)w.FontSize,
             Prefix = w.Prefix,
+            ShowPrefix = w.ShowPrefix,
+            Layer = w.Layer,
             IsChart = w.IsChart,
             CustomText = w.CustomText,
             ImagePath = w.ImagePath,
@@ -1181,6 +1240,8 @@ public sealed partial class GameOverlayPage : Page
                 w = w.Width, h = w.Height,
                 fs = w.FontSize,
                 prefix = w.Prefix,
+                showPrefix = w.ShowPrefix,
+                layer = w.Layer,
                 text = w.CustomText,
                 img = w.ImagePath,
                 color = w.ColorArgb
@@ -1242,6 +1303,11 @@ public sealed partial class GameOverlayPage : Page
                         Height = item.GetProperty("h").GetDouble(),
                         FontSize = item.GetProperty("fs").GetDouble(),
                         Prefix = item.TryGetProperty("prefix", out var p) ? p.GetString() ?? "" : "",
+                        ShowPrefix = item.TryGetProperty("showPrefix", out var sp)
+                            ? sp.GetBoolean()
+                            : (!string.IsNullOrEmpty(item.TryGetProperty("prefix", out var pp) ? pp.GetString() ?? "" : ""))
+                                && type != OverlayWidgetType.CustomText,
+                        Layer = item.TryGetProperty("layer", out var ly) ? ly.GetInt32() : 0,
                         CustomText = item.TryGetProperty("text", out var t) ? t.GetString() ?? "" : "",
                         ImagePath = item.TryGetProperty("img", out var im) ? im.GetString() ?? "" : "",
                         ColorArgb = item.TryGetProperty("color", out var cl) && cl.TryGetUInt32(out var cc) ? cc : 0xFF00A0FF,
