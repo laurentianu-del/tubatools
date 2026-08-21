@@ -17,6 +17,7 @@ artifacts/
 [Ll]ogs/
 *.log
 *.binlog
+build-log.txt
 
 # Test results
 [Tt]est[Rr]esult*/

@@ -57,8 +57,19 @@ $DisplayName         = '图吧工具箱winui3'
 $Description         = '图吧工具箱winui3 - PC硬件检测与系统维护工具集'
 
 # ── Signing ────────────────────────────────────────────────────
-$CertPath     = Join-Path $ProjectDir 'TubaWinUi3_StoreKey.pfx'
-$CertPassword = 'EasyNote2026'
+# 签名证书与密码保存在仓库外：%LOCALAPPDATA%\TubaWinUi3-secrets\
+# 解析顺序：环境变量 TUBA_STORE_PFX / TUBA_STORE_PFX_PASSWORD → secrets 目录 → 仓库旧路径
+$SecretsDir   = Join-Path $env:LOCALAPPDATA 'TubaWinUi3-secrets'
+$CertPath     = $env:TUBA_STORE_PFX
+if (-not $CertPath) { $CertPath = Join-Path $SecretsDir 'TubaWinUi3_StoreKey.pfx' }
+if (-not (Test-Path -LiteralPath $CertPath)) { $CertPath = Join-Path $ProjectDir 'TubaWinUi3_StoreKey.pfx' }
+
+$CertPassword = $env:TUBA_STORE_PFX_PASSWORD
+if (-not $CertPassword) {
+    $PfxPasswordFile = Join-Path $SecretsDir 'store-pfx-password.txt'
+    if (Test-Path -LiteralPath $PfxPasswordFile) { $CertPassword = (Get-Content -LiteralPath $PfxPasswordFile -Raw).Trim() }
+}
+# 密码缺失时仅告警不中断：脚本对未找到证书的场景本就跳过签名
 
 # ── Auto-detect SDK tools ──────────────────────────────────────
 # 查找顺序：系统 Windows SDK（C:\Program Files (x86)\Windows Kits）→

@@ -37,8 +37,18 @@ public sealed partial class HomePage : Page
 
         _compactMode = CompactModeService.IsCompactModeEnabled();
         ApplyCompactMode();
+    }
+
+    private void SubscribeStaticEvents()
+    {
         CompactModeService.CompactModeChanged += OnCompactModeChanged;
         ToolCatalog.ToolsChanged += OnToolsChanged;
+    }
+
+    private void UnsubscribeStaticEvents()
+    {
+        CompactModeService.CompactModeChanged -= OnCompactModeChanged;
+        ToolCatalog.ToolsChanged -= OnToolsChanged;
     }
 
     private void OnCompactModeChanged(bool enabled)
@@ -140,6 +150,7 @@ public sealed partial class HomePage : Page
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
+        SubscribeStaticEvents();
 
         if (e.Parameter is SearchNavigationTarget target && target.HighlightToolPath is not null)
         {
@@ -196,6 +207,12 @@ public sealed partial class HomePage : Page
         {
             TagBarScrollViewer.Visibility = Visibility.Collapsed;
         }
+    }
+
+    protected override void OnNavigatedFrom(NavigationEventArgs e)
+    {
+        base.OnNavigatedFrom(e);
+        UnsubscribeStaticEvents();
     }
 
     private void SyncTagBarSelection()

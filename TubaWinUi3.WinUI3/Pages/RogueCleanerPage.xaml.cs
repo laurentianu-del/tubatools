@@ -118,6 +118,7 @@ public sealed partial class RogueCleanerPage : Page
         base.OnNavigatedFrom(e);
         _cts?.Cancel();
         StopAiPolling();
+        RemoveAiSubscriptions();
     }
 
     #region 导航
@@ -332,6 +333,18 @@ public sealed partial class RogueCleanerPage : Page
         InterceptWorkspace.PendingApprovalDetected += AiOnPendingDetected;
         InterceptWorkspace.ServiceAttention += AiOnServiceAttention;
         InterceptWorkspace.ConnectionChanged += AiOnConnectionChanged;
+    }
+
+    /// <summary>离开页面时退订静态工作区事件，防止页面实例被静态事件持有而泄漏。</summary>
+    private void RemoveAiSubscriptions()
+    {
+        if (!_aiSubscribed) return;
+        _aiSubscribed = false;
+        InterceptWorkspace.ItemsChanged -= AiOnWorkspaceItemsChanged;
+        InterceptWorkspace.EventsChanged -= AiOnWorkspaceEventsChanged;
+        InterceptWorkspace.PendingApprovalDetected -= AiOnPendingDetected;
+        InterceptWorkspace.ServiceAttention -= AiOnServiceAttention;
+        InterceptWorkspace.ConnectionChanged -= AiOnConnectionChanged;
     }
 
     /// <summary>导航到「主动拦截」时调用（也由 Nav_SelectionChanged 触发）。</summary>

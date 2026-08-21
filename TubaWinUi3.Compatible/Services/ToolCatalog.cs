@@ -104,12 +104,23 @@ namespace TubaWinUi3.Compatible.Services
             var merged = MergeArchDirectories(toolDirs);
 
             var items = new List<ToolItem>();
-            foreach (var pair in merged.Select(toolDir => new { toolDir, launchable = FindPrimaryLaunchable(toolDir) }))
+            foreach (var toolDir in merged)
             {
-                if (pair.launchable == null && !ToolMetadataService.HasDownloadUrl(category, pair.toolDir))
-                    continue;
-                var path = pair.launchable ?? CreatePlaceholderPath(pair.toolDir);
-                items.Add(CreateToolItemWithVariants(category, categoryRoot, path, pair.toolDir));
+                var linkInfo = TryResolveLink(toolDir);
+                if (linkInfo != null)
+                {
+                    // builtin 链接仅存在于主应用内置功能，兼容版不展示
+                    if (linkInfo.IsBuiltin)
+                        continue;
+
+                    items.AddRange(CreateLinkedToolItems(category, categoryRoot, toolDir, linkInfo));
+                }
+                else
+                {
+                    var launchable = FindPrimaryLaunchable(toolDir);
+                    if (launchable != null || ToolMetadataService.HasDownloadUrl(category, toolDir))
+                        items.AddRange(CreateToolItems(category, categoryRoot, launchable ?? CreatePlaceholderPath(toolDir), toolDir));
+                }
             }
 
             var toolOrderJson = AppSettings.Get("ToolOrder_" + category);
@@ -171,6 +182,197 @@ namespace TubaWinUi3.Compatible.Services
             return result;
         }
 
+        /// <summary>目录仅含 link.json 时视为链接目录，解析其指向；builtin 链接在兼容版不可用（返回标记后跳过）。</summary>
+        private sealed class LinkInfo
+        {
+            public string TargetRelativePath { get; set; }
+            public string TargetFullPath { get; set; }
+            public string BuiltinToolId { get; set; }
+            public bool IsBuiltin { get { return !string.IsNullOrWhiteSpace(BuiltinToolId); } }
+        }
+
+        private static LinkInfo TryResolveLink(string toolDir)
+        {
+            var linkPath = Path.Combine(toolDir, "link.json");
+            if (!File.Exists(linkPath)) return null;
+
+            var files = Directory.GetFiles(toolDir);
+            var dirs = Directory.GetDirectories(toolDir);
+            if (files.Length != 1 || dirs.Length != 0) return null;
+
+            try
+            {
+                var root = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(linkPath));
+
+                var builtinVal = root.Value<string>("builtin");
+                if (!string.IsNullOrWhiteSpace(builtinVal))
+                {
+                    // 兼容版无内置功能实现：标记后由调用方跳过
+                    return new LinkInfo { TargetRelativePath = "", TargetFullPath = "", BuiltinToolId = builtinVal };
+                }
+
+                var target = root.Value<string>("target");
+                if (string.IsNullOrWhiteSpace(target)) return null;
+                var targetFull = Path.Combine(ToolsRoot, target.Replace('/', Path.DirectorySeparatorChar));
+                if (!Directory.Exists(targetFull)) return null;
+                return new LinkInfo { TargetRelativePath = target, TargetFullPath = targetFull };
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// 多架构模式：目录下发现多个架构变体（x64/x86/ARM64）时，每个架构解析为一个独立工具卡片，
+        /// 名称带架构后缀（如 "CPU-Z x64" / "CPU-Z ARM64"）；无变体时保持单个工具。
+        /// </summary>
+        private static List<ToolItem> CreateToolItems(string category, string categoryRoot, string path, string toolDir)
+        {
+            var primary = CreateToolItemWithVariants(category, categoryRoot, path, toolDir);
+            var result = new List<ToolItem>();
+
+            if (primary.AlternateVersions != null && primary.AlternateVersions.Count > 0)
+            {
+                var baseName = primary.Name;
+                primary.Name = string.IsNullOrEmpty(primary.PrimaryArch)
+                    ? baseName
+                    : baseName + " " + primary.PrimaryArch;
+                foreach (var v in primary.AlternateVersions)
+                    result.Add(CloneArchItem(primary, baseName, v));
+                primary.AlternateVersions = new List<ArchVariant>();
+                result.Insert(0, primary);
+            }
+            else
+            {
+                result.Add(primary);
+            }
+            return result;
+        }
+
+        /// <summary>按架构变体复制一个独立工具项（每个架构一个卡片）。</summary>
+        private static ToolItem CloneArchItem(ToolItem baseItem, string baseName, ArchVariant variant)
+        {
+            return new ToolItem
+            {
+                Name = baseName + " " + variant.Arch,
+                Category = baseItem.Category,
+                PrimaryCategory = baseItem.PrimaryCategory,
+                Categories = baseItem.Categories,
+                IsLinked = baseItem.IsLinked,
+                Path = variant.Path,
+                RelativePath = PathHelper.GetRelativePath(ToolCatalog.ToolsRoot, variant.Path),
+                Extension = Path.GetExtension(variant.Path).TrimStart('.').ToUpperInvariant(),
+                IconPath = null,
+                IconGlyph = ToolIconService.GetIconGlyph(variant.Path),
+                Description = baseItem.Description,
+                Publisher = baseItem.Publisher,
+                Version = baseItem.Version,
+                DatabaseSource = baseItem.DatabaseSource,
+                DownloadUrl = baseItem.DownloadUrl,
+                DownloadFilter = baseItem.DownloadFilter,
+                WingetId = baseItem.WingetId,
+                Tags = baseItem.Tags,
+                IsFavorite = FavoritesService.IsFavorite(variant.Path),
+                PrimaryArch = variant.Arch,
+                AlternateVersions = new List<ArchVariant>()
+            };
+        }
+
+        /// <summary>跨分类链接：以目标目录（主分类）生成完整工具项，并带上链接分类组成多分类。</summary>
+        private static IReadOnlyList<ToolItem> CreateLinkedToolItems(string category, string categoryRoot, string linkDir, LinkInfo linkInfo)
+        {
+            var targetLaunchable = FindPrimaryLaunchable(linkInfo.TargetFullPath);
+            if (targetLaunchable == null && !ToolMetadataService.HasDownloadUrl(category, linkInfo.TargetFullPath))
+                return new List<ToolItem>();
+
+            var primaryCategory = Path.GetFileName(Path.GetDirectoryName(linkInfo.TargetRelativePath)) ?? category;
+            var bases = CreateToolItems(
+                primaryCategory,
+                Path.GetDirectoryName(linkInfo.TargetFullPath) ?? linkInfo.TargetFullPath,
+                targetLaunchable ?? CreatePlaceholderPath(linkInfo.TargetFullPath),
+                linkInfo.TargetFullPath);
+
+            var categories = new List<string> { primaryCategory, category }
+                .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+            var result = new List<ToolItem>();
+            foreach (var baseItem in bases)
+            {
+                result.Add(new ToolItem
+                {
+                    Name = baseItem.Name,
+                    Category = category,
+                    PrimaryCategory = primaryCategory,
+                    Categories = categories,
+                    IsLinked = true,
+                    Path = baseItem.Path,
+                    RelativePath = baseItem.RelativePath,
+                    Extension = baseItem.Extension,
+                    IconPath = baseItem.IconPath,
+                    IconGlyph = baseItem.IconGlyph,
+                    Description = baseItem.Description,
+                    Publisher = baseItem.Publisher,
+                    Version = baseItem.Version,
+                    DatabaseSource = baseItem.DatabaseSource,
+                    DownloadUrl = baseItem.DownloadUrl,
+                    DownloadFilter = baseItem.DownloadFilter,
+                    WingetId = baseItem.WingetId,
+                    Tags = baseItem.Tags,
+                    IsFavorite = baseItem.IsFavorite,
+                    PrimaryArch = baseItem.PrimaryArch,
+                    AlternateVersions = baseItem.AlternateVersions
+                });
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// 「全部工具」一览：同名工具（含 link.json 跨分类副本）只保留一份，
+        /// 并把该名称出现的所有分类合并到 Categories 上（与主应用算法一致）。
+        /// </summary>
+        private static IReadOnlyList<ToolItem> DeduplicateAllTools(IReadOnlyList<ToolItem> allItems)
+        {
+            var nameToCategories = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in allItems)
+            {
+                HashSet<string> set;
+                if (!nameToCategories.TryGetValue(item.Name, out set))
+                {
+                    set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    nameToCategories[item.Name] = set;
+                }
+                set.Add(item.Category);
+                if (!string.IsNullOrEmpty(item.PrimaryCategory))
+                    set.Add(item.PrimaryCategory);
+                foreach (var c in item.Categories)
+                    set.Add(c);
+            }
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var deduped = new List<ToolItem>();
+            foreach (var item in allItems)
+            {
+                var key = (item.PrimaryCategory ?? item.Category) + "|" + item.Name;
+                if (seen.Add(key))
+                {
+                    if (nameToCategories.TryGetValue(item.Name, out var cats) && cats.Count > 1)
+                        item.SetCategories(cats.ToList());
+                    deduped.Add(item);
+                }
+            }
+            return deduped;
+        }
+
+        /// <summary>全部工具（跨分类去重、合并多分类）。</summary>
+        public static IReadOnlyList<ToolItem> GetAllToolsDeduped()
+        {
+            if (!Directory.Exists(ToolsRoot))
+                return new List<ToolItem>();
+
+            return DeduplicateAllTools(GetCategories().SelectMany(GetTools).ToList());
+        }
+
         public static IReadOnlyList<ToolItem> GetAllToolsLazy(int skip, int take)
         {
             if (!Directory.Exists(ToolsRoot))
@@ -200,7 +402,7 @@ namespace TubaWinUi3.Compatible.Services
                 _cachedAllTools = new List<ToolItem>();
                 return _cachedAllTools;
             }
-            _cachedAllTools = GetCategories().SelectMany(GetTools).ToList();
+            _cachedAllTools = DeduplicateAllTools(GetCategories().SelectMany(GetTools).ToList());
             return _cachedAllTools;
         }
 
@@ -257,7 +459,7 @@ namespace TubaWinUi3.Compatible.Services
         private static ToolItem CreateToolItemWithVariants(string category, string categoryRoot, string path, string toolDir)
         {
             var extension = Path.GetExtension(path);
-            var name = GetDisplayName(path);
+            var rawName = GetDisplayName(path);
             var relativePath = PathHelper.GetRelativePath(categoryRoot, path);
             var metadata = ToolMetadataService.GetMetadata(category, path);
             var isPlaceholder = !File.Exists(path) && (!string.IsNullOrWhiteSpace(metadata.DownloadUrl) || !string.IsNullOrWhiteSpace(metadata.WingetId));
@@ -331,9 +533,14 @@ namespace TubaWinUi3.Compatible.Services
                 });
             }
 
+            // 命名与主应用一致：存在架构变体（或文件名带架构）时优先用目录名，避免文件名被架构后缀破坏
+            var toolDirName = Path.GetFileName(toolDir);
+            var hasArchVariants = alternates.Count > 0 || primaryArch != null;
+            var name = hasArchVariants ? toolDirName : rawName;
+
             var cleanName = CleanupName(StripArchSuffix(name));
-            if (string.IsNullOrWhiteSpace(cleanName))
-                cleanName = CleanupName(name);
+            if (string.IsNullOrWhiteSpace(cleanName) || cleanName.Length < 3)
+                cleanName = CleanupName(toolDirName);
 
             var item = new ToolItem
             {
@@ -371,10 +578,14 @@ namespace TubaWinUi3.Compatible.Services
             return false;
         }
 
+        // 顺序很重要：带下划线/长的形式必须排在前，且 "arm64" 类必须优先于裸 "64"，
+        // 否则 "cpuz_arm64" 会被剥成 "cpuz_"（残留下划线）或 "cpuz_arm"，导致跨架构匹配失败。
         private static readonly string[] ArchSuffixes = new[]
         {
-            "64", "32", "x64", "x86", "_x64", "_x86", "_64", "_32",
-            "w64", "w32", "_Win64", "_Win32", "ARM64", "_ARM64"
+            "_ARM64", "ARM64", "_arm64", "arm64",
+            "_Win64", "_Win32", "w64", "w32",
+            "_x64", "x64", "_x86", "x86",
+            "_64", "_32", "64", "32"
         };
 
         private static readonly string[] ArchX64Patterns = new[]
@@ -393,6 +604,25 @@ namespace TubaWinUi3.Compatible.Services
         };
 
         private static bool IsX64OS { get { return Environment.Is64BitOperatingSystem; } }
+
+        /// <summary>主机 OS 架构优先序（与主应用 PreferredArchPriority 一致）：ARM64 系统 ARM64 > x64 > x86。</summary>
+        private static IReadOnlyList<string> PreferredArchPriority
+        {
+            get
+            {
+                try
+                {
+                    switch (System.Runtime.InteropServices.RuntimeInformation.OSArchitecture)
+                    {
+                        case System.Runtime.InteropServices.Architecture.Arm64: return new[] { "ARM64", "x64", "x86" };
+                        case System.Runtime.InteropServices.Architecture.X64: return new[] { "x64", "x86" };
+                        case System.Runtime.InteropServices.Architecture.X86: return new[] { "x86" };
+                    }
+                }
+                catch { }
+                return new[] { "x64", "x86" };
+            }
+        }
 
         private static string DetectArch(string name)
         {
@@ -514,31 +744,16 @@ namespace TubaWinUi3.Compatible.Services
 
         private static string PickPreferredArch(List<string> candidates)
         {
-            if (IsX64OS)
+            // 用 DetectArch 分类（ARM64 模式优先于 x64 的裸 "64" 后缀），再按 OS 优先序选择
+            var byArch = candidates
+                .Select(f => new { f, arch = DetectArch(Path.GetFileNameWithoutExtension(f)) })
+                .ToList();
+
+            foreach (var pref in PreferredArchPriority)
             {
-                var x64 = candidates.FirstOrDefault(f =>
-                {
-                    var name = Path.GetFileNameWithoutExtension(f);
-                    foreach (var p in ArchX64Patterns)
-                    {
-                        if (name.EndsWith(p, StringComparison.OrdinalIgnoreCase)) return true;
-                    }
-                    return false;
-                });
-                if (x64 != null) return x64;
-            }
-            else
-            {
-                var x86 = candidates.FirstOrDefault(f =>
-                {
-                    var name = Path.GetFileNameWithoutExtension(f);
-                    foreach (var p in Arch32Patterns)
-                    {
-                        if (name.EndsWith(p, StringComparison.OrdinalIgnoreCase)) return true;
-                    }
-                    return false;
-                });
-                if (x86 != null) return x86;
+                var match = byArch.FirstOrDefault(c => c.arch != null &&
+                    c.arch.Equals(pref, StringComparison.OrdinalIgnoreCase));
+                if (match != null) return match.f;
             }
 
             return candidates[0];

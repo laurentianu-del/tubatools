@@ -186,7 +186,7 @@ jobs:
         shell: pwsh
         run: |
           dotnet build TubaWinUi3.Compatible/TubaWinUi3.Compatible.csproj -c Release
-          $compatExe = "TubaWinUi3.Compatible/bin/Release/net45/图吧工具箱Winui3兼容版.exe"
+          $compatExe = "TubaWinUi3.Compatible/bin/Release/net48/图吧工具箱Winui3兼容版.exe"
           if (Test-Path -LiteralPath $compatExe) {
             Write-Host "Compatible edition built successfully"
             $size = [math]::Round((Get-Item -LiteralPath $compatExe).Length / 1MB, 1)
@@ -209,7 +209,7 @@ jobs:
 
           Copy-Item -LiteralPath "Launcher\bin\图吧工具箱WinUI3_${{ matrix.arch }}.exe" -Destination (Join-Path $stagingDir '图吧工具箱WinUI3.exe') -Force
 
-          $compatExe = "TubaWinUi3.Compatible/bin/Release/net45/图吧工具箱Winui3兼容版.exe"
+          $compatExe = "TubaWinUi3.Compatible/bin/Release/net48/图吧工具箱Winui3兼容版.exe"
           if (Test-Path -LiteralPath $compatExe) {
             Copy-Item -LiteralPath $compatExe -Destination (Join-Path $stagingDir '图吧工具箱Winui3兼容版.exe') -Force
             Write-Host "Added compatible edition to portable zip"
@@ -272,7 +272,7 @@ jobs:
 
           Copy-Item -LiteralPath "Launcher\bin\图吧工具箱WinUI3_x64.exe" -Destination (Join-Path $stagingDir '图吧工具箱WinUI3.exe') -Force
 
-          $compatExe = "TubaWinUi3.Compatible/bin/Release/net45/图吧工具箱Winui3兼容版.exe"
+          $compatExe = "TubaWinUi3.Compatible/bin/Release/net48/图吧工具箱Winui3兼容版.exe"
           if (Test-Path -LiteralPath $compatExe) {
             Copy-Item -LiteralPath $compatExe -Destination (Join-Path $stagingDir '图吧工具箱Winui3兼容版.exe') -Force
             Write-Host "Added compatible edition to lite portable zip"

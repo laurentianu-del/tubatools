@@ -4,10 +4,11 @@
 
 A WinUI 3 (Windows App SDK / .NET 10) Chinese-language PC hardware toolbox ("图吧工具箱"). Catalogs and launches third-party diagnostic executables from a local `Tools/` folder, shows WMI/LibreHardwareMonitor hardware info, ships ~30 built-in utility tools, and does real-time hardware monitoring with an FPS overlay. UI strings are hardcoded Chinese — there is no resource/localization system.
 
-## Solution layout (3 projects in `TubaWinUi3.sln`)
+## Solution layout (4 projects in `TubaWinUi3.sln`)
 
 - `TubaWinUi3.WinUI3/` — **the app**. The only project you normally build/run; `dotnet` commands target `TubaWinUi3.WinUI3/TubaWinUi3.csproj`.
-- `TubaWinUi3.Compatible/` — a separate **.NET Framework 4.5 WinForms** edition (`图吧工具箱Winui3兼容版.exe`, MetroModernUI + Costura.Fody single-file). NOT WinUI 3 and NOT .NET 10 — different toolchain, different conventions. Built by CI and bundled into portable zips. Do not mix its patterns into the main app.
+- `TubaWinUI3.BackEnd/` — a small **NativeAOT helper process** (`TubaWinUI3.BackEnd.exe`) used by the 主动拦截 (active intercept) feature; managed by `ActiveInterceptService`. The main csproj's `CopyBackendForBuild` target copies its framework-dependent output after every `dotnet build`, and `PublishBackend` builds/publishes the AOT version during `dotnet publish`.
+- `TubaWinUi3.Compatible/` — a separate **.NET Framework 4.8 WinForms** edition (`图吧工具箱Winui3兼容版.exe`, ReaLTaiizor Crown theme + Costura.Fody single-file). NOT WinUI 3 and NOT .NET 10 — different toolchain, different conventions. Built by CI and bundled into portable zips. Do not mix its patterns into the main app. Supports link.json cross-category (`target`) tools and splits each arch variant (x64/ARM64/x86) into its own tool card; `builtin` links are hidden (WinForms can't run WinUI built-ins).
 - `TubaWinUi3.Tests/` — **xUnit** tests (xUnit 2.9 + coverlet), referencing the main project via `InternalsVisibleTo`.
 
 ## Build, run, test
@@ -21,9 +22,9 @@ dotnet test --filter "FullyQualifiedName~ToolCatalogTests"        # one class / 
 
 - Platforms x86 / x64 / ARM64; `RuntimeIdentifier` defaults to the current process architecture.
 - `WindowsPackageType=None` + `EnableMsixTooling=false` → runs unpackaged; no MSIX registration for dev.
-- **Requires admin**: `App.OnLaunched` auto-elevates via the `runas` verb and `Exit()`s if not admin (unpackaged mode only). A headless `EnergyStar` mode can also launch via `EnergyStarStartupService.SilentArg` to apply EcoQoS throttling with no window.
+- **Requires admin**: `App.OnLaunched` auto-elevates via the `runas` verb and `Exit()`s if not admin (unpackaged mode only). Headless command-line modes skip the window entirely: `EnergyStarStartupService.SilentArg` (EcoQoS throttling), `--copy-path`, `--toast`, `--build-tool-cache`, `--show-active-intercept`.
 - `AllowUnsafeBlocks=true` (P/Invoke structs in `HardwareInfoService`).
-- Publish is self-contained; `PublishTrimmed=false`, `PublishReadyToRun=false` — trimming is never used.
+- Publish is self-contained; `PublishTrimmed=false`, `PublishReadyToRun=true` — trimming is never used.
 - **`.pri` gotcha**: after `dotnet publish`, copy `TubaWinUi3.pri` from `bin/<arch>/Release/.../<rid>/` into the publish output (CI does this; the app misbehaves without it).
 
 ## Stray root files — do not edit
@@ -73,9 +74,11 @@ The "文件传输" feature spans three pieces with their own toolchains — none
 
 ## CI (`.github/workflows/` — all manual `workflow_dispatch`)
 
+**There is no push/PR CI** — nothing builds or tests automatically on commit; run `dotnet build` + `dotnet test` locally before pushing.
+
 - `build-release.yml` — bumps `<Version>` in **both** `.csproj`s and `#define MyAppVersion` in all `installer*.iss`, publishes x64/x86/ARM64 portable + Inno installer + x64-lite (`ExcludeToolsFromPublish=true` + `.lite_build` marker), builds the Compatible edition, restores `.pri`, generates the changelog via **DeepSeek** (`DEEPSEEK_API_KEY`), creates the GitHub release, and optionally mirrors to **GitCode/AtomGit** (`GITCODE_ACCESS_TOKEN`). Portable zips are staged as a `src/` folder plus the native `Launcher\bin\图吧工具箱WinUI3_<arch>.exe` (renamed `图吧工具箱WinUI3.exe`).
-- `publish-winget.yml` — submits a released version to winget (`WINGET_GITHUB_TOKEN`; package id `luolangaga.tubatools`).
-- `auto-approve-benchmark.yml` — rebuilds the benchmark leaderboard files.
+- `android-build.yml` — Gradle debug APK for `android-tuba-installer/`; the only workflow that runs tests.
+- `sync-to-gitcode.yml` — re-uploads assets from an existing GitHub Release to GitCode via AtomGit API.
 
 `Launcher/` is a native C launcher (`launcher.c` + `launcher.rc`, built via `Launcher/build.ps1`) that finds and starts the .NET app. `build-setup.ps1` / `build-store*.ps1` build the Inno installer / MSIX locally.
 
@@ -90,5 +93,5 @@ Root `package.json` + `src/docs/` are a **VitePress** site only (`npm run dev` /
 ## Conventions
 
 - Namespaces: `TubaWinUi3` / `.Pages` / `.Services` / `.Models`. PascalCase; XAML + code-behind pairs.
-- Commit format: `feat:` / `fix:` / `docs:` / `refactor:`.
+- Commit messages are short Chinese summaries in practice (`优化OSD编辑器`, `修复打包`); `feat:`/`fix:` prefixes are welcome but not enforced.
 - Never commit: `bin/`, `obj/`, `.pfx`, `.cer`.

@@ -225,6 +225,7 @@ public sealed partial class SettingsPage : Page
     protected override void OnNavigatedTo(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
+        DownloadQueueService.QueueChanged += UpdateDownloadQueueStatus;
 
         RestoreExpanderContent(GeneralExpander, _generalExpanderContent);
         RestoreExpanderContent(AppearanceExpander, _appearanceExpanderContent);
@@ -245,6 +246,12 @@ public sealed partial class SettingsPage : Page
             StartHighlight(_pendingHighlightKey);
             _pendingHighlightKey = null;
         }
+    }
+
+    protected override void OnNavigatedFrom(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
+    {
+        base.OnNavigatedFrom(e);
+        DownloadQueueService.QueueChanged -= UpdateDownloadQueueStatus;
     }
 
     private static void RestoreExpanderContent(Expander? expander, FrameworkElement? savedContent)
@@ -2298,7 +2305,6 @@ public sealed partial class SettingsPage : Page
         };
 
         UpdateDownloadQueueStatus();
-        DownloadQueueService.QueueChanged += UpdateDownloadQueueStatus;
     }
 
     private void UpdateDownloadQueueStatus()
