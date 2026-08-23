@@ -18,37 +18,6 @@
     </Page.Resources>
 
     <Grid>
-        <!-- PawnIO Not Installed (fullscreen blocker) -->
-        <Grid x:Name="PawnIOOverlay" Visibility="Collapsed"
-              Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" Canvas.ZIndex="100">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="*" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
-            <StackPanel Grid.Row="1" HorizontalAlignment="Center" Spacing="16" MaxWidth="500">
-                <FontIcon Glyph="&#xE783;" FontSize="48" HorizontalAlignment="Center"
-                          Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
-                <TextBlock Text="PawnIO 驱动未安装" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center" />
-                <TextBlock TextWrapping="Wrap" TextAlignment="Center" Opacity="0.8" FontSize="14"
-                           Text="游戏监控功能依赖 PawnIO 内核驱动读取硬件传感器数据。&#x0a;PawnIO 是一个开源的可编写脚本的通用内核驱动，&#x0a;允许程序访问各种硬件传感器。请先安装后重试。" />
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12">
-                    <Button Click="InstallPawnIO_Click" Style="{ThemeResource AccentButtonStyle}">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE896;" FontSize="14" />
-                            <TextBlock Text="下载 PawnIO" />
-                        </StackPanel>
-                    </Button>
-                    <Button Click="RetryPawnIO_Click">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE72C;" FontSize="14" />
-                            <TextBlock Text="重新检测" />
-                        </StackPanel>
-                    </Button>
-                </StackPanel>
-            </StackPanel>
-        </Grid>
-
         <!-- Main Content -->
         <Grid x:Name="MainContent" Padding="24,16,24,16" RowSpacing="12">
             <Grid.RowDefinitions>
@@ -95,19 +64,68 @@
                     <ColumnDefinition Width="250" />
                 </Grid.ColumnDefinitions>
 
-                <!-- Left: Component Palette -->
-                <Border Style="{StaticResource CardBorder}" Padding="8">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Text="组件列表" FontWeight="SemiBold" FontSize="13" Margin="6,4,6,8" />
-                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                            <StackPanel x:Name="PalettePanel" />
-                        </ScrollViewer>
-                    </Grid>
-                </Border>
+                <!-- Left: Presets + Component Palette -->
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Presets -->
+                    <Border Grid.Row="0" Style="{StaticResource CardBorder}" Padding="10" Margin="0,0,0,8">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="布局预设" FontWeight="SemiBold" FontSize="13" />
+                            <ComboBox x:Name="CmbPreset" FontSize="12" HorizontalAlignment="Stretch"
+                                      SelectionChanged="Preset_SelectionChanged" />
+                            <Grid ColumnSpacing="6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Button Grid.Column="0" Click="ApplyPreset_Click" Padding="4,5" FontSize="12"
+                                        HorizontalAlignment="Stretch"
+                                        ToolTipService.ToolTip="用所选预设替换当前画布布局">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <FontIcon Glyph="&#xE768;" FontSize="11" />
+                                        <TextBlock Text="应用" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Grid.Column="1" Click="SavePreset_Click" Padding="4,5" FontSize="12"
+                                        HorizontalAlignment="Stretch"
+                                        ToolTipService.ToolTip="将当前画布布局保存为自定义预设">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <FontIcon Glyph="&#xE74E;" FontSize="11" />
+                                        <TextBlock Text="保存" />
+                                    </StackPanel>
+                                </Button>
+                                <Button x:Name="BtnDeletePreset" Grid.Column="2" Click="DeletePreset_Click"
+                                        Padding="4,5" FontSize="12" IsEnabled="False"
+                                        HorizontalAlignment="Stretch"
+                                        ToolTipService.ToolTip="删除所选自定义预设">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <FontIcon Glyph="&#xE74D;" FontSize="11" />
+                                        <TextBlock Text="删除" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Component Palette -->
+                    <Border Grid.Row="1" Style="{StaticResource CardBorder}" Padding="8">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Text="组件列表" FontWeight="SemiBold" FontSize="13" Margin="6,4,6,8" />
+                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                <StackPanel x:Name="PalettePanel" />
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+                </Grid>
 
                 <!-- Center: Canvas Designer -->
                 <Grid Grid.Column="1">
@@ -141,6 +159,12 @@
                         <NumberBox x:Name="NbRefresh" Minimum="200" Maximum="5000"
                                    SpinButtonPlacementMode="Compact" Width="85" FontSize="12" />
                         <TextBlock Text="ms" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Text="缩放:" VerticalAlignment="Center" FontSize="12" />
+                        <NumberBox x:Name="NbScale" Minimum="50" Maximum="200" SmallChange="5"
+                                   SpinButtonPlacementMode="Compact" Width="85" FontSize="12"
+                                   ValueChanged="Scale_Changed"
+                                   ToolTipService.ToolTip="整体缩放画布与全部组件（50%–200%）" />
+                        <TextBlock Text="%" VerticalAlignment="Center" FontSize="12" />
                     </StackPanel>
                     <!-- Canvas -->
                     <Border Grid.Row="1" Padding="4" CornerRadius="8"
@@ -292,6 +316,23 @@
                                         <TextBlock Text="选择颜色" />
                                     </StackPanel>
                                 </Button>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <!-- Text color (for text widgets & 自定义文字) -->
+                                <StackPanel x:Name="CardTextColor" Spacing="4" Visibility="Collapsed">
+                                    <TextBlock Text="文字颜色" FontSize="11" Opacity="0.6" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Border x:Name="TextColorPreview" Width="28" Height="24" CornerRadius="4"
+                                                Background="#FFFFFFFF" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                                BorderThickness="1" />
+                                        <Button x:Name="BtnPickTextColor" Click="PickTextColor_Click"
+                                                Padding="8,4" FontSize="12">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <FontIcon Glyph="&#xE790;" FontSize="11" />
+                                                <TextBlock Text="选择颜色" />
+                                            </StackPanel>
+                                        </Button>
                                     </StackPanel>
                                 </StackPanel>
 

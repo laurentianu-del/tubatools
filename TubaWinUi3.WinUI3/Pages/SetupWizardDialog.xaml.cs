@@ -31,6 +31,7 @@ public sealed partial class SetupWizardDialog : ContentDialog
         Step0Content.Visibility = _currentStep == 0 ? Visibility.Visible : Visibility.Collapsed;
         Step1Content.Visibility = _currentStep == 1 ? Visibility.Visible : Visibility.Collapsed;
         Step2Content.Visibility = _currentStep == 2 ? Visibility.Visible : Visibility.Collapsed;
+        Step3Content.Visibility = _currentStep == 3 ? Visibility.Visible : Visibility.Collapsed;
 
         StepPager.SelectedPageIndex = _currentStep;
 
@@ -55,6 +56,14 @@ public sealed partial class SetupWizardDialog : ContentDialog
             case 2:
                 StepTitleText.Text = "选择背景材质";
                 StepSubtitleText.Text = "不同的材质会为窗口带来不同的视觉效果。";
+                PrimaryButtonText = "下一步";
+                SecondaryButtonText = "上一步";
+                IsSecondaryButtonEnabled = true;
+                CloseButtonText = "跳过";
+                break;
+            case 3:
+                StepTitleText.Text = "搜索集成";
+                StepSubtitleText.Text = "让工具出现在 Windows 搜索中，方便快速启动。";
                 PrimaryButtonText = "完成";
                 SecondaryButtonText = "上一步";
                 IsSecondaryButtonEnabled = true;
@@ -65,7 +74,7 @@ public sealed partial class SetupWizardDialog : ContentDialog
 
     private void OnPrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)
     {
-        if (_currentStep < 2)
+        if (_currentStep < 3)
         {
             args.Cancel = true;
             _currentStep++;
@@ -136,6 +145,12 @@ public sealed partial class SetupWizardDialog : ContentDialog
     {
         CompactModeService.SetCompactModeEnabled(_compactMode);
         BackdropService.SetBackdropType(_backdropType);
+
+        var enableSearchIndex = WizardSearchIndexToggle.IsOn;
+        AppSettings.Set("WindowsSearchIndex", enableSearchIndex);
+        if (enableSearchIndex)
+            _ = WindowsSearchIndexService.RegisterAllToolsAsync();
+
         AppSettings.Set("SetupCompleted", true);
     }
 }

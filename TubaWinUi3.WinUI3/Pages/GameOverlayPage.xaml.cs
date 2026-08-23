@@ -45,6 +45,8 @@ public sealed partial class GameOverlayPage : Page
     private readonly List<GameWindowInfo> _gameWindows = new();
     private readonly List<string> _customWindowTitles = new();
     private IntPtr _targetHwnd;
+    private bool _isDesktopTarget;
+    private double _scalePercent = 100;
     private bool _isDragging;
     private Point _dragStartPoint;
     private double _dragStartX, _dragStartY;
@@ -69,6 +71,7 @@ public sealed partial class GameOverlayPage : Page
         public string CustomText = "";
         public string ImagePath = "";
         public uint ColorArgb = 0xFF00A0FF;
+        public uint TextColorArgb = 0xFFFFFFFF;
         // Resize handle
         public Thumb? ResizeThumb;
     }
@@ -80,6 +83,7 @@ public sealed partial class GameOverlayPage : Page
         public string ProcessName = "";
         public uint Pid;
         public bool IsCustom;
+        public bool IsDesktop;
     }
 
     #endregion
@@ -120,8 +124,8 @@ public sealed partial class GameOverlayPage : Page
 
     private void OnPageLoaded(object sender, RoutedEventArgs e)
     {
-        CheckPawnIOInstalled();
         InitPalette();
+        RefreshPresetCombo();
         LoadConfig();
         ScanGameWindows();
     }
@@ -131,85 +135,6 @@ public sealed partial class GameOverlayPage : Page
         StopPolling();
         GameOverlayWindow.CloseOverlay();
     }
-
-    #region PawnIO Detection
-
-    private void CheckPawnIOInstalled()
-    {
-        bool installed = false;
-        try
-        {
-            // Check for PawnIO service via SCManager
-            var scm = OpenSCManager(null, null, 0x0001); // SC_MANAGER_CONNECT
-            if (scm != IntPtr.Zero)
-            {
-                var svc = OpenService(scm, "PawnIO", 0x0001); // SERVICE_QUERY_STATUS
-                if (svc != IntPtr.Zero)
-                {
-                    installed = true;
-                    CloseServiceHandle(svc);
-                }
-                CloseServiceHandle(scm);
-            }
-        }
-        catch { }
-
-        if (installed)
-        {
-            PawnIOOverlay.Visibility = Visibility.Collapsed;
-            MainContent.Visibility = Visibility.Visible;
-        }
-        else
-        {
-            PawnIOOverlay.Visibility = Visibility.Visible;
-            MainContent.Visibility = Visibility.Collapsed;
-        }
-    }
-
-    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    private static extern IntPtr OpenSCManager(string? lpMachineName, string? lpDatabaseName, uint dwDesiredAccess);
-
-    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    private static extern IntPtr OpenService(IntPtr hSCManager, string lpServiceName, uint dwDesiredAccess);
-
-    [DllImport("advapi32.dll")]
-    private static extern bool CloseServiceHandle(IntPtr hSCObject);
-
-    private async void InstallPawnIO_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            TxtStatus.Text = "正在下载 PawnIO 安装程序...";
-            var url = "https://github.com/namazso/PawnIO.Setup/releases/latest/download/PawnIO_setup.exe";
-            var destDir = System.IO.Path.Combine(ConfigManager.GetDataDir(), "downloads");
-            System.IO.Directory.CreateDirectory(destDir);
-            var destFile = System.IO.Path.Combine(destDir, "PawnIO_setup.exe");
-
-            await ToolDownloaderService.DownloadToFileAsync(url, destDir, "PawnIO_setup.exe",
-                null, default);
-
-            if (System.IO.File.Exists(destFile))
-            {
-                Process.Start(new ProcessStartInfo(destFile) { UseShellExecute = true });
-                TxtStatus.Text = "PawnIO 安装程序已启动，请按提示完成安装后点击「重新检测」";
-            }
-            else
-            {
-                TxtStatus.Text = "下载失败，请手动前往 GitHub 下载";
-            }
-        }
-        catch (Exception ex)
-        {
-            TxtStatus.Text = $"下载失败: {ex.Message}";
-        }
-    }
-
-    private void RetryPawnIO_Click(object sender, RoutedEventArgs e)
-    {
-        CheckPawnIOInstalled();
-    }
-
-    #endregion
 
     #region Widget Palette
 
@@ -399,7 +324,7 @@ public sealed partial class GameOverlayPage : Page
             var chartLabel = new TextBlock
             {
                 Text = widget.Label,
-                FontSize = 10,
+                FontSize = Math.Max(8, widget.FontSize),
                 Foreground = new SolidColorBrush(Color.FromArgb(180, 255, 255, 255)),
                 VerticalAlignment = VerticalAlignment.Top,
                 HorizontalAlignment = HorizontalAlignment.Left,
@@ -445,7 +370,7 @@ public sealed partial class GameOverlayPage : Page
                 Text = preview,
                 FontSize = widget.FontSize,
                 FontWeight = Microsoft.UI.Text.FontWeights.Bold,
-                Foreground = new SolidColorBrush(Colors.White),
+                Foreground = new SolidColorBrush(FromArgb(widget.TextColorArgb)),
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(4, 0, 0, 0),
                 TextTrimming = TextTrimming.Clip
@@ -612,7 +537,7 @@ public sealed partial class GameOverlayPage : Page
             PropH.Value = widget.Height;
             PropFS.Value = widget.FontSize;
             PropPrefix.Text = widget.Prefix;
-            PropFS.IsEnabled = !widget.IsChart;
+            // Font size is editable for text widgets AND charts (chart title size)
             PropPrefix.IsEnabled = !widget.IsChart;
             PropShowPrefix.IsEnabled = !widget.IsChart && widget.Type != OverlayWidgetType.CustomText;
             PropShowPrefix.IsOn = widget.ShowPrefix;
@@ -624,13 +549,16 @@ public sealed partial class GameOverlayPage : Page
             bool isCustomText = widget.Type == OverlayWidgetType.CustomText;
             bool isCustomImage = widget.Type == OverlayWidgetType.CustomImage;
             bool isColorBlock = widget.Type == OverlayWidgetType.ColorBlock;
+            bool isTextWidget = !widget.IsChart && !isCustomImage && !isColorBlock;
             CardCustomText.Visibility = isCustomText ? Visibility.Visible : Visibility.Collapsed;
             CardCustomImage.Visibility = isCustomImage ? Visibility.Visible : Visibility.Collapsed;
             CardCustomColor.Visibility = isColorBlock ? Visibility.Visible : Visibility.Collapsed;
+            CardTextColor.Visibility = isTextWidget ? Visibility.Visible : Visibility.Collapsed;
 
             if (isCustomText) PropCustomText.Text = widget.CustomText;
             if (isCustomImage) PropImagePath.Text = string.IsNullOrEmpty(widget.ImagePath) ? "未选择图片" : Path.GetFileName(widget.ImagePath);
             if (isColorBlock) ColorPreview.Background = new SolidColorBrush(FromArgb(widget.ColorArgb));
+            if (isTextWidget) TextColorPreview.Background = new SolidColorBrush(FromArgb(widget.TextColorArgb));
             _suppressEvents = false;
         }
         else
@@ -677,10 +605,17 @@ public sealed partial class GameOverlayPage : Page
 
     private void PropFS_Changed(NumberBox sender, NumberBoxValueChangedEventArgs args)
     {
-        if (_suppressEvents || _selectedWidget == null || _selectedWidget.IsChart) return;
+        if (_suppressEvents || _selectedWidget == null) return;
         _selectedWidget.FontSize = Math.Max(8, PropFS.Value);
         if (_selectedWidget.TextElement != null)
+        {
             _selectedWidget.TextElement.FontSize = _selectedWidget.FontSize;
+        }
+        else if (_selectedWidget.ChartElement?.Children.FirstOrDefault() is TextBlock chartLabel)
+        {
+            // Charts: FontSize controls the title — keep the designer preview in sync
+            chartLabel.FontSize = Math.Max(8, _selectedWidget.FontSize);
+        }
         SaveConfig();
     }
 
@@ -786,7 +721,37 @@ public sealed partial class GameOverlayPage : Page
     {
         if (_selectedWidget == null) return;
 
-        // Simple preset color picker dialog
+        var (ok, picked) = await ShowColorPickerDialogAsync(_selectedWidget.ColorArgb, "选择色块颜色");
+        if (ok)
+        {
+            _selectedWidget.ColorArgb = picked;
+            ColorPreview.Background = new SolidColorBrush(FromArgb(picked));
+            if (_selectedWidget.Container != null)
+                _selectedWidget.Container.Background = new SolidColorBrush(FromArgb(picked));
+            SaveConfig();
+        }
+    }
+
+    private async void PickTextColor_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedWidget == null) return;
+
+        var (ok, picked) = await ShowColorPickerDialogAsync(_selectedWidget.TextColorArgb, "选择文字颜色");
+        if (ok)
+        {
+            _selectedWidget.TextColorArgb = picked;
+            TextColorPreview.Background = new SolidColorBrush(FromArgb(picked));
+            if (_selectedWidget.TextElement != null)
+                _selectedWidget.TextElement.Foreground = new SolidColorBrush(FromArgb(picked));
+            SaveConfig();
+        }
+    }
+
+    /// <summary>
+    /// Shows the preset color grid dialog; returns the picked ARGB color (with alpha).
+    /// </summary>
+    private async Task<(bool ok, uint argb)> ShowColorPickerDialogAsync(uint current, string title)
+    {
         var presetColors = new (string Name, uint Argb)[]
         {
             ("蓝色", 0xFF0080FF), ("青色", 0xFF00C8C8), ("绿色", 0xFF00C050),
@@ -799,8 +764,9 @@ public sealed partial class GameOverlayPage : Page
         for (int i = 0; i < 3; i++) grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40) });
         for (int i = 0; i < 4; i++) grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(30) });
 
-        uint picked = _selectedWidget.ColorArgb;
+        uint picked = current;
         var tcs = new TaskCompletionSource<bool>();
+        ContentDialog? dialog = null;
 
         for (int i = 0; i < presetColors.Length; i++)
         {
@@ -819,6 +785,8 @@ public sealed partial class GameOverlayPage : Page
             box.Click += (_, _) =>
             {
                 picked = (uint)box.Tag;
+                // Pick a color → apply and close the dialog right away
+                try { dialog?.Hide(); } catch { }
                 tcs.TrySetResult(true);
             };
             Grid.SetRow(box, i / 3);
@@ -826,26 +794,18 @@ public sealed partial class GameOverlayPage : Page
             grid.Children.Add(box);
         }
 
-        var dialog = new ContentDialog
+        dialog = new ContentDialog
         {
-            Title = "选择色块颜色",
+            Title = title,
             Content = new StackPanel { Spacing = 10, Children = { grid } },
             CloseButtonText = "取消",
             XamlRoot = XamlRoot,
             RequestedTheme = ThemeService.CurrentElementTheme
         };
         bool ok = false;
-        try { ok = (await dialog.ShowAsync() == ContentDialogResult.Primary); } catch { }
+        try { await dialog.ShowAsync(); } catch { }
         if (tcs.Task.IsCompleted) ok = true;
-
-        if (ok)
-        {
-            _selectedWidget.ColorArgb = picked;
-            ColorPreview.Background = new SolidColorBrush(FromArgb(picked));
-            if (_selectedWidget.Container != null)
-                _selectedWidget.Container.Background = new SolidColorBrush(FromArgb(picked));
-            SaveConfig();
-        }
+        return (ok, picked);
     }
 
     private void DeleteComp_Click(object sender, RoutedEventArgs e)
@@ -951,6 +911,72 @@ public sealed partial class GameOverlayPage : Page
 
     #endregion
 
+    #region Overall Scale
+
+    private void Scale_Changed(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    {
+        if (_suppressEvents) return;
+        var val = NbScale.Value;
+        if (double.IsNaN(val))
+        {
+            _suppressEvents = true;
+            NbScale.Value = _scalePercent;
+            _suppressEvents = false;
+            return;
+        }
+        ApplyGlobalScale(Math.Clamp(val, 50, 200));
+    }
+
+    /// <summary>
+    /// Scales the whole overlay layout (widget positions/sizes/fonts AND canvas) by the
+    /// ratio between the new and the previous scale percent. Values are baked in, so the
+    /// designer canvas, property panel and the running overlay stay WYSIWYG-consistent.
+    /// </summary>
+    private void ApplyGlobalScale(double newPercent)
+    {
+        if (newPercent == _scalePercent) return;
+        double ratio = newPercent / _scalePercent;
+
+        foreach (var w in _widgets)
+        {
+            w.X *= ratio;
+            w.Y *= ratio;
+            w.Width = Math.Max(20, w.Width * ratio);
+            w.Height = Math.Max(12, w.Height * ratio);
+            w.FontSize = Math.Max(8, w.FontSize * ratio);
+        }
+
+        double cw = Math.Clamp(NbCanvasW.Value * ratio, 200, 2000);
+        double ch = Math.Clamp(NbCanvasH.Value * ratio, 100, 1500);
+        _suppressEvents = true;
+        NbCanvasW.Value = cw;
+        NbCanvasH.Value = ch;
+        _suppressEvents = false;
+        DesignCanvas.Width = cw;
+        DesignCanvas.Height = ch;
+        UpdateCanvasDecorations();
+
+        // Rebuild canvas elements so the preview matches the new scale
+        foreach (var w in _widgets)
+        {
+            if (w.Container != null) DesignCanvas.Children.Remove(w.Container);
+            if (w.ResizeThumb != null) DesignCanvas.Children.Remove(w.ResizeThumb);
+        }
+        var selected = _selectedWidget;
+        foreach (var w in _widgets) CreateWidgetElement(w);
+        if (selected != null) SelectWidget(selected);
+
+        _scalePercent = newPercent;
+        SaveConfig();
+
+        if (_overlayRunning)
+            TxtStatus.Text = $"已整体缩放到 {newPercent:F0}%，重新启动覆盖层即可生效";
+        else
+            TxtStatus.Text = $"已整体缩放到 {newPercent:F0}%";
+    }
+
+    #endregion
+
     #region Background Opacity
 
     private void BgOpacity_Changed(object sender, RangeBaseValueChangedEventArgs e)
@@ -974,6 +1000,11 @@ public sealed partial class GameOverlayPage : Page
 
     private void ScanGameWindows()
     {
+        // Remember the current selection so a re-scan doesn't lose it (match by title)
+        GameWindowInfo? prevSelection = null;
+        if (CmbGameWindow.SelectedItem is ComboBoxItem prevItem && prevItem.Tag is GameWindowInfo prevInfo)
+            prevSelection = prevInfo;
+
         _gameWindows.Clear();
 
         EnumWindows((hwnd, _) =>
@@ -1019,8 +1050,19 @@ public sealed partial class GameOverlayPage : Page
             }
         }
 
-        // Populate ComboBox
+        // Populate ComboBox — desktop entry first, then scanned windows
         CmbGameWindow.Items.Clear();
+        CmbGameWindow.Items.Add(new ComboBoxItem
+        {
+            Content = "🖥️ Windows 桌面（FPS 跟随活动窗口）",
+            Tag = new GameWindowInfo
+            {
+                Hwnd = IntPtr.Zero,
+                Title = "(桌面)",
+                ProcessName = "Windows 桌面",
+                IsDesktop = true
+            }
+        });
         foreach (var w in _gameWindows.OrderBy(w => w.Title))
         {
             var item = new ComboBoxItem
@@ -1031,7 +1073,47 @@ public sealed partial class GameOverlayPage : Page
             CmbGameWindow.Items.Add(item);
         }
 
-        TxtWindowStatus.Text = $"已扫描到 {_gameWindows.Count} 个窗口";
+        // Restore selection: keep the previously picked window if it still exists,
+        // otherwise fall back to the saved target (desktop or last game window).
+        if (prevSelection is { IsDesktop: true })
+        {
+            CmbGameWindow.SelectedIndex = 0;
+        }
+        else if (prevSelection != null)
+        {
+            var idx = -1;
+            for (int i = 1; i < CmbGameWindow.Items.Count; i++)
+            {
+                if (CmbGameWindow.Items[i] is ComboBoxItem it && it.Tag is GameWindowInfo g
+                    && !g.IsDesktop && g.Title == prevSelection.Title && g.ProcessName == prevSelection.ProcessName)
+                {
+                    idx = i;
+                    break;
+                }
+            }
+            if (idx >= 0) CmbGameWindow.SelectedIndex = idx;
+            else RestoreSavedTarget();
+        }
+        else
+        {
+            RestoreSavedTarget();
+        }
+
+        TxtWindowStatus.Text = $"已扫描到 {_gameWindows.Count} 个窗口，以及桌面目标";
+    }
+
+    private void RestoreSavedTarget()
+    {
+        if (AppSettings.GetInt(SettingsPrefix + "DesktopTarget", 0) == 1)
+        {
+            CmbGameWindow.SelectedIndex = 0;
+        }
+        else
+        {
+            var savedIdx = AppSettings.GetInt(SettingsPrefix + "SelectedWindow", -1);
+            if (savedIdx > 0 && savedIdx < CmbGameWindow.Items.Count)
+                CmbGameWindow.SelectedIndex = savedIdx;
+        }
     }
 
     private static string TruncateTitle(string title, int maxLen)
@@ -1056,18 +1138,22 @@ public sealed partial class GameOverlayPage : Page
 
     private void GameWindow_Changed(object sender, SelectionChangedEventArgs e)
     {
-        if (CmbGameWindow.SelectedItem is ComboBoxItem item && item.Tag is GameWindowInfo info)
-        {
-            _targetHwnd = info.Hwnd;
-            TxtWindowStatus.Text = $"已选择: {info.ProcessName}";
-            BtnRemoveCustom.Visibility = info.IsCustom ? Visibility.Visible : Visibility.Collapsed;
+        if (CmbGameWindow.SelectedItem is not ComboBoxItem item) return;
+        if (item.Tag is not GameWindowInfo info) return;
 
-            if (_overlayRunning && GameOverlayWindow.Instance != null)
-            {
-                GameOverlayWindow.Instance.SetTargetWindow(_targetHwnd);
-            }
-            SaveConfig();
+        _targetHwnd = info.Hwnd;
+        _isDesktopTarget = info.IsDesktop;
+        TxtWindowStatus.Text = _isDesktopTarget
+            ? "已选择: Windows 桌面 — 覆盖层固定于屏幕设置位置，FPS 显示当前活动窗口"
+            : $"已选择: {info.ProcessName}";
+        BtnRemoveCustom.Visibility = info.IsCustom ? Visibility.Visible : Visibility.Collapsed;
+
+        if (_overlayRunning && GameOverlayWindow.Instance != null)
+        {
+            GameOverlayWindow.Instance.SetTargetWindow(_targetHwnd);
+            GameOverlayWindow.Instance.SetDesktopMode(_isDesktopTarget);
         }
+        SaveConfig();
     }
 
     private void AddCustomWindow_Click(object sender, RoutedEventArgs e)
@@ -1154,7 +1240,8 @@ public sealed partial class GameOverlayPage : Page
             IsChart = w.IsChart,
             CustomText = w.CustomText,
             ImagePath = w.ImagePath,
-            ColorArgb = w.ColorArgb
+            ColorArgb = w.ColorArgb,
+            TextColorArgb = w.TextColorArgb
         }).ToList();
 
         int cw = (int)Math.Max(200, NbCanvasW.Value);
@@ -1165,7 +1252,8 @@ public sealed partial class GameOverlayPage : Page
             overlayWidgets,
             (float)(SliderBgOpacity.Value / 100),
             GetSelectedPosition(),
-            cw, ch
+            cw, ch,
+            _isDesktopTarget
         );
 
         StartPolling();
@@ -1220,6 +1308,390 @@ public sealed partial class GameOverlayPage : Page
 
     #endregion
 
+    #region Layout Presets
+
+    private readonly record struct PresetWidget(
+        OverlayWidgetType Type, double X, double Y, double W, double H, double Fs, bool ShowPrefix);
+
+    private sealed class PresetItem
+    {
+        public string Name = "";
+        public bool IsBuiltin;
+        public double CanvasW, CanvasH;
+        public string LayoutJson = "";
+    }
+
+    private sealed class UserPresetData
+    {
+        public double cw { get; set; }
+        public double ch { get; set; }
+        public string layout { get; set; } = "";
+    }
+
+    private static readonly (string Name, double W, double H, PresetWidget[] Widgets)[] BuiltinPresets =
+    [
+        ("极简 FPS", 240, 116,
+        [
+            new PresetWidget(OverlayWidgetType.FpsText, 12, 12, 216, 44, 22, false),
+            new PresetWidget(OverlayWidgetType.FpsChart, 12, 64, 216, 40, 14, true),
+        ]),
+        ("标准监控", 320, 180,
+        [
+            new PresetWidget(OverlayWidgetType.FpsText, 12, 12, 140, 30, 14, true),
+            new PresetWidget(OverlayWidgetType.MemLoadText, 160, 12, 148, 30, 14, true),
+            new PresetWidget(OverlayWidgetType.CpuTempText, 12, 48, 140, 30, 14, true),
+            new PresetWidget(OverlayWidgetType.GpuTempText, 160, 48, 148, 30, 14, true),
+            new PresetWidget(OverlayWidgetType.CpuLoadText, 12, 84, 140, 30, 14, true),
+            new PresetWidget(OverlayWidgetType.GpuLoadText, 160, 84, 148, 30, 14, true),
+            new PresetWidget(OverlayWidgetType.FpsChart, 12, 122, 296, 46, 14, true),
+        ]),
+        ("性能全景", 340, 272,
+        [
+            new PresetWidget(OverlayWidgetType.FpsText, 12, 12, 150, 32, 15, true),
+            new PresetWidget(OverlayWidgetType.MemUsedText, 170, 12, 158, 32, 14, true),
+            new PresetWidget(OverlayWidgetType.CpuNameText, 12, 50, 316, 26, 12, true),
+            new PresetWidget(OverlayWidgetType.CpuTempText, 12, 84, 150, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.CpuLoadText, 170, 84, 158, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.CpuClockText, 12, 120, 150, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.CpuPowerText, 170, 120, 158, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.GpuTempText, 12, 156, 150, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.GpuLoadText, 170, 156, 158, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.GpuClockText, 12, 192, 150, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.GpuPowerText, 170, 192, 158, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.GpuVramText, 12, 228, 150, 30, 13, true),
+        ]),
+        ("CPU 专项", 300, 190,
+        [
+            new PresetWidget(OverlayWidgetType.CpuNameText, 12, 12, 276, 26, 12, true),
+            new PresetWidget(OverlayWidgetType.CpuTempText, 12, 44, 132, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.CpuLoadText, 156, 44, 132, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.CpuClockText, 12, 80, 132, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.CpuPowerText, 156, 80, 132, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.CpuTempChart, 12, 118, 276, 60, 14, true),
+        ]),
+        ("GPU 专项", 300, 226,
+        [
+            new PresetWidget(OverlayWidgetType.GpuNameText, 12, 12, 276, 26, 12, true),
+            new PresetWidget(OverlayWidgetType.GpuTempText, 12, 44, 132, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.GpuLoadText, 156, 44, 132, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.GpuClockText, 12, 80, 132, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.GpuPowerText, 156, 80, 132, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.GpuVramText, 12, 116, 276, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.FpsChart, 12, 154, 276, 60, 14, true),
+        ]),
+        ("网络与磁盘", 280, 130,
+        [
+            new PresetWidget(OverlayWidgetType.NetUpText, 12, 12, 256, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.NetDownText, 12, 48, 256, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.DiskReadText, 12, 84, 124, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.DiskWriteText, 144, 84, 124, 30, 13, true),
+        ]),
+        ("全功能", 360, 414,
+        [
+            new PresetWidget(OverlayWidgetType.FpsText, 12, 12, 150, 32, 15, true),
+            new PresetWidget(OverlayWidgetType.MemUsedText, 170, 12, 178, 32, 14, true),
+            new PresetWidget(OverlayWidgetType.CpuNameText, 12, 50, 336, 26, 12, true),
+            new PresetWidget(OverlayWidgetType.CpuTempText, 12, 84, 162, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.CpuLoadText, 186, 84, 162, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.CpuClockText, 12, 120, 162, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.CpuPowerText, 186, 120, 162, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.GpuNameText, 12, 156, 336, 26, 12, true),
+            new PresetWidget(OverlayWidgetType.GpuTempText, 12, 190, 162, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.GpuLoadText, 186, 190, 162, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.GpuClockText, 12, 226, 162, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.GpuPowerText, 186, 226, 162, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.GpuVramText, 12, 262, 162, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.MemLoadText, 186, 262, 162, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.FpsChart, 12, 300, 336, 48, 14, true),
+            new PresetWidget(OverlayWidgetType.CpuTempChart, 12, 354, 336, 48, 14, true),
+        ]),
+        ("电竞对战", 300, 196,
+        [
+            new PresetWidget(OverlayWidgetType.FpsText, 12, 12, 276, 34, 20, false),
+            new PresetWidget(OverlayWidgetType.FpsChart, 12, 54, 276, 56, 14, true),
+            new PresetWidget(OverlayWidgetType.GpuTempText, 12, 118, 132, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.GpuLoadText, 156, 118, 132, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.GpuClockText, 12, 154, 132, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.GpuVramText, 156, 154, 132, 30, 13, true),
+        ]),
+        ("双图表", 300, 190,
+        [
+            new PresetWidget(OverlayWidgetType.FpsText, 12, 12, 132, 30, 14, true),
+            new PresetWidget(OverlayWidgetType.CpuTempText, 156, 12, 132, 30, 14, true),
+            new PresetWidget(OverlayWidgetType.FpsChart, 12, 48, 276, 60, 14, true),
+            new PresetWidget(OverlayWidgetType.CpuTempChart, 12, 116, 276, 60, 14, true),
+        ]),
+        ("内存专项", 280, 130,
+        [
+            new PresetWidget(OverlayWidgetType.FpsText, 12, 12, 124, 30, 14, true),
+            new PresetWidget(OverlayWidgetType.MemLoadText, 144, 12, 124, 30, 14, true),
+            new PresetWidget(OverlayWidgetType.MemUsedText, 12, 48, 256, 30, 14, true),
+            new PresetWidget(OverlayWidgetType.CpuLoadText, 12, 84, 124, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.GpuLoadText, 144, 84, 124, 30, 13, true),
+        ]),
+        ("FPS 直播监控", 240, 170,
+        [
+            new PresetWidget(OverlayWidgetType.FpsText, 12, 12, 216, 36, 20, false),
+            new PresetWidget(OverlayWidgetType.FpsChart, 12, 56, 216, 56, 14, true),
+            new PresetWidget(OverlayWidgetType.NetUpText, 12, 120, 104, 30, 13, true),
+            new PresetWidget(OverlayWidgetType.NetDownText, 124, 120, 104, 30, 13, true),
+        ]),
+    ];
+
+    private static string BuildLayoutJson(IEnumerable<PresetWidget> widgets)
+    {
+        var arr = widgets.Select(pw => new
+        {
+            type = (int)pw.Type,
+            x = pw.X,
+            y = pw.Y,
+            w = pw.W,
+            h = pw.H,
+            fs = pw.Fs,
+            prefix = GameOverlayWindow.GetDefaultPrefix(pw.Type),
+            showPrefix = pw.ShowPrefix,
+            layer = 0,
+            text = "",
+            img = "",
+            color = 0xFF00A0FFu,
+            tcolor = 0xFFFFFFFFu
+        }).ToList();
+        return JsonSerializer.Serialize(arr);
+    }
+
+    private Dictionary<string, UserPresetData> LoadUserPresets()
+    {
+        try
+        {
+            var json = AppSettings.Get(SettingsPrefix + "Presets");
+            if (!string.IsNullOrEmpty(json))
+            {
+                var dict = JsonSerializer.Deserialize<Dictionary<string, UserPresetData>>(json);
+                if (dict != null) return dict;
+            }
+        }
+        catch { }
+        return new Dictionary<string, UserPresetData>();
+    }
+
+    private List<PresetItem> GetAllPresets()
+    {
+        var list = new List<PresetItem>();
+        foreach (var (name, w, h, widgets) in BuiltinPresets)
+        {
+            list.Add(new PresetItem
+            {
+                Name = name,
+                IsBuiltin = true,
+                CanvasW = w,
+                CanvasH = h,
+                LayoutJson = BuildLayoutJson(widgets)
+            });
+        }
+
+        foreach (var kv in LoadUserPresets())
+        {
+            if (string.IsNullOrEmpty(kv.Key)) continue;
+            list.Add(new PresetItem
+            {
+                Name = kv.Key,
+                IsBuiltin = false,
+                CanvasW = kv.Value.cw > 0 ? kv.Value.cw : 600,
+                CanvasH = kv.Value.ch > 0 ? kv.Value.ch : 300,
+                LayoutJson = kv.Value.layout ?? ""
+            });
+        }
+        return list;
+    }
+
+    private void RefreshPresetCombo()
+    {
+        _suppressEvents = true;
+        var selectedName = (CmbPreset.SelectedItem as ComboBoxItem)?.Tag as PresetItem;
+        CmbPreset.Items.Clear();
+        foreach (var p in GetAllPresets())
+        {
+            var item = new ComboBoxItem { Content = (p.IsBuiltin ? "内置 · " : "") + p.Name, Tag = p };
+            CmbPreset.Items.Add(item);
+            if (selectedName != null && !selectedName.IsBuiltin && p.Name == selectedName.Name && !p.IsBuiltin)
+                CmbPreset.SelectedItem = item;
+        }
+        if (CmbPreset.SelectedIndex < 0 && CmbPreset.Items.Count > 0)
+            CmbPreset.SelectedIndex = 0;
+        UpdateDeletePresetButton();
+        _suppressEvents = false;
+    }
+
+    private void UpdateDeletePresetButton()
+    {
+        BtnDeletePreset.IsEnabled = CmbPreset.SelectedItem is ComboBoxItem ci
+            && ci.Tag is PresetItem pi && !pi.IsBuiltin;
+    }
+
+    private void Preset_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressEvents) return;
+        UpdateDeletePresetButton();
+    }
+
+    private async void ApplyPreset_Click(object sender, RoutedEventArgs e)
+    {
+        if (CmbPreset.SelectedItem is not ComboBoxItem ci || ci.Tag is not PresetItem preset) return;
+
+        if (_widgets.Count > 0)
+        {
+            var confirm = new ContentDialog
+            {
+                Title = "应用预设",
+                Content = $"应用预设「{preset.Name}」将替换当前画布上的 {_widgets.Count} 个组件，确定继续吗？",
+                PrimaryButtonText = "应用",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = XamlRoot,
+                RequestedTheme = ThemeService.CurrentElementTheme
+            };
+            if (await confirm.ShowAsync() != ContentDialogResult.Primary) return;
+        }
+
+        ApplyPreset(preset);
+    }
+
+    private void ApplyPreset(PresetItem preset)
+    {
+        StopOverlay();
+        ClearAllWidgets();
+
+        // Preset layouts are defined at 100% scale — reset the scale control
+        _scalePercent = 100;
+        _suppressEvents = true;
+        NbScale.Value = 100;
+        NbCanvasW.Value = Math.Max(200, preset.CanvasW);
+        NbCanvasH.Value = Math.Max(100, preset.CanvasH);
+        _suppressEvents = false;
+        DesignCanvas.Width = NbCanvasW.Value;
+        DesignCanvas.Height = NbCanvasH.Value;
+        UpdateCanvasDecorations();
+
+        try { LoadWidgetsFromJson(preset.LayoutJson); }
+        catch (Exception ex) { TxtStatus.Text = $"预设加载失败: {ex.Message}"; }
+
+        UpdateStatus();
+        SaveConfig();
+        TxtStatus.Text = $"已应用预设「{preset.Name}」，重新启动覆盖层即可生效";
+    }
+
+    private void ClearAllWidgets()
+    {
+        SelectWidget(null);
+        foreach (var w in _widgets)
+        {
+            if (w.Container != null) DesignCanvas.Children.Remove(w.Container);
+            if (w.ResizeThumb != null) DesignCanvas.Children.Remove(w.ResizeThumb);
+        }
+        _widgets.Clear();
+    }
+
+    private static string SuggestPresetName(IReadOnlyCollection<string> existing)
+    {
+        for (int i = 1; ; i++)
+        {
+            var n = $"自定义预设 {i}";
+            if (!existing.Contains(n)) return n;
+        }
+    }
+
+    private async void SavePreset_Click(object sender, RoutedEventArgs e)
+    {
+        if (_widgets.Count == 0)
+        {
+            TxtStatus.Text = "画布为空，无法保存预设";
+            return;
+        }
+
+        var existingNames = GetAllPresets().Where(p => !p.IsBuiltin).Select(p => p.Name).ToList();
+        var input = new TextBox { PlaceholderText = "输入预设名称...", Text = SuggestPresetName(existingNames) };
+
+        var dialog = new ContentDialog
+        {
+            Title = "保存当前布局为预设",
+            Content = new StackPanel
+            {
+                Spacing = 8,
+                Children =
+                {
+                    new TextBlock { Text = "将保存画布尺寸与全部组件布局，同名预设会被覆盖：", FontSize = 13, TextWrapping = TextWrapping.Wrap },
+                    input
+                }
+            },
+            PrimaryButtonText = "保存",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot,
+            RequestedTheme = ThemeService.CurrentElementTheme
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        var name = input.Text.Trim();
+        if (string.IsNullOrEmpty(name)) return;
+
+        try
+        {
+            var dict = LoadUserPresets();
+            dict[name] = new UserPresetData
+            {
+                cw = NbCanvasW.Value,
+                ch = NbCanvasH.Value,
+                layout = SerializeLayout()
+            };
+            AppSettings.Set(SettingsPrefix + "Presets", JsonSerializer.Serialize(dict));
+            RefreshPresetCombo();
+
+            foreach (var item in CmbPreset.Items.OfType<ComboBoxItem>())
+            {
+                if (item.Tag is PresetItem pi && !pi.IsBuiltin && pi.Name == name)
+                {
+                    _suppressEvents = true;
+                    CmbPreset.SelectedItem = item;
+                    _suppressEvents = false;
+                    UpdateDeletePresetButton();
+                    break;
+                }
+            }
+            TxtStatus.Text = $"已保存预设「{name}」";
+        }
+        catch (Exception ex)
+        {
+            TxtStatus.Text = $"保存预设失败: {ex.Message}";
+        }
+    }
+
+    private async void DeletePreset_Click(object sender, RoutedEventArgs e)
+    {
+        if (CmbPreset.SelectedItem is not ComboBoxItem ci || ci.Tag is not PresetItem preset || preset.IsBuiltin) return;
+
+        var confirm = new ContentDialog
+        {
+            Title = "删除预设",
+            Content = $"确定删除预设「{preset.Name}」吗？此操作不可恢复。",
+            PrimaryButtonText = "删除",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot,
+            RequestedTheme = ThemeService.CurrentElementTheme
+        };
+        if (await confirm.ShowAsync() != ContentDialogResult.Primary) return;
+
+        var dict = LoadUserPresets();
+        if (dict.Remove(preset.Name))
+        {
+            AppSettings.Set(SettingsPrefix + "Presets", JsonSerializer.Serialize(dict));
+            RefreshPresetCombo();
+            TxtStatus.Text = $"已删除预设「{preset.Name}」";
+        }
+    }
+
+    #endregion
+
     #region Config Persistence
 
     private void SaveConfig()
@@ -1231,27 +1703,16 @@ public sealed partial class GameOverlayPage : Page
             AppSettings.Set(SettingsPrefix + "Position", CmbPosition.SelectedIndex);
             AppSettings.Set(SettingsPrefix + "Refresh", NbRefresh.Value);
             AppSettings.Set(SettingsPrefix + "BgOpacity", SliderBgOpacity.Value);
+            AppSettings.Set(SettingsPrefix + "Scale", _scalePercent);
 
             // Save widget layout as JSON
-            var layout = _widgets.Select(w => new
-            {
-                type = (int)w.Type,
-                x = w.X, y = w.Y,
-                w = w.Width, h = w.Height,
-                fs = w.FontSize,
-                prefix = w.Prefix,
-                showPrefix = w.ShowPrefix,
-                layer = w.Layer,
-                text = w.CustomText,
-                img = w.ImagePath,
-                color = w.ColorArgb
-            }).ToList();
-            AppSettings.Set(SettingsPrefix + "Layout", JsonSerializer.Serialize(layout));
+            AppSettings.Set(SettingsPrefix + "Layout", SerializeLayout());
 
             // Save custom windows
             AppSettings.Set(SettingsPrefix + "CustomWindows", string.Join("|", _customWindowTitles));
 
-            // Save selected game window
+            // Save selected target: desktop flag + game window index
+            AppSettings.Set(SettingsPrefix + "DesktopTarget", _isDesktopTarget ? 1 : 0);
             if (CmbGameWindow.SelectedIndex >= 0)
                 AppSettings.Set(SettingsPrefix + "SelectedWindow", CmbGameWindow.SelectedIndex);
         }
@@ -1277,6 +1738,12 @@ public sealed partial class GameOverlayPage : Page
             SliderBgOpacity.Value = AppSettings.GetDouble(SettingsPrefix + "BgOpacity", 70);
             TxtBgOpacity.Text = $"{SliderBgOpacity.Value:F0}%";
 
+            // Overall scale — the stored layout values already include the last applied scale
+            double scale = AppSettings.GetDouble(SettingsPrefix + "Scale", 100);
+            if (double.IsNaN(scale) || scale < 50 || scale > 200) scale = 100;
+            _scalePercent = scale;
+            NbScale.Value = scale;
+
             // Load custom windows
             _customWindowTitles.Clear();
             var customWindowsStr = AppSettings.Get(SettingsPrefix + "CustomWindows") ?? "";
@@ -1288,36 +1755,7 @@ public sealed partial class GameOverlayPage : Page
 
             // Load widget layout
             var layoutJson = AppSettings.Get(SettingsPrefix + "Layout") ?? "";
-            if (!string.IsNullOrEmpty(layoutJson))
-            {
-                using var doc = JsonDocument.Parse(layoutJson);
-                foreach (var item in doc.RootElement.EnumerateArray())
-                {
-                    var type = (OverlayWidgetType)item.GetProperty("type").GetInt32();
-                    var widget = new DesignerWidget
-                    {
-                        Type = type,
-                        X = item.GetProperty("x").GetDouble(),
-                        Y = item.GetProperty("y").GetDouble(),
-                        Width = item.GetProperty("w").GetDouble(),
-                        Height = item.GetProperty("h").GetDouble(),
-                        FontSize = item.GetProperty("fs").GetDouble(),
-                        Prefix = item.TryGetProperty("prefix", out var p) ? p.GetString() ?? "" : "",
-                        ShowPrefix = item.TryGetProperty("showPrefix", out var sp)
-                            ? sp.GetBoolean()
-                            : (!string.IsNullOrEmpty(item.TryGetProperty("prefix", out var pp) ? pp.GetString() ?? "" : ""))
-                                && type != OverlayWidgetType.CustomText,
-                        Layer = item.TryGetProperty("layer", out var ly) ? ly.GetInt32() : 0,
-                        CustomText = item.TryGetProperty("text", out var t) ? t.GetString() ?? "" : "",
-                        ImagePath = item.TryGetProperty("img", out var im) ? im.GetString() ?? "" : "",
-                        ColorArgb = item.TryGetProperty("color", out var cl) && cl.TryGetUInt32(out var cc) ? cc : 0xFF00A0FF,
-                        Label = PaletteItems.FirstOrDefault(pi => pi.Type == type).Label ?? type.ToString(),
-                        IsChart = type is OverlayWidgetType.FpsChart or OverlayWidgetType.CpuTempChart,
-                    };
-                    CreateWidgetElement(widget);
-                    _widgets.Add(widget);
-                }
-            }
+            LoadWidgetsFromJson(layoutJson);
 
             _suppressEvents = false;
             UpdateStatus();
@@ -1325,6 +1763,58 @@ public sealed partial class GameOverlayPage : Page
         catch
         {
             _suppressEvents = false;
+        }
+    }
+
+    private string SerializeLayout()
+    {
+        var layout = _widgets.Select(w => new
+        {
+            type = (int)w.Type,
+            x = w.X, y = w.Y,
+            w = w.Width, h = w.Height,
+            fs = w.FontSize,
+            prefix = w.Prefix,
+            showPrefix = w.ShowPrefix,
+            layer = w.Layer,
+            text = w.CustomText,
+            img = w.ImagePath,
+            color = w.ColorArgb,
+            tcolor = w.TextColorArgb
+        }).ToList();
+        return JsonSerializer.Serialize(layout);
+    }
+
+    private void LoadWidgetsFromJson(string json)
+    {
+        if (string.IsNullOrEmpty(json)) return;
+        using var doc = JsonDocument.Parse(json);
+        foreach (var item in doc.RootElement.EnumerateArray())
+        {
+            var type = (OverlayWidgetType)item.GetProperty("type").GetInt32();
+            var widget = new DesignerWidget
+            {
+                Type = type,
+                X = item.GetProperty("x").GetDouble(),
+                Y = item.GetProperty("y").GetDouble(),
+                Width = item.GetProperty("w").GetDouble(),
+                Height = item.GetProperty("h").GetDouble(),
+                FontSize = item.GetProperty("fs").GetDouble(),
+                Prefix = item.TryGetProperty("prefix", out var p) ? p.GetString() ?? "" : "",
+                ShowPrefix = item.TryGetProperty("showPrefix", out var sp)
+                    ? sp.GetBoolean()
+                    : (!string.IsNullOrEmpty(item.TryGetProperty("prefix", out var pp) ? pp.GetString() ?? "" : ""))
+                        && type != OverlayWidgetType.CustomText,
+                Layer = item.TryGetProperty("layer", out var ly) ? ly.GetInt32() : 0,
+                CustomText = item.TryGetProperty("text", out var t) ? t.GetString() ?? "" : "",
+                ImagePath = item.TryGetProperty("img", out var im) ? im.GetString() ?? "" : "",
+                ColorArgb = item.TryGetProperty("color", out var cl) && cl.TryGetUInt32(out var cc) ? cc : 0xFF00A0FF,
+                TextColorArgb = item.TryGetProperty("tcolor", out var tc) && tc.TryGetUInt32(out var tcv) ? tcv : 0xFFFFFFFFu,
+                Label = PaletteItems.FirstOrDefault(pi => pi.Type == type).Label ?? type.ToString(),
+                IsChart = type is OverlayWidgetType.FpsChart or OverlayWidgetType.CpuTempChart,
+            };
+            CreateWidgetElement(widget);
+            _widgets.Add(widget);
         }
     }
 

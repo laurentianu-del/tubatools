@@ -113,6 +113,57 @@ public static class CustomToolPackageService
         });
     }
 
+    public static async Task<CustomToolImportResult> ImportSingleFileAsync(
+        string sourceFilePath,
+        string toolName,
+        string category,
+        string? description,
+        string? publisher,
+        IReadOnlyList<string> tags)
+    {
+        if (!File.Exists(sourceFilePath))
+            throw new FileNotFoundException("源文件不存在。", sourceFilePath);
+
+        var cat = SanitizePathSegment(category);
+        if (string.IsNullOrWhiteSpace(cat))
+            throw new InvalidOperationException("分类不能为空。");
+
+        var name = SanitizePathSegment(toolName);
+        if (string.IsNullOrWhiteSpace(name))
+            name = Path.GetFileNameWithoutExtension(sourceFilePath);
+
+        if (string.IsNullOrWhiteSpace(name))
+            throw new InvalidOperationException("工具名称不能为空。");
+
+        var categoryRoot = Path.Combine(ToolCatalog.ToolsRoot, cat);
+        Directory.CreateDirectory(categoryRoot);
+
+        var toolDirectory = GetUniqueDirectory(Path.Combine(categoryRoot, name));
+        Directory.CreateDirectory(toolDirectory);
+
+        var destFileName = Path.GetFileName(sourceFilePath);
+        var destFilePath = Path.Combine(toolDirectory, destFileName);
+
+        await Task.Run(() => File.Copy(sourceFilePath, destFilePath, overwrite: true));
+
+        var request = new CustomToolImportRequest(
+            sourceFilePath,
+            name,
+            cat,
+            destFileName,
+            description,
+            publisher,
+            tags,
+            []);
+
+        await UpsertMetadataAsync(request, Path.GetFileName(toolDirectory));
+
+        ToolMetadataService.InvalidateCache();
+        ToolCatalog.InvalidateTagsCache();
+
+        return new CustomToolImportResult(toolDirectory, destFilePath);
+    }
+
     private static void ExtractPackage(string packagePath, string destinationDirectory)
     {
         var destinationRoot = Path.GetFullPath(destinationDirectory);

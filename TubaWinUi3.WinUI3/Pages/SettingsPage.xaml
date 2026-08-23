@@ -1051,6 +1051,24 @@
                                     </Grid>
                                 </Border>
 
+                                <Border x:Name="SettingsSearchIndexCard" Style="{StaticResource SettingsCardStyle}">
+                                    <Grid ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource IconBorderStyle}">
+                                            <FontIcon FontSize="18" Glyph="&#xE721;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                            <TextBlock FontWeight="Bold" Text="注册到 Windows 搜索" />
+                                            <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="在开始菜单搜索工具名（如 CPU-Z）直接启动，无需打开工具箱；多版本自动去重，关闭时自动清理快捷方式" />
+                                        </StackPanel>
+                                        <ToggleSwitch x:Name="SearchIndexToggle" Grid.Column="2" VerticalAlignment="Center" Toggled="SearchIndexToggle_Toggled" />
+                                    </Grid>
+                                </Border>
+
                                 <Border x:Name="SettingsActiveInterceptCard" Style="{StaticResource SettingsCardStyle}">
                                     <Grid ColumnSpacing="16">
                                         <Grid.ColumnDefinitions>

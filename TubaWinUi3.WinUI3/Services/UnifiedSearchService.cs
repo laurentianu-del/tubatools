@@ -17,7 +17,6 @@ public static class UnifiedSearchService
         ("检查更新", "检查是否有新版本", "\uE895", "Update"),
         ("配置管理", "管理配置文件的存储位置、导出和导入", "\uE8B7", "ConfigManager"),
         ("自定义工具管理", "管理工具分类、导入自定义工具", "\uE8B7", "CustomToolManager"),
-		("监控驱动", "安装或卸载 PawnIO 驱动", "\uE9D9", "MonitorDriver"),
         ("导出当前软件", "打包成可分发压缩包", "\uE896", "ExportApp"),
     ];
 

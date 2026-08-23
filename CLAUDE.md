@@ -32,7 +32,7 @@ Services/            → All business logic (static classes, no DI)
   ToolMetadataService→ merges tools.json metadata + FileVersionInfo + readme.txt
   ToolIconService    → extracts .exe/.lnk icons to %LocalAppData%/TubaWinUi3/IconCache/
   HardwareInfoService→ WMI queries on Task.Run; results consumed on UI thread
-  LiteMonitorService → LibreHardwareMonitor + WinRing0/PawnIO kernel driver; requires admin
+  LiteMonitorService → LibreHardwareMonitor (vendor APIs/D3DKMT/WMI); no kernel driver; needs admin for FPS ETW
   BuiltinToolRegistry→ static registry of IBuiltinTool implementations
   UnifiedSearchService→ searches across external tools, built-in tools, settings, and quick actions
   AppSettings        → JSON settings at %LocalAppData%/TubaWinUi3/settings.json
@@ -65,7 +65,7 @@ Tools/               → bundled third-party executables in Chinese-named catego
 - `Tools/` folder has Chinese directory names (处理器工具, 显卡工具, etc.); path handling must be Unicode-safe
 - `ToolCatalog.FindToolsRoot()` walks up from `AppContext.BaseDirectory` to find `Tools/` — works both packaged and unpackaged
 - `HardwareInfoService` runs WMI on `Task.Run` (background thread); results consumed on UI thread
-- `LiteMonitorService` deploys WinRing0/PawnIO driver — requires admin elevation; the `EnsureDriverAsync` flow handles consent UI
+- `LiteMonitorService` uses LibreHardwareMonitorLib (nvapi64/ATI ADL/D3DKMT/WMI) — installs no kernel driver; FPS overlay uses an ETW DxgKrnl trace session (`FpsService`), admin required
 - App auto-elevates to admin on launch (`App.OnLaunched` checks `IsRunningAsAdmin()` and restarts with `runas` verb)
 - `Package.appxmanifest` declares `runFullTrust` and `systemAIModels` capabilities
 - `package.json` / `node_modules/` / `src/docs/` are for the VitePress docs site only — not part of the .NET app

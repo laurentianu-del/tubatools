@@ -12,6 +12,17 @@ namespace TubaWinUi3.Pages;
 
 public sealed partial class CustomToolManagerWindow : Window
 {
+    /// <summary>
+    /// 设置此属性后打开窗口时会自动弹出导入对话框。
+    /// 由 HomePage 拖放操作在打开窗口前设置。
+    /// </summary>
+    public static string? PendingImportFilePath { get; set; }
+
+    private static readonly HashSet<string> ImportableExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".zip", ".exe", ".bat", ".cmd", ".ps1", ".vbs"
+    };
+
     private readonly List<CategoryViewModel> _categories = [];
     private readonly Dictionary<string, bool> _expandedStates = new(StringComparer.CurrentCultureIgnoreCase);
 
@@ -68,6 +79,20 @@ public sealed partial class CustomToolManagerWindow : Window
             root.RequestedTheme = ThemeService.CurrentElementTheme;
 
         LoadCategories();
+
+        // 如果有待导入文件（来自拖放），在窗口激活后自动弹出导入对话框
+        var pendingFile = PendingImportFilePath;
+        PendingImportFilePath = null;
+        if (!string.IsNullOrWhiteSpace(pendingFile) && File.Exists(pendingFile))
+        {
+            var filePath = pendingFile;
+            Activated += async (_, _) =>
+            {
+                // 等待窗口完全就绪
+                await Task.Delay(300);
+                await HandleDroppedFileAsync(filePath);
+            };
+        }
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e)
@@ -651,6 +676,84 @@ public sealed partial class CustomToolManagerWindow : Window
             RefreshMainWindow();
             LoadCategories();
             StatusText.Text = $"已导入 {Path.GetFileName(result.ToolDirectory)}";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"导入失败: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// 处理从 HomePage 拖放过来的文件，自动弹出导入对话框。
+    /// </summary>
+    public async Task HandleDroppedFileAsync(string filePath)
+    {
+        if (!File.Exists(filePath))
+        {
+            StatusText.Text = "文件不存在";
+            return;
+        }
+
+        var ext = Path.GetExtension(filePath);
+        if (!ImportableExtensions.Contains(ext))
+        {
+            StatusText.Text = $"不支持的文件类型: {ext}";
+            return;
+        }
+
+        StatusText.Text = "正在准备导入...";
+
+        try
+        {
+            if (ext.Equals(".zip", StringComparison.OrdinalIgnoreCase))
+            {
+                // ZIP 文件：走现有的压缩包导入流程
+                var executables = CustomToolPackageService.GetExecutables(filePath);
+                if (executables.Count == 0)
+                {
+                    StatusText.Text = "压缩包中没有找到 exe 文件";
+                    await ShowMessageAsync("未找到可导入工具", "压缩包里需要至少包含一个 .exe 文件。");
+                    return;
+                }
+
+                var request = await ShowImportToolDialogAsync(filePath, executables);
+                if (request is null)
+                {
+                    StatusText.Text = "已取消导入";
+                    return;
+                }
+
+                StatusText.Text = "正在导入工具...";
+                var result = await CustomToolPackageService.ImportAsync(request);
+
+                RefreshMainWindow();
+                LoadCategories();
+                StatusText.Text = $"已导入 {Path.GetFileName(result.ToolDirectory)}";
+            }
+            else
+            {
+                // 单文件：exe / bat / cmd / ps1 / vbs
+                var executable = new ImportableExecutable(Path.GetFileName(filePath));
+                var request = await ShowImportToolDialogAsync(filePath, [executable]);
+                if (request is null)
+                {
+                    StatusText.Text = "已取消导入";
+                    return;
+                }
+
+                StatusText.Text = "正在导入工具...";
+                var result = await CustomToolPackageService.ImportSingleFileAsync(
+                    filePath,
+                    request.ToolName,
+                    request.Category,
+                    request.Description,
+                    request.Publisher,
+                    request.Tags);
+
+                RefreshMainWindow();
+                LoadCategories();
+                StatusText.Text = $"已导入 {Path.GetFileName(result.ToolDirectory)}";
+            }
         }
         catch (Exception ex)
         {

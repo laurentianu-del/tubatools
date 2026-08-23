@@ -120,7 +120,6 @@ public sealed partial class SettingsPage : Page
         ["InterfaceFont"] = "AppearanceExpander",
         ["HardwareFitScreen"] = "HardwareAiExpander",
         ["HardwareMultiDeviceNewLine"] = "HardwareAiExpander",
-        ["MonitorDriver"] = "HardwareAiExpander",
         ["AiApiEndpoint"] = "HardwareAiExpander",
         ["AiModelName"] = "HardwareAiExpander",
         ["AiApiKey"] = "HardwareAiExpander",
@@ -136,6 +135,7 @@ public sealed partial class SettingsPage : Page
         ["CommunityTool"] = "ToolsCommunityExpander",
         ["ActiveInterceptEnabled"] = "ToolsCommunityExpander",
         ["ActiveInterceptNotifyMode"] = "ToolsCommunityExpander",
+        ["WindowsSearchIndex"] = "ToolsCommunityExpander",
     };
 
     private static readonly Dictionary<string, string> SettingKeyToCardName = new(StringComparer.OrdinalIgnoreCase)
@@ -155,7 +155,6 @@ public sealed partial class SettingsPage : Page
         ["InterfaceFont"] = "SettingsInterfaceFontCard",
         ["HardwareFitScreen"] = "SettingsHardwareFitScreenCard",
         ["HardwareMultiDeviceNewLine"] = "SettingsHardwareMultiDeviceNewLineCard",
-        ["MonitorDriver"] = "SettingsCpuzDataSourceCard",
         ["AiApiEndpoint"] = "SettingsAiEndpointCard",
         ["AiModelName"] = "SettingsAiEndpointCard",
         ["AiApiKey"] = "SettingsAiEndpointCard",
@@ -171,6 +170,7 @@ public sealed partial class SettingsPage : Page
         ["CommunityTool"] = "SettingsCommunityCard",
         ["ActiveInterceptEnabled"] = "SettingsActiveInterceptCard",
         ["ActiveInterceptNotifyMode"] = "SettingsActiveInterceptNotifyCard",
+        ["WindowsSearchIndex"] = "SettingsSearchIndexCard",
     };
 
     public SettingsPage()
@@ -212,6 +212,7 @@ public sealed partial class SettingsPage : Page
         InitHttpDownloadSettings();
         InitActiveInterceptToggle();
         InitActiveInterceptNotifyModeComboBox();
+        InitSearchIndexToggle();
 
         if (RuntimeHelper.IsMsixPackaged)
         {
@@ -1123,6 +1124,7 @@ public sealed partial class SettingsPage : Page
     }
 
     private bool _activeInterceptInitializing;
+    private bool _searchIndexInitializing;
 
     private void InitActiveInterceptToggle()
     {
@@ -1178,6 +1180,29 @@ public sealed partial class SettingsPage : Page
         {
             ActiveInterceptStatusText.Text = "未运行（后端缺失）";
             ActiveInterceptStatusText.Foreground = new SolidColorBrush(Microsoft.UI.Colors.OrangeRed);
+        }
+    }
+
+    private void InitSearchIndexToggle()
+    {
+        _searchIndexInitializing = true;
+        SearchIndexToggle.IsOn = AppSettings.GetBool("WindowsSearchIndex", false);
+        _searchIndexInitializing = false;
+    }
+
+    private void SearchIndexToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_searchIndexInitializing) return;
+        var enabled = SearchIndexToggle.IsOn;
+        AppSettings.Set("WindowsSearchIndex", enabled);
+
+        if (enabled)
+        {
+            _ = WindowsSearchIndexService.RegisterAllToolsAsync();
+        }
+        else
+        {
+            WindowsSearchIndexService.RemoveAll();
         }
     }
 

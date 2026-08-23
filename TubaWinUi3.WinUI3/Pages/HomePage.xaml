@@ -186,7 +186,7 @@
         </Style>
     </Page.Resources>
 
-    <Grid>
+    <Grid x:Name="RootLayout" AllowDrop="True">
         <Grid Padding="28,18,28,24" RowSpacing="18">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />

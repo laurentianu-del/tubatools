@@ -50,8 +50,11 @@ public partial class App : Application
 
         try
         {
+            // 保留原始命令行参数（--open-builtin 等）以便提权后继续执行
+            var originalArgs = string.Join(" ", Environment.GetCommandLineArgs().Skip(1).Select(a => a.Contains(' ') ? $"\"{a}\"" : a));
             Process.Start(new ProcessStartInfo(exePath)
             {
+                Arguments = originalArgs,
                 Verb = "runas",
                 UseShellExecute = true
             });
@@ -183,6 +186,14 @@ public partial class App : Application
             _window.NavigateToToolPage(typeof(Pages.RogueCleanerPage), "activeintercept");
         }
 
+        // Windows 搜索索引快捷方式启动内置工具：--open-builtin <toolId>
+        var openBuiltinIndex = Array.FindIndex(cmdLine, a => string.Equals(a, "--open-builtin", StringComparison.OrdinalIgnoreCase));
+        if (openBuiltinIndex >= 0 && openBuiltinIndex + 1 < cmdLine.Length)
+        {
+            var builtinId = cmdLine[openBuiltinIndex + 1];
+            _window.NavigateToToolPage(typeof(Pages.BuiltinToolsPage), builtinId);
+        }
+
         _ = RunStartupSequenceAsync();
     }
 
@@ -259,6 +270,17 @@ public partial class App : Application
         {
             _ = DelayThenRunAsync(TimeSpan.FromSeconds(10), CheckForToolUpdatesSilentAsync);
         }
+
+        // 若用户已启用 Windows 搜索索引注册，启动时刷新快捷方式
+        if (AppSettings.GetBool("WindowsSearchIndex", false))
+        {
+            _ = DelayThenRunAsync(TimeSpan.FromSeconds(15), () => WindowsSearchIndexService.RegisterAllToolsAsync());
+        }
+        ToolCatalog.ToolsChanged += () =>
+        {
+            if (AppSettings.GetBool("WindowsSearchIndex", false))
+                _ = WindowsSearchIndexService.RefreshAsync();
+        };
     }
 
     private static async Task DelayThenRunAsync(TimeSpan delay, Func<Task> action)

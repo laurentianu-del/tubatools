@@ -42,7 +42,7 @@
             x:Name="StepPager"
             Grid.Row="1"
             HorizontalAlignment="Left"
-            NumberOfPages="3"
+            NumberOfPages="4"
             SelectedPageIndex="0"
             Visibility="Visible" />
 
@@ -362,6 +362,53 @@
                         </StackPanel>
                     </Border>
                 </Grid>
+            </StackPanel>
+
+            <StackPanel
+                x:Name="Step3Content"
+                Spacing="16"
+                Visibility="Collapsed"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center">
+
+                <FontIcon
+                    FontSize="48"
+                    Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                    Glyph="&#xE721;"
+                    HorizontalAlignment="Center" />
+
+                <TextBlock
+                    FontSize="14"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    TextWrapping="Wrap"
+                    TextAlignment="Center"
+                    HorizontalAlignment="Center"
+                    MaxWidth="400"
+                    Text="开启后，工具箱会为每个工具在开始菜单创建快捷方式。&#x0a;你可以直接按 Win 键搜索工具名称（如「CPU-Z」「GPU-Z」）来快速启动，无需先打开工具箱。&#x0a;支持多版本自动去重，卸载工具箱时会自动清理。" />
+
+                <Border
+                    Padding="16,12"
+                    HorizontalAlignment="Center"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Border Style="{StaticResource IconBorderStyle}">
+                            <FontIcon FontSize="18" Glyph="&#xE721;" />
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                            <TextBlock FontWeight="Bold" Text="注册到 Windows 搜索" />
+                            <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="按 Win 键搜索工具名直接启动，无需先打开工具箱" />
+                        </StackPanel>
+                        <ToggleSwitch x:Name="WizardSearchIndexToggle" Grid.Column="2" VerticalAlignment="Center" IsOn="False" />
+                    </Grid>
+                </Border>
             </StackPanel>
         </Grid>
     </Grid>

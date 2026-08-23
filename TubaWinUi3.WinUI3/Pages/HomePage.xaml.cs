@@ -37,6 +37,9 @@ public sealed partial class HomePage : Page
 
         _compactMode = CompactModeService.IsCompactModeEnabled();
         ApplyCompactMode();
+
+        // 页面加载后安装 Win32 拖放钩子（绕过 UIPI）
+        Loaded += (_, _) => InstallDropHook();
     }
 
     private void SubscribeStaticEvents()
@@ -1160,6 +1163,123 @@ public sealed partial class HomePage : Page
     {
         return string.IsNullOrWhiteSpace(value) ? "未知" : value;
     }
+
+    #region 拖放导入工具（Win32 API 绕过 UIPI）
+
+    private static readonly HashSet<string> DropImportableExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".zip", ".exe", ".bat", ".cmd", ".ps1", ".vbs"
+    };
+
+    private bool _dropHookInstalled;
+    private IntPtr _oldWndProc;
+    private Win32WndProc? _wndProcDelegate;
+
+    private delegate IntPtr Win32WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool ChangeWindowMessageFilterEx(IntPtr hWnd, uint message, uint action, IntPtr pChangeFilterStruct);
+
+    [System.Runtime.InteropServices.DllImport("shell32.dll")]
+    private static extern void DragAcceptFiles(IntPtr hWnd, bool fAccept);
+
+    [System.Runtime.InteropServices.DllImport("shell32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern uint DragQueryFile(IntPtr hDrop, uint iFile, System.Text.StringBuilder? lpszFile, uint cch);
+
+    [System.Runtime.InteropServices.DllImport("shell32.dll")]
+    private static extern void DragFinish(IntPtr hDrop);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern IntPtr SetWindowLongPtrW(IntPtr hWnd, int nIndex, Win32WndProc newProc);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern IntPtr SetWindowLongW(IntPtr hWnd, int nIndex, Win32WndProc newProc);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern IntPtr CallWindowProcW(IntPtr lpPrevWndFunc, IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+    private const int GWLP_WNDPROC = -4;
+    private const uint WM_DROPFILES = 0x0233;
+    private const uint WM_COPYGLOBALDATA = 0x0049;
+    private const uint MSGFLT_ALLOW = 1;
+
+    private static IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, Win32WndProc newProc)
+    {
+        return IntPtr.Size == 8
+            ? SetWindowLongPtrW(hWnd, nIndex, newProc)
+            : SetWindowLongW(hWnd, nIndex, newProc);
+    }
+
+    private void InstallDropHook()
+    {
+        if (_dropHookInstalled) return;
+        _dropHookInstalled = true;
+
+        // 获取宿主窗口句柄（Page 本身没有 HWND，必须从 Window 获取）
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
+        if (hwnd == IntPtr.Zero) return;
+
+        // 放行 UIPI 消息：WM_DROPFILES 和 WM_COPYGLOBALDATA（拖放需要）
+        ChangeWindowMessageFilterEx(hwnd, WM_DROPFILES, MSGFLT_ALLOW, IntPtr.Zero);
+        ChangeWindowMessageFilterEx(hwnd, WM_COPYGLOBALDATA, MSGFLT_ALLOW, IntPtr.Zero);
+
+        // 接受文件拖放
+        DragAcceptFiles(hwnd, true);
+
+        // 子类化窗口以拦截 WM_DROPFILES
+        _wndProcDelegate = WndProcSubclass;
+        _oldWndProc = SetWindowLongPtr(hwnd, GWLP_WNDPROC, _wndProcDelegate);
+    }
+
+    private IntPtr WndProcSubclass(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
+    {
+        if (msg == WM_DROPFILES)
+        {
+            HandleWmDropFiles(wParam);
+            return IntPtr.Zero;
+        }
+        // 其他消息必须转发给原始 WndProc（WinUI 3 框架），不能调 DefWindowProc
+        return CallWindowProcW(_oldWndProc, hWnd, msg, wParam, lParam);
+    }
+
+    private void HandleWmDropFiles(IntPtr hDrop)
+    {
+        try
+        {
+            var count = DragQueryFile(hDrop, 0xFFFFFFFF, null, 0);
+            var files = new List<string>((int)count);
+
+            for (uint i = 0; i < count; i++)
+            {
+                var needed = DragQueryFile(hDrop, i, null, 0);
+                if (needed == 0) continue;
+                var sb = new System.Text.StringBuilder((int)needed + 1);
+                DragQueryFile(hDrop, i, sb, (uint)sb.Capacity);
+                var path = sb.ToString();
+                if (!string.IsNullOrWhiteSpace(path))
+                    files.Add(path);
+            }
+
+            var importable = files.FirstOrDefault(f =>
+                DropImportableExtensions.Contains(Path.GetExtension(f)));
+
+            if (importable is not null)
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    CustomToolManagerWindow.PendingImportFilePath = importable;
+                    var window = new CustomToolManagerWindow();
+                    window.Activate();
+                });
+            }
+        }
+        finally
+        {
+            DragFinish(hDrop);
+        }
+    }
+
+    #endregion
 }
 
 public sealed class ZeroToIndeterminateConverter : Microsoft.UI.Xaml.Data.IValueConverter

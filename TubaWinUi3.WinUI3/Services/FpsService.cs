@@ -22,7 +22,6 @@ public sealed class FpsService : IDisposable
     private volatile bool _paused;
     private TraceEventSession? _session;
     private Task? _processTask;
-    private DateTime _lastAccess = DateTime.MinValue;
     private Timer? _decayTimer;
     private DateTime _sessionStart;
 
@@ -181,7 +180,6 @@ public sealed class FpsService : IDisposable
     /// </summary>
     public (float fps, string process, float low1, float low01) GetFpsStats()
     {
-        _lastAccess = DateTime.Now;
         if (_paused) return (0, "", 0, 0);
         EnsureRunning();
 
@@ -378,17 +376,19 @@ public sealed class FpsService : IDisposable
                     _session.Source.Process();
                 }
                 catch { }
+                finally
+                {
+                    // ETW session ended — mark as stopped so EnsureRunning will restart it
+                    _running = false;
+                    try { _session?.Dispose(); } catch { }
+                    _session = null;
+                }
             }, TaskCreationOptions.LongRunning);
 
+            // Decay timer: only remove idle PIDs, NEVER stop the entire session
             _decayTimer = new Timer(_ =>
             {
                 if (_paused) return;
-                if (_lastAccess > DateTime.MinValue && (DateTime.Now - _lastAccess).TotalSeconds > 5)
-                {
-                    Stop();
-                    return;
-                }
-
                 var stalePids = new List<int>();
                 foreach (var kv in _trackers)
                 {
@@ -445,11 +445,6 @@ public sealed class FpsService : IDisposable
 
     public void Dispose()
     {
-        Stop();
-    }
-
-    private void Stop()
-    {
         _running = false;
         _paused = false;
         _decayTimer?.Dispose();
@@ -459,5 +454,17 @@ public sealed class FpsService : IDisposable
         _session = null;
         StopExistingSession();
         _trackers.Clear();
+    }
+
+    private void Stop()
+    {
+        _running = false;
+        _decayTimer?.Dispose();
+        _decayTimer = null;
+        try { _session?.Source?.StopProcessing(); } catch { }
+        try { _session?.Dispose(); } catch { }
+        _session = null;
+        StopExistingSession();
+        // Don't clear trackers — keep history for when the session restarts
     }
 }

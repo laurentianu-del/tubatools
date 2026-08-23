@@ -50,7 +50,7 @@ dotnet test --filter "FullyQualifiedName~ToolCatalogTests"        # one class / 
 
 - `Tools/` has Chinese category directory names (处理器工具, 显卡工具, …) — path handling must be Unicode-safe.
 - `HardwareInfoService` runs WMI on `Task.Run`; results are consumed on the UI thread. `ApplyCpuzOverride()` deep-copies WMI sections and overwrites them with CPU-Z data (`IsVerified=true`).
-- `LiteMonitorService` deploys the WinRing0 kernel driver — needs admin; `EnsureDriverAsync` handles consent UI.
+- `LiteMonitorService` uses LibreHardwareMonitorLib (nvapi64 / ATI ADL / D3DKMT / WMI fallbacks) — installs **no kernel driver**; the FPS overlay reads the ETW `DxgKrnl` Present event via `FpsService` (needs admin, no driver). The game-monitor overlay no longer gates on the PawnIO driver.
 - `FpsService` uses an ETW `DxgKrnl` trace session (`Microsoft.Diagnostics.Tracing.TraceEvent`) — needs admin for kernel tracing.
 - `ConfigManager` supports two data locations — AppData (`%LocalAppData%/TubaWinUi3/`) or AppRoot (`<appdir>/Data/`) — selected by a `.config_location` marker file.
 - `Package.appxmanifest` declares `runFullTrust` and `systemAIModels`.

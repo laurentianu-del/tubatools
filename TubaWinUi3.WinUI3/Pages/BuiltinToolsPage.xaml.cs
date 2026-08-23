@@ -13,6 +13,7 @@ public sealed partial class BuiltinToolsPage : Page
     private CancellationTokenSource? _activeCts;
     private CancellationTokenSource? _highlightCts;
     private string? _pendingHighlightId;
+    private string? _autoExecuteBuiltinId;
     private bool _builtinToolOpenModeInitializing;
 
     public BuiltinToolsPage()
@@ -30,6 +31,12 @@ public sealed partial class BuiltinToolsPage : Page
         {
             _pendingHighlightId = target.HighlightBuiltinId;
         }
+        // --open-builtin <id> 直接传入工具 ID 字符串
+        else if (e.Parameter is string id && !string.IsNullOrWhiteSpace(id))
+        {
+            _pendingHighlightId = id;
+            _autoExecuteBuiltinId = id;
+        }
 
         // 与设置页共用同一配置，导航回来时同步选择框状态
         SyncBuiltinToolOpenMode();
@@ -38,6 +45,14 @@ public sealed partial class BuiltinToolsPage : Page
         {
             StartHighlight(_pendingHighlightId);
             _pendingHighlightId = null;
+        }
+
+        // --open-builtin 模式：高亮后自动执行工具
+        if (_autoExecuteBuiltinId is not null)
+        {
+            var builtinId = _autoExecuteBuiltinId;
+            _autoExecuteBuiltinId = null;
+            _ = AutoExecuteBuiltinToolAsync(builtinId);
         }
     }
 
@@ -130,6 +145,39 @@ public sealed partial class BuiltinToolsPage : Page
             parent = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(parent);
         }
         return null;
+    }
+
+    /// <summary>
+    /// --open-builtin 模式：等待 UI 完全就绪后自动执行指定的内置工具。
+    /// </summary>
+    private async Task AutoExecuteBuiltinToolAsync(string builtinId)
+    {
+        // 等待页面 Loaded + 布局完成 + 高亮动画
+        if (!IsLoaded)
+        {
+            var tcs = new TaskCompletionSource();
+            Loaded += (_, _) => tcs.TrySetResult();
+            try { await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5)); } catch { return; }
+        }
+        // 额外等待一帧让布局稳定
+        try { await Task.Delay(300); } catch { return; }
+
+        var tool = BuiltinToolRegistry.GetById(builtinId);
+        if (tool is null)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BuiltinToolsPage] 未找到内置工具: {builtinId}");
+            return;
+        }
+
+        try
+        {
+            var vm = new BuiltinToolViewModel(tool);
+            await ExecuteToolAsync(vm);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BuiltinToolsPage] 自动执行内置工具失败 [{builtinId}]: {ex}");
+        }
     }
 
     private void LoadTools()

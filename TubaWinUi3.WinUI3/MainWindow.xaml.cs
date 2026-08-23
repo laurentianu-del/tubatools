@@ -151,6 +151,7 @@ public sealed partial class MainWindow : Window
         Closed += MainWindow_Closed;
         AppWindow.Changed += AppWindow_Changed;
         NavFrame.Navigated += NavFrame_Navigated;
+        NavView.ItemInvoked += NavView_ItemInvoked;
 
         if (RuntimeHelper.IsMsixPackaged)
         {
@@ -505,17 +506,18 @@ public sealed partial class MainWindow : Window
             frame.GoBack();
     }
 
-    private async void NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
+    private void NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
         if (_syncingNavSelection) return;
 
+        // 设置入口改由 ItemInvoked 统一处理：布局切换（Top/侧边栏）后 NavigationView
+        // 内部选中状态可能残留（设置项与菜单项同时选中），点击设置不再触发
+        // SelectionChanged；而 ItemInvoked 与选中状态无关、必然触发。
+        if (args.IsSettingsSelected) return;
+
         _navFromSidebar = true;
 
-        if (args.IsSettingsSelected)
-        {
-            NavFrame.Navigate(typeof(SettingsPage));
-        }
-        else if (args.SelectedItem is NavigationViewItem item)
+        if (args.SelectedItem is NavigationViewItem item)
         {
             switch (item.Tag)
             {
@@ -545,6 +547,14 @@ public sealed partial class MainWindow : Window
                     break;
             }
         }
+    }
+
+    private void NavView_ItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
+    {
+        if (!args.IsSettingsInvoked) return;
+        // 设置项点击与选中状态无关，保证布局切换后仍能打开设置
+        _navFromSidebar = true;
+        NavFrame.Navigate(typeof(SettingsPage));
     }
 
     private void NavigateToDefaultPage()
@@ -692,6 +702,13 @@ public sealed partial class MainWindow : Window
         DispatcherQueue.TryEnqueue(() =>
         {
             ApplyNavLayoutMode();
+            // PaneDisplayMode 切换会重建侧边栏容器，NavigationView 的选中内部状态
+            // 会残留（设置项与菜单项可能同时处于选中态），导致之后点击设置不再触发
+            // SelectionChanged。先清空再按默认页重选，重建干净状态。
+            NavView.SelectedItem = null;
+            if (NavView.SettingsItem is NavigationViewItem settingsItem)
+                settingsItem.IsSelected = false;
+            NavView.UpdateLayout();
             NavigateToDefaultPage();
         });
     }

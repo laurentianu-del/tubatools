@@ -20,10 +20,10 @@ public sealed class GameOverlayWindow : IDisposable
     private bool _disposed;
     private Timer? _topmostTimer;
     private IntPtr _targetHwnd;
+    private bool _desktopMode;
     private readonly List<WidgetInstance> _widgets = new();
     private float _bgOpacity = 0.7f;
     private OverlayPosition _position = OverlayPosition.TopLeft;
-
     // Chart history buffers
     private readonly ConcurrentDictionary<string, CircularBuffer> _chartData = new();
 
@@ -66,16 +66,12 @@ public sealed class GameOverlayWindow : IDisposable
     [DllImport("gdi32.dll")]
     private static extern bool DeleteDC(IntPtr hdc);
 
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern int DrawTextW(IntPtr hdc, string lpchText, int cchText, ref RECT lprc, uint uFormat);
-
-    [DllImport("gdi32.dll")]
-    private static extern IntPtr CreateFontW(int nHeight, int nWidth, int nEscapement, int nOrientation,
-        int fnWeight, uint fdwItalic, uint fdwUnderline, uint fdwStrikeOut, uint fdwCharSet,
-        uint fdwOutputPrecision, uint fdwClipPrecision, uint fdwQuality, uint fdwPitchAndFamily, string lpszFace);
-
     [DllImport("user32.dll")]
     private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool UpdateLayeredWindow(IntPtr hwnd, IntPtr hdcDst, ref POINT pptDst, ref SIZE psize,
+        IntPtr hdcSrc, ref POINT pptSrc, uint crKey, ref BLENDFUNCTION pblend, uint dwFlags);
 
     [DllImport("user32.dll")]
     private static extern bool IsWindow(IntPtr hWnd);
@@ -90,12 +86,6 @@ public sealed class GameOverlayWindow : IDisposable
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, uint dwAttribute, ref int pvAttribute, int cbAttribute);
-
-    [DllImport("gdi32.dll")]
-    private static extern int SetBkMode(IntPtr hdc, int iBkMode);
-
-    [DllImport("gdi32.dll")]
-    private static extern uint SetTextColor(IntPtr hdc, uint crColor);
 
     private static void DwmSetWindowAttr(IntPtr hwnd, uint attr, int val)
     {
@@ -169,11 +159,6 @@ public sealed class GameOverlayWindow : IDisposable
     private const uint WS_VISIBLE = 0x10000000;
     private const uint ULW_ALPHA = 0x00000002;
     private const int AC_SRC_ALPHA = 0x01;
-    private const int TRANSPARENT = 1;
-    private const uint DT_LEFT = 0x00000000;
-    private const uint DT_RIGHT = 0x00000002;
-    private const uint DT_SINGLELINE = 0x00000020;
-    private const uint DT_VCENTER = 0x00000004;
     private const int WM_NCHITTEST = 0x0084;
     private const int HTTRANSPARENT = -1;
     private const uint SWP_NOMOVE = 0x0002;
@@ -211,6 +196,7 @@ public sealed class GameOverlayWindow : IDisposable
         public string CustomText = "";
         public string ImagePath = "";
         public uint ColorArgb = 0xFF00A0FF;
+        public uint TextColorArgb = 0xFFFFFFFF;
         // Cached image bitmap
         public SKBitmap? CachedImage;
     }
@@ -250,7 +236,7 @@ public sealed class GameOverlayWindow : IDisposable
     private GameOverlayWindow() { }
 
     public static GameOverlayWindow ShowOverlay(IntPtr targetHwnd, List<WidgetInstance> widgets,
-        float bgOpacity, OverlayPosition position, int width, int height)
+        float bgOpacity, OverlayPosition position, int width, int height, bool desktopMode = false)
     {
         _instance?.Dispose();
 
@@ -261,6 +247,7 @@ public sealed class GameOverlayWindow : IDisposable
         var overlay = new GameOverlayWindow
         {
             _targetHwnd = targetHwnd,
+            _desktopMode = desktopMode,
             _bgOpacity = Math.Clamp(bgOpacity, 0.1f, 1f), // at least 10% visible
             _position = position,
             _width = width,
@@ -306,11 +293,18 @@ public sealed class GameOverlayWindow : IDisposable
             return;
         }
 
-        // Position: center of screen by default, or relative to target window
+        // Position: center of screen by default, or relative to target window.
+        // In desktop mode the overlay is placed at the configured position over the whole screen.
         int x, y;
         int screenW = GetSystemMetrics(0);
         int screenH = GetSystemMetrics(1);
-        if (_targetHwnd != IntPtr.Zero && IsWindow(_targetHwnd) && GetWindowRect(_targetHwnd, out var rc))
+        if (_desktopMode)
+        {
+            var (ox, oy) = CalculateOffset(screenW, screenH);
+            x = ox;
+            y = oy;
+        }
+        else if (_targetHwnd != IntPtr.Zero && IsWindow(_targetHwnd) && GetWindowRect(_targetHwnd, out var rc))
         {
             var (ox, oy) = CalculateOffset(rc.Right - rc.Left, rc.Bottom - rc.Top);
             x = rc.Left + ox;
@@ -392,7 +386,15 @@ public sealed class GameOverlayWindow : IDisposable
 
         if (_hwnd != IntPtr.Zero && IsWindow(_hwnd))
         {
-            if (_targetHwnd != IntPtr.Zero && IsWindow(_targetHwnd) && GetWindowRect(_targetHwnd, out var rc))
+            if (_desktopMode)
+            {
+                // Desktop mode: stay at the configured position over the whole screen
+                // (track resolution changes since we don't have a target window rect).
+                var (ox, oy) = CalculateOffset(GetSystemMetrics(0), GetSystemMetrics(1));
+                SetWindowPos(_hwnd, HWND_TOPMOST, ox, oy, _width, _height,
+                    SWP_NOACTIVATE | SWP_SHOWWINDOW);
+            }
+            else if (_targetHwnd != IntPtr.Zero && IsWindow(_targetHwnd) && GetWindowRect(_targetHwnd, out var rc))
             {
                 var (ox, oy) = CalculateOffset(rc.Right - rc.Left, rc.Bottom - rc.Top);
                 SetWindowPos(_hwnd, HWND_TOPMOST, rc.Left + ox, rc.Top + oy, _width, _height,
@@ -420,26 +422,18 @@ public sealed class GameOverlayWindow : IDisposable
         };
     }
 
-    #region Rendering — GDI painting with SetLayeredWindowAttributes
-
-    private const uint LWA_ALPHA = 0x00000002;
-    private const uint SRCCOPY = 0x00CC0020;
+    #region Rendering — per-pixel alpha via UpdateLayeredWindow
 
     private void RenderFrame()
     {
         if (_hwnd == IntPtr.Zero) return;
 
-        // Set overall window opacity
-        byte alpha = (byte)(_bgOpacity * 255);
-        SetLayeredWindowAttributes(_hwnd, 0, alpha, LWA_ALPHA);
+        var hdcScreen = GetDC(IntPtr.Zero);
+        if (hdcScreen == IntPtr.Zero) return;
 
-        // Get window DC and create compatible DC + bitmap
-        var hdcWin = GetDC(_hwnd);
-        if (hdcWin == IntPtr.Zero) return;
-
-        var hdcMem = CreateCompatibleDC(hdcWin);
-        if (hdcMem == IntPtr.Zero) { ReleaseDC(_hwnd, hdcWin); return; }
-
+        // Compose the whole frame into a premultiplied 32bpp DIB. The background panel
+        // uses _bgOpacity while widgets stay fully opaque — so the 背景透明度 slider
+        // only affects the background, not the text/charts on top of it.
         var bi = new BITMAPINFO
         {
             bmiHeader = new BITMAPINFOHEADER
@@ -452,17 +446,29 @@ public sealed class GameOverlayWindow : IDisposable
                 biCompression = 0
             }
         };
-        var hBmp = CreateDIBSection(hdcWin, ref bi, 0, out var pBits, IntPtr.Zero, 0);
-        if (hBmp == IntPtr.Zero) { DeleteDC(hdcMem); ReleaseDC(_hwnd, hdcWin); return; }
+        var hBmp = CreateDIBSection(hdcScreen, ref bi, 0, out var pBits, IntPtr.Zero, 0);
+        if (hBmp == IntPtr.Zero) { ReleaseDC(IntPtr.Zero, hdcScreen); return; }
 
+        var hdcMem = CreateCompatibleDC(hdcScreen);
+        if (hdcMem == IntPtr.Zero) { DeleteObject(hBmp); ReleaseDC(IntPtr.Zero, hdcScreen); return; }
         var oldBmp = SelectObject(hdcMem, hBmp);
 
-        // Fill background — dark semi-transparent (using GDI)
-        var hBgBrush = CreateSolidBrush(0x001E1E1E); // dark gray BGR
-        var bgRect = new RECT { Left = 0, Top = 0, Right = _width, Bottom = _height };
-        FillRectWin32(hdcMem, ref bgRect, hBgBrush);
-
-        DeleteObject(hBgBrush);
+        // Fill background with the panel opacity (premultiplied BGRA, dark gray)
+        byte bgA = (byte)(_bgOpacity * 255);
+        uint r = (uint)(0x1E * bgA / 255), g = (uint)(0x1E * bgA / 255), b = (uint)(0x1E * bgA / 255);
+        uint bgPixel = (uint)bgA << 24 | b << 16 | g << 8 | r;
+        var fill = new byte[_width * _height * 4];
+        unchecked
+        {
+            for (int i = 0; i < fill.Length; i += 4)
+            {
+                fill[i] = (byte)(bgPixel & 0xFF);
+                fill[i + 1] = (byte)((bgPixel >> 8) & 0xFF);
+                fill[i + 2] = (byte)((bgPixel >> 16) & 0xFF);
+                fill[i + 3] = (byte)((bgPixel >> 24) & 0xFF);
+            }
+        }
+        Marshal.Copy(fill, 0, pBits, fill.Length);
 
         // Draw each widget — sort by layer so higher layers render on top
         foreach (var w in _widgets.OrderBy(x => x.Layer))
@@ -470,25 +476,29 @@ public sealed class GameOverlayWindow : IDisposable
             if (w.IsChart) DrawChartGdi(hdcMem, w);
             else if (w.Type == OverlayWidgetType.ColorBlock) DrawColorBlock(hdcMem, w);
             else if (w.Type == OverlayWidgetType.CustomImage) DrawCustomImage(hdcMem, w);
-            else if (w.Type == OverlayWidgetType.CustomText) DrawTextGdi(hdcMem, w, w.CustomText);
-            else DrawTextGdi(hdcMem, w);
+            else if (w.Type == OverlayWidgetType.CustomText) DrawTextSkia(hdcMem, w, w.CustomText);
+            else DrawTextSkia(hdcMem, w);
         }
 
-        // Blit to window
-        BitBlt(hdcWin, 0, 0, _width, _height, hdcMem, 0, 0, SRCCOPY);
+        // Push the whole surface to the layered window with per-pixel alpha
+        GetWindowRect(_hwnd, out var rc);
+        var ptDst = new POINT { X = rc.Left, Y = rc.Top };
+        var ptSrc = new POINT { X = 0, Y = 0 };
+        var size = new SIZE { cx = _width, cy = _height };
+        var blend = new BLENDFUNCTION
+        {
+            BlendOp = 0,
+            SourceConstantAlpha = 255,
+            AlphaFormat = AC_SRC_ALPHA
+        };
+        UpdateLayeredWindow(_hwnd, hdcScreen, ref ptDst, ref size, hdcMem, ref ptSrc, 0, ref blend, ULW_ALPHA);
 
         // Cleanup
         SelectObject(hdcMem, oldBmp);
         DeleteObject(hBmp);
         DeleteDC(hdcMem);
-        ReleaseDC(_hwnd, hdcWin);
+        ReleaseDC(IntPtr.Zero, hdcScreen);
     }
-
-    [DllImport("user32.dll", EntryPoint = "FillRect")]
-    private static extern int FillRectWin32(IntPtr hDC, ref RECT lprc, IntPtr hBrush);
-
-    [DllImport("gdi32.dll")]
-    private static extern IntPtr CreateSolidBrush(uint crColor);
 
     [DllImport("gdi32.dll")]
     private static extern IntPtr CreatePen(int fnPenStyle, int nWidth, uint crColor);
@@ -499,62 +509,116 @@ public sealed class GameOverlayWindow : IDisposable
     [DllImport("gdi32.dll")]
     private static extern bool LineTo(IntPtr hdc, int nXEnd, int nYEnd);
 
-    [DllImport("gdi32.dll")]
-    private static extern bool BitBlt(IntPtr hdcDest, int xDest, int yDest, int wDest, int hDest,
-        IntPtr hdcSrc, int xSrc, int ySrc, uint rop);
+    [DllImport("msimg32.dll")]
+    private static extern bool AlphaBlend(IntPtr hdcDest, int xDest, int yDest, int wDest, int hDest,
+        IntPtr hdcSrc, int xSrc, int ySrc, int wSrc, int hSrc, BLENDFUNCTION blendFunction);
 
-    [DllImport("user32.dll")]
-    private static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
-
-    private void DrawTextGdi(IntPtr hdc, WidgetInstance w, string? textOverride = null)
+    private void DrawTextSkia(IntPtr hdc, WidgetInstance w, string? textOverride = null)
     {
         if (w.Width <= 0 || w.Height <= 0) return;
 
         string text = textOverride ?? w.CurrentText;
         if (string.IsNullOrEmpty(text)) return;
 
-        var hFont = CreateFontW(w.FontSize, 0, 0, 0, 700, 0, 0, 0, 1, 0, 0, 5, 0, "Segoe UI");
-        var oldFont = SelectObject(hdc, hFont);
-        SetBkMode(hdc, TRANSPARENT);
+        using var bmp = new SKBitmap(w.Width, w.Height, true);
+        using var canvas = new SKCanvas(bmp);
+        canvas.Clear(SKColors.Transparent);
 
-        // Shadow
-        var shadowRect = new RECT { Left = w.X + 1, Top = w.Y + 1, Right = w.X + w.Width, Bottom = w.Y + w.Height };
-        SetTextColor(hdc, 0x00000000); // Black shadow (BGR)
-        DrawTextW(hdc, text, -1, ref shadowRect, DT_LEFT | DT_SINGLELINE | DT_VCENTER);
+        float fontSize = Math.Max(8, w.FontSize);
+        using var font = new SKFont(TypefaceBold, fontSize);
 
-        // Main text
-        var textRect = new RECT { Left = w.X, Top = w.Y, Right = w.X + w.Width, Bottom = w.Y + w.Height };
-        SetTextColor(hdc, 0x00FFFFFF); // White text (BGR)
-        DrawTextW(hdc, text, -1, ref textRect, DT_LEFT | DT_SINGLELINE | DT_VCENTER);
+        // Vertical centering: baseline = ascent center within the widget height
+        font.GetFontMetrics(out var fm);
+        float textY = (w.Height - (fm.Descent - fm.Ascent)) / 2f - fm.Ascent;
 
-        SelectObject(hdc, oldFont);
-        DeleteObject(hFont);
+        uint tc = w.TextColorArgb;
+        byte ta = (byte)((tc >> 24) & 0xFF);
+        byte tr = (byte)((tc >> 16) & 0xFF);
+        byte tg = (byte)((tc >> 8) & 0xFF);
+        byte tb = (byte)(tc & 0xFF);
+
+        // Shadow — auto white or black depending on text luminance
+        uint lum = tr * 299u + tg * 587u + tb * 114u;
+        byte sa = (byte)(ta * 120 / 255);
+        using var shadowPaint = new SKPaint { Color = new SKColor(lum < 100_000 ? (byte)255 : (byte)0, lum < 100_000 ? (byte)255 : (byte)0, lum < 100_000 ? (byte)255 : (byte)0, sa), IsAntialias = true };
+        canvas.DrawText(text, 2, textY + 1, font, shadowPaint);
+
+        // Main text — premultiplied ARGB, rendered correctly by SkiaSharp
+        using var textPaint = new SKPaint { Color = new SKColor(tr, tg, tb, ta), IsAntialias = true };
+        canvas.DrawText(text, 1, textY, font, textPaint);
+
+        canvas.Flush();
+        BlitSkiaBitmap(hdc, bmp, w.X, w.Y);
     }
 
     /// <summary>
-    /// Renders a solid color block widget.
+    /// Renders a solid color block widget with per-pixel alpha so the chosen
+    /// ARGB color (e.g. 透明黑) fades the game/desktop behind it instead of
+    /// painting an opaque box.
     /// </summary>
     private void DrawColorBlock(IntPtr hdc, WidgetInstance w)
     {
         if (w.Width <= 0 || w.Height <= 0) return;
 
-        // Color is stored as ARGB; convert to BGR for GDI (alpha becomes overall opacity handled by window)
-        uint bgr = (w.ColorArgb & 0xFF) << 16 | (w.ColorArgb & 0xFF00) | (w.ColorArgb & 0xFF0000) >> 16;
-        bgr &= 0xFFFFFF;
-        var hBrush = CreateSolidBrush(bgr);
-        var rc = new RECT { Left = w.X, Top = w.Y, Right = w.X + w.Width, Bottom = w.Y + w.Height };
-        FillRectWin32(hdc, ref rc, hBrush);
-        DeleteObject(hBrush);
+        // Build a premultiplied BGRA DIB and alpha-blend it into the window DC
+        var hTempDC = CreateCompatibleDC(hdc);
+        if (hTempDC == IntPtr.Zero) return;
+
+        var bi = new BITMAPINFO
+        {
+            bmiHeader = new BITMAPINFOHEADER
+            {
+                biSize = (uint)Marshal.SizeOf<BITMAPINFOHEADER>(),
+                biWidth = w.Width,
+                biHeight = -w.Height,
+                biPlanes = 1,
+                biBitCount = 32,
+                biCompression = 0
+            }
+        };
+        var hDib = CreateDIBSection(hdc, ref bi, 0, out var pBits, IntPtr.Zero, 0);
+        if (hDib == IntPtr.Zero) { DeleteDC(hTempDC); return; }
+        var old = SelectObject(hTempDC, hDib);
+
+        uint a = (w.ColorArgb >> 24) & 0xFF;
+        uint r = (w.ColorArgb >> 16) & 0xFF;
+        uint g = (w.ColorArgb >> 8) & 0xFF;
+        uint b = w.ColorArgb & 0xFF;
+        uint pixel = (uint)(a << 24 | (b * a / 255) << 16 | (g * a / 255) << 8 | (r * a / 255));
+        var buf = new byte[w.Width * w.Height * 4];
+        unchecked
+        {
+            for (int i = 0; i < buf.Length; i += 4)
+            {
+                buf[i] = (byte)(pixel & 0xFF);
+                buf[i + 1] = (byte)((pixel >> 8) & 0xFF);
+                buf[i + 2] = (byte)((pixel >> 16) & 0xFF);
+                buf[i + 3] = (byte)((pixel >> 24) & 0xFF);
+            }
+        }
+        Marshal.Copy(buf, 0, pBits, buf.Length);
+
+        var blend = new BLENDFUNCTION
+        {
+            BlendOp = 0,
+            SourceConstantAlpha = 255,
+            AlphaFormat = AC_SRC_ALPHA
+        };
+        AlphaBlend(hdc, w.X, w.Y, w.Width, w.Height, hTempDC, 0, 0, w.Width, w.Height, blend);
+
+        SelectObject(hTempDC, old);
+        DeleteObject(hDib);
+        DeleteDC(hTempDC);
 
         // Draw a border for visibility
         var hPen = CreatePen(0, 1, 0x00FFFFFFu);
-        var old = SelectObject(hdc, hPen);
+        var sel = SelectObject(hdc, hPen);
         MoveToEx(hdc, w.X, w.Y, IntPtr.Zero);
         LineTo(hdc, w.X + w.Width, w.Y);
         LineTo(hdc, w.X + w.Width, w.Y + w.Height);
         LineTo(hdc, w.X, w.Y + w.Height);
         LineTo(hdc, w.X, w.Y);
-        SelectObject(hdc, old);
+        SelectObject(hdc, sel);
         DeleteObject(hPen);
     }
 
@@ -610,7 +674,10 @@ public sealed class GameOverlayWindow : IDisposable
 
         var (min, max) = buf.GetRange();
         int pad = 6;
-        int cx = pad, cy = pad + 14, cw = w.Width - pad * 2, ch = w.Height - pad * 2 - 14;
+        // Title font size follows the widget's FontSize (editable in the property panel),
+        // auto-shrunk when the widget is too short; the chart area adapts to it.
+        float titleFs = Math.Clamp(w.FontSize, 8, Math.Max(8, (w.Height - 2 * pad - 8) * 0.55f));
+        int cx = pad, cy = pad + (int)titleFs + 4, cw = w.Width - pad * 2, ch = w.Height - pad * 2 - (int)titleFs - 4;
         if (cw < 4 || ch < 4) return;
 
         // Build SKBitmap sized to the widget
@@ -618,21 +685,24 @@ public sealed class GameOverlayWindow : IDisposable
         using var canvas = new SKCanvas(bmp);
         canvas.Clear(SKColors.Transparent);
 
-        // --- Dark rounded background ---
-        var bgPaint = new SKPaint { Color = new SKColor(20, 20, 20, 140), IsAntialias = true };
+        // --- Dark rounded background (semi-transparent panel; corners stay transparent) ---
+        var bgPaint = new SKPaint { Color = new SKColor(30, 30, 30, 130), IsAntialias = true };
         canvas.DrawRoundRect(new SKRect(0, 0, w.Width, w.Height), 6, 6, bgPaint);
         bgPaint.Dispose();
 
         // --- Title ---
+        // NOTE: DrawText's y is the BASELINE, not the top — draw at `pad + titleFs` so the
+        // glyphs don't get clipped above the bitmap edge.
         string title = chartKey == "fps" ? "FPS" : "CPU °C";
         using var titlePaint = new SKPaint
         {
             Color = new SKColor(200, 200, 200, 255),
             IsAntialias = true,
             Typeface = TypefaceBold,
-            TextSize = 11
+            TextSize = titleFs
         };
-        canvas.DrawText(title, pad, pad, titlePaint);
+        int titleBaseline = pad + (int)titleFs;
+        canvas.DrawText(title, pad, titleBaseline, titlePaint);
 
         // --- Horizontal grid lines ---
         var gridPaint = new SKPaint { Color = new SKColor(60, 60, 60, 120), StrokeWidth = 1 };
@@ -727,14 +797,14 @@ public sealed class GameOverlayWindow : IDisposable
             Color = new SKColor(150, 150, 150, 255),
             IsAntialias = true,
             Typeface = TypefaceNormal,
-            TextSize = 9
+            TextSize = Math.Max(8, titleFs * 0.8f)
         };
         float val = buf.Get(buf.Count - 1);
         float valX = pad + 24;
-        canvas.DrawText($"{val:F0}", valX, pad, titlePaint); // current value beside title
+        canvas.DrawText($"{val:F0}", valX, titleBaseline, titlePaint); // current value beside title
 
         canvas.DrawText($"{max:F0}", w.Width - 32, cy + 12, labelPaint);
-        canvas.DrawText($"{min:F0}", w.Width - 32, cy + ch, labelPaint);
+        canvas.DrawText($"{min:F0}", w.Width - 32, cy + ch - 3, labelPaint);
 
         // --- Blit SKBitmap into GDI DC at widget position ---
         BlitSkiaBitmap(hdc, bmp, w.X, w.Y);
@@ -772,8 +842,16 @@ public sealed class GameOverlayWindow : IDisposable
         var pixels = bmp.Bytes;
         Marshal.Copy(pixels, 0, pBits, Math.Min(pixels.Length, bmp.Width * bmp.Height * 4));
 
-        // Blit into destination DC
-        BitBlt(hdcDest, x, y, bmp.Width, bmp.Height, hTempDC, 0, 0, SRCCOPY);
+        // Alpha-blend into destination DC — a plain BitBlt(SRCCOPY) would paste the
+        // transparent (premultiplied-black) pixels as opaque black, making the chart
+        // background look like a solid black box.
+        var blend = new BLENDFUNCTION
+        {
+            BlendOp = 0,
+            SourceConstantAlpha = 255,
+            AlphaFormat = AC_SRC_ALPHA
+        };
+        AlphaBlend(hdcDest, x, y, bmp.Width, bmp.Height, hTempDC, 0, 0, bmp.Width, bmp.Height, blend);
 
         SelectObject(hTempDC, old);
         DeleteObject(hDib);
@@ -866,6 +944,7 @@ public sealed class GameOverlayWindow : IDisposable
     #region Public API
 
     public void SetTargetWindow(IntPtr hwnd) => _targetHwnd = hwnd;
+    public void SetDesktopMode(bool desktopMode) => _desktopMode = desktopMode;
     public void SetPosition(OverlayPosition position) => _position = position;
     public void SetBackgroundOpacity(float opacity) => _bgOpacity = Math.Clamp(opacity, 0f, 1f);
 
