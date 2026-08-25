@@ -59,6 +59,7 @@ public static class BuiltinToolRegistry
         Register(new MemoryManagerTool());
         Register(new TrafficMonitorTool());
         Register(new BitdefenderTool());
+        Register(new StartupManagerTool());
     }
 
     public static IReadOnlyList<string> GetCategories()

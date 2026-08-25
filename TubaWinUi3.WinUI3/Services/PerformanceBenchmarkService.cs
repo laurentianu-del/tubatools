@@ -1211,6 +1211,9 @@ public static class PerformanceBenchmarkService
 			gamingGrade = result.GamingGrade,
 			officeScore = result.OfficeScore,
 			officeGrade = result.OfficeGrade,
+			winScore = result.Win.FinalScore,
+			winGrade = result.Win.Grade,
+			winBestAvgMs = result.Win.BestAvgMs,
 			cpu = new
 			{
 				singleCoreScore = result.Cpu.SingleCoreScore,

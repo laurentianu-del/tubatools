@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Text;
 using System.Text.Json;
+using SkiaSharp;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -29,7 +30,8 @@ public enum OverlayWidgetType
     NetUpText, NetDownText,
     CpuNameText, GpuNameText,
     FpsChart, CpuTempChart,
-    CustomText, CustomImage, ColorBlock
+    CustomText, CustomImage, ColorBlock,
+    FpsLow1Text, FpsLow01Text
 }
 
 #endregion
@@ -125,6 +127,7 @@ public sealed partial class GameOverlayPage : Page
     private void OnPageLoaded(object sender, RoutedEventArgs e)
     {
         InitPalette();
+        InitFontCombo();
         RefreshPresetCombo();
         LoadConfig();
         ScanGameWindows();
@@ -141,6 +144,8 @@ public sealed partial class GameOverlayPage : Page
     private static readonly (OverlayWidgetType Type, string Label, string Icon, bool IsChart)[] PaletteItems =
     [
         (OverlayWidgetType.FpsText, "FPS", "\uE9F5", false),
+        (OverlayWidgetType.FpsLow1Text, "1% Low", "\uE9F5", false),
+        (OverlayWidgetType.FpsLow01Text, "0.1% Low", "\uE9F5", false),
         (OverlayWidgetType.CpuTempText, "CPU 温度", "\uE9B0", false),
         (OverlayWidgetType.CpuLoadText, "CPU 负载", "\uE9B0", false),
         (OverlayWidgetType.CpuClockText, "CPU 频率", "\uE9B0", false),
@@ -212,6 +217,30 @@ public sealed partial class GameOverlayPage : Page
 
             PalettePanel.Children.Add(card);
         }
+    }
+
+    private void InitFontCombo()
+    {
+        var families = SKFontManager.Default.GetFontFamilies();
+        CmbFont.Items.Clear();
+        int selectedIndex = 0;
+        string defaultFont = "Microsoft YaHei UI";
+        for (int i = 0; i < families.Length; i++)
+        {
+            CmbFont.Items.Add(families[i]);
+            if (families[i].Equals(defaultFont, StringComparison.OrdinalIgnoreCase))
+                selectedIndex = i;
+        }
+        if (CmbFont.Items.Count > 0)
+            CmbFont.SelectedIndex = selectedIndex;
+    }
+
+    private void Font_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressEvents) return;
+        if (CmbFont.SelectedItem is not string family) return;
+        GameOverlayWindow.SetFontFamily(family);
+        SaveConfig();
     }
 
     private void PaletteItem_PointerPressed(object sender, PointerRoutedEventArgs e)
@@ -1704,6 +1733,7 @@ public sealed partial class GameOverlayPage : Page
             AppSettings.Set(SettingsPrefix + "Refresh", NbRefresh.Value);
             AppSettings.Set(SettingsPrefix + "BgOpacity", SliderBgOpacity.Value);
             AppSettings.Set(SettingsPrefix + "Scale", _scalePercent);
+            AppSettings.Set(SettingsPrefix + "FontFamily", CmbFont.SelectedItem as string ?? "Microsoft YaHei UI");
 
             // Save widget layout as JSON
             AppSettings.Set(SettingsPrefix + "Layout", SerializeLayout());
@@ -1743,6 +1773,21 @@ public sealed partial class GameOverlayPage : Page
             if (double.IsNaN(scale) || scale < 50 || scale > 200) scale = 100;
             _scalePercent = scale;
             NbScale.Value = scale;
+
+            // Load font
+            var savedFont = AppSettings.Get(SettingsPrefix + "FontFamily");
+            if (!string.IsNullOrEmpty(savedFont))
+            {
+                GameOverlayWindow.SetFontFamily(savedFont);
+                for (int i = 0; i < CmbFont.Items.Count; i++)
+                {
+                    if (CmbFont.Items[i] is string f && f.Equals(savedFont, StringComparison.OrdinalIgnoreCase))
+                    {
+                        CmbFont.SelectedIndex = i;
+                        break;
+                    }
+                }
+            }
 
             // Load custom windows
             _customWindowTitles.Clear();

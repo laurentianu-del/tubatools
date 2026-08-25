@@ -38,6 +38,9 @@ public sealed partial class PerformanceBenchmarkPage : Page
 	private TextBlock _officeScoreText = null!;
 	private TextBlock _officeGradeText = null!;
 	private ProgressBar _officeBar = null!;
+	private TextBlock _winScoreText = null!;
+	private TextBlock _winGradeText = null!;
+	private ProgressBar _winBar = null!;
 	private TextBlock _cpuSingleScoreText = null!;
 	private TextBlock _cpuMultiScoreText = null!;
 	private TextBlock _cpuLatencyScoreText = null!;
@@ -72,6 +75,14 @@ public sealed partial class PerformanceBenchmarkPage : Page
 	private TextBlock _brLayoutDetailText = null!;
 	private TextBlock _brEventScoreText = null!;
 	private TextBlock _brEventDetailText = null!;
+	private TextBlock _winListLoadText = null!;
+	private TextBlock _winImageListText = null!;
+	private TextBlock _winTabSwitchText = null!;
+	private TextBlock _winScrollText = null!;
+	private TextBlock _winTreeExpandText = null!;
+	private TextBlock _winSortFilterText = null!;
+	private TextBlock _winTextRenderText = null!;
+	private TextBlock _winTotalText = null!;
 	private Button _startBtn = null!;
 	private Button _stopBtn = null!;
 	private Button _exportBtn = null!;
@@ -86,7 +97,19 @@ public sealed partial class PerformanceBenchmarkPage : Page
 	private CheckBox _chkMem = null!;
 	private CheckBox _chkDisk = null!;
 	private CheckBox _chkBrowser = null!;
+	private CheckBox _chkWin = null!;
 	private List<FurMarkGpuInfo> _availableGpus = [];
+
+	// WinUI 性能测试工作区控件
+	private ItemsControl _winIconList = null!;
+	private ListView _winBigList = null!;
+	private TabView _winTabView = null!;
+	private ScrollViewer _winScrollHost = null!;
+	private TreeView _winTreeView = null!;
+	private TextBlock _winLongText = null!;
+	private IReadOnlyList<string> _winIconPaths = [];
+	private List<KeyValuePair<string, int>> _winSortData = [];
+	private readonly List<WinPerformanceRunResult> _winRuns = [];
 
 	private static readonly Color AccentBlue = Color.FromArgb(byte.MaxValue, 0, 99, 177);
 	private static readonly Color ColorS = Color.FromArgb(byte.MaxValue, 74, 222, 128);
@@ -129,6 +152,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		grid3.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1.0, GridUnitType.Star) });
 		grid3.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1.0, GridUnitType.Star) });
 		grid3.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1.0, GridUnitType.Star) });
+		grid3.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1.0, GridUnitType.Star) });
 		Border border = BuildSection("CPU 性能", "\ueea1", BuildCpuContent());
 		grid3.Children.Add(border);
 		Grid.SetRow(border, 0);
@@ -150,6 +174,11 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		Grid.SetRow(border5, 2);
 		Grid.SetColumn(border5, 0);
 		Grid.SetColumnSpan(border5, 2);
+		Border border6 = BuildSection("WinUI 性能", "\ue80f", BuildWinContent());
+		grid3.Children.Add(border6);
+		Grid.SetRow(border6, 3);
+		Grid.SetColumn(border6, 0);
+		Grid.SetColumnSpan(border6, 2);
 		ScrollViewer scrollViewer = new()
 		{
 			Content = grid3,
@@ -181,6 +210,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 			ColumnDefinitions =
 			{
 				new ColumnDefinition { Width = new GridLength(1.0, GridUnitType.Star) },
+				new ColumnDefinition { Width = new GridLength(1.0, GridUnitType.Star) },
 				new ColumnDefinition { Width = new GridLength(1.0, GridUnitType.Star) }
 			}
 		};
@@ -206,6 +236,17 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		};
 		obj.Children.Add(border2);
 		Grid.SetColumn(border2, 1);
+		Border border3 = new()
+		{
+			Background = cardBg,
+			BorderBrush = cardBorderBrush,
+			BorderThickness = new Thickness(1.0),
+			CornerRadius = new CornerRadius(8.0),
+			Padding = new Thickness(20.0, 16.0, 20.0, 16.0),
+			Child = BuildScoreCard("Win性能", out _winScoreText, out _winGradeText, out _winBar)
+		};
+		obj.Children.Add(border3);
+		Grid.SetColumn(border3, 2);
 		return obj;
 	}
 
@@ -511,6 +552,44 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		};
 	}
 
+	private StackPanel BuildWinContent()
+	{
+		StackPanel left = new() { Spacing = 6.0 };
+		left.Children.Add(BuildDetailRow("列表加载", out _winListLoadText, out var _));
+		left.Children.Add(BuildDetailRow($"图片列表 ({WinPerformanceService.ImageListCount}张)", out _winImageListText, out var _));
+		left.Children.Add(BuildDetailRow("标签切换", out _winTabSwitchText, out var _));
+		left.Children.Add(BuildDetailRow("滚动", out _winScrollText, out var _));
+		StackPanel right = new() { Spacing = 6.0 };
+		right.Children.Add(BuildDetailRow($"树形展开 ({WinPerformanceService.TreeExpandCount}节点)", out _winTreeExpandText, out var _));
+		right.Children.Add(BuildDetailRow($"排序过滤 ({WinPerformanceService.SortFilterCount}条)", out _winSortFilterText, out var _));
+		right.Children.Add(BuildDetailRow($"长文本 ({WinPerformanceService.LongTextChars}字符)", out _winTextRenderText, out var _));
+		right.Children.Add(BuildDetailRow("平均总耗时", out _winTotalText, out var _));
+
+		Grid layout = new() { ColumnSpacing = 24.0 };
+		layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.0, GridUnitType.Star) });
+		layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.0, GridUnitType.Star) });
+		layout.Children.Add(left);
+		Grid.SetColumn(left, 0);
+		layout.Children.Add(right);
+		Grid.SetColumn(right, 1);
+
+		return new StackPanel
+		{
+			Spacing = 8.0,
+			Children =
+			{
+				(UIElement)layout,
+				new TextBlock
+				{
+					Text = "勾选「WinUI」并点击「开始测试」后，将弹窗执行 5 轮（去掉最慢一轮），实时展示渲染过程。",
+					FontSize = 11.0,
+					TextWrapping = TextWrapping.Wrap,
+					Foreground = (Brush)Application.Current.Resources["TextFillColorTertiaryBrush"]
+				}
+			}
+		};
+	}
+
 	private StackPanel BuildControlBar()
 	{
 		_startBtn = new Button
@@ -644,6 +723,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		_chkMem = new CheckBox { Content = "内存", IsChecked = true, FontSize = 12.0 };
 		_chkDisk = new CheckBox { Content = "硬盘", IsChecked = true, FontSize = 12.0 };
 		_chkBrowser = new CheckBox { Content = "浏览器", IsChecked = true, FontSize = 12.0 };
+		_chkWin = new CheckBox { Content = "WinUI", IsChecked = true, FontSize = 12.0 };
 		StackPanel stackPanel = new()
 		{
 			Orientation = Orientation.Horizontal,
@@ -661,6 +741,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		stackPanel.Children.Add(_chkMem);
 		stackPanel.Children.Add(_chkDisk);
 		stackPanel.Children.Add(_chkBrowser);
+		stackPanel.Children.Add(_chkWin);
 		_ = LoadAvailableGpusAsync();
 		StackPanel stackPanel2 = new()
 		{
@@ -695,7 +776,8 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		bool runMem = _chkMem.IsChecked == true;
 		bool runDisk = _chkDisk.IsChecked == true;
 		bool runBrowser = _chkBrowser.IsChecked == true;
-		if (!runCpu && !runGpu && !runMem && !runDisk && !runBrowser)
+		bool runWin = _chkWin.IsChecked == true;
+		if (!runCpu && !runGpu && !runMem && !runDisk && !runBrowser && !runWin)
 		{
 			_statusText.Text = "请至少选择一个测试项目";
 			return;
@@ -789,6 +871,11 @@ public sealed partial class PerformanceBenchmarkPage : Page
 				await RunBrowserTestsAsync(result, 60, _cts.Token);
 				_cts.Token.ThrowIfCancellationRequested();
 			}
+			if (runWin)
+			{
+				await RunWinBenchmarkAsync(result, _cts.Token);
+				_cts.Token.ThrowIfCancellationRequested();
+			}
 			result.GamingScore = PerformanceBenchmarkService.ComputeGamingScore(result);
 			result.GamingGrade = PerformanceBenchmarkService.ComputeGrade(result.GamingScore);
 			result.OfficeScore = PerformanceBenchmarkService.ComputeOfficeScore(result);
@@ -799,6 +886,8 @@ public sealed partial class PerformanceBenchmarkPage : Page
 			{
 				UpdateTopCard(_gamingScoreText, _gamingGradeText, _gamingBar, result.GamingScore, result.GamingGrade);
 				UpdateTopCard(_officeScoreText, _officeGradeText, _officeBar, result.OfficeScore, result.OfficeGrade);
+				if (runWin)
+					UpdateTopCard(_winScoreText, _winGradeText, _winBar, result.Win.FinalScore, result.Win.Grade);
 			});
 			PerformanceBenchmarkService.SaveHistory(result);
 			_result = result;
@@ -831,6 +920,367 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		_chkMem.IsEnabled = enabled;
 		_chkDisk.IsEnabled = enabled;
 		_chkBrowser.IsEnabled = enabled;
+		_chkWin.IsEnabled = enabled;
+	}
+
+	// ---------- WinUI 性能测试（弹窗运行） ----------
+
+	private async Task RunWinBenchmarkAsync(PerformanceBenchmarkResult result, CancellationToken ct)
+	{
+		DispatcherQueue.TryEnqueue(() => _statusText.Text = "正在准备 WinUI 性能测试数据...");
+		_winIconPaths = await Task.Run(() => WinPerformanceService.CollectIconImagePaths());
+		_winSortData = await Task.Run(() => WinPerformanceService.GenerateSortData());
+
+		// 弹窗：包含状态区 + 真实测试控件（用于布局计时）
+		var statusText = new TextBlock
+		{
+			Text = "正在初始化...",
+			FontSize = 13.0,
+			TextWrapping = TextWrapping.Wrap,
+			Margin = new Thickness(0.0, 4.0, 0.0, 0.0),
+			Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+		};
+		var progressBar = new ProgressBar { Value = 0.0, Maximum = 100.0, Height = 4.0 };
+		var logText = new TextBlock
+		{
+			FontSize = 11.0,
+			TextWrapping = TextWrapping.Wrap,
+			Foreground = (Brush)Application.Current.Resources["TextFillColorTertiaryBrush"]
+		};
+		var logScroll = new ScrollViewer
+		{
+			Content = logText,
+			MaxHeight = 90.0,
+			VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+			HorizontalScrollMode = ScrollMode.Disabled
+		};
+
+		var winControls = BuildWinTestControls();
+		StackPanel dialogContent = new() { Spacing = 6.0 };
+		dialogContent.Children.Add(statusText);
+		dialogContent.Children.Add(progressBar);
+		dialogContent.Children.Add(winControls);
+		dialogContent.Children.Add(logScroll);
+
+		ContentDialog dialog = new()
+		{
+			Title = "WinUI 性能测试",
+			Content = new ScrollViewer
+			{
+				Content = dialogContent,
+				MaxHeight = 620.0,
+				VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+				HorizontalScrollMode = ScrollMode.Disabled
+			},
+			CloseButtonText = "取消",
+			XamlRoot = XamlRoot,
+			RequestedTheme = ThemeService.CurrentElementTheme
+		};
+
+		using var cancelReg = ct.Register(() =>
+		{
+			DispatcherQueue.TryEnqueue(() =>
+			{
+				try { dialog.Hide(); } catch { }
+			});
+		});
+
+		var showTask = dialog.ShowAsync().AsTask();
+		// 等对话框完全加载后再开始计时（首帧布局）
+		await Task.Delay(150);
+		if (showTask.IsCompleted)
+		{
+			// 用户直接点取消
+			ct.ThrowIfCancellationRequested();
+		}
+
+		var winResult = new WinPerformanceResult
+		{
+			TestTime = DateTime.Now,
+			RunCount = 5,
+			DroppedRunCount = 1
+		};
+
+		try
+		{
+			for (int round = 1; round <= winResult.RunCount; round++)
+			{
+				ct.ThrowIfCancellationRequested();
+				// 用户点了「取消」则中止
+				if (showTask.IsCompleted)
+				{
+					ct.ThrowIfCancellationRequested();
+				}
+				statusText.Text = $"WinUI 性能测试 第 {round}/{winResult.RunCount} 轮...";
+				var run = await RunWinRoundAsync(ct, statusText);
+				_winRuns.Add(run);
+				statusText.Text = $"第 {round}/{winResult.RunCount} 轮完成，耗时 {run.TotalMs:F0} ms";
+				progressBar.Value = round * 100.0 / winResult.RunCount;
+			}
+
+			winResult.Runs = new List<WinPerformanceRunResult>(_winRuns);
+			WinPerformanceService.FinalizeResult(winResult);
+			result.Win = winResult;
+			WinPerformanceService.SaveHistory(winResult);
+
+			statusText.Text = $"Win性能得分: {winResult.FinalScore} ({winResult.Grade})，最佳平均耗时: {winResult.BestAvgMs:F0} ms";
+			progressBar.Value = 100.0;
+			logText.Text = BuildWinLog(winResult);
+
+			DispatcherQueue.TryEnqueue(() =>
+			{
+				_winListLoadText.Text = $"{winResult.AvgListLoadMs:F0} ms";
+				_winImageListText.Text = $"{winResult.AvgImageListMs:F0} ms";
+				_winTabSwitchText.Text = $"{winResult.AvgTabSwitchMs:F0} ms";
+				_winScrollText.Text = $"{winResult.AvgScrollMs:F0} ms";
+				_winTreeExpandText.Text = $"{winResult.AvgTreeExpandMs:F0} ms";
+				_winSortFilterText.Text = $"{winResult.AvgSortFilterMs:F0} ms";
+				_winTextRenderText.Text = $"{winResult.AvgTextRenderMs:F0} ms";
+				_winTotalText.Text = $"{winResult.BestAvgMs:F0} ms";
+			});
+
+			// 展示结果后等待用户关闭
+			await showTask;
+		}
+		finally
+		{
+			try { dialog.Hide(); } catch { }
+		}
+	}
+
+	private static string BuildWinLog(WinPerformanceResult r)
+	{
+		var sb = new System.Text.StringBuilder();
+		sb.AppendLine($"列表加载: {r.AvgListLoadMs:F0} ms");
+		sb.AppendLine($"图片列表({WinPerformanceService.ImageListCount}张): {r.AvgImageListMs:F0} ms");
+		sb.AppendLine($"标签切换: {r.AvgTabSwitchMs:F0} ms");
+		sb.AppendLine($"滚动: {r.AvgScrollMs:F0} ms");
+		sb.AppendLine($"树形展开({WinPerformanceService.TreeExpandCount}节点): {r.AvgTreeExpandMs:F0} ms");
+		sb.AppendLine($"排序过滤({WinPerformanceService.SortFilterCount}条): {r.AvgSortFilterMs:F0} ms");
+		sb.AppendLine($"长文本({WinPerformanceService.LongTextChars}字符): {r.AvgTextRenderMs:F0} ms");
+		sb.AppendLine($"平均总耗时: {r.BestAvgMs:F0} ms");
+		return sb.ToString();
+	}
+
+	private FrameworkElement BuildWinTestControls()
+	{
+		Grid work = new() { ColumnSpacing = 12.0, RowSpacing = 8.0 };
+		work.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.0, GridUnitType.Star) });
+		work.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.0, GridUnitType.Star) });
+
+		_winIconList = new ItemsControl { MaxHeight = 200.0, IsTabStop = false };
+		_winIconList.ItemsPanel = (ItemsPanelTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load(
+			"<ItemsPanelTemplate xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">" +
+			"<StackPanel Orientation=\"Horizontal\"/></ItemsPanelTemplate>");
+		_winBigList = new ListView { MaxHeight = 160.0, SelectionMode = ListViewSelectionMode.None };
+		_winTabView = new TabView { TabWidthMode = TabViewWidthMode.Equal, MaxHeight = 130.0, IsAddTabButtonVisible = false };
+		for (int i = 0; i < 8; i++)
+			_winTabView.TabItems.Add(new TabViewItem { Header = $"标签 {i + 1}", Content = new TextBlock { Text = $"第 {i + 1} 个标签页内容", Margin = new Thickness(8) } });
+		_winScrollHost = new ScrollViewer { MaxHeight = 130.0, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollMode = ScrollMode.Disabled };
+		var scrollInner = new StackPanel { Spacing = 4.0 };
+		for (int i = 0; i < 400; i++)
+			scrollInner.Children.Add(new TextBlock { Text = $"滚动行 {i + 1}", FontSize = 12.0 });
+		_winScrollHost.Content = scrollInner;
+		_winTreeView = new TreeView { MaxHeight = 130.0, SelectionMode = TreeViewSelectionMode.None };
+		_winLongText = new TextBlock { FontSize = 12.0, TextWrapping = TextWrapping.Wrap, MaxHeight = 130.0, TextTrimming = TextTrimming.CharacterEllipsis };
+
+		AddCard(0, "图片列表", _winIconList);
+		AddCard(0, "列表", _winBigList);
+		AddCard(1, "标签切换", _winTabView);
+		AddCard(1, "滚动", _winScrollHost);
+		AddCard(2, "树形", _winTreeView);
+		AddCard(2, "长文本", _winLongText);
+
+		void AddCard(int row, string title, UIElement content)
+		{
+			Brush cardBg = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"];
+			Brush cardBorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"];
+			var border = new Border
+			{
+				Background = cardBg,
+				BorderBrush = cardBorderBrush,
+				BorderThickness = new Thickness(1.0),
+				CornerRadius = new CornerRadius(6.0),
+				Padding = new Thickness(10.0, 6.0, 10.0, 6.0),
+				Child = new StackPanel
+				{
+					Spacing = 4.0,
+					Children =
+					{
+						new TextBlock { Text = title, FontSize = 11.0, Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"] },
+						content
+					}
+				}
+			};
+			int column = work.Children.Count % 2;
+			work.Children.Add(border);
+			Grid.SetRow(border, row);
+			Grid.SetColumn(border, column);
+			while (work.RowDefinitions.Count <= row)
+				work.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+		}
+
+		return work;
+	}
+
+	private async Task<WinPerformanceRunResult> RunWinRoundAsync(CancellationToken ct, TextBlock statusText)
+	{
+		var run = new WinPerformanceRunResult();
+		ct.ThrowIfCancellationRequested();
+
+		run.ImageListMs = await TimeUiAsync(statusText, "渲染 10000 张图标", () => RunWinImageListAsync(ct), ct);
+		run.ListLoadMs = await TimeUiAsync(statusText, "加载 20000 条列表", () => RunWinListLoadAsync(ct), ct);
+		run.TabSwitchMs = await TimeUiAsync(statusText, "快速切换标签", () => RunWinTabSwitchAsync(ct), ct);
+		run.ScrollMs = await TimeUiAsync(statusText, "滚动", () => RunWinScrollAsync(ct), ct);
+		run.TreeExpandMs = await TimeUiAsync(statusText, "树形展开", () => RunWinTreeExpandAsync(ct), ct);
+		run.SortFilterMs = await RunWinSortFilterAsync(ct);
+		run.TextRenderMs = await TimeUiAsync(statusText, "长文本渲染", () => RunWinTextRenderAsync(ct), ct);
+		return run;
+	}
+
+	/// <summary>在 UI 线程执行操作并测量耗时（毫秒），实时更新弹窗状态。</summary>
+	private async Task<double> TimeUiAsync(TextBlock statusText, string label, Func<Task> action, CancellationToken ct)
+	{
+		var tcs = new TaskCompletionSource<double>(TaskCreationOptions.RunContinuationsAsynchronously);
+		DispatcherQueue.TryEnqueue(() => _ = RunTimedAsync());
+		double ms = await tcs.Task;
+		ct.ThrowIfCancellationRequested();
+		return ms;
+
+		async Task RunTimedAsync()
+		{
+			await Task.Yield();
+			statusText.Text = $"正在执行: {label}...";
+			var sw = Stopwatch.StartNew();
+			try
+			{
+				await action();
+				sw.Stop();
+				statusText.Text = $"{label} 完成，耗时 {sw.Elapsed.TotalMilliseconds:F0} ms";
+				tcs.TrySetResult(sw.Elapsed.TotalMilliseconds);
+			}
+			catch (Exception ex)
+			{
+				sw.Stop();
+				tcs.TrySetException(ex);
+			}
+		}
+	}
+
+	private Task RunWinImageListAsync(CancellationToken ct)
+	{
+		ct.ThrowIfCancellationRequested();
+		var uris = _winIconPaths.Where(p => !string.IsNullOrEmpty(p)).Select(p => new Uri(p)).ToList();
+		if (uris.Count == 0) return Task.CompletedTask;
+		_winIconList.Items.Clear();
+		foreach (var uri in uris)
+		{
+			ct.ThrowIfCancellationRequested();
+			_winIconList.Items.Add(new Image
+			{
+				Width = 48.0,
+				Height = 48.0,
+				Stretch = Stretch.Uniform,
+				Source = new BitmapImage(uri)
+			});
+		}
+		return Task.CompletedTask;
+	}
+
+	private Task RunWinListLoadAsync(CancellationToken ct)
+	{
+		ct.ThrowIfCancellationRequested();
+		_winBigList.Items.Clear();
+		for (int i = 0; i < WinPerformanceService.ListLoadCount; i++)
+		{
+			ct.ThrowIfCancellationRequested();
+			_winBigList.Items.Add($"工具项 {i + 1}");
+		}
+		return Task.CompletedTask;
+	}
+
+	private async Task RunWinTabSwitchAsync(CancellationToken ct)
+	{
+		int count = _winTabView.TabItems.Count;
+		if (count == 0) return;
+		for (int i = 0; i < count * 3; i++)
+		{
+			ct.ThrowIfCancellationRequested();
+			_winTabView.SelectedIndex = i % count;
+			await Task.Yield();
+		}
+	}
+
+	private async Task RunWinScrollAsync(CancellationToken ct)
+	{
+		for (int i = 0; i < 3; i++)
+		{
+			ct.ThrowIfCancellationRequested();
+			_winScrollHost.ChangeView(null, _winScrollHost.ScrollableHeight, null);
+			await Task.Yield();
+			_winScrollHost.ChangeView(null, 0.0, null);
+			await Task.Yield();
+		}
+	}
+
+	private async Task RunWinTreeExpandAsync(CancellationToken ct)
+	{
+		_winTreeView.RootNodes.Clear();
+		var rand = new Random(7);
+		int total = 0;
+		for (int g = 0; g < 30 && total < WinPerformanceService.TreeExpandCount; g++)
+		{
+			var groupNode = new TreeViewNode { Content = $"分组 {g + 1}" };
+			for (int c = 0; c < 100 && total < WinPerformanceService.TreeExpandCount; c++)
+			{
+				groupNode.Children.Add(new TreeViewNode { Content = $"项 {rand.Next(0, 100000)}" });
+				total++;
+			}
+			_winTreeView.RootNodes.Add(groupNode);
+		}
+		foreach (var group in _winTreeView.RootNodes.ToList())
+		{
+			ct.ThrowIfCancellationRequested();
+			group.IsExpanded = true;
+			await Task.Yield();
+		}
+		foreach (var group in _winTreeView.RootNodes.ToList())
+		{
+			ct.ThrowIfCancellationRequested();
+			group.IsExpanded = false;
+			await Task.Yield();
+		}
+	}
+
+	private async Task<double> RunWinSortFilterAsync(CancellationToken ct)
+	{
+		var sw = Stopwatch.StartNew();
+		await Task.Run(() =>
+		{
+			var data = _winSortData;
+			for (int i = 0; i < 6; i++)
+			{
+				ct.ThrowIfCancellationRequested();
+				_ = data.OrderByDescending(kv => kv.Value).ToList();
+				_ = data.Where(kv => kv.Value % 2 == 0).ToList();
+			}
+		});
+		sw.Stop();
+		return sw.Elapsed.TotalMilliseconds;
+	}
+
+	private Task RunWinTextRenderAsync(CancellationToken ct)
+	{
+		ct.ThrowIfCancellationRequested();
+		var sb = new System.Text.StringBuilder(WinPerformanceService.LongTextChars + 64);
+		for (int i = 0; i < WinPerformanceService.LongTextChars; i++)
+		{
+			ct.ThrowIfCancellationRequested();
+			sb.Append((char)('A' + (i % 26)));
+			if (i % 60 == 0) sb.Append(' ');
+		}
+		_winLongText.Text = sb.ToString();
+		return Task.CompletedTask;
 	}
 
 	private async Task LoadAvailableGpusAsync()
@@ -1326,6 +1776,18 @@ public sealed partial class PerformanceBenchmarkPage : Page
 		_officeScoreText.Text = "—";
 		_officeGradeText.Text = "";
 		_officeBar.Value = 0.0;
+		_winScoreText.Text = "—";
+		_winGradeText.Text = "";
+		_winBar.Value = 0.0;
+		_winListLoadText.Text = "—";
+		_winImageListText.Text = "—";
+		_winTabSwitchText.Text = "—";
+		_winScrollText.Text = "—";
+		_winTreeExpandText.Text = "—";
+		_winSortFilterText.Text = "—";
+		_winTextRenderText.Text = "—";
+		_winTotalText.Text = "—";
+		_winRuns.Clear();
 		_cpuSingleScoreText.Text = "—";
 		_cpuMultiScoreText.Text = "—";
 		_cpuLatencyScoreText.Text = "—";
@@ -1545,7 +2007,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 				});
 				stackPanel2.Children.Add(new TextBlock
 				{
-					Text = $"游戏: {r.GamingScore} ({r.GamingGrade})  |  办公: {r.OfficeScore} ({r.OfficeGrade})",
+					Text = $"游戏: {r.GamingScore} ({r.GamingGrade})  |  办公: {r.OfficeScore} ({r.OfficeGrade})  |  Win: {r.Win.FinalScore} ({r.Win.Grade})",
 					FontSize = 11.0,
 					Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
 				});
@@ -1645,7 +2107,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 			{
 				new TextBlock
 				{
-					Text = $"将上传以下测试报告：\n\nCPU: {selected.CpuName}\nGPU: {selected.GpuName}\n游戏: {selected.GamingScore} ({selected.GamingGrade})\n办公: {selected.OfficeScore} ({selected.OfficeGrade})\n测试时间: {selected.TestTime:yyyy-MM-dd HH:mm}\n\n报告将通过 PR 提交到社区仓库，合并后出现在排行榜。",
+						Text = $"将上传以下测试报告：\n\nCPU: {selected.CpuName}\nGPU: {selected.GpuName}\n游戏: {selected.GamingScore} ({selected.GamingGrade})\n办公: {selected.OfficeScore} ({selected.OfficeGrade})\nWin性能: {selected.Win.FinalScore} ({selected.Win.Grade})\n测试时间: {selected.TestTime:yyyy-MM-dd HH:mm}\n\n报告将通过 PR 提交到社区仓库，合并后出现在排行榜。",
 					TextWrapping = TextWrapping.Wrap
 				}
 			}
@@ -1756,7 +2218,7 @@ public sealed partial class PerformanceBenchmarkPage : Page
 						},
 						new TextBlock
 						{
-							Text = $"GPU: {c.GpuName}   游戏: {c.GamingScore} ({c.GamingGrade})   办公: {c.OfficeScore} ({c.OfficeGrade})",
+							Text = $"GPU: {c.GpuName}   游戏: {c.GamingScore} ({c.GamingGrade})   办公: {c.OfficeScore} ({c.OfficeGrade})   Win: {c.Win.FinalScore} ({c.Win.Grade})",
 							FontSize = 12.0,
 							Opacity = 0.7
 						}

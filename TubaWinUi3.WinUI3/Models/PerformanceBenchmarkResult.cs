@@ -28,6 +28,9 @@ public sealed class PerformanceBenchmarkResult
 
     public string OfficeGrade { get; set; } = "";
 
+    /// <summary>WinUI 性能测试结果（独立总分，不并入游戏/办公总分）。</summary>
+    public WinPerformanceResult Win { get; set; } = new();
+
     public string CpuName { get; set; } = "";
 
     public string GpuName { get; set; } = "";

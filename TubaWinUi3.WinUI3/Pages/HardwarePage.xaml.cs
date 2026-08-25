@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Media.Imaging;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
+using System.Text;
 using TubaWinUi3.Models;
 using TubaWinUi3.Services;
 using Windows.ApplicationModel.DataTransfer;
@@ -515,6 +516,89 @@ public sealed partial class HardwarePage : Page
     }
 
     private bool _isScreenshotting;
+
+    private void CopyTextButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            CopyToClipboard(BuildTextExport());
+            ShowStatusBar("纯文字已复制", "硬件信息文本已复制到剪贴板", InfoBarSeverity.Success);
+        }
+        catch (Exception ex)
+        {
+            ShowStatusBar("复制失败", ex.Message, InfoBarSeverity.Error);
+        }
+    }
+
+    private void CopyMarkdownButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            CopyToClipboard(BuildMarkdownExport());
+            ShowStatusBar("Markdown 已复制", "硬件信息 Markdown 已复制到剪贴板", InfoBarSeverity.Success);
+        }
+        catch (Exception ex)
+        {
+            ShowStatusBar("复制失败", ex.Message, InfoBarSeverity.Error);
+        }
+    }
+
+    /// <summary>将当前硬件信息汇总为纯文字文本。</summary>
+    private string BuildTextExport()
+    {
+        var sections = _currentSections;
+        if (sections == null || sections.Count == 0)
+            return "暂无硬件信息";
+
+        var sb = new StringBuilder();
+        var isFirst = true;
+        foreach (var section in sections)
+        {
+            if (!isFirst) sb.AppendLine();
+            isFirst = false;
+            sb.AppendLine($"【{section.Title}】");
+            foreach (var item in section.Items)
+            {
+                sb.AppendLine($"{item.Label}: {item.Value}");
+            }
+        }
+        return sb.ToString().TrimEnd();
+    }
+
+    /// <summary>将当前硬件信息汇总为 Markdown 文本。</summary>
+    private string BuildMarkdownExport()
+    {
+        var sections = _currentSections;
+        if (sections == null || sections.Count == 0)
+            return "暂无硬件信息";
+
+        var sb = new StringBuilder();
+        var isFirst = true;
+        foreach (var section in sections)
+        {
+            if (!isFirst) sb.AppendLine();
+            isFirst = false;
+            sb.AppendLine($"## {section.Title}");
+            sb.AppendLine();
+            sb.AppendLine("| 项目 | 详情 |");
+            sb.AppendLine("| --- | --- |");
+            foreach (var item in section.Items)
+            {
+                sb.AppendLine($"| {EscapeMarkdownCell(item.Label)} | {EscapeMarkdownCell(item.Value)} |");
+            }
+        }
+        return sb.ToString().TrimEnd();
+    }
+
+    private static string EscapeMarkdownCell(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return string.Empty;
+        return text
+            .Replace("\\", "\\\\")
+            .Replace("|", "\\|")
+            .Replace("\r", " ")
+            .Replace("\n", "<br>");
+    }
 
     private async void ScreenshotButton_Click(object sender, RoutedEventArgs e)
     {

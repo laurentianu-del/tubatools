@@ -165,6 +165,9 @@
                                    ValueChanged="Scale_Changed"
                                    ToolTipService.ToolTip="整体缩放画布与全部组件（50%–200%）" />
                         <TextBlock Text="%" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Text="字体:" VerticalAlignment="Center" FontSize="12" />
+                        <ComboBox x:Name="CmbFont" Width="140" FontSize="12"
+                                  SelectionChanged="Font_Changed" />
                     </StackPanel>
                     <!-- Canvas -->
                     <Border Grid.Row="1" Padding="4" CornerRadius="8"

@@ -653,8 +653,23 @@ public sealed class GameOverlayWindow : IDisposable
     // Cached typefaces to avoid per-frame allocation/leak
     private static SKTypeface? _typefaceBold;
     private static SKTypeface? _typefaceNormal;
-    private static SKTypeface TypefaceBold => _typefaceBold ??= SKTypeface.FromFamilyName("Segoe UI", SKFontStyle.Bold);
-    private static SKTypeface TypefaceNormal => _typefaceNormal ??= SKTypeface.FromFamilyName("Segoe UI", SKFontStyle.Normal);
+    private static string _fontFamily = "Microsoft YaHei UI";
+    private static SKTypeface TypefaceBold => _typefaceBold ??= SKTypeface.FromFamilyName(_fontFamily, SKFontStyle.Bold);
+    private static SKTypeface TypefaceNormal => _typefaceNormal ??= SKTypeface.FromFamilyName(_fontFamily, SKFontStyle.Normal);
+
+    /// <summary>
+    /// Changes the font family used by all overlay text and chart labels.
+    /// Call from the settings UI when the user picks a different font.
+    /// </summary>
+    public static void SetFontFamily(string family)
+    {
+        if (string.IsNullOrWhiteSpace(family)) return;
+        _fontFamily = family;
+        _typefaceBold = null; // force re-creation on next access
+        _typefaceNormal = null;
+    }
+
+    public static string FontFamily => _fontFamily;
 
     /// <summary>
     /// Renders a chart widget using SkiaSharp (the component library used by LiveCharts2),
@@ -879,6 +894,8 @@ public sealed class GameOverlayWindow : IDisposable
         return type switch
         {
             OverlayWidgetType.FpsText => "FPS: ",
+            OverlayWidgetType.FpsLow1Text => "1% Low: ",
+            OverlayWidgetType.FpsLow01Text => "0.1% Low: ",
             OverlayWidgetType.CpuTempText => "CPU 温度: ",
             OverlayWidgetType.CpuLoadText => "CPU 负载: ",
             OverlayWidgetType.CpuClockText => "CPU 频率: ",
@@ -908,6 +925,8 @@ public sealed class GameOverlayWindow : IDisposable
         return type switch
         {
             OverlayWidgetType.FpsText => s.Fps >= 0 ? $"{s.Fps:F0} FPS" : "-- FPS",
+            OverlayWidgetType.FpsLow1Text => s.FpsLow1 >= 0 ? $"{s.FpsLow1:F0} FPS" : "-- FPS",
+            OverlayWidgetType.FpsLow01Text => s.FpsLow01 >= 0 ? $"{s.FpsLow01:F0} FPS" : "-- FPS",
             OverlayWidgetType.CpuTempText => s.CpuTemp >= 0 ? $"{s.CpuTemp:F0}°C" : "--°C",
             OverlayWidgetType.CpuLoadText => s.CpuLoad >= 0 ? $"{s.CpuLoad:F0}%" : "--%",
             OverlayWidgetType.CpuClockText => s.CpuClock > 0 ? $"{s.CpuClock / 1000f:F1} GHz" : "-- GHz",
