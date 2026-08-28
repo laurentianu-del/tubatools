@@ -894,8 +894,6 @@ public sealed class GameOverlayWindow : IDisposable
         return type switch
         {
             OverlayWidgetType.FpsText => "FPS: ",
-            OverlayWidgetType.FpsLow1Text => "1% Low: ",
-            OverlayWidgetType.FpsLow01Text => "0.1% Low: ",
             OverlayWidgetType.CpuTempText => "CPU 温度: ",
             OverlayWidgetType.CpuLoadText => "CPU 负载: ",
             OverlayWidgetType.CpuClockText => "CPU 频率: ",
@@ -925,8 +923,6 @@ public sealed class GameOverlayWindow : IDisposable
         return type switch
         {
             OverlayWidgetType.FpsText => s.Fps >= 0 ? $"{s.Fps:F0} FPS" : "-- FPS",
-            OverlayWidgetType.FpsLow1Text => s.FpsLow1 >= 0 ? $"{s.FpsLow1:F0} FPS" : "-- FPS",
-            OverlayWidgetType.FpsLow01Text => s.FpsLow01 >= 0 ? $"{s.FpsLow01:F0} FPS" : "-- FPS",
             OverlayWidgetType.CpuTempText => s.CpuTemp >= 0 ? $"{s.CpuTemp:F0}°C" : "--°C",
             OverlayWidgetType.CpuLoadText => s.CpuLoad >= 0 ? $"{s.CpuLoad:F0}%" : "--%",
             OverlayWidgetType.CpuClockText => s.CpuClock > 0 ? $"{s.CpuClock / 1000f:F1} GHz" : "-- GHz",

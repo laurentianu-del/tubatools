@@ -49,7 +49,7 @@ public static class BuiltinToolRegistry
         Register(new ServiceCenterTool());
         Register(new OfficialWebsitesTool());
         Register(new DotnetCompletionTool());
-        Register(new VideoProcessorTool());
+        Register(new FormatConvertTool());
         Register(new LanFileShareTool());
         Register(new QuickDeviceCheckTool());
         Register(new EnergyStarTool());

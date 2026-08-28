@@ -206,7 +206,8 @@ public static class AgentRuntime
                 }
 
                 // 技能强制触发：禁用 web_search（价格必须来自浏览器，搜索不是可购买的真实价格）
-                if (call.Name == "web_search" && AgentToolContext.Current?.IsSkillTriggerActive == true)
+                if (call.Name == "web_search" &&
+                    (AgentToolContext.Current?.IsSkillTriggerActive == true || AgentToolContext.SkillTriggerActive))
                 {
                     AgentDebugLog.Info($"技能触发中，禁用 web_search（call {call.Id}）");
                     toolResults.Add(new ChatMessage(ChatRole.Tool,

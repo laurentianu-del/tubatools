@@ -5,103 +5,103 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    mc:Ignorable="d">
+    xmlns:assist="using:FieldCure.AssistStudio.Controls"
+    mc:Ignorable="d"
+    Unloaded="OnUnloaded">
 
-    <Grid Width="400" MaxHeight="600">
+    <Grid Width="600" MaxHeight="780">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Grid Padding="16,12,12,8" ColumnSpacing="8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
+        <!-- 头部：标题 + 完整版/设置 + 提供商/模型 + 会话操作 -->
+        <StackPanel Grid.Row="0" Spacing="8" Padding="14,10,14,8">
+            <Grid ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
 
-            <Border
-                Width="28" Height="28"
-                Background="{ThemeResource AccentFillColorDefaultBrush}"
-                CornerRadius="6"
-                VerticalAlignment="Center">
-                <FontIcon
-                    FontSize="13"
-                    Glyph="&#xE99A;"
-                    Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center" />
-            </Border>
+                <Border
+                    Width="28" Height="28"
+                    Background="{ThemeResource AccentFillColorDefaultBrush}"
+                    CornerRadius="6"
+                    VerticalAlignment="Center">
+                    <FontIcon
+                        FontSize="13"
+                        Glyph="&#xE99A;"
+                        Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center" />
+                </Border>
 
-            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
-                <TextBlock
-                    FontSize="14"
-                    FontWeight="Bold"
-                    Text="AI 助手" />
-                <TextBlock
-                    x:Name="ServiceStatusText"
-                    FontSize="11"
-                    Opacity="1.0"
-                    Text="AI 服务" />
-            </StackPanel>
-
-            <Button
-                Grid.Column="2"
-                x:Name="FullAssistantButton"
-                Padding="8,4"
-                FontSize="12"
-                CornerRadius="6"
-                VerticalAlignment="Center"
-                Click="FullAssistantButton_Click"
-                ToolTipService.ToolTip="打开完整版 AI 助手">
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                    <FontIcon FontSize="11" Glyph="&#xE8A7;" />
-                    <TextBlock Text="完整版" FontSize="12" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                    <TextBlock
+                        FontSize="14"
+                        FontWeight="Bold"
+                        Text="AI 助手" />
+                    <TextBlock
+                        x:Name="ServiceStatusText"
+                        FontSize="11"
+                        Opacity="1.0"
+                        Text="AI 服务" />
                 </StackPanel>
-            </Button>
 
-            <Button
-                Grid.Column="3"
-                Padding="8,4"
-                FontSize="12"
-                CornerRadius="6"
-                VerticalAlignment="Center"
-                Click="AiSettingsButton_Click"
-                ToolTipService.ToolTip="配置 AI 服务">
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                    <FontIcon FontSize="11" Glyph="&#xE713;" />
-                    <TextBlock Text="设置" FontSize="12" />
-                </StackPanel>
-            </Button>
-        </Grid>
+                <Button
+                    Grid.Column="2"
+                    x:Name="FullAssistantButton"
+                    Padding="8,4"
+                    FontSize="12"
+                    CornerRadius="6"
+                    VerticalAlignment="Center"
+                    Click="FullAssistantButton_Click"
+                    ToolTipService.ToolTip="打开完整版 AI 助手">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon FontSize="11" Glyph="&#xE8A7;" />
+                        <TextBlock Text="完整版" FontSize="12" />
+                    </StackPanel>
+                </Button>
 
-        <Border
-            Grid.Row="1"
-            Height="1"
-            Background="{ThemeResource DividerStrokeColorDefaultBrush}"
-            Margin="16,0" />
+                <Button
+                    Grid.Column="3"
+                    Padding="8,4"
+                    FontSize="12"
+                    CornerRadius="6"
+                    VerticalAlignment="Center"
+                    Click="AiSettingsButton_Click"
+                    ToolTipService.ToolTip="配置 AI 服务">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon FontSize="11" Glyph="&#xE713;" />
+                        <TextBlock Text="设置" FontSize="12" />
+                    </StackPanel>
+                </Button>
+            </Grid>
 
-        <StackPanel
-            Grid.Row="2"
-            Spacing="6"
-            Margin="16,10,16,6">
-            <!-- 提供商 / 模型切换（全局生效，下一条消息使用新配置） -->
-            <StackPanel Orientation="Horizontal" Spacing="6">
+            <Grid ColumnSpacing="6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
                 <TextBlock FontSize="11" Opacity="0.8" VerticalAlignment="Center" Text="提供商" />
-                <ComboBox x:Name="FlyoutProviderCombo" MinWidth="110" MaxWidth="150" Padding="8,2" FontSize="11"
+                <ComboBox x:Name="FlyoutProviderCombo" Grid.Column="1" MinWidth="112" MaxWidth="150" Padding="8,2" FontSize="11"
                           DisplayMemberPath="Name" VerticalAlignment="Center"
                           SelectionChanged="FlyoutProviderCombo_SelectionChanged"
                           ToolTipService.ToolTip="切换 AI 服务提供商（可在设置中管理）" />
-                <TextBlock FontSize="11" Opacity="0.8" VerticalAlignment="Center" Text="模型" />
-                <ComboBox x:Name="FlyoutModelCombo" MinWidth="120" MaxWidth="150" Padding="8,2" FontSize="11"
+                <TextBlock Grid.Column="2" FontSize="11" Opacity="0.8" VerticalAlignment="Center" Text="模型" Margin="8,0,0,0" />
+                <ComboBox x:Name="FlyoutModelCombo" Grid.Column="3" MinWidth="128" MaxWidth="150" Padding="8,2" FontSize="11"
                           DisplayMemberPath="DisplayText" VerticalAlignment="Center"
                           SelectionChanged="FlyoutModelCombo_SelectionChanged"
                           ToolTipService.ToolTip="切换当前提供商的模型（下一条消息生效）" />
-            </StackPanel>
+            </Grid>
+
             <StackPanel Orientation="Horizontal" Spacing="6">
                 <Button Padding="8,3" FontSize="11" CornerRadius="12" Click="NewConversationButton_Click" ToolTipService.ToolTip="开始新对话">
                     <StackPanel Orientation="Horizontal" Spacing="4">
@@ -115,13 +115,7 @@
                         <TextBlock Text="历史" FontSize="11" />
                     </StackPanel>
                 </Button>
-                <TextBlock
-                    FontSize="11"
-                    Opacity="0.8"
-                    VerticalAlignment="Center"
-                    Text="快速提问：" />
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="6">
+                <Border Height="20" Width="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
                 <Button Padding="8,3" FontSize="11" CornerRadius="12" Click="QuickQuestion_Click" Tag="新电脑怎么验机" Content="新电脑验机" />
                 <Button Padding="8,3" FontSize="11" CornerRadius="12" Click="QuickQuestion_Click" Tag="电脑卡顿怎么办" Content="电脑卡顿" />
                 <Button Padding="8,3" FontSize="11" CornerRadius="12" Click="QuickQuestion_Click" Tag="内存占用过高怎么优化" Content="内存优化" />
@@ -129,41 +123,17 @@
             </StackPanel>
         </StackPanel>
 
-        <ScrollViewer
-            x:Name="ChatScrollViewer"
-            Grid.Row="3"
-            VerticalScrollBarVisibility="Auto"
-            Padding="12,4,12,8">
-            <StackPanel x:Name="ChatList" Spacing="8" />
-        </ScrollViewer>
+        <Border
+            Grid.Row="1"
+            Height="1"
+            Background="{ThemeResource DividerStrokeColorDefaultBrush}"
+            Margin="14,0" />
 
-        <Grid Grid.Row="4" ColumnSpacing="8" Padding="12,4,12,12">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-
-            <AutoSuggestBox
-                x:Name="InputBox"
-                PlaceholderText="输入问题，如：新电脑怎么验机..."
-                QueryIcon="Find"
-                Padding="12,6,12,6"
-                CornerRadius="8"
-                VerticalAlignment="Center"
-                QuerySubmitted="InputBox_QuerySubmitted" />
-
-            <Button
-                x:Name="SendButton"
-                Grid.Column="1"
-                Padding="12,6,12,6"
-                CornerRadius="8"
-                VerticalAlignment="Center"
-                Click="SendButton_Click">
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                    <FontIcon FontSize="12" Glyph="&#xE72A;" />
-                    <TextBlock Text="发送" FontSize="12" />
-                </StackPanel>
-            </Button>
-        </Grid>
+        <!-- ChatPanel 组件库：消息渲染 / 输入 / 工具确认全部接管 -->
+        <assist:ChatPanel
+            x:Name="Chat"
+            Grid.Row="2"
+            MinHeight="320"
+            MaxHeight="560" />
     </Grid>
 </UserControl>

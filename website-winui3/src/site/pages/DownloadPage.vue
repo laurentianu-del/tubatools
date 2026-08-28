@@ -39,6 +39,7 @@
             <h3>{{ t('download.portable') }}</h3>
           </div>
           <p class="dl-card-desc">{{ t('download.portable-desc') }}</p>
+          <p class="dl-wd-warning" role="note">⚠ {{ t('download.wd-warning') }}</p>
           <div class="dl-card-section">
             <h5>{{ t('download.gitcode') }} <span class="dl-badge">{{ t('download.gitcode-badge') }}</span></h5>
             <div class="dl-btns">
@@ -478,6 +479,18 @@ onMounted(() => {
   font-size: 13.5px;
   line-height: 20px;
   color: var(--text-secondary);
+}
+
+.dl-wd-warning {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--SystemFillColorCriticalBackgroundBrush, rgba(196, 43, 28, 0.12));
+  border: 1px solid var(--SystemFillColorCriticalBrush, rgba(196, 43, 28, 0.5));
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 19px;
+  color: var(--SystemFillColorCriticalBrush, #C42B1C);
 }
 
 .dl-card-section h5 {

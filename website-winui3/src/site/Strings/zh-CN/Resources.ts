@@ -78,6 +78,7 @@ export default {
   "download.recommended": "推荐",
   "download.portable": "便携版",
   "download.portable-desc": "解压即用，无需安装，适合 U 盘随身携带",
+  "download.wd-warning": "便携版可能会被 Windows Defender 误报，推荐使用安装包版，或暂时关闭 Defender 后再下载",
   "download.setup": "安装包",
   "download.setup-desc": "传统安装方式，自动创建快捷方式和开始菜单",
   "download.store": "微软商店",

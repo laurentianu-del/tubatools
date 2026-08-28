@@ -415,6 +415,13 @@ public static class BrowserAutomationService
             const el = document.querySelector('[data-agent-id="{{index}}"]');
             if (!el) return 'NOT_FOUND';
             el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            // 点击 target="_blank" 链接会开新标签页逃出 AI 控制范围：
+            // 先把目标改回当前页（等价于"在新标签页打开"改为"导航"），
+            // 页面内 window.open() 等其他路径由 WebView2 NewWindowRequested 拦截兜底。
+            if (el.tagName === 'A' && (el.target === '_blank' || el.getAttribute('rel') === 'external')) {
+                el.target = '_self';
+                el.removeAttribute('rel');
+            }
             el.click();
             return 'OK';
         })();

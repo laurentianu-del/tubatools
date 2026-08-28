@@ -17,6 +17,20 @@ public sealed class BuiltinToolWindow
     /// <summary>最近激活的工具窗口；页面内"返回/关闭"按钮通过它路由到正确窗口。</summary>
     public static BuiltinToolWindow? ActiveWindow { get; private set; }
 
+    private static int _forceWindowDepth;
+
+    /// <summary>是否处于"强制独立窗口"作用域（AI 助手启动内置工具时使用，与设置项无关）。</summary>
+    public static bool ForceWindowMode => _forceWindowDepth > 0;
+
+    /// <summary>在作用域内让 NavigateToToolPage 一律走独立窗口，嵌套调用安全（计数式），结束后自动恢复。</summary>
+    public static IDisposable ForceWindowScope() => new WindowForceScope();
+
+    private sealed class WindowForceScope : IDisposable
+    {
+        public WindowForceScope() => _forceWindowDepth++;
+        public void Dispose() => _forceWindowDepth--;
+    }
+
     private readonly Window _window;
     private readonly Frame _frame;
 

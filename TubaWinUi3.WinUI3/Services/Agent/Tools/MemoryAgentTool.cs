@@ -16,10 +16,14 @@ public static class MemoryAgentTool
         Add("clear_memory", "清空记忆", (Func<string>)ClearMemory);
     }
 
+    /// <summary>解析当前会话记忆：优先取运行中的 AgentSession，ChatPanel 模式回退到页面桥接的记忆文件。</summary>
+    private static ConversationMemory? ResolveMemory()
+        => AgentToolContext.Current?.Memory ?? AgentToolContext.ActiveMemory;
+
     [Description("读取会话记忆（用户偏好、任务进度等持久化笔记）")]
     public static string ReadMemory()
     {
-        var notes = AgentToolContext.Current?.Memory.Read();
+        var notes = ResolveMemory()?.Read();
         return string.IsNullOrWhiteSpace(notes)
             ? "（暂无会话记忆）"
             : notes;
@@ -29,14 +33,23 @@ public static class MemoryAgentTool
     public static string WriteMemory(string content)
     {
         if (string.IsNullOrWhiteSpace(content)) return "错误：content 不能为空";
-        AgentToolContext.Current?.Memory.Write(content);
-        return $"已保存会话记忆（{content.Length} 字符）";
+        if (ResolveMemory() is { } memory)
+        {
+            memory.Write(content);
+            AgentToolContext.MemoryModified?.Invoke();
+            return $"已保存会话记忆（{content.Length} 字符）";
+        }
+        return "错误：当前无会话记忆";
     }
 
     [Description("清空会话记忆笔记")]
     public static string ClearMemory()
     {
-        AgentToolContext.Current?.Memory.Clear();
+        if (ResolveMemory() is { } memory)
+        {
+            memory.Clear();
+            AgentToolContext.MemoryModified?.Invoke();
+        }
         return "已清空会话记忆";
     }
 

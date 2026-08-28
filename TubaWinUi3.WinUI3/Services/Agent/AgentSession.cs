@@ -446,12 +446,14 @@ public sealed class AgentSession : IDisposable
         catch { }
     }
 
-    private string BuildSystemContent()
+    /// <summary>
+    /// 构建完整系统提示词（主提示词 + 已加载技能 + 工具箱索引 + 系统上下文）。
+    /// 静态公开：ChatPanel 重构后的 AiAgentPage 复用同一套组装逻辑（会话记忆走 ChatPanel.MemoryText）。
+    /// </summary>
+    public static string BuildSystemPromptContent(IEnumerable<string> activeSkillIds)
     {
         var content = AgentPrompts.SystemPrompt;
-
-        // 已加载技能：紧跟主提示词，保证模型优先注意（技能要求优先于主提示词默认策略）
-        var active = AgentSkillRegistry.All.Where(s => _activeSkillIds.Contains(s.Id)).ToList();
+        var active = AgentSkillRegistry.All.Where(s => activeSkillIds.Contains(s.Id)).ToList();
         var skillsContext = AgentSkillRegistry.BuildActiveSkillsContext(active);
         if (!string.IsNullOrEmpty(skillsContext))
             content += "\n\n" + skillsContext;
@@ -461,6 +463,8 @@ public sealed class AgentSession : IDisposable
                    AiAssistantService.BuildSystemInfoContext();
         return content;
     }
+
+    private string BuildSystemContent() => BuildSystemPromptContent(_activeSkillIds);
 
     private void EnsureSystemPrompt()
     {

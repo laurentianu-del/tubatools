@@ -71,6 +71,27 @@ public sealed partial class BrowserWindow : Window
                 if (!string.IsNullOrWhiteSpace(t)) Title = $"图吧助手 · AI 浏览器 — {t}";
             };
             Core.WebMessageReceived += OnWebMessageReceived;
+
+            // 拦截新窗口/新标签页：页面 target="_blank"、window.open() 等会触发本事件。
+            // 原样放行会让链接逃出本 WebView（跳出 AI 控制范围），一律改为当前页强制导航。
+            Core.NewWindowRequested += (_, e) =>
+            {
+                e.Handled = true;
+                if (string.IsNullOrWhiteSpace(e.Uri))
+                {
+                    StatusText.Text = "已拦截新窗口（无地址，已忽略）";
+                    return;
+                }
+                try
+                {
+                    Core.Navigate(e.Uri);
+                    StatusText.Text = $"已拦截新窗口，强制导航至 {Truncate(e.Uri, 60)}";
+                }
+                catch (Exception ex)
+                {
+                    StatusText.Text = $"拦截新窗口失败：{CleanWinRtMessage(ex)}";
+                }
+            };
             // 常驻消息监听器：优先在文档创建前注入；失败时降级为导航完成后注入（幂等）
             try
             {

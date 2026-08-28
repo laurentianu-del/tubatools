@@ -409,8 +409,11 @@ public partial class App : Application
 
     private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
     {
-        _pendingException = e.Exception;
-        NavigateToErrorPage();
+        // 未观察异常（多为第三方库内部后台任务，如 OpenAI SDK 的 SSE 分页在网络
+        // 失败重试耗尽后遗留）不应打断用户：记日志并标记已观察即可。
+        // 业务路径（provider 流/页面回调）的异常均已各自处理并展示错误气泡。
+        TubaWinUi3.Services.Agent.AgentDebugLog.Error(
+            "[App] 未观察任务异常（已标记观察，不影响使用）", e.Exception);
         e.SetObserved();
     }
 

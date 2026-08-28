@@ -99,6 +99,20 @@ public static class AgentToolContext
         get => string.Equals(AppSettings.Get("AiFullAccessMode"), "1", StringComparison.OrdinalIgnoreCase);
         set => AppSettings.Set("AiFullAccessMode", value ? "1" : "0");
     }
+
+    /// <summary>
+    /// 技能强制触发激活中（ChatPanel 模式）：由页面在发送消息时按触发词设定，
+    /// 工具适配层据此拦截 web_search（旧 AgentSession 引擎仍走 Current?.IsSkillTriggerActive）。
+    /// </summary>
+    public static bool SkillTriggerActive { get; set; }
+
+    /// <summary>
+    /// 当前会话记忆文件（ChatPanel 模式下记忆工具读写目标；旧引擎经 AgentSession.Memory 读取）。
+    /// </summary>
+    public static ConversationMemory? ActiveMemory { get; set; }
+
+    /// <summary>会话记忆被记忆工具修改后触发（页面据此刷新 ChatPanel.MemoryText，让后续轮次读到新记忆）。</summary>
+    public static Action? MemoryModified { get; set; }
 }
 
 /// <summary>等待用户确认的工具调用快照（运行时内部使用）。</summary>

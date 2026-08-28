@@ -78,6 +78,7 @@ export default {
   "download.recommended": "Recommended",
   "download.portable": "Portable",
   "download.portable-desc": "Extract and run - no install, perfect for USB sticks",
+  "download.wd-warning": "The portable build may be flagged by Windows Defender as a false positive. Consider the installer version, or temporarily disable Defender before downloading.",
   "download.setup": "Installer",
   "download.setup-desc": "Classic installer with shortcuts and Start Menu entries",
   "download.store": "Microsoft Store",

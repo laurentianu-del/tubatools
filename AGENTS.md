@@ -40,6 +40,24 @@ dotnet test --filter "FullyQualifiedName~ToolCatalogTests"        # one class / 
 - `ToolItem.InitArchOptions()` auto-selects the best arch for the OS (ARM64 > x64 > x86 preference).
 - Built-in tools: see `BuiltinToolRegistry.RegisterDefaults()` (~31 tools). `CommunityToolBuiltinTool` registers only when `!RuntimeHelper.IsMsixPackaged`.
 
+### AI 助手（AiAgentPage）— FieldCure ChatPanel 架构
+- 「AI 助手」内置工具 = `AiAgentPage`，消息区/输入区/工具确认全部由 **`FieldCure.AssistStudio.Controls.WinUI`** 的 `ChatPanel` 组件库接管（WebView2 渲染 Markdown/思考块/内联工具调用、`ToolApprovalPanel` 危险操作确认）。
+- 适配层在 `Services/Ai/`：`TubaChatProvider`（`IAiProvider`，OpenAI 兼容端点 → `StreamEvent` 流，含 `reasoning_content` JsonPatch 回传）、`AgentToolAdapter`（`AgentToolRegistry` 28 个工具 → `IAssistTool`，`RequiresConfirmation` 按 `AgentToolContext.IsFullAccess` 动态计算）。
+- `AgentSession`/`AgentRuntime` 仍是**独立的旧引擎**（AiQuickAskFlyout 及测试使用），页面不再直接依赖；技能触发经 `AgentToolContext.SkillTriggerActive` 静态桥接（web_search 拦截）。
+- 历史/记忆/技能沿用 `AiAssistantService` 的 messages.json / display.json / skills.json / memory.md；skills 默认全开、按会话存档。
+- **包缺陷**：FieldCure 0.21.0 的 `.pri` 声明了缺失的 `AssistStudio.Controls/icon.png`，csproj 中 `FixFieldCureMissingPriPayload` 目标在构建期补位（升级包版本时若仍报 MSB3030 需检查该目标）。
+
+### 格式转换（FormatConverterPage）— 多引擎批量转换架构
+- 「格式转换」内置工具 = `FormatConverterPage`（替换了旧的 VideoProcessorPage）。UI 为「拖入 → 选目标格式 → 文件队列逐个处理」，队列项有 等待/转换中/完成/失败/跳过 状态，**单个文件失败不中断批次**。
+- 纯逻辑层（可单测，`FormatConvertTests`）：`FormatConvertCatalog`（扩展名 → `SourceCategory`，类别 → 目标 `FormatOption`，`EngineFor`）、`FormatConvertPlanner`（FFmpeg/ImageMagick 参数、输出路径消歧、ZIP 打包 0-9 级）。
+- 路由层 `DocumentConvertService`：Word/Excel/PPT/PDF/Markdown/Text/HTML/JSON 的目标分发。三条管线：
+  - **WebView2 文档引擎** `DocumentEngineService` + `Assets/DocEngine/doceng.html`（markdown-it / docx-preview / SheetJS / pdf.js / pdf-lib 全部本地打包，虚拟主机 `doceng`；ExecuteScriptAsync 不等 Promise → 「同步启动 + 轮询 getJob」模式）：渲染 PDF（PrintToPdfAsync）、PDF 文字层提取/表格行列聚类（→XLSX）、PDF 合并/拆分（pdf-lib）、工作簿读写（SheetJS）。
+  - **纯 C# 转换器**：`DocxWriter`（手写 OpenXML 包，HTML/文本→docx，含编号列表）、`DocxReader`（docx→Markdown/纯文本）、`RtfTextExtractor`（\'hh 按 GBK 双字节配对）、`OdfConverter`（odt/ods/odp→HTML）、`HtmlConvert`（HtmlAgilityPack，HTML→文本/Markdown）、`TabularConvert`（CSV/JSON/MD/HTML 互转 + 智能编码读取 UTF-8/GB18030）。
+  - **`OfficeInteropService`**：.doc/.ppt/.wps/.et/.dps 旧格式走本机 Office/WPS COM（动态探测 ProgID：Word/KWPS、Excel/KET、PowerPoint/KWPP；STA 线程 + 3 分钟超时 + 禁宏），未安装则给出明确错误。
+- OCR = `OcrService`（Windows OCR API / `Windows.Media.Ocr`）。注意：Windows AI `Microsoft.Windows.Vision.TextRecognizer` 在 .NET 26100 投影与 NuGet 中均不可引用，故未采用（见文件头注释）。
+- 图片→MP4/WebM 借用 FFmpeg（`BuildImageVideoArgs`：静态图 -loop 1 + 时长，GIF 直接转码）；OCR/ZIP/合并/拆分等非普通目标是 `ConvertSpecial`，由页面专门调度。
+- Win32 拖放复用 `Win32DropHelper`（管理员 UIPI 绕过）；文件多选用 `Win32Dialogs.PickOpenMultiple`。
+
 ### Adding a built-in tool
 1. New class in `TubaWinUi3.WinUI3/Services/BuiltinTools/` implementing `IBuiltinTool`.
 2. Pick `BuiltinToolKind`: `Dialog` / `BackgroundTask` / `ProgressTask` / `InstantAction`.

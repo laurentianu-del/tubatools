@@ -42,6 +42,9 @@ public static class ToolCatalog
 
     private static string? _cachedToolsRoot;
 
+    /// <summary>Tools 根是否处于「构建工具缓存 / 测试」覆盖模式（与正常解析缓存的根区分）。</summary>
+    private static bool _toolsRootOverridden;
+
     public static string ToolsRoot
     {
         get
@@ -101,14 +104,14 @@ public static class ToolCatalog
 
         lock (_cacheLock)
         {
-            if (_toolsCache.TryGetValue(category, out var cached))
-                return cached;
+            if (_toolsCache.TryGetValue(category, out var cached) && RootsMatch(cached.Root, ToolsRoot))
+                return cached.Items;
         }
 
         var categoryRoot = Path.Combine(ToolsRoot, category);
         if (!Directory.Exists(categoryRoot))
         {
-            lock (_cacheLock) { _toolsCache[category] = []; }
+            lock (_cacheLock) { _toolsCache[category] = new CategoryCacheEntry(ToolsRoot, []); }
             return [];
         }
 
@@ -166,7 +169,7 @@ public static class ToolCatalog
                 .ToList();
         }
 
-        lock (_cacheLock) { _toolsCache[category] = result; }
+        lock (_cacheLock) { _toolsCache[category] = new CategoryCacheEntry(ToolsRoot, result); }
         return result;
     }
 
@@ -228,9 +231,36 @@ public static class ToolCatalog
 
     private static IReadOnlyList<string>? _cachedTags;
     private static volatile IReadOnlyList<ToolItem>? _cachedAllTools;
+
+    /// <summary>「全部工具」缓存对应的 Tools 根（根切换后旧缓存视为未命中）。</summary>
+    private static string? _cachedAllToolsRoot;
+
+    /// <summary>根一致时才返回已缓存的全部工具一览，否则返回 null（强制重扫）。</summary>
+    private static IReadOnlyList<ToolItem>? PeekAllToolsCache()
+    {
+        lock (_cacheLock)
+        {
+            return _cachedAllToolsRoot == ToolsRoot ? _cachedAllTools : null;
+        }
+    }
+
+    private static void SetAllToolsCache(IReadOnlyList<ToolItem> tools)
+    {
+        lock (_cacheLock)
+        {
+            _cachedAllTools = tools;
+            _cachedAllToolsRoot = ToolsRoot;
+        }
+    }
     private static readonly object _cacheLock = new();
     private static readonly object _scanLock = new();
-    private static readonly Dictionary<string, IReadOnlyList<ToolItem>> _toolsCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, CategoryCacheEntry> _toolsCache = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>分类缓存条目：与 Tools 根绑定，根切换后旧条目视为未命中（并行扫描互不污染）。</summary>
+    private sealed record CategoryCacheEntry(string Root, IReadOnlyList<ToolItem> Items);
+
+    private static bool RootsMatch(string? a, string? b)
+        => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
     private static int _cacheVersion = 5; // v5: 缓存存储各分类原始列表（含 link.json 跨分类副本）+ 多分类字段，去重只在内存汇总做
 
     public static int CacheVersion => _cacheVersion;
@@ -243,15 +273,17 @@ public static class ToolCatalog
     /// </summary>
     public static IReadOnlyList<ToolItem> GetAllToolsCached()
     {
-        if (_cachedAllTools is not null)
-            return _cachedAllTools;
+        var cached = PeekAllToolsCache();
+        if (cached is not null)
+            return cached;
 
         lock (_scanLock)
         {
-            if (_cachedAllTools is not null)
-                return _cachedAllTools;
+            cached = PeekAllToolsCache();
+            if (cached is not null)
+                return cached;
 
-            _cachedAllTools = ScanAllTools();
+            SetAllToolsCache(ScanAllTools());
             return _cachedAllTools;
         }
     }
@@ -300,14 +332,15 @@ public static class ToolCatalog
             }
         }
 
-        _cachedAllTools = deduped;
+        SetAllToolsCache(deduped);
         return _cachedAllTools;
     }
 
     public static async Task<IReadOnlyList<ToolItem>> GetAllToolsAsync()
     {
-        if (_cachedAllTools is not null)
-            return _cachedAllTools;
+        var cached = PeekAllToolsCache();
+        if (cached is not null)
+            return cached;
 
         _isLoadingFromCache = true;
         try
@@ -319,7 +352,7 @@ public static class ToolCatalog
             if (ToolCacheService.TryLoadCache(out var cachedEntries) && cachedEntries.Count > 0)
             {
                 var cachedTools = BuildFromEntries(cachedEntries);
-                _cachedAllTools = cachedTools;
+                SetAllToolsCache(cachedTools);
                 return cachedTools;
             }
 
@@ -328,8 +361,13 @@ public static class ToolCatalog
             if (ToolCacheService.TryLoadBundledCache(out var bundledEntries) && bundledEntries.Count > 0)
             {
                 var bundledTools = BuildFromEntries(bundledEntries);
-                _cachedAllTools = bundledTools;
-                _ = Task.Run(() => ToolCacheService.SaveCache(bundledEntries)); // 落到 AppData，供后续刷新
+                SetAllToolsCache(bundledTools);
+                _ = Task.Run(() =>
+                {
+                    // 构建工具缓存/测试覆盖模式下不落盘（临时根数据会污染真实 AppData 缓存）
+                    if (_toolsRootOverridden) return;
+                    ToolCacheService.SaveCache(bundledEntries);
+                }); // 落到 AppData，供后续刷新
                 _ = Task.Run(RefreshCacheInBackground);
                 return bundledTools;
             }
@@ -343,7 +381,12 @@ public static class ToolCatalog
         //    写盘必须用各分类原始列表（含 link.json 跨分类副本），不能只存去重后的全部工具一览，
         //    否则目标分类页会丢失关联工具、多分类信息也无从恢复。
         var scanned = await Task.Run(() => GetAllToolsCached());
-        _ = Task.Run(() => ToolCacheService.SaveCache(BuildCacheEntries()));
+        _ = Task.Run(() =>
+        {
+            // 构建工具缓存/测试覆盖模式下不落盘（临时根数据会污染真实 AppData 缓存）
+            if (_toolsRootOverridden) return;
+            ToolCacheService.SaveCache(BuildCacheEntries());
+        });
         return scanned;
     }
 
@@ -394,8 +437,9 @@ public static class ToolCatalog
     {
         lock (_cacheLock)
         {
+            var root = ToolsRoot;
             foreach (var group in tools.GroupBy(t => t.Category, StringComparer.OrdinalIgnoreCase))
-                _toolsCache[group.Key] = group.ToList();
+                _toolsCache[group.Key] = new CategoryCacheEntry(root, group.ToList());
         }
     }
 
@@ -438,6 +482,7 @@ public static class ToolCatalog
     public static void SetToolsRootForBuild(string? toolsRoot)
     {
         _cachedToolsRoot = toolsRoot;
+        _toolsRootOverridden = toolsRoot is not null;
     }
 
     /// <summary>
@@ -456,6 +501,11 @@ public static class ToolCatalog
     {
         try
         {
+            // 构建工具缓存/测试覆盖模式下不后台刷新：
+            // 覆盖根是临时目录，其结果提交到全局缓存会污染真实 Tools 根的数据
+            if (_toolsRootOverridden) return;
+
+            var rootSnapshot = ToolsRoot;
             // 真实扫描一次（清空分类缓存强制重读磁盘）修正过期数据，并更新内存与磁盘缓存
             lock (_cacheLock) { _toolsCache.Clear(); }
             var raw = GetCategories().SelectMany(GetTools).ToList();
@@ -465,9 +515,16 @@ public static class ToolCatalog
             var deduped = DeduplicateAllTools(raw);
             lock (_cacheLock)
             {
+                // 扫描期间根被切换（RefreshToolsRoot / 测试）→ 丢弃结果，避免陈旧数据覆盖新根
+                if (_toolsRootOverridden
+                    || !string.Equals(rootSnapshot, ToolsRoot, StringComparison.OrdinalIgnoreCase))
+                    return;
                 _cachedAllTools = deduped;
+                _cachedAllToolsRoot = ToolsRoot;
+                var rootNow = ToolsRoot;
+                foreach (var group in raw.GroupBy(t => t.Category, StringComparer.OrdinalIgnoreCase))
+                    _toolsCache[group.Key] = new CategoryCacheEntry(rootNow, group.ToList());
             }
-            FillCategoryCache(raw);
             ToolCacheService.SaveCache(ToCacheEntries(raw));
         }
         catch { }
@@ -491,8 +548,7 @@ public static class ToolCatalog
     public static void InvalidateTagsCache()
     {
         _cachedTags = null;
-        _cachedAllTools = null;
-        lock (_cacheLock) { _toolsCache.Clear(); }
+        lock (_cacheLock) { _toolsCache.Clear(); _cachedAllTools = null; _cachedAllToolsRoot = null; }
         Interlocked.Increment(ref _cacheVersion);
         ToolCacheService.Invalidate();
     }
@@ -500,6 +556,7 @@ public static class ToolCatalog
     public static void RefreshToolsRoot()
     {
         _cachedToolsRoot = null;
+        _toolsRootOverridden = false;
         InvalidateTagsCache();
         ToolsChanged?.Invoke();
     }

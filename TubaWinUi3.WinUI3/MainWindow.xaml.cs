@@ -734,8 +734,8 @@ public sealed partial class MainWindow : Window
 
     public void NavigateToToolPage(Type pageType, object? parameter = null)
     {
-        // 设置"独立窗口"模式下，内置工具在新窗口的 Frame 中打开（切换即时生效）
-        if (AppSettings.GetBool("BuiltinToolsOpenInWindow", false))
+        // 设置"独立窗口"模式，或处于 AI 助手强制独立窗口作用域时，内置工具在新窗口的 Frame 中打开
+        if (BuiltinToolWindow.ForceWindowMode || AppSettings.GetBool("BuiltinToolsOpenInWindow", false))
         {
             var title = parameter is ToolContentPageParam p
                 ? p.Title

@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Microsoft.UI.Xaml;
 using TubaWinUi3.Models;
 
 namespace TubaWinUi3.Services;
@@ -766,7 +767,12 @@ public sealed partial class AiAssistantService
 
             if (builtin is not null)
             {
-                message = $"内置工具 '{builtin.Name}' 需要在主界面中启动";
+                if (LaunchBuiltinToolInWindow(builtin, out var error))
+                {
+                    message = $"已在新窗口打开内置工具：{builtin.Name}";
+                    return true;
+                }
+                message = error ?? "打开内置工具失败";
                 return false;
             }
 
@@ -778,6 +784,40 @@ public sealed partial class AiAssistantService
             message = $"启动失败：{ex.Message}";
             return false;
         }
+    }
+
+    /// <summary>
+    /// AI 启动内置工具：在独立窗口打开（不替换 AI 助手所在的主界面内容区）。
+    /// 内置工具的 ExecuteAsync 内部走 MainWindow.NavigateToToolPage，
+    /// 在 ForceWindowScope 作用域内无论"独立窗口"设置是否开启都会新建窗口。
+    /// </summary>
+    private static bool LaunchBuiltinToolInWindow(IBuiltinTool builtin, out string? error)
+    {
+        error = null;
+        var mainWindow = App.MainWindow;
+        if (mainWindow?.Content is not FrameworkElement root || root.XamlRoot is not { } xamlRoot)
+        {
+            error = "主窗口尚未就绪，无法打开内置工具";
+            return false;
+        }
+
+        var context = new BuiltinToolContext { XamlRoot = xamlRoot };
+        // 工具执行可能来自线程池（AI 工具调用），窗口创建必须回到 UI 线程；
+        // async lambda 让 ForceWindowScope 覆盖 ExecuteAsync 全程（工具可能在 await 之后才导航）
+        mainWindow.DispatcherQueue.TryEnqueue(async () =>
+        {
+            using var scope = BuiltinToolWindow.ForceWindowScope();
+            MainWindow.ActiveToolName = builtin.Name;
+            try
+            {
+                await builtin.ExecuteAsync(context);
+            }
+            catch (Exception ex)
+            {
+                Services.Agent.AgentDebugLog.Error($"[AI] 启动内置工具 '{builtin.Name}' 失败", ex);
+            }
+        });
+        return true;
     }
 
     public static List<AiRecommendedTool> ResolveRecommendations(List<AiRecommendedTool> recommendations)

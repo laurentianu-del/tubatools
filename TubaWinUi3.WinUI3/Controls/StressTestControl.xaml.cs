@@ -355,6 +355,7 @@ public sealed partial class StressTestControl : UserControl
         if (gpuIdx > 0) args.Add($"--gpu-index {gpuIdx}");
 
         args.Add($"--vsync {TagOf(VsyncBox)}");
+        args.Add("--hpgfx 1");
 
         var bkg = int.TryParse(TagOf(BkgImgBox), out var b) ? b : 0;
         if (bkg > 0) args.Add($"--furmark-bkg-img-id {bkg}");

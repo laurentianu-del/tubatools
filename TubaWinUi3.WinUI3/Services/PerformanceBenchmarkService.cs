@@ -302,7 +302,7 @@ public static class PerformanceBenchmarkService
 			try { File.Delete(logFile); } catch { }
 		}
 		int durationMs = durationSec * 1000;
-		string arguments = "--demo furmark-vk --width 1920 --height 1080 --benchmark --duration-ms " + durationMs + " --gpu-index " + gpuIndex + " --print-render-speed";
+		string arguments = "--demo furmark-vk --width 1920 --height 1080 --benchmark --duration-ms " + durationMs + " --gpu-index " + gpuIndex + " --vsync 0 --hpgfx 1 --print-render-speed";
 		using var process = Process.Start(new ProcessStartInfo(furMarkExe, arguments)
 		{
 			WorkingDirectory = furMarkDir,

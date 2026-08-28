@@ -1,46 +1,289 @@
-using System.Text;
+using System.Text.Json;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using FieldCure.Ai.Providers.Models;
+using FieldCure.AssistStudio.Controls;
 using TubaWinUi3.Controls.AgentChat;
 using TubaWinUi3.Services;
 using TubaWinUi3.Services.Agent;
 using TubaWinUi3.Services.Ai;
-using Windows.UI;
 
 namespace TubaWinUi3.Pages;
 
 /// <summary>
-/// 标题栏快捷问询面板（轻量版）：与完整版共享 AgentSession 引擎。
-/// 保留紧凑的代码构建 UI，支持流式输出、步骤指示与危险操作确认卡片。
+/// 标题栏快捷问询面板（轻量版）：与完整版 AI 助手共用 FieldCure ChatPanel 组件库
+/// （消息流式渲染 / 思考块 / 内联工具调用 / ToolApprovalPanel 确认 / 输入控制台）。
+///
+/// 保留弹窗自己的壳与数据面：
+/// - 顶部：提供商/模型切换、新对话/历史、快捷问题（填入输入框 + 聚焦，回车发送）、完整版入口
+/// - Provider / 工具 / 持久化 / 记忆 / 技能触发与完整版完全一致（AiAssistantService 共享会话）
+/// - 关闭（Unloaded）时保存会话并释放 ChatPanel 的 WebView2 资源
 /// </summary>
 public sealed partial class AiQuickAskFlyout : UserControl
 {
     private bool _syncingCombos;
     private readonly DispatcherQueue _dq;
-    private readonly StackPanel _chatList;
-    private AgentSession? _session;
-    private CancellationTokenSource _cts = new();
-    private bool _isProcessing;
-    private bool _awaitingConfirmation;
-    private Border? _streamingBubble;
-    private TextBlock? _streamingTb;
-    private StringBuilder? _streamingContent;
-    private IReadOnlyList<AgentConfirmationRequest>? _pendingRequests;
+    private readonly TubaChatProvider _provider = new();
+    private readonly List<IAssistTool> _toolAdapters = [];
+    private readonly HashSet<string> _activeSkillIds = [];
+    private readonly List<PersistedMessage> _persisted = [];
+
+    private string _conversationId = Guid.NewGuid().ToString("N")[..12];
+    private string _title = "新对话";
+    private ConversationMemory? _memory;
+    private bool _disposed;
+    private DispatcherTimer? _saveTimer;
+
+    // 会话级 token 统计（与完整版共享 display.json meta 条目）
+    private int _sessionPromptTokens;
+    private int _sessionCompletionTokens;
+    private int _sessionCacheHits;
+    private int _sessionCacheMisses;
+
+    private static string HistoryDir => Path.Combine(ConfigManager.GetDataDir(), "AiAssistant");
+
+    private sealed record PersistedMessage(string Role, string Content, string? Thinking);
 
     public AiQuickAskFlyout()
     {
         InitializeComponent();
         _dq = DispatcherQueue.GetForCurrentThread();
-        _chatList = ChatList;
+
+        // ===== ChatPanel 组件库接线（与完整版 AiAgentPage 一致）=====
+        _toolAdapters.AddRange(AgentToolRegistry.Tools.Select(t => (IAssistTool)new AgentToolAdapter(t)));
+        Chat.Provider = _provider;
+        Chat.RegisteredTools = _toolAdapters;
+        Chat.MaxToolCallRounds = 30;
+        Chat.AllowAttachments = false;
+        Chat.IsWorkspaceEnabled = false;
+        Chat.IsKnowledgeBaseEnabled = false;
+        Chat.ShowTitleBar = false;
+        Chat.ShowModelSelector = false;
+        Chat.ShowProfileSelector = false;
+        Chat.AutoTitle = false;
+        Chat.AutoSummarize = false;
+        Chat.Theme = ChatTheme.System;
+        Chat.UserMessageSubmitted += OnUserMessageSubmitted;
+        Chat.MessageAdded += OnMessageAdded;
+        Chat.EmptyStateContent = BuildWelcomeContent();
+        TubaChatProvider.UsageReported += OnUsageReported;
+        AgentToolContext.MemoryModified += OnMemoryModified;
 
         UpdateServiceStatus();
         InitProviderCombos();
         LoadLatestConversation();
     }
 
-    /// <summary>同步提供商/模型下拉框与当前选中状态（全局持久化，切换对下一条消息生效）。</summary>
+    /// <summary>弹窗关闭（从可视树移除）：保存会话并释放 ChatPanel 资源。</summary>
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (_disposed) return;
+        _disposed = true;
+        SaveNow();
+        _saveTimer?.Stop();
+        Chat.UserMessageSubmitted -= OnUserMessageSubmitted;
+        Chat.MessageAdded -= OnMessageAdded;
+        TubaChatProvider.UsageReported -= OnUsageReported;
+        AgentToolContext.MemoryModified -= OnMemoryModified;
+        AgentToolContext.SkillTriggerActive = false;
+        if (AgentToolContext.ActiveMemory == _memory)
+            AgentToolContext.ActiveMemory = null;
+        Chat.Dispose();
+    }
+
+    // ---------- 发送流（与完整版同构） ----------
+
+    private void OnUserMessageSubmitted(object? sender, MessageSentEventArgs e)
+    {
+        // 技能触发：命中触发词 → 系统提示词注入强制指令 + 本次发送内禁用 web_search
+        var (trigger, fragments) = SkillTriggerHelper.BuildTriggerPayload(e.Text ?? "", _activeSkillIds);
+        AgentToolContext.SkillTriggerActive = !string.IsNullOrEmpty(trigger);
+        Chat.SystemPrompt = SkillTriggerHelper.BuildSystemPrompt(_activeSkillIds, trigger, fragments);
+
+        // 首条用户消息 → 会话标题
+        if (_title == "新对话" && !string.IsNullOrWhiteSpace(e.Text))
+            _title = e.Text.Length > 30 ? e.Text[..30] + "…" : e.Text;
+        ScheduleSave();
+    }
+
+    private void OnMessageAdded(object? sender, ChatMessage msg)
+    {
+        if (msg.Role == ChatRole.User)
+        {
+            AddPersisted("user", msg.Content, null);
+        }
+        else if (msg.Role == ChatRole.Assistant)
+        {
+            // 工具调用包装消息（中间轮）不入持久化，定稿时保存完整文本+思考
+            if (msg.ToolCalls is { Count: > 0 }) return;
+            msg.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(ChatMessage.IsStreaming) && !msg.IsStreaming)
+                    OnAssistantFinalized(msg);
+            };
+        }
+        ScheduleSave();
+    }
+
+    private void OnAssistantFinalized(ChatMessage msg)
+    {
+        AddPersisted("assistant", msg.Content ?? "", msg.ThinkingContent);
+        AgentToolContext.SkillTriggerActive = false;
+        Chat.MemoryText = _memory?.Read() ?? "";
+        ScheduleSave();
+    }
+
+    private void AddPersisted(string role, string content, string? thinking)
+    {
+        if (string.IsNullOrWhiteSpace(content) && string.IsNullOrWhiteSpace(thinking)) return;
+        _persisted.Add(new PersistedMessage(role, content ?? "", thinking));
+    }
+
+    // ---------- 会话控制 ----------
+
+    private void LoadLatestConversation()
+    {
+        var conversations = AiAssistantService.ListConversations();
+        if (conversations.Count > 0)
+            LoadConversation(conversations[0]);
+    }
+
+    private async void LoadConversation(ConversationMeta meta)
+    {
+        _saveTimer?.Stop();
+        _conversationId = meta.Id;
+        _title = meta.Title;
+        _persisted.Clear();
+        ResetTokenStats();
+        LoadSkills(meta.Id);
+        _memory = new ConversationMemory(Path.Combine(HistoryDir, $"{meta.Id}.memory.md"));
+        AgentToolContext.ActiveMemory = _memory;
+        AgentToolContext.SkillTriggerActive = false;
+        Chat.MemoryText = _memory.Read() ?? "";
+
+        // 恢复会话级 token 统计（meta 条目）
+        var display = AiAssistantService.LoadConversationDisplay(meta.Id);
+        var metaItem = display.FirstOrDefault(i => i.Type == "meta");
+        if (metaItem is not null)
+        {
+            _sessionPromptTokens = metaItem.PromptTokens;
+            _sessionCompletionTokens = metaItem.CompletionTokens;
+            _sessionCacheHits = metaItem.CacheHitTokens;
+            _sessionCacheMisses = metaItem.CacheMissTokens;
+        }
+        Chat.SystemPrompt = SkillTriggerHelper.BuildSystemPrompt(_activeSkillIds);
+
+        // 清空并回填消息树（与完整版共用的恢复路径）
+        Chat.ClearConversation();
+        await Task.Delay(200); // 让 ClearConversation 的渲染器复位先完成
+        var messages = AiAssistantService.LoadConversation(meta.Id);
+        foreach (var m in messages)
+        {
+            if (m.Role is not ("user" or "assistant") || string.IsNullOrWhiteSpace(m.Content)) continue;
+            Chat.AddRestoredMessage(
+                m.Role == "user" ? ChatRole.User : ChatRole.Assistant,
+                m.Content,
+                thinkingContent: m.ReasoningContent);
+        }
+        await WhenChatReadyAsync();
+        await Chat.RenderRestoredMessagesAsync();
+        Chat.FocusInput();
+    }
+
+    private void NewConversationButton_Click(object sender, RoutedEventArgs e)
+    {
+        _saveTimer?.Stop();
+        _conversationId = Guid.NewGuid().ToString("N")[..12];
+        _title = "新对话";
+        _persisted.Clear();
+        ResetTokenStats();
+        LoadSkills(_conversationId); // 新会话默认全部技能
+        _memory = null;
+        AgentToolContext.ActiveMemory = null;
+        AgentToolContext.SkillTriggerActive = false;
+        Chat.MemoryText = null;
+        Chat.ClearConversation();
+        Chat.SystemPrompt = SkillTriggerHelper.BuildSystemPrompt(_activeSkillIds);
+        Chat.FocusInput();
+    }
+
+    private void HistoryButton_Click(object sender, RoutedEventArgs e)
+    {
+        SaveNow();
+        var flyout = AiHistoryMenu.Build(
+            AiAssistantService.ListConversations(),
+            onOpen: LoadConversation,
+            onRename: OnRenameConversation,
+            onDelete: OnDeleteConversation);
+        flyout.ShowAt(sender as FrameworkElement);
+    }
+
+    private async void OnRenameConversation(ConversationMeta conv)
+    {
+        var newTitle = await AiHistoryMenu.PromptRenameAsync(XamlRoot, conv.Title);
+        if (newTitle is null) return;
+
+        if (_conversationId == conv.Id)
+            _title = newTitle;
+        AiAssistantService.RenameConversation(conv.Id, newTitle);
+    }
+
+    private async void OnDeleteConversation(ConversationMeta conv)
+    {
+        if (!await AiHistoryMenu.ConfirmDeleteAsync(XamlRoot, conv.Title)) return;
+
+        AiAssistantService.DeleteConversation(conv.Id);
+        if (_conversationId == conv.Id)
+            NewConversationButton_Click(this, new RoutedEventArgs());
+    }
+
+    // ---------- 快捷问题：填入输入框 + 聚焦（ChatPanel 无公开的编程式发送 API）----------
+
+    private void QuickQuestion_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string q }) return;
+        if (!TrySetComposeText(q))
+            Chat.FocusInput();
+    }
+
+    /// <summary>
+    /// 把快捷问题写入 ChatPanel 的输入框（compose bar 模板内 PART_MessageTextBox）。
+    /// 依赖模板内部结构（FieldCure 0.21.0 固定版本）；找不到时静默失败，用户手动输入。
+    /// </summary>
+    private bool TrySetComposeText(string text)
+    {
+        try
+        {
+            // 模板顺序上输入区在最后，从后向前深度优先找第一个 TextBox
+            var tb = FindLastDescendant<TextBox>(Chat);
+            if (tb is null) return false;
+            tb.Text = text;
+            tb.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static T? FindLastDescendant<T>(DependencyObject root) where T : DependencyObject
+    {
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (var i = count - 1; i >= 0; i--)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T match) return match;
+            var found = FindLastDescendant<T>(child);
+            if (found is not null) return found;
+        }
+        return null;
+    }
+
+    // ---------- 提供商 / 模型切换 ----------
+
     private void InitProviderCombos()
     {
         _syncingCombos = true;
@@ -106,581 +349,6 @@ public sealed partial class AiQuickAskFlyout : UserControl
         }
     }
 
-    private AgentSession CreateSession()
-    {
-        var session = AgentSession.CreateNew();
-        HookSession(session);
-        return session;
-    }
-
-    private void HookSession(AgentSession session)
-    {
-        session.TextChunk += chunk => _dq.TryEnqueue(() => SafeInvoke(() => AppendChunk(chunk)));
-        session.StepStarted += step => _dq.TryEnqueue(() => SafeInvoke(() => AddToolCallIndicator(step)));
-        session.StepCompleted += step => _dq.TryEnqueue(() => SafeInvoke(() => AddToolResultIndicator(step)));
-        session.ConfirmationsRequested += requests => _dq.TryEnqueue(() => SafeInvoke(() => OnConfirmations(requests)));
-        session.Error += error => _dq.TryEnqueue(() => SafeInvoke(() =>
-        {
-            FinalizeStreaming();
-            AddErrorMessage(error);
-        }));
-        session.RunCompleted += () => _dq.TryEnqueue(() => SafeInvoke(FinalizeStreaming));
-    }
-
-    /// <summary>UI 线程回调安全壳：异常转为错误提示，防止 XAML 崩溃。</summary>
-    private void SafeInvoke(Action action)
-    {
-        try
-        {
-            action();
-        }
-        catch (Exception ex)
-        {
-            AgentDebugLog.Error("快捷面板 UI 回调异常", ex);
-            try { AddErrorMessage($"界面处理出错：{ex.Message}"); } catch { }
-        }
-    }
-
-    private void LoadLatestConversation()
-    {
-        var conversations = AiAssistantService.ListConversations();
-        if (conversations.Count > 0)
-        {
-            LoadConversation(conversations[0], scrollToBottom: false);
-            return;
-        }
-
-        _session?.Dispose();
-        _session = CreateSession();
-        AddSystemMessage("你好！我是图吧助手，可以快速提问。\n\n例如：新电脑怎么验机、电脑卡顿怎么办、最新处理器性能对比…");
-    }
-
-    private void LoadConversation(ConversationMeta meta, bool scrollToBottom = true)
-    {
-        _session?.Dispose();
-        _session = AgentSession.Load(meta);
-        HookSession(_session);
-        _awaitingConfirmation = false;
-        _chatList.Children.Clear();
-
-        // 展示记录（文本 + 步骤链按原始顺序恢复）；旧会话无记录时回退到协议消息
-        var display = AiAssistantService.LoadConversationDisplay(meta.Id);
-        if (display.Count > 0)
-        {
-            foreach (var item in display)
-            {
-                if (item.Type == "meta") continue; // token 统计条目，不渲染
-                if (item.Type == "steps")
-                {
-                    AddPersistedStepChain(item);
-                }
-                else if (item.Role == "user")
-                {
-                    AddUserMessage(item.Content, scrollToBottom: false);
-                }
-                else if (item.Role == "assistant" && !string.IsNullOrWhiteSpace(item.Content))
-                {
-                    AddAssistantBubble(item.Content, scrollToBottom: false);
-                }
-            }
-        }
-        else
-        {
-            foreach (var msg in AiAssistantService.LoadConversation(meta.Id))
-            {
-                if (msg.Role == "system") continue;
-                if (msg.Role == "user")
-                {
-                    if (msg.Content.StartsWith("[ACTION_CONFIRMED]", StringComparison.OrdinalIgnoreCase)) continue;
-                    if (msg.Content.StartsWith("[TOOL_RESULT]", StringComparison.OrdinalIgnoreCase)) continue;
-                    AddUserMessage(msg.Content, scrollToBottom: false);
-                }
-                else if (msg.Role == "assistant")
-                {
-                    var cleanContent = msg.Content;
-                    if (string.IsNullOrWhiteSpace(cleanContent)) continue;
-                    AddAssistantBubble(cleanContent, scrollToBottom: false);
-                }
-            }
-        }
-
-        if (_chatList.Children.Count == 0)
-        {
-            AddSystemMessage("新对话已开始。请输入你的问题。", scrollToBottom: false);
-        }
-
-        if (scrollToBottom)
-            ScrollToBottom();
-    }
-
-    /// <summary>从展示记录恢复步骤链节点（折叠态）。</summary>
-    private void AddPersistedStepChain(ConversationDisplayItem item)
-    {
-        var chain = new StepChainControl
-        {
-            Margin = new Thickness(0, 0, 0, 8),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            MaxWidth = 368
-        };
-        var run = new RunVm();
-        foreach (var snap in item.Steps)
-            run.Steps.Add(new StepRowVm(snap.ToAgentStep()));
-        run.SummaryText = string.IsNullOrWhiteSpace(item.SummaryText)
-            ? $"{item.Steps.Count} 步完成"
-            : item.SummaryText;
-        run.IsExpanded = false;
-        chain.RunVm = run;
-        chain.ShowCollapsed();
-        _chatList.Children.Add(chain);
-    }
-
-    private void NewConversationButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_isProcessing) return;
-        _session?.Dispose();
-        _session = CreateSession();
-        _awaitingConfirmation = false;
-        _chatList.Children.Clear();
-        AddSystemMessage("新对话已开始。请输入你的问题。");
-    }
-
-    private void HistoryButton_Click(object sender, RoutedEventArgs e)
-    {
-        _session?.Save();
-
-        var flyout = AiHistoryMenu.Build(
-            AiAssistantService.ListConversations(),
-            onOpen: conv => LoadConversation(conv),
-            onRename: OnRenameConversation,
-            onDelete: OnDeleteConversation);
-
-        flyout.ShowAt(sender as FrameworkElement);
-    }
-
-    /// <summary>重命名会话：当前打开的会话同步更新内存标题，并立即持久化到 meta.json。</summary>
-    private async void OnRenameConversation(ConversationMeta conv)
-    {
-        var newTitle = await AiHistoryMenu.PromptRenameAsync(XamlRoot, conv.Title);
-        if (newTitle is null) return;
-
-        if (_session?.Id == conv.Id)
-            _session.Rename(newTitle);
-        AiAssistantService.RenameConversation(conv.Id, newTitle);
-    }
-
-    /// <summary>删除会话：确认后移除全部关联文件；删的是当前会话则回到新对话。</summary>
-    private async void OnDeleteConversation(ConversationMeta conv)
-    {
-        if (!await AiHistoryMenu.ConfirmDeleteAsync(XamlRoot, conv.Title)) return;
-
-        AiAssistantService.DeleteConversation(conv.Id);
-        if (_session?.Id == conv.Id)
-        {
-            _session?.Dispose();
-            _session = CreateSession();
-            _awaitingConfirmation = false;
-            _chatList.Children.Clear();
-            AddSystemMessage("新对话已开始。请输入你的问题。");
-        }
-    }
-
-    private void QuickQuestion_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button btn && btn.Tag is string q)
-        {
-            InputBox.Text = q;
-            SendAsync(q);
-        }
-    }
-
-    private void SendButton_Click(object sender, RoutedEventArgs e) => SendCurrentInput();
-
-    private void InputBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
-    {
-        if (!string.IsNullOrWhiteSpace(args.QueryText))
-            SendCurrentInput();
-    }
-
-    private void SendCurrentInput()
-    {
-        var text = InputBox.Text?.Trim() ?? "";
-        if (!string.IsNullOrWhiteSpace(text))
-            SendAsync(text);
-    }
-
-    private void SetInputEnabled(bool enabled)
-    {
-        InputBox.IsEnabled = enabled;
-        SendButton.IsEnabled = enabled;
-    }
-
-    private async void SendAsync(string text)
-    {
-        if (_isProcessing || _awaitingConfirmation) return;
-        if (string.IsNullOrWhiteSpace(text)) return;
-
-        _session ??= CreateSession();
-        InputBox.Text = "";
-        _isProcessing = true;
-        SetInputEnabled(false);
-
-        AddUserMessage(text);
-
-        _cts = new CancellationTokenSource();
-        var ct = _cts.Token;
-
-        BeginStreaming();
-
-        try
-        {
-            await Task.Run(() => _session.SendAsync(text), ct);
-            FinalizeStreaming();
-        }
-        catch (OperationCanceledException)
-        {
-            FinalizeStreaming();
-            AddSystemMessage("已取消");
-        }
-        catch (Exception ex)
-        {
-            FinalizeStreaming();
-            AddErrorMessage(AgentErrorPolicy.FormatApiError(ex));
-        }
-        finally
-        {
-            _isProcessing = false;
-            SetInputEnabled(true);
-            _session.Save();
-        }
-    }
-
-    private void OnConfirmations(IReadOnlyList<AgentConfirmationRequest> requests)
-    {
-        FinalizeStreaming();
-        _awaitingConfirmation = true;
-        _pendingRequests = requests;
-
-        // 复用旧确认卡片（[ACTION] 协议文本 → CreateActionCard）
-        var actionContent = "[ACTION]\n" + System.Text.Json.JsonSerializer.Serialize(requests.Select(a => new
-        {
-            kind = a.Kind switch
-            {
-                "run_command" => "run_command",
-                "write_reg" => "write_reg",
-                "write_file" => "write_reg",
-                "delete_file" => "run_command",
-                "move_file" => "run_command",
-                "copy_file" => "run_command",
-                "download_file" => "run_command",
-                "launch_tool" => "launch_tool",
-                _ => "info"
-            },
-            description = $"{a.DisplayName}：{a.Summary}",
-            detail = a.Detail,
-            reason = a.Reason,
-            timeout = 60
-        }));
-
-        var card = AiMarkdownRenderer.CreateActionCard(actionContent, onAllResolved: results =>
-        {
-            var decisions = new List<AgentConfirmationDecision>();
-            for (var i = 0; i < results.Count && i < _pendingRequests?.Count; i++)
-            {
-                decisions.Add(new AgentConfirmationDecision
-                {
-                    Request = _pendingRequests[i],
-                    Confirmed = results[i].confirmed
-                });
-            }
-            _ = ResumeAfterConfirmationsAsync(decisions);
-        });
-        card.MaxWidth = 368;
-        _chatList.Children.Add(card);
-        ScrollToBottom();
-    }
-
-    private async Task ResumeAfterConfirmationsAsync(IReadOnlyList<AgentConfirmationDecision> decisions)
-    {
-        if (_session is null || !_awaitingConfirmation || decisions.Count == 0) return;
-        _awaitingConfirmation = false;
-        _isProcessing = true;
-        SetInputEnabled(false);
-
-        BeginStreaming();
-
-        try
-        {
-            await Task.Run(() => _session.ResumeConfirmationsAsync(decisions));
-            FinalizeStreaming();
-        }
-        catch (OperationCanceledException)
-        {
-            FinalizeStreaming();
-            AddSystemMessage("已取消");
-        }
-        catch (Exception ex)
-        {
-            FinalizeStreaming();
-            AddErrorMessage(AgentErrorPolicy.FormatApiError(ex));
-        }
-        finally
-        {
-            _isProcessing = false;
-            SetInputEnabled(true);
-            _session.Save();
-        }
-    }
-
-    // ---------- 气泡构建（保持原有紧凑样式） ----------
-
-    private void BeginStreaming()
-    {
-        _streamingContent = new StringBuilder();
-        _streamingTb = new TextBlock
-        {
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 14,
-            IsTextSelectionEnabled = true
-        };
-
-        var cursor = new Border
-        {
-            Width = 2,
-            Height = 16,
-            Background = (Brush)Application.Current.Resources["AccentTextFillColorPrimaryBrush"],
-            CornerRadius = new CornerRadius(1),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(2, 0, 0, 0)
-        };
-
-        var headerRow = new StackPanel { Orientation = Orientation.Horizontal };
-        headerRow.Children.Add(_streamingTb);
-        headerRow.Children.Add(cursor);
-
-        var stack = new StackPanel { Spacing = 6 };
-        stack.Children.Add(headerRow);
-
-        _streamingBubble = new Border
-        {
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Background = (Brush)Application.Current.Resources["CardBackgroundFillColorSecondaryBrush"],
-            CornerRadius = new CornerRadius(12, 12, 12, 4),
-            Padding = new Thickness(16, 10, 16, 10),
-            MaxWidth = 368,
-            Child = stack
-        };
-
-        _chatList.Children.Add(_streamingBubble);
-        ScrollToBottom();
-    }
-
-    private void AppendChunk(string chunk)
-    {
-        if (_streamingContent is null || _streamingTb is null) return;
-        _streamingContent.Append(chunk);
-        _streamingTb.Text = _streamingContent.ToString();
-        ScrollToBottom();
-    }
-
-    private void FinalizeStreaming()
-    {
-        if (_streamingBubble is null) return;
-        var bubble = _streamingBubble;
-        var content = _streamingContent?.ToString() ?? "";
-        _streamingBubble = null;
-        _streamingTb = null;
-        _streamingContent = null;
-
-        var idx = _chatList.Children.IndexOf(bubble);
-        if (idx < 0) return;
-        _chatList.Children.RemoveAt(idx);
-
-        if (string.IsNullOrWhiteSpace(content)) return;
-
-        AddAssistantBubble(content, insertAt: idx);
-    }
-
-    private void AddAssistantBubble(string content, bool scrollToBottom = true, int? insertAt = null)
-    {
-        var rendered = AiMarkdownRenderer.Render(content);
-        rendered.MaxWidth = 368;
-
-        var border = new Border
-        {
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Background = (Brush)Application.Current.Resources["CardBackgroundFillColorSecondaryBrush"],
-            CornerRadius = new CornerRadius(12, 12, 12, 4),
-            Padding = new Thickness(16, 10, 16, 10),
-            Child = rendered
-        };
-
-        if (insertAt is int idx && idx >= 0 && idx <= _chatList.Children.Count)
-            _chatList.Children.Insert(idx, border);
-        else
-            _chatList.Children.Add(border);
-
-        if (scrollToBottom)
-            ScrollToBottom();
-    }
-
-    private void AddUserMessage(string text, bool scrollToBottom = true)
-    {
-        var border = new Border
-        {
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Background = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
-            CornerRadius = new CornerRadius(12, 12, 4, 12),
-            Padding = new Thickness(16, 10, 16, 10),
-            MaxWidth = 320,
-            Child = new TextBlock
-            {
-                Text = text,
-                TextWrapping = TextWrapping.Wrap,
-                FontSize = 14,
-                Foreground = (Brush)Application.Current.Resources["TextOnAccentFillColorPrimaryBrush"]
-            }
-        };
-
-        _chatList.Children.Add(border);
-        if (scrollToBottom)
-            ScrollToBottom();
-    }
-
-    private void AddSystemMessage(string text, bool scrollToBottom = true)
-    {
-        var border = new Border
-        {
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Background = (Brush)Application.Current.Resources["CardBackgroundFillColorSecondaryBrush"],
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(16, 10, 16, 10),
-            MaxWidth = 368,
-            Child = new TextBlock
-            {
-                Text = text,
-                TextWrapping = TextWrapping.Wrap,
-                FontSize = 13,
-                Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
-            }
-        };
-
-        _chatList.Children.Add(border);
-        if (scrollToBottom)
-            ScrollToBottom();
-    }
-
-    private void AddErrorMessage(string text)
-    {
-        var border = new Border
-        {
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Background = new SolidColorBrush(Color.FromArgb(40, 196, 43, 28)),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(16, 10, 16, 10),
-            MaxWidth = 368,
-            Child = new ScrollViewer
-            {
-                MaxHeight = 180,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                Content = new TextBlock
-                {
-                    Text = text,
-                    TextWrapping = TextWrapping.Wrap,
-                    FontSize = 13,
-                    IsTextSelectionEnabled = true,
-                    Foreground = new SolidColorBrush(Color.FromArgb(255, 196, 43, 28))
-                }
-            }
-        };
-
-        _chatList.Children.Add(border);
-        ScrollToBottom();
-    }
-
-    private void AddToolCallIndicator(AgentStep step)
-    {
-        var stack = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-        stack.Children.Add(new FontIcon
-        {
-            Glyph = step.Glyph,
-            FontSize = 12,
-            Foreground = (Brush)Application.Current.Resources["AccentTextFillColorPrimaryBrush"]
-        });
-
-        var displayText = string.IsNullOrWhiteSpace(step.Summary)
-            ? $"调用工具：{step.DisplayName}"
-            : $"{step.DisplayName}：{step.Summary}";
-
-        stack.Children.Add(new TextBlock
-        {
-            Text = displayText,
-            FontSize = 12,
-            Foreground = (Brush)Application.Current.Resources["AccentTextFillColorPrimaryBrush"],
-            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-            MaxWidth = 300
-        });
-
-        var border = new Border
-        {
-            Background = (Brush)Application.Current.Resources["ControlFillColorSecondaryBrush"],
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(8, 4, 8, 4),
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Child = stack
-        };
-
-        _chatList.Children.Add(border);
-        ScrollToBottom();
-    }
-
-    private void AddToolResultIndicator(AgentStep step)
-    {
-        var text = step.Status == AgentStepStatus.Failed
-            ? (step.Error ?? "执行失败")
-            : step.Status == AgentStepStatus.Rejected
-                ? "（用户已拒绝）"
-                : step.Result;
-
-        if (string.IsNullOrWhiteSpace(text)) return;
-
-        var truncated = text.Length > 300 ? text.Substring(0, 300) + "..." : text;
-
-        var tb = new TextBlock
-        {
-            Text = truncated,
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 11,
-            Foreground = (Brush)Application.Current.Resources["TextFillColorTertiaryBrush"],
-            MaxHeight = 80,
-            FontFamily = new FontFamily("Cascadia Code, Consolas")
-        };
-
-        var border = new Border
-        {
-            Background = (Brush)Application.Current.Resources["CardBackgroundFillColorSecondaryBrush"],
-            CornerRadius = new CornerRadius(4),
-            Padding = new Thickness(8, 4, 8, 4),
-            Margin = new Thickness(16, 0, 0, 0),
-            MaxWidth = 344,
-            Child = new ScrollViewer
-            {
-                Content = tb,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                MaxHeight = 80
-            }
-        };
-
-        _chatList.Children.Add(border);
-        ScrollToBottom();
-    }
-
-    private void ScrollToBottom()
-    {
-        if (ChatScrollViewer.ScrollableHeight <= 0) return;
-        ChatScrollViewer.ChangeView(null, ChatScrollViewer.ScrollableHeight, null);
-    }
-
     private void FullAssistantButton_Click(object sender, RoutedEventArgs e)
     {
         var tool = new AiAssistantTool();
@@ -694,5 +362,173 @@ public sealed partial class AiQuickAskFlyout : UserControl
     private void AiSettingsButton_Click(object sender, RoutedEventArgs e)
     {
         App.MainWindow?.NavigateToSettings("AiApiEndpoint");
+    }
+
+    // ---------- 技能 / 持久化 ----------
+
+    private static string SkillsPath(string id) => Path.Combine(HistoryDir, $"{id}.skills.json");
+
+    /// <summary>加载会话技能状态：文件缺失时默认全部技能激活（与完整版共用存档）。</summary>
+    private void LoadSkills(string id)
+    {
+        _activeSkillIds.Clear();
+        try
+        {
+            if (File.Exists(SkillsPath(id)))
+            {
+                var ids = JsonSerializer.Deserialize<List<string>>(File.ReadAllText(SkillsPath(id)));
+                if (ids is not null)
+                    foreach (var skillId in ids)
+                        if (AgentSkillRegistry.Find(skillId) is not null)
+                            _activeSkillIds.Add(skillId);
+            }
+            else
+            {
+                foreach (var skill in AgentSkillRegistry.All)
+                    _activeSkillIds.Add(skill.Id);
+            }
+        }
+        catch
+        {
+            foreach (var skill in AgentSkillRegistry.All)
+                _activeSkillIds.Add(skill.Id);
+        }
+    }
+
+    private void SaveSkills()
+    {
+        try
+        {
+            var path = SkillsPath(_conversationId);
+            var dir = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+            File.WriteAllText(path, JsonSerializer.Serialize(_activeSkillIds.OrderBy(x => x).ToList()));
+        }
+        catch { }
+    }
+
+    /// <summary>防抖保存（1.2s）；关闭/切换时立即保存。</summary>
+    private void ScheduleSave()
+    {
+        if (_saveTimer is null)
+        {
+            _saveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.2) };
+            _saveTimer.Tick += (_, _) => SaveNow();
+        }
+        _saveTimer.Stop();
+        _saveTimer.Start();
+    }
+
+    private void SaveNow()
+    {
+        _saveTimer?.Stop();
+        if (_persisted.Count == 0) return;
+        try
+        {
+            var messages = _persisted
+                .Select(p => new AiChatMessage
+                {
+                    Role = p.Role,
+                    Content = p.Content,
+                    ReasoningContent = p.Thinking
+                })
+                .ToList();
+            AiAssistantService.SaveConversation(_conversationId, _title, messages);
+
+            if (_sessionPromptTokens + _sessionCompletionTokens > 0)
+            {
+                AiAssistantService.SaveConversationDisplay(_conversationId,
+                [
+                    new ConversationDisplayItem
+                    {
+                        Type = "meta",
+                        PromptTokens = _sessionPromptTokens,
+                        CompletionTokens = _sessionCompletionTokens,
+                        CacheHitTokens = _sessionCacheHits,
+                        CacheMissTokens = _sessionCacheMisses,
+                    }
+                ]);
+            }
+            SaveSkills();
+        }
+        catch { }
+    }
+
+    // ---------- 统计 / 记忆 ----------
+
+    private void OnUsageReported(TokenUsage? usage)
+    {
+        if (usage is null) return;
+        _dq.TryEnqueue(() =>
+        {
+            _sessionPromptTokens += usage.InputTokens;
+            _sessionCompletionTokens += usage.OutputTokens;
+            if (usage.CacheReadInputTokens is { } hit)
+            {
+                _sessionCacheHits += (int)hit;
+                _sessionCacheMisses = Math.Max(0, _sessionPromptTokens - _sessionCacheHits);
+            }
+        });
+    }
+
+    private void OnMemoryModified()
+    {
+        _dq.TryEnqueue(() =>
+        {
+            if (_memory is { } m)
+                Chat.MemoryText = m.Read() ?? "";
+        });
+    }
+
+    private void ResetTokenStats()
+        => _sessionPromptTokens = _sessionCompletionTokens = _sessionCacheHits = _sessionCacheMisses = 0;
+
+    /// <summary>等待 ChatPanel 的 WebView2 渲染器初始化（最多 10 秒）。</summary>
+    private async Task WhenChatReadyAsync()
+    {
+        for (var i = 0; i < 100 && !Chat.IsInitialized; i++)
+            await Task.Delay(100);
+    }
+
+    // ---------- 空状态 / 欢迎 ----------
+
+    private UIElement BuildWelcomeContent()
+    {
+        var panel = new StackPanel
+        {
+            MaxWidth = 420,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Spacing = 12,
+            Padding = new Thickness(20, 12, 20, 12)
+        };
+
+        if (AiService.IsUsingDefaultModel)
+        {
+            panel.Children.Add(new TextBlock
+            {
+                Text = "⚠️ 自带模型可能出现排队/限额满速，质量低下等问题。可在 设置 → AI 服务 中配置自己的 API Key 和模型。",
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = (Brush)Application.Current.Resources["SystemFillColorCautionBrush"]
+            });
+        }
+
+        panel.Children.Add(new TextBlock
+        {
+            Text = "我是图吧助手，可以快速提问：诊断问题、执行修复、读写文件、搜索最新资讯…\n（危险操作会先请你确认）",
+            FontSize = 13,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+        });
+
+        panel.Children.Add(new TextBlock
+        {
+            Text = "点上面的快捷问题或直接输入需求，Enter 发送。",
+            FontSize = 11,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = (Brush)Application.Current.Resources["TextFillColorTertiaryBrush"]
+        });
+        return panel;
     }
 }

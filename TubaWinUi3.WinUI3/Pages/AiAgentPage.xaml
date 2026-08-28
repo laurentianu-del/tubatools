@@ -5,6 +5,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:assist="using:FieldCure.AssistStudio.Controls"
     mc:Ignorable="d"
     Loaded="OnPageLoaded">
 
@@ -19,10 +20,9 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- 企业级 Agent 顶栏：会话、模型、权限、用量集中展示 -->
+        <!-- 顶栏：会话、模型、权限、用量集中展示 -->
         <Border Padding="20,14" Background="{ThemeResource LayerFillColorDefaultBrush}"
                 BorderThickness="0,0,0,1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
             <Grid ColumnSpacing="14">
@@ -54,13 +54,21 @@
                         <TextBlock Text="·" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                         <TextBlock x:Name="RunStateText" Text="就绪" FontSize="12"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                        <TextBlock Text="·" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-                        <TextBlock x:Name="HeaderTokenText" Text="0 tokens" FontSize="12"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Border x:Name="TokenUsageBubble" CornerRadius="12" Padding="10,7"
+                            Background="{ThemeResource ControlFillColorSecondaryBrush}"
+                            VerticalAlignment="Center" Visibility="Collapsed"
+                            ToolTipService.ToolTip="本会话累计消耗的 tokens（多轮对话累加）">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE823;" FontSize="12"
+                                      Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                            <TextBlock x:Name="TokenUsageText" FontSize="12"
+                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                        </StackPanel>
+                    </Border>
                     <ComboBox x:Name="ProviderCombo" MinWidth="128" MaxWidth="168" Padding="10,5" FontSize="12"
                               DisplayMemberPath="Name" VerticalAlignment="Center" SelectionChanged="ProviderCombo_SelectionChanged"
                               ToolTipService.ToolTip="切换 AI 服务提供商（可在 设置 → AI 服务 中管理）" />
@@ -99,59 +107,11 @@
             </Grid>
         </Border>
 
-        <!-- 消息工作区 -->
-        <Grid Grid.Row="1">
-            <ScrollViewer x:Name="MsgScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
-                <StackPanel x:Name="MsgPanel" MaxWidth="1040" HorizontalAlignment="Center"
-                            Padding="24,18,24,16" />
-            </ScrollViewer>
-        </Grid>
-
-        <!-- 输入控制台 -->
-        <Border Grid.Row="2" Padding="20,12,20,18" Background="{ThemeResource LayerFillColorDefaultBrush}"
-                BorderThickness="0,1,0,0" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
-            <StackPanel MaxWidth="1040" HorizontalAlignment="Center" Spacing="10">
-                <ScrollViewer HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled">
-                    <StackPanel x:Name="QuickPillPanel" Orientation="Horizontal" Spacing="8" />
-                </ScrollViewer>
-
-                <Border CornerRadius="16" Padding="10" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                    <Grid ColumnSpacing="10">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBox x:Name="InputBox" MinHeight="46" MaxHeight="140"
-                                 PlaceholderText="描述目标，或直接要求助手诊断、执行命令、整理报告…（Enter 发送，Shift+Enter 换行）"
-                                 AcceptsReturn="True" TextWrapping="Wrap"
-                                 BorderThickness="0" Background="Transparent"
-                                 Padding="4,8" KeyDown="InputBox_KeyDown" />
-                        <Border x:Name="TokenUsageBubble" Grid.Column="1" CornerRadius="12"
-                                Padding="10,7" Background="{ThemeResource ControlFillColorSecondaryBrush}"
-                                VerticalAlignment="Center" Visibility="Collapsed"
-                                ToolTipService.ToolTip="本会话累计消耗的 tokens（多轮对话累加）">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <FontIcon Glyph="&#xE823;" FontSize="12"
-                                          Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-                                <TextBlock x:Name="TokenUsageText" FontSize="12"
-                                           Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-                            </StackPanel>
-                        </Border>
-                        <Button x:Name="SendButton" Grid.Column="2" Width="44" Height="44"
-                                CornerRadius="14" Click="SendButton_Click"
-                                Background="{ThemeResource AccentFillColorDefaultBrush}">
-                            <FontIcon Glyph="&#xE72A;" FontSize="16"
-                                      Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
-                        </Button>
-                        <Button x:Name="StopButton" Grid.Column="2" Width="44" Height="44"
-                                CornerRadius="14" Visibility="Collapsed" Click="StopButton_Click">
-                            <FontIcon Glyph="&#xE71A;" FontSize="15" />
-                        </Button>
-                    </Grid>
-                </Border>
-            </StackPanel>
-        </Border>
+        <!-- FieldCure ChatPanel：消息流式渲染（WebView2 Markdown）、工具调用内联显示、
+             危险操作 ToolApprovalPanel 确认、输入控制台 —— 全部由组件库接管 -->
+        <assist:ChatPanel
+            x:Name="Chat"
+            Grid.Row="1"
+            Placeholder="描述目标，或直接要求助手诊断、执行命令、整理报告…（Enter 发送，Shift+Enter 换行）" />
     </Grid>
 </UserControl>

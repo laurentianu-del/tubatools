@@ -167,7 +167,10 @@ namespace TubaWinUi3.Compatible.Services
             section.Items.Add(gpuItem);
             var npuName = DetectNpuName();
             if (npuName != null)
-                section.Items.Add(Item("NPU", npuName));
+            {
+                var tops = NpuCatalog.LookupTops(npuName, cpuName);
+                section.Items.Add(Item("NPU", tops != null ? npuName + "（" + tops + "）" : npuName));
+            }
             section.Items.Add(Item("显示器", FormatDisplays()));
             section.Items.Add(Item("硬盘", FormatDisks()));
             section.Items.Add(Item("声卡", JoinNames("Win32_SoundDevice", item =>

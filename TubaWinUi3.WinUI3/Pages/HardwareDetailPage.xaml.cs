@@ -560,6 +560,7 @@ public sealed partial class HardwareDetailPage : Page
     {
         var items = new List<HardwareInfoItem>();
         if (!string.IsNullOrWhiteSpace(npu.Name)) items.Add(Item("名称", npu.Name));
+        if (!string.IsNullOrWhiteSpace(npu.ComputeCapability)) items.Add(Item("算力", npu.ComputeCapability));
         if (!string.IsNullOrWhiteSpace(npu.Manufacturer)) items.Add(Item("制造商", npu.Manufacturer));
         if (!string.IsNullOrWhiteSpace(npu.DriverVersion)) items.Add(Item("驱动版本", npu.DriverVersion));
         if (!string.IsNullOrWhiteSpace(npu.DriverDate)) items.Add(Item("驱动日期", npu.DriverDate));

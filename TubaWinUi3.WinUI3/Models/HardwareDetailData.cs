@@ -137,4 +137,7 @@ public sealed class NpuDetail
     public string? DriverVersion { get; set; }
     public string? DriverDate { get; set; }
     public string? DeviceId { get; set; }
+
+    /// <summary>算力（如 "48 TOPS"），通过型号查 NpuCatalog 得到，未知为 null。</summary>
+    public string? ComputeCapability { get; set; }
 }

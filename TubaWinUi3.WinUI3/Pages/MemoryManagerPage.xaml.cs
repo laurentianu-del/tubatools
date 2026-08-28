@@ -7,6 +7,7 @@ using TubaWinUi3.Services;
 
 namespace TubaWinUi3.Pages;
 
+/// <summary>RAMMap 优化版内存管理页: 清理操作由 RAMMap 命令行驱动, 分析面板 (使用量/进程/优先级/物理内存/文件缓存) 呈现。</summary>
 public sealed partial class MemoryManagerPage : Page
 {
     private static readonly string[] CleanTypeNames = ["全部清理", "清理待机内存", "收紧系统工作集"];
@@ -25,6 +26,7 @@ public sealed partial class MemoryManagerPage : Page
     private bool _cleaning;
     private DateTime _lastScheduledClean = DateTime.MinValue;
     private DateTime _lastPageFileFetch = DateTime.MinValue;
+    private long _installedBytes;
 
     private sealed class PageFileRowUi
     {
@@ -39,9 +41,11 @@ public sealed partial class MemoryManagerPage : Page
         public required TextBlock NameText { get; init; }
         public required TextBlock PidText { get; init; }
         public required ProgressBar Bar { get; init; }
-        public required TextBlock PctText { get; init; }
         public required TextBlock MemText { get; init; }
         public required TextBlock PrivateText { get; init; }
+        public required TextBlock PagedText { get; init; }
+        public required TextBlock NonpagedText { get; init; }
+        public required TextBlock VirtualText { get; init; }
     }
 
     public MemoryManagerPage()
@@ -75,6 +79,7 @@ public sealed partial class MemoryManagerPage : Page
         };
 
         _refreshTimer.Tick += async (_, _) => await RefreshAllAsync();
+        _ = LoadPhysicalModulesAsync();
         _refreshTimer.Start();
         _ = RefreshAllAsync();
     }
@@ -87,11 +92,16 @@ public sealed partial class MemoryManagerPage : Page
         _refreshing = true;
         try
         {
-            var (stats, procs) = await Task.Run(() => MemoryManagerService.GetSnapshot(10));
+            var (stats, procs) = await Task.Run(() => MemoryManagerService.GetSnapshot(20));
+            var breakdown = await Task.Run(() => MemoryManagerService.GetMemoryListBreakdown(_installedBytes));
+            var perf = await Task.Run(MemoryManagerService.GetPerfBreakdown);
             DispatcherQueue.TryEnqueue(() =>
             {
-                UpdateStatsUi(stats);
+                UpdateUseCountsUi(breakdown, perf, stats);
                 UpdateProcessList(procs, stats.PhysicalTotal);
+                var total = breakdown.PhysicalTotalBytes > 0 ? breakdown.PhysicalTotalBytes : stats.PhysicalTotal;
+                UpdatePriorityUi(perf, total);
+                UpdateFileCacheUi(perf, total);
                 CheckScheduledClean(stats);
             });
             await UpdatePageFileUsageAsync();
@@ -103,22 +113,45 @@ public sealed partial class MemoryManagerPage : Page
         }
     }
 
-    private void UpdateStatsUi(MemoryStats stats)
-    {
-        PhysUsedText.Text = $"已用 {MemoryManagerService.FormatBytes(stats.PhysicalUsed)}";
-        PhysAvailText.Text = $"可用 {MemoryManagerService.FormatBytes(stats.PhysicalAvailable)}";
-        PhysTotalText.Text = $"总共 {MemoryManagerService.FormatBytes(stats.PhysicalTotal)}";
-        SetBar(PhysBar, PhysPercentText, stats.PhysicalUsed, stats.PhysicalTotal);
+    // ---------- 使用量 (Use Counts) ----------
 
-        VirtualUsedText.Text = $"已用 {MemoryManagerService.FormatBytes(stats.VirtualUsed)}";
-        VirtualAvailText.Text = $"可用 {MemoryManagerService.FormatBytes(stats.VirtualAvailable)}";
-        VirtualTotalText.Text = $"总共 {MemoryManagerService.FormatBytes(stats.VirtualTotal)}";
-        SetBar(VirtualBar, VirtualPercentText, stats.VirtualUsed, stats.VirtualTotal);
+    private void UpdateUseCountsUi(MemoryListBreakdown b, MemoryPerfBreakdown p, MemoryStats stats)
+    {
+        var total = b.PhysicalTotalBytes > 0 ? b.PhysicalTotalBytes : stats.PhysicalTotal;
+        SetUseRow(InUseBar, InUseText, InUsePctText, b.InUseBytes, total);
+        SetUseRow(ModifiedBar, ModifiedText, ModifiedPctText, b.ModifiedBytes, total);
+        SetUseRow(StandbyBar, StandbyText, StandbyPctText, b.StandbyBytes, total);
+        SetUseRow(FreeBar, FreeText, FreePctText, b.FreeBytes, total);
+        SetUseRow(ZeroBar, ZeroText, ZeroPctText, b.ZeroBytes, total);
+        SetUseRow(BadBar, BadText, BadPctText, b.BadBytes, total);
+        HardwareReservedText.Text = MemoryManagerService.FormatBytes(b.HardwareReservedBytes);
+
+        SetUseRow(PoolPagedBar, PoolPagedText, PoolPagedPctText, p.PoolPagedBytes, total);
+        SetUseRow(PoolNonpagedBar, PoolNonpagedText, PoolNonpagedPctText, p.PoolNonpagedBytes, total);
+        SetUseRow(SysCacheBar, SysCacheText, SysCachePctText, p.SystemCacheResidentBytes, total);
+        SetUseRow(SysCodeBar, SysCodeText, SysCodePctText, p.SystemCodeBytes, total);
+        SetUseRow(SysDriverBar, SysDriverText, SysDriverPctText, p.SystemDriverBytes, total);
+        var known = p.PoolPagedBytes + p.PoolNonpagedBytes + p.SystemCacheResidentBytes + p.SystemCodeBytes + p.SystemDriverBytes;
+        SetUseRow(OtherInUseBar, OtherInUseText, OtherInUsePctText, Math.Max(0, b.InUseBytes - known), total);
+
+        CommitUsedText.Text = $"已用 {MemoryManagerService.FormatBytes(p.CommittedBytes)}";
+        CommitAvailText.Text = $"可用 {MemoryManagerService.FormatBytes(Math.Max(0, p.CommitLimitBytes - p.CommittedBytes))}";
+        CommitTotalText.Text = $"总共 {MemoryManagerService.FormatBytes(p.CommitLimitBytes)}";
+        SetBar(CommitBar, CommitPctText, p.CommittedBytes, p.CommitLimitBytes);
 
         WsUsedText.Text = $"已用 {MemoryManagerService.FormatBytes(stats.WorkingSetUsed)}";
         WsAvailText.Text = $"可用 {MemoryManagerService.FormatBytes(stats.WorkingSetAvailable)}";
         WsTotalText.Text = $"总共 {MemoryManagerService.FormatBytes(stats.WorkingSetTotal)}";
-        SetBar(WsBar, WsPercentText, stats.WorkingSetUsed, stats.WorkingSetTotal);
+        SetBar(WsBar, WsPctText, stats.WorkingSetUsed, stats.WorkingSetTotal);
+    }
+
+    private static void SetUseRow(ProgressBar bar, TextBlock text, TextBlock pctText, long value, long total)
+    {
+        text.Text = MemoryManagerService.FormatBytes(value);
+        if (total <= 0) return;
+        var pct = (double)value / total * 100;
+        bar.Value = Math.Clamp(pct, 0, 100);
+        pctText.Text = $"{pct:F1}%";
     }
 
     private static void SetBar(ProgressBar bar, TextBlock percentText, long used, long total)
@@ -128,6 +161,8 @@ public sealed partial class MemoryManagerPage : Page
         bar.Value = Math.Clamp(pct, 0, 100);
         percentText.Text = $"已使用 {pct:F1}%";
     }
+
+    // ---------- 进程明细 ----------
 
     private void UpdateProcessList(List<ProcessMemoryInfo> procs, long totalBytes)
     {
@@ -156,10 +191,12 @@ public sealed partial class MemoryManagerPage : Page
     private ListViewItem CreateProcItem(ProcessMemoryInfo p, long totalBytes)
     {
         var grid = new Grid { Padding = new Thickness(0, 6, 0, 6), ColumnSpacing = 10 };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(130) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });
 
         var avatar = new Border
         {
@@ -183,45 +220,42 @@ public sealed partial class MemoryManagerPage : Page
             FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             TextTrimming = TextTrimming.CharacterEllipsis
         };
-        var pidText = new TextBlock
-        {
-            FontSize = 10.5,
-            Opacity = 0.55
-        };
+        var pidText = new TextBlock { FontSize = 10.5, Opacity = 0.55 };
         var nameStack = new StackPanel { Spacing = 1, VerticalAlignment = VerticalAlignment.Center };
         nameStack.Children.Add(nameText);
         nameStack.Children.Add(pidText);
 
-        var bar = new ProgressBar { Maximum = 100, Height = 5 };
-        var pctText = new TextBlock { FontSize = 10.5, Opacity = 0.55 };
-        var barStack = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
-        barStack.Children.Add(bar);
-        barStack.Children.Add(pctText);
+        var nameRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, VerticalAlignment = VerticalAlignment.Center };
+        nameRow.Children.Add(avatar);
+        nameRow.Children.Add(nameStack);
 
+        var bar = new ProgressBar { Maximum = 100, Height = 5 };
         var memText = new TextBlock
         {
-            FontSize = 12.5,
+            FontSize = 11,
             FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             HorizontalAlignment = HorizontalAlignment.Right
         };
-        var privateText = new TextBlock
-        {
-            FontSize = 10.5,
-            Opacity = 0.55,
-            HorizontalAlignment = HorizontalAlignment.Right
-        };
-        var memStack = new StackPanel { Spacing = 1, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
-        memStack.Children.Add(memText);
-        memStack.Children.Add(privateText);
+        var wsStack = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+        wsStack.Children.Add(bar);
+        wsStack.Children.Add(memText);
 
-        grid.Children.Add(avatar);
-        Grid.SetColumn(avatar, 0);
-        grid.Children.Add(nameStack);
-        Grid.SetColumn(nameStack, 1);
-        grid.Children.Add(barStack);
-        Grid.SetColumn(barStack, 2);
-        grid.Children.Add(memStack);
-        Grid.SetColumn(memStack, 3);
+        var privateText = new TextBlock { FontSize = 12.5, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+        var pagedText = new TextBlock { FontSize = 12.5, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+        var nonpagedText = new TextBlock { FontSize = 12.5, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+        var virtualText = new TextBlock { FontSize = 12.5, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+
+        grid.Children.Add(nameRow);
+        grid.Children.Add(wsStack);
+        Grid.SetColumn(wsStack, 1);
+        grid.Children.Add(privateText);
+        Grid.SetColumn(privateText, 2);
+        grid.Children.Add(pagedText);
+        Grid.SetColumn(pagedText, 3);
+        grid.Children.Add(nonpagedText);
+        Grid.SetColumn(nonpagedText, 4);
+        grid.Children.Add(virtualText);
+        Grid.SetColumn(virtualText, 5);
 
         var item = new ListViewItem
         {
@@ -233,9 +267,11 @@ public sealed partial class MemoryManagerPage : Page
                 NameText = nameText,
                 PidText = pidText,
                 Bar = bar,
-                PctText = pctText,
                 MemText = memText,
-                PrivateText = privateText
+                PrivateText = privateText,
+                PagedText = pagedText,
+                NonpagedText = nonpagedText,
+                VirtualText = virtualText
             }
         };
         UpdateProcItem(item, p, totalBytes);
@@ -249,12 +285,33 @@ public sealed partial class MemoryManagerPage : Page
         ui.PidText.Text = $"PID {p.Pid}";
         var pct = totalBytes > 0 ? (double)p.WorkingSet / totalBytes * 100 : 0;
         ui.Bar.Value = Math.Clamp(pct, 0, 100);
-        ui.PctText.Text = $"{pct:F1}%";
-        ui.MemText.Text = MemoryManagerService.FormatBytes(p.WorkingSet);
-        ui.PrivateText.Text = $"私有 {MemoryManagerService.FormatBytes(p.PrivateMemory)}";
+        ui.MemText.Text = $"{MemoryManagerService.FormatBytes(p.WorkingSet)} · {pct:F1}%";
+        ui.PrivateText.Text = MemoryManagerService.FormatBytes(p.PrivateMemory);
+        ui.PagedText.Text = MemoryManagerService.FormatBytes(p.PagedMemory);
+        ui.NonpagedText.Text = MemoryManagerService.FormatBytes(p.NonpagedMemory);
+        ui.VirtualText.Text = MemoryManagerService.FormatBytes(p.VirtualMemory);
     }
 
-    // ---------- 分页文件磁盘占用 (每 10 秒查询一次 WMI) ----------
+    // ---------- 优先级汇总 (Priority Summary) ----------
+
+    private void UpdatePriorityUi(MemoryPerfBreakdown p, long total)
+    {
+        SetUseRow(ReserveBar, ReserveText, ReservePctText, p.StandbyReserveBytes, total);
+        SetUseRow(NormalBar, NormalText, NormalPctText, p.StandbyNormalBytes, total);
+        SetUseRow(CoreBar, CoreText, CorePctText, p.StandbyCoreBytes, total);
+        SetUseRow(ModListBar, ModListText, ModListPctText, p.ModifiedListBytes, total);
+        SetUseRow(FreeZeroBar, FreeZeroText, FreeZeroPctText, p.FreeZeroListBytes, total);
+    }
+
+    // ---------- 文件缓存汇总 + 分页文件磁盘占用 ----------
+
+    private void UpdateFileCacheUi(MemoryPerfBreakdown p, long total)
+    {
+        SetUseRow(CacheBytesBar, CacheBytesText, CacheBytesPctText, p.SystemCacheBytes, total);
+        SetUseRow(SysCacheResBar, SysCacheResText, SysCacheResPctText, p.SystemCacheResidentBytes, total);
+        SetUseRow(CachePeakBar, CachePeakText, CachePeakPctText, p.CachePeakBytes, total);
+        SetUseRow(PoolPagedResBar, PoolPagedResText, PoolPagedResPctText, p.PoolPagedResidentBytes, total);
+    }
 
     private async Task UpdatePageFileUsageAsync()
     {
@@ -264,19 +321,109 @@ public sealed partial class MemoryManagerPage : Page
         var usage = await Task.Run(MemoryManagerService.GetPageFileUsage);
         DispatcherQueue.TryEnqueue(() =>
         {
+            PfUsageList.Items.Clear();
             if (usage.Count == 0)
             {
+                var empty = new ListViewItem { Content = new TextBlock { Text = "未启用或无数据", FontSize = 12, Opacity = 0.6 } };
+                PfUsageList.Items.Add(empty);
                 VirtualPageFileText.Text = "分页文件: 未启用或无数据";
                 return;
             }
+
             var curMB = usage.Sum(u => u.CurrentUsageMB);
             var allocMB = usage.Sum(u => u.AllocatedMB);
             VirtualPageFileText.Text =
                 $"分页文件: {MemoryManagerService.FormatBytes(curMB * 1024L * 1024L)} / 分配 {MemoryManagerService.FormatBytes(allocMB * 1024L * 1024L)}";
+
+            foreach (var u in usage)
+            {
+                var grid = new Grid { Padding = new Thickness(0, 4, 0, 4), ColumnSpacing = 8 };
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
+
+                var nameCell = new TextBlock
+                {
+                    Text = u.Name,
+                    FontSize = 12.5,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                };
+                var currentCell = CreateRightText(MemoryManagerService.FormatBytes(u.CurrentUsageMB * 1024L * 1024L));
+                var allocatedCell = CreateRightText(MemoryManagerService.FormatBytes(u.AllocatedMB * 1024L * 1024L));
+                var pct = u.AllocatedMB > 0 ? (double)u.CurrentUsageMB / u.AllocatedMB * 100 : 0;
+                var pctCell = CreateRightText($"{pct:F1}%");
+
+                grid.Children.Add(nameCell);
+                grid.Children.Add(currentCell);
+                Grid.SetColumn(currentCell, 1);
+                grid.Children.Add(allocatedCell);
+                Grid.SetColumn(allocatedCell, 2);
+                grid.Children.Add(pctCell);
+                Grid.SetColumn(pctCell, 3);
+
+                PfUsageList.Items.Add(new ListViewItem { Content = grid, Padding = new Thickness(0, 0, 0, 0), HorizontalContentAlignment = HorizontalAlignment.Stretch });
+            }
         });
     }
 
-    // ---------- 手动清理 ----------
+    private static TextBlock CreateRightText(string text) => new()
+    {
+        Text = text,
+        FontSize = 12.5,
+        HorizontalAlignment = HorizontalAlignment.Right,
+        VerticalAlignment = VerticalAlignment.Center
+    };
+
+    // ---------- 物理内存模块 ----------
+
+    private async Task LoadPhysicalModulesAsync()
+    {
+        var modules = await Task.Run(MemoryManagerService.GetPhysicalModules);
+        _installedBytes = modules.Sum(m => m.CapacityBytes);
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            PhysSummaryText.Text = $"共 {modules.Count} 条 · 安装 {MemoryManagerService.FormatBytes(_installedBytes)}";
+            PhysList.Items.Clear();
+            foreach (var m in modules)
+            {
+                var grid = new Grid { Padding = new Thickness(0, 4, 0, 4), ColumnSpacing = 8 };
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+                void AddCell(string text, int col)
+                {
+                    var t = new TextBlock { Text = text, FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+                    if (col != 0 && col != 4 && col != 5) t.HorizontalAlignment = HorizontalAlignment.Right;
+                    grid.Children.Add(t);
+                    Grid.SetColumn(t, col);
+                }
+
+                AddCell(string.IsNullOrWhiteSpace(m.DeviceLocator) ? "--" : m.DeviceLocator, 0);
+                AddCell(MemoryManagerService.FormatBytes(m.CapacityBytes), 1);
+                AddCell(m.Speed, 2);
+                AddCell(m.TypeName, 3);
+                AddCell(string.IsNullOrWhiteSpace(m.Manufacturer) ? "--" : m.Manufacturer, 4);
+                AddCell(string.IsNullOrWhiteSpace(m.PartNumber) ? "--" : m.PartNumber, 5);
+
+                PhysList.Items.Add(new ListViewItem { Content = grid, Padding = new Thickness(0, 0, 0, 0), HorizontalContentAlignment = HorizontalAlignment.Stretch });
+            }
+            PhysRefreshButton.IsEnabled = true;
+        });
+    }
+
+    private void PhysRefreshButton_Click(object sender, RoutedEventArgs e)
+    {
+        PhysRefreshButton.IsEnabled = false;
+        _ = LoadPhysicalModulesAsync();
+    }
+
+    // ---------- 手动清理 (RAMMap 命令行) ----------
 
     private void CleanAllButton_Click(object sender, RoutedEventArgs e) => RunClean(0, "全部清理");
 
@@ -288,41 +435,38 @@ public sealed partial class MemoryManagerPage : Page
     {
         if (_cleaning) return;
         _cleaning = true;
-        ShowToast($"正在执行{label}...", InfoBarSeverity.Informational);
+        ShowToast($"正在通过 RAMMap 执行{label}...", InfoBarSeverity.Informational);
 
         try
         {
-            var freed = await Task.Run(() =>
+            var code = type switch
             {
-                switch (type)
-                {
-                    case 1: return MemoryManagerService.CleanStandbyMemory();
-                    case 2: return MemoryManagerService.TrimWorkingSets();
-                    default: return MemoryManagerService.CleanAll();
-                }
-            });
+                1 => await MemoryManagerService.CleanStandbyAsync(),
+                2 => await MemoryManagerService.TrimWorkingSetsAsync(),
+                _ => await MemoryManagerService.CleanAllAsync()
+            };
 
             _lastScheduledClean = DateTime.Now;
-            if (freed < 0)
+            if (code == 0)
+            {
+                LastCleanText.Text = $"上次清理: {DateTime.Now:HH:mm:ss} · 完成";
+                ShowToast($"RAMMap 已完成{label}。", InfoBarSeverity.Success);
+            }
+            else if (code == -1)
+            {
+                LastCleanText.Text = $"上次清理: {DateTime.Now:HH:mm:ss} · 未找到 RAMMap";
+                ShowToast($"{label}失败：未找到 RAMMap 工具，请确认 Tools\\内存工具\\RAMMap 目录完整。", InfoBarSeverity.Error);
+            }
+            else if (code == -2)
             {
                 LastCleanText.Text = $"上次清理: {DateTime.Now:HH:mm:ss} · 失败";
-                var status = MemoryManagerService.LastCleanStatus;
-                ShowToast(status switch
-                {
-                    0xC0000061 => $"{label}失败：缺少 SeProfileSingleProcessPrivilege 特权 (0xC0000061)。",
-                    0xC0000022 => $"{label}失败：拒绝访问 (0xC0000022)。",
-                    _ when status != 0 => $"{label}失败 (0x{status:X8})。",
-                    _ => $"{label}失败。"
-                }, InfoBarSeverity.Error);
-                return;
+                ShowToast($"{label}失败：RAMMap 启动失败或执行超时，请以管理员身份运行后重试。", InfoBarSeverity.Error);
             }
-
-            var freedText = MemoryManagerService.FormatBytes(freed);
-            LastCleanText.Text = $"上次清理: {DateTime.Now:HH:mm:ss} · 释放 {freedText}";
-            ShowToast(freed > 0
-                ? $"{label}完成，释放约 {freedText}。"
-                : $"{label}完成，未检测到可释放内存。",
-                InfoBarSeverity.Success);
+            else
+            {
+                LastCleanText.Text = $"上次清理: {DateTime.Now:HH:mm:ss} · 失败";
+                ShowToast($"{label}失败：RAMMap 返回退出码 {code}。", InfoBarSeverity.Error);
+            }
         }
         catch
         {
@@ -333,6 +477,18 @@ public sealed partial class MemoryManagerPage : Page
         {
             _cleaning = false;
         }
+    }
+
+    /// <summary>打开 RAMMap 图形界面, 用于深入分析物理内存使用情况 (文件级明细等)。</summary>
+    private void OpenRamMapButton_Click(object sender, RoutedEventArgs e)
+    {
+        var exe = MemoryManagerService.FindRamMapExe();
+        if (exe is null)
+        {
+            ShowToast("未找到 RAMMap 工具，请确认 Tools\\内存工具\\RAMMap 目录完整。", InfoBarSeverity.Error);
+            return;
+        }
+        ToolProcessLauncher.Launch(exe, Path.GetDirectoryName(exe), runAsAdmin: RuntimeHelper.IsMsixPackaged);
     }
 
     // ---------- 定时清理 ----------
@@ -487,7 +643,6 @@ public sealed partial class MemoryManagerPage : Page
         typeCombo.SelectionChanged += (_, _) => UpdateRowState(row);
 
         grid.Children.Add(driveStack);
-        Grid.SetColumn(driveStack, 0);
         grid.Children.Add(typeCombo);
         Grid.SetColumn(typeCombo, 1);
         grid.Children.Add(initialBox);
@@ -579,22 +734,27 @@ public sealed partial class MemoryManagerPage : Page
             "物理内存（内存条）", "\uE963", ThemeColors.AccentBlue,
             ("是什么", "插在主板上的一根硬件，程序运行时它的代码和数据就放在这里，读写极快。"),
             ("有什么用", "它相当于你的\u201C办公桌\u201D——越大，能同时摊开的程序越多，多开不卡。"),
-            ("意味着什么", "已用很高 + 可用很低 → 内存真紧张，可能要卡；可用还充裕（好几 GB）→ 内存很够用。")));
+            ("意味着什么", "已用很高 + 可用很低 → 内存真紧张，可能要卡；可用还充裕（好几 GB）→ 内存很够用。\n使用量页的可按 RAMMap 的列表结构查看：已使用/已修改/待机/空闲/零页。")));
         panel.Children.Add(BuildHelpCard(
             "虚拟内存（提交限制）", "\uE8A8", ThemeColors.AccentGreen,
             ("是什么？", "Windows 允许所有程序\u201C记账\u201D的总量 = 物理内存 + 硬盘上的分页文件（pagefile.sys）。"),
             ("有什么用", "内存条不够时，把暂不用的数据挪到硬盘分页文件，给程序兜底，避免因为内存不足崩溃。"),
-            ("意味着什么", "占用率高基本是正常的——大头都是物理内存在扛。真正要警惕的是：物理内存可用很低，且下方“分页文件”磁盘占用很高。")));
+            ("意味着什么", "占用率高基本是正常的——大头都是物理内存在扛。真正要警惕的是：物理内存可用很低，且下方\u201C分页文件\u201D磁盘占用很高。")));
         panel.Children.Add(BuildHelpCard(
             "系统工作集（Working Set）", "\uE90F", ThemeColors.AccentPurple,
             ("是什么？", "所有进程当前正攥在物理内存里的数据总和（真正在用的那部分）。"),
             ("有什么用", "判断\u201C进程到底花了多少内存条\u201D，下方排行榜就是按它排序的。"),
             ("意味着什么", "工作集 = 正在摊开看的资料。收紧工作集 = 让进程把不看的资料收进硬盘，能应急腾内存，但要用时得再搬回来，所以别频繁点。")));
         panel.Children.Add(BuildHelpCard(
-            "三个清理按钮", "\uE896", ThemeColors.AccentOrange,
-            ("清理待机内存", "清掉系统\u201C预读缓存\u201D（待机列表），安全、不伤程序，放心点。"),
-            ("收紧系统工作集", "给所有进程内存瘦身，内存告急时应急用，不建议频繁点。"),
-            ("全部清理", "上面两个一起做，最干净。")));
+            "三个清理按钮（由 RAMMap 驱动）", "\uE896", ThemeColors.AccentOrange,
+            ("清理待机内存", "调用 RAMMap 清空系统\u201C预读缓存\u201D待机列表，并把已修改页写入磁盘。安全、不伤程序，放心点。"),
+            ("收紧系统工作集", "调用 RAMMap 清空所有进程工作集并收缩系统文件缓存。内存告急时应急用，不建议频繁点。"),
+            ("全部清理", "上面两个依次执行，最干净。")));
+        panel.Children.Add(BuildHelpCard(
+            "本页是什么", "\uE8A9", ThemeColors.AccentBlue,
+            ("定位", "RAMMap 的 WinUI 优化版：清理操作全部调用随工具箱分发的 Sysinternals RAMMap 命令行完成；"),
+            ("分析", "使用量/进程/优先级/物理内存/文件缓存五个面板对照 RAMMap 的对应页签，数据来自系统性能计数器与只读查询；"),
+            ("更进一步", "文件级页明细等内核级数据，点\u201C打开 RAMMap\u201D查看原生界面。")));
         panel.Children.Add(BuildHintCard2());
 
         var dialog = new ContentDialog
@@ -689,7 +849,7 @@ public sealed partial class MemoryManagerPage : Page
         };
         border.Child = new TextBlock
         {
-            Text = "小提醒：虚拟内存占用高 ≠ 内存不足。电脑不卡就无需整理内存；是否卡顿，可看物理内存“可用”是否充足、分页文件磁盘占用是否很大。",
+            Text = "小提醒：虚拟内存占用高 ≠ 内存不足。电脑不卡就无需整理内存；是否卡顿，可看物理内存\u201C可用\u201D是否充足、分页文件磁盘占用是否很大。",
             FontSize = 12.5,
             TextWrapping = TextWrapping.Wrap,
             Foreground = new SolidColorBrush(ThemeColors.DimText)

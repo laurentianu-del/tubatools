@@ -27,6 +27,63 @@ public sealed class ProcessMemoryInfo
     public string Name { get; init; } = "";
     public long WorkingSet { get; init; }
     public long PrivateMemory { get; init; }
+    public long PagedMemory { get; init; }
+    public long NonpagedMemory { get; init; }
+    public long VirtualMemory { get; init; }
+}
+
+/// <summary>物理内存列表分解 (对应 RAMMap"使用量"页): 已使用/已修改/待机/空闲/零页/错误页。</summary>
+public sealed class MemoryListBreakdown
+{
+    public long ZeroBytes { get; init; }
+    public long FreeBytes { get; init; }
+    public long StandbyBytes { get; init; }
+    public long ModifiedBytes { get; init; }
+    public long BadBytes { get; init; }
+
+    /// <summary>已使用 = 系统可见物理内存 - 各列表合计。</summary>
+    public long InUseBytes { get; init; }
+    /// <summary>硬件保留 = 安装容量 - 系统可见容量。</summary>
+    public long HardwareReservedBytes { get; init; }
+    public long PhysicalTotalBytes { get; init; }
+}
+
+/// <summary>性能计数器分解 (分页池/非分页池/系统缓存/待机优先级等)。</summary>
+public sealed class MemoryPerfBreakdown
+{
+    public long PoolPagedBytes { get; set; }
+    public long PoolNonpagedBytes { get; set; }
+    public long SystemCacheBytes { get; set; }
+    public long SystemCacheResidentBytes { get; set; }
+    public long SystemCodeBytes { get; set; }
+    public long SystemDriverBytes { get; set; }
+    public long PoolPagedResidentBytes { get; set; }
+    public long CachePeakBytes { get; set; }
+
+    public long StandbyReserveBytes { get; set; }
+    public long StandbyNormalBytes { get; set; }
+    public long StandbyCoreBytes { get; set; }
+    public long ModifiedListBytes { get; set; }
+    public long FreeZeroListBytes { get; set; }
+
+    public long CommittedBytes { get; set; }
+    public long CommitLimitBytes { get; set; }
+    public long AvailableBytes { get; set; }
+}
+
+/// <summary>物理内存条模块信息 (对应 RAMMap"物理范围"页, 优化版展示模块级数据)。</summary>
+public sealed class PhysicalMemoryModule
+{
+    public string DeviceLocator { get; init; } = "";
+    public string BankLabel { get; init; } = "";
+    public long CapacityBytes { get; init; }
+    public string Speed { get; init; } = "";
+    public string Manufacturer { get; init; } = "";
+    public string PartNumber { get; init; } = "";
+    public string TypeName { get; init; } = "";
+
+    /// <summary>已安装内存总容量。</summary>
+    public long TotalInstalledBytes => CapacityBytes;
 }
 
 /// <summary>分页文件磁盘实际占用信息。</summary>
@@ -35,16 +92,6 @@ public sealed class PageFileUsageInfo
     public string Name { get; init; } = "";
     public long AllocatedMB { get; init; }
     public long CurrentUsageMB { get; init; }
-}
-
-/// <summary>内存列表统计 (待机/已修改页), 用于计算清理量。</summary>
-public sealed class MemoryListInfo
-{
-    public long StandbyBytes { get; init; }
-    public long ModifiedBytes { get; init; }
-
-    /// <summary>待机列表 + 已修改列表合计, 即"清理待机内存"可释放的总量。</summary>
-    public long Total => StandbyBytes + ModifiedBytes;
 }
 
 /// <summary>一个分页文件条目 (虚拟内存设置)。</summary>
@@ -74,67 +121,14 @@ public sealed class PageFileEntry
     }
 }
 
-/// <summary>内存管理服务: 内存统计、内存清理、虚拟内存(分页文件)查看与设置。</summary>
+/// <summary>
+/// 内存管理服务: 内存统计、内存清理、虚拟内存(分页文件)查看与设置。
+/// 清理功能全部由随工具箱分发的 Sysinternals RAMMap 命令行驱动, 不再直接调用未文档化的 ntdll API。
+/// RAMMap 退出码含义: 0 = 成功; 非 0 = RAMMap 自身失败; -1 = 未找到 RAMMap; -2 = 启动失败或执行超时。
+/// </summary>
 public static class MemoryManagerService
 {
-    // ---------- NtSetSystemInformation ----------
-    private const int SystemMemoryListInformation = 0x50;
-    private const int SystemFileCacheInformation = 0x15;
-
-    private const uint MemoryEmptyWorkingSets = 2;
-    private const uint MemoryFlushModifiedList = 3;
-    private const uint MemoryPurgeStandbyList = 4;
-
-    // ---------- Token 特权 ----------
-    private const uint SE_PRIVILEGE_ENABLED = 0x2;
-    private const uint TOKEN_ADJUST_PRIVILEGES = 0x0020;
-    private const uint TOKEN_QUERY = 0x0008;
-    private const int ERROR_NOT_ALL_ASSIGNED = 1300;
-
-    /// <summary>LUID = LowPart + HighPart, 与 winnt.h 的 LUID 布局一致。</summary>
-    [StructLayout(LayoutKind.Sequential)]
-    private struct Luid
-    {
-        public uint LowPart;
-        public int HighPart;
-    }
-
-    /// <summary>TOKEN_PRIVILEGES = PrivilegeCount + LUID_AND_ATTRIBUTES, 原生共 16 字节。
-    /// 注意不能把 Luid 写成 long: x64 下 8 字节对齐会插入 4 字节 padding 导致布局错位。</summary>
-    [StructLayout(LayoutKind.Sequential)]
-    private struct TokenPrivileges
-    {
-        public uint PrivilegeCount;
-        public Luid Luid;
-        public uint Attributes;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct SystemCacheInfo64
-    {
-        public long MinimumWorkingSet;
-        public long MaximumWorkingSet;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct SystemCacheInfo32
-    {
-        public uint MinimumWorkingSet;
-        public uint MaximumWorkingSet;
-    }
-
-    /// <summary>NtQuerySystemInformation(SystemMemoryListInformation) 返回的内存列表页数 (ULONG_PTR)。</summary>
-    [StructLayout(LayoutKind.Sequential)]
-    private struct SystemMemoryListInfo
-    {
-        public IntPtr ZeroPageCount;
-        public IntPtr FreePageCount;
-        public IntPtr StandbyPageCount;
-        public IntPtr ModifiedPageCount;
-        public IntPtr ModifiedNoWritePageCount;
-        public IntPtr BadPageCount;
-        public IntPtr PageSize;
-    }
+    // ---------- 内存统计 (RAMMap 命令行不输出统计, 沿用系统 API) ----------
 
     [StructLayout(LayoutKind.Sequential)]
     private struct MemoryStatusEx
@@ -150,42 +144,27 @@ public static class MemoryManagerService
         public ulong AvailExtendedVirtual;
     }
 
+    /// <summary>NtQuerySystemInformation(SystemMemoryListInformation) 返回的内存列表页数 (ULONG_PTR)。
+    /// 仅用作只读查询 (对应 RAMMap 的"使用量"页数据), 不执行任何修改操作。</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SystemMemoryListInfo
+    {
+        public IntPtr ZeroPageCount;
+        public IntPtr FreePageCount;
+        public IntPtr StandbyPageCount;
+        public IntPtr ModifiedPageCount;
+        public IntPtr ModifiedNoWritePageCount;
+        public IntPtr BadPageCount;
+        public IntPtr PageSize;
+    }
+
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern bool GlobalMemoryStatusEx(ref MemoryStatusEx lpBuffer);
 
     [DllImport("ntdll.dll")]
-    private static extern uint NtSetSystemInformation(int SystemInformationClass, IntPtr SystemInformation, int SystemInformationLength);
-
-    [DllImport("ntdll.dll")]
     private static extern uint NtQuerySystemInformation(int SystemInformationClass, IntPtr SystemInformation, int SystemInformationLength, out int ReturnLength);
 
-    [DllImport("advapi32.dll", SetLastError = true)]
-    private static extern bool OpenProcessToken(IntPtr processHandle, uint desiredAccess, out IntPtr tokenHandle);
-
-    [DllImport("advapi32.dll", SetLastError = true)]
-    private static extern bool LookupPrivilegeValue(string systemName, string name, out Luid luid);
-
-    [DllImport("advapi32.dll", SetLastError = true)]
-    private static extern bool AdjustTokenPrivileges(IntPtr tokenHandle, bool disableAllPrivileges, ref TokenPrivileges newState, int bufferLength, IntPtr previousState, IntPtr returnLength);
-
-    [DllImport("kernel32.dll")]
-    private static extern IntPtr GetCurrentProcess();
-
-    [DllImport("kernel32.dll")]
-    private static extern bool CloseHandle(IntPtr handle);
-
-    // ---------- 文档化 API (收紧工作集回退方案) ----------
-
-    private const uint ProcessSetQuota = 0x0100;
-    private const uint ProcessQueryInformation = 0x0400;
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern IntPtr OpenProcess(uint desiredAccess, bool inheritHandle, int processId);
-
-    [DllImport("psapi.dll", SetLastError = true)]
-    private static extern bool EmptyWorkingSet(IntPtr hProcess);
-
-    private const string MemoryManagementKey = @"SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management";
+    private const int SystemMemoryListInformation = 0x50;
 
     /// <summary>获取当前内存统计。</summary>
     public static MemoryStats GetStats()
@@ -245,7 +224,10 @@ public static class MemoryManagerService
                         Pid = p.Id,
                         Name = string.IsNullOrWhiteSpace(p.ProcessName) ? "(未知)" : p.ProcessName,
                         WorkingSet = p.WorkingSet64,
-                        PrivateMemory = p.PrivateMemorySize64
+                        PrivateMemory = p.PrivateMemorySize64,
+                        PagedMemory = p.PagedMemorySize64,
+                        NonpagedMemory = p.NonpagedSystemMemorySize64,
+                        VirtualMemory = p.VirtualMemorySize64
                     });
                 }
                 catch { }
@@ -287,7 +269,10 @@ public static class MemoryManagerService
                             Pid = p.Id,
                             Name = string.IsNullOrWhiteSpace(p.ProcessName) ? "(未知)" : p.ProcessName,
                             WorkingSet = ws,
-                            PrivateMemory = p.PrivateMemorySize64
+                            PrivateMemory = p.PrivateMemorySize64,
+                            PagedMemory = p.PagedMemorySize64,
+                            NonpagedMemory = p.NonpagedSystemMemorySize64,
+                            VirtualMemory = p.VirtualMemorySize64
                         });
                     }
                 }
@@ -343,8 +328,23 @@ public static class MemoryManagerService
         try { return Convert.ToInt64(value); } catch { return 0; }
     }
 
-    /// <summary>查询待机列表与已修改列表大小 (页数 × 页大小)。</summary>
-    public static MemoryListInfo GetMemoryLists()
+    // ---------- RAMMap 分析面板: 只读数据 ----------
+
+    /// <summary>仅通过 GlobalMemoryStatusEx 取物理内存总量 (不枚举进程, 供高频刷新使用)。</summary>
+    private static long GetPhysicalTotal()
+    {
+        try
+        {
+            var ms = new MemoryStatusEx { Length = (uint)Marshal.SizeOf<MemoryStatusEx>() };
+            GlobalMemoryStatusEx(ref ms);
+            return (long)ms.TotalPhys;
+        }
+        catch { return 0; }
+    }
+
+    /// <summary>物理内存列表分解 (对应 RAMMap"使用量"页): 已使用/已修改/待机/空闲/零页/错误页。</summary>
+    /// <param name="installedBytes">安装容量 (来自 GetPhysicalModules, 用于计算硬件保留); 传 0 时以系统可见容量代替。</param>
+    public static MemoryListBreakdown GetMemoryListBreakdown(long installedBytes = 0)
     {
         var info = new SystemMemoryListInfo();
         var size = Marshal.SizeOf<SystemMemoryListInfo>();
@@ -353,18 +353,34 @@ public static class MemoryManagerService
         {
             Marshal.StructureToPtr(info, ptr, false);
             if (NtQuerySystemInformation(SystemMemoryListInformation, ptr, size, out _) != 0)
-                return new MemoryListInfo();
+                return new MemoryListBreakdown();
             info = Marshal.PtrToStructure<SystemMemoryListInfo>(ptr);
+
             var pageSize = info.PageSize.ToInt64();
-            return new MemoryListInfo
+            long zero = info.ZeroPageCount.ToInt64() * pageSize;
+            long free = info.FreePageCount.ToInt64() * pageSize;
+            long standby = info.StandbyPageCount.ToInt64() * pageSize;
+            long modified = (info.ModifiedPageCount.ToInt64() + info.ModifiedNoWritePageCount.ToInt64()) * pageSize;
+            long bad = info.BadPageCount.ToInt64() * pageSize;
+
+            var total = GetPhysicalTotal();
+            var installed = installedBytes > 0 ? installedBytes : total;
+            var inUse = Math.Max(0, total - (zero + free + standby + modified + bad));
+            return new MemoryListBreakdown
             {
-                StandbyBytes = info.StandbyPageCount.ToInt64() * pageSize,
-                ModifiedBytes = (info.ModifiedPageCount.ToInt64() + info.ModifiedNoWritePageCount.ToInt64()) * pageSize
+                ZeroBytes = zero,
+                FreeBytes = free,
+                StandbyBytes = standby,
+                ModifiedBytes = modified,
+                BadBytes = bad,
+                InUseBytes = inUse,
+                HardwareReservedBytes = Math.Max(0, installed - total),
+                PhysicalTotalBytes = total
             };
         }
         catch
         {
-            return new MemoryListInfo();
+            return new MemoryListBreakdown();
         }
         finally
         {
@@ -372,61 +388,94 @@ public static class MemoryManagerService
         }
     }
 
-    /// <summary>上次清理失败时的 NTSTATUS (0 表示成功), 供 UI 展示错误码。</summary>
-    public static uint LastCleanStatus { get; private set; }
-
-    /// <summary>清理待机内存 (待机列表 + 已修改列表), 返回释放的字节数; 失败返回 -1。</summary>
-    public static long CleanStandbyMemory()
+    /// <summary>读取"Memory"分类性能计数器 (英文名在任意语言系统均可用), 失败项返回 0。</summary>
+    public static MemoryPerfBreakdown GetPerfBreakdown()
     {
-        // 清空内存列表需要 SeProfileSingleProcessPrivilege, 管理员令牌中该特权默认是禁用的, 必须先启用
-        if (!EnablePrivilege("SeProfileSingleProcessPrivilege") || !EnablePrivilege("SeIncreaseQuotaPrivilege"))
+        return new MemoryPerfBreakdown
         {
-            LastCleanStatus = 0xC0000061; // STATUS_PRIVILEGE_NOT_HELD
-            return -1;
-        }
-
-        var before = GetMemoryLists();
-        var s1 = SetMemoryListCommand(MemoryPurgeStandbyList);
-        var s2 = SetMemoryListCommand(MemoryFlushModifiedList);
-        var after = GetMemoryLists();
-
-        LastCleanStatus = s1 != 0 ? s1 : s2;
-        if (s1 != 0 || s2 != 0) return -1;
-        return Math.Max(0, before.Total - after.Total);
+            PoolPagedBytes = ReadPerf("Pool Paged Bytes"),
+            PoolNonpagedBytes = ReadPerf("Pool Nonpaged Bytes"),
+            PoolPagedResidentBytes = ReadPerf("Pool Paged Resident Bytes"),
+            SystemCacheBytes = ReadPerf("Cache Bytes"),
+            SystemCacheResidentBytes = ReadPerf("System Cache Resident Bytes"),
+            SystemCodeBytes = ReadPerf("System Code Resident Bytes"),
+            SystemDriverBytes = ReadPerf("System Driver Resident Bytes"),
+            CachePeakBytes = ReadPerf("Cache Bytes Peak"),
+            StandbyReserveBytes = ReadPerf("Standby Cache Reserve Bytes"),
+            StandbyNormalBytes = ReadPerf("Standby Cache Normal Priority Bytes"),
+            StandbyCoreBytes = ReadPerf("Standby Cache Core Bytes"),
+            ModifiedListBytes = ReadPerf("Modified Page List Bytes"),
+            FreeZeroListBytes = ReadPerf("Free & Zero Page List Bytes"),
+            CommittedBytes = ReadPerf("Committed Bytes"),
+            CommitLimitBytes = ReadPerf("Commit Limit"),
+            AvailableBytes = ReadPerf("Available Bytes")
+        };
     }
 
-    /// <summary>收紧系统工作集 (清空所有进程工作集 + 收缩系统文件缓存), 返回释放的字节数; 失败返回 -1。</summary>
-    public static long TrimWorkingSets()
+    private static readonly Dictionary<string, PerformanceCounter> PerfCounterCache = new(StringComparer.OrdinalIgnoreCase);
+
+    private static long ReadPerf(string counterName)
     {
-        if (!EnablePrivilege("SeProfileSingleProcessPrivilege") || !EnablePrivilege("SeIncreaseQuotaPrivilege"))
+        try
         {
-            LastCleanStatus = 0xC0000061;
-            return -1;
+            if (!PerfCounterCache.TryGetValue(counterName, out var counter))
+            {
+                counter = new PerformanceCounter("Memory", counterName, readOnly: true);
+                PerfCounterCache[counterName] = counter;
+            }
+            return (long)counter.RawValue;
         }
-
-        var before = GetTotalWorkingSet();
-        var s1 = SetMemoryListCommand(MemoryEmptyWorkingSets);
-        if (s1 != 0)
-        {
-            // 内核级调用失败 (如缺少特权) 时, 回退到文档化 API 逐进程清空工作集
-            EmptyAllProcessWorkingSets();
-        }
-        var cacheStatus = TrimSystemFileCache();
-        var after = GetTotalWorkingSet();
-
-        LastCleanStatus = s1 != 0 ? s1 : cacheStatus;
-        if (s1 != 0 && cacheStatus != 0) return -1;
-        return Math.Max(0, before - after);
+        catch { return 0; }
     }
 
-    /// <summary>全部清理, 返回释放的字节数; 失败返回 -1。</summary>
-    public static long CleanAll()
+    /// <summary>物理内存条模块信息 (WMI Win32_PhysicalMemory, 对应 RAMMap"物理范围"页的优化版展示)。</summary>
+    public static List<PhysicalMemoryModule> GetPhysicalModules()
     {
-        var standby = CleanStandbyMemory();
-        var trim = TrimWorkingSets();
-        if (standby < 0 && trim < 0) return -1;
-        return Math.Max(0, standby) + Math.Max(0, trim);
+        var list = new List<PhysicalMemoryModule>();
+        try
+        {
+            using var searcher = new System.Management.ManagementObjectSearcher(
+                "SELECT DeviceLocator, BankLabel, Capacity, Speed, ConfiguredClockSpeed, Manufacturer, PartNumber, MemoryType FROM Win32_PhysicalMemory");
+            foreach (var obj in searcher.Get())
+            {
+                var speed = SafeToLong(obj["Speed"]);
+                var configured = SafeToLong(obj["ConfiguredClockSpeed"]);
+                list.Add(new PhysicalMemoryModule
+                {
+                    DeviceLocator = obj["DeviceLocator"]?.ToString() ?? "",
+                    BankLabel = obj["BankLabel"]?.ToString() ?? "",
+                    CapacityBytes = SafeToLong(obj["Capacity"]),
+                    Speed = speed > 0 ? $"{(configured > 0 ? configured : speed)} MHz" : "--",
+                    Manufacturer = obj["Manufacturer"]?.ToString()?.Trim() ?? "",
+                    PartNumber = obj["PartNumber"]?.ToString()?.Trim() ?? "",
+                    TypeName = MemoryTypeName(SafeToLong(obj["MemoryType"]))
+                });
+            }
+        }
+        catch { }
+        return list;
     }
+
+    /// <summary>SMBIOS 内存类型映射 (Win32_PhysicalMemory.MemoryType)。</summary>
+    private static string MemoryTypeName(long type) => type switch
+    {
+        17 => "SDRAM",
+        19 => "RDRAM",
+        20 => "DDR",
+        21 => "DDR2",
+        22 => "BRAM",
+        24 => "DDR3",
+        26 => "DDR4",
+        27 => "LPDDR",
+        28 => "LPDDR2",
+        29 => "LPDDR3",
+        30 => "LPDDR4",
+        32 => "HBM",
+        33 => "HBM2",
+        34 => "DDR5",
+        35 => "LPDDR5",
+        _ => "未知"
+    };
 
     public static bool IsElevated
     {
@@ -442,7 +491,115 @@ public static class MemoryManagerService
         }
     }
 
+    // ---------- 内存清理: 全部通过 RAMMap 命令行驱动 ----------
+    // RAMMap 随工具箱分发, 位于 Tools/内存工具/RAMMap (link.json 指向 其他工具/RAMMap)。
+    // 命令行参数 (Sysinternals 官方):
+    //   -s  清空待机列表 (purge standby)            -u  清空已修改页面列表 (写入磁盘)
+    //   -e  清空进程工作集                          -t1 清空系统工作集 (收缩系统文件缓存)
+    //   -t  清空已修改列表 + 工作集 (全部)          -m  清空优先 0 待机列表
+    //   -c  压缩内存 (Win8+)                       -accepteula 静默接受 EULA
+
+    /// <summary>RAMMap 启动超时时间; 正常一次清空操作秒级完成。</summary>
+    private static readonly TimeSpan RamMapTimeout = TimeSpan.FromSeconds(60);
+
+    /// <summary>在 Tools 目录中按当前架构查找 RAMMap 可执行文件, 找不到返回 null。</summary>
+    public static string? FindRamMapExe()
+    {
+        var root = ToolCatalog.ToolsRoot;
+        if (!Directory.Exists(root)) return null;
+
+        var dirs = new[]
+        {
+            Path.Combine(root, "内存工具", "RAMMap"),
+            Path.Combine(root, "其他工具", "RAMMap")
+        };
+
+        // 按当前架构优先; ARM64 可回退 x64/32 位, x64 可回退 32 位 (同架构 exe 无法在低架构进程启动)
+        var ranked = RuntimeInformation.ProcessArchitecture switch
+        {
+            Architecture.Arm64 => new[] { "RAMMap64a.exe", "RAMMap64.exe", "RAMMap.exe" },
+            Architecture.X64 => new[] { "RAMMap64.exe", "RAMMap.exe" },
+            _ => new[] { "RAMMap.exe" }
+        };
+
+        foreach (var dir in dirs)
+        {
+            foreach (var name in ranked)
+            {
+                var path = Path.Combine(dir, name);
+                if (File.Exists(path)) return path;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>运行一次 RAMMap 命令并等待退出。</summary>
+    /// <returns>0 成功; 非 0 RAMMap 退出码; -1 未找到 RAMMap; -2 启动失败或超时。</returns>
+    public static async Task<int> RunRamMapAsync(string arguments)
+    {
+        var exe = FindRamMapExe();
+        if (exe is null) return -1;
+
+        Process? p = null;
+        try
+        {
+            p = Process.Start(new ProcessStartInfo
+            {
+                FileName = exe,
+                Arguments = $"-accepteula {arguments}",
+                UseShellExecute = false,
+                CreateNoWindow = true
+            });
+        }
+        catch
+        {
+            return -2;
+        }
+        if (p is null) return -2;
+
+        using (p)
+        using (var cts = new CancellationTokenSource(RamMapTimeout))
+        {
+            try
+            {
+                await p.WaitForExitAsync(cts.Token);
+                return p.ExitCode;
+            }
+            catch (OperationCanceledException)
+            {
+                try { p.Kill(entireProcessTree: true); } catch { }
+                return -2;
+            }
+        }
+    }
+
+    /// <summary>清理待机内存: RAMMap -s 清空待机列表 + -u 将已修改页写入磁盘。</summary>
+    public static async Task<int> CleanStandbyAsync()
+    {
+        var s = await RunRamMapAsync("-s");
+        if (s != 0) return s;
+        return await RunRamMapAsync("-u");
+    }
+
+    /// <summary>收紧系统工作集: RAMMap -e 清空进程工作集 + -t1 清空系统工作集 (收缩系统文件缓存)。</summary>
+    public static async Task<int> TrimWorkingSetsAsync()
+    {
+        var e = await RunRamMapAsync("-e");
+        if (e != 0) return e;
+        return await RunRamMapAsync("-t1");
+    }
+
+    /// <summary>全部清理: 清理待机内存 + 收紧系统工作集。</summary>
+    public static async Task<int> CleanAllAsync()
+    {
+        var standby = await CleanStandbyAsync();
+        if (standby != 0) return standby;
+        return await TrimWorkingSetsAsync();
+    }
+
     // ---------- 虚拟内存 (分页文件) ----------
+
+    private const string MemoryManagementKey = @"SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management";
 
     /// <summary>是否自动管理分页文件。</summary>
     public static bool IsAutomaticPageFile()
@@ -588,121 +745,4 @@ public static class MemoryManagerService
     }
 
     public static double BytesToGb(long bytes) => bytes / 1024.0 / 1024.0 / 1024.0;
-
-    // ---------- 内部实现 ----------
-
-    /// <summary>所有进程工作集总和 (不含 Idle/System), 用于对比收紧前后的变化。</summary>
-    private static long GetTotalWorkingSet()
-    {
-        long total = 0;
-        try
-        {
-            foreach (var p in Process.GetProcesses())
-            {
-                try
-                {
-                    if (p.Id != 0 && p.Id != 4)
-                        total += p.WorkingSet64;
-                }
-                catch { }
-                finally { p.Dispose(); }
-            }
-        }
-        catch { }
-        return total;
-    }
-
-    private static uint SetMemoryListCommand(uint command)
-    {
-        return SetSystemInfo(SystemMemoryListInformation, ref command);
-    }
-
-    private static uint TrimSystemFileCache()
-    {
-        if (IntPtr.Size == 8)
-        {
-            var info = new SystemCacheInfo64 { MinimumWorkingSet = -1, MaximumWorkingSet = -1 };
-            return SetSystemInfo(SystemFileCacheInformation, ref info);
-        }
-        else
-        {
-            var info = new SystemCacheInfo32 { MinimumWorkingSet = uint.MaxValue, MaximumWorkingSet = uint.MaxValue };
-            return SetSystemInfo(SystemFileCacheInformation, ref info);
-        }
-    }
-
-    /// <summary>文档化 API 回退: 用 EmptyWorkingSet 逐进程清空工作集 (需要 PROCESS_QUERY_INFORMATION | PROCESS_SET_QUOTA)。</summary>
-    private static void EmptyAllProcessWorkingSets()
-    {
-        try
-        {
-            foreach (var p in Process.GetProcesses())
-            {
-                try
-                {
-                    if (p.Id == 0 || p.Id == 4) continue;
-                    var handle = OpenProcess(ProcessQueryInformation | ProcessSetQuota, false, p.Id);
-                    if (handle == IntPtr.Zero) continue;
-                    try { EmptyWorkingSet(handle); }
-                    finally { CloseHandle(handle); }
-                }
-                catch { }
-                finally { p.Dispose(); }
-            }
-        }
-        catch { }
-    }
-
-    /// <summary>调用 NtSetSystemInformation, 返回 NTSTATUS (0 为成功), 失败不再静默吞掉。</summary>
-    private static uint SetSystemInfo<T>(int infoClass, ref T data) where T : struct
-    {
-        var size = Marshal.SizeOf<T>();
-        var ptr = Marshal.AllocHGlobal(size);
-        try
-        {
-            Marshal.StructureToPtr(data, ptr, false);
-            return NtSetSystemInformation(infoClass, ptr, size);
-        }
-        catch
-        {
-            return uint.MaxValue;
-        }
-        finally
-        {
-            Marshal.FreeHGlobal(ptr);
-        }
-    }
-
-    private static bool EnablePrivilege(string privilegeName)
-    {
-        try
-        {
-            var processHandle = GetCurrentProcess();
-            if (!OpenProcessToken(processHandle, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, out var token))
-                return false;
-            try
-            {
-                if (!LookupPrivilegeValue(null!, privilegeName, out var luid))
-                    return false;
-                var priv = new TokenPrivileges
-                {
-                    PrivilegeCount = 1,
-                    Luid = luid,
-                    Attributes = SE_PRIVILEGE_ENABLED
-                };
-                // AdjustTokenPrivileges 返回 TRUE 但部分特权未启用时, 需检查 GetLastError == ERROR_NOT_ALL_ASSIGNED
-                if (!AdjustTokenPrivileges(token, false, ref priv, 0, IntPtr.Zero, IntPtr.Zero))
-                    return false;
-                return Marshal.GetLastWin32Error() != ERROR_NOT_ALL_ASSIGNED;
-            }
-            finally
-            {
-                CloseHandle(token);
-            }
-        }
-        catch
-        {
-            return false;
-        }
-    }
 }

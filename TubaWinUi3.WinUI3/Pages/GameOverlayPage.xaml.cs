@@ -144,8 +144,6 @@ public sealed partial class GameOverlayPage : Page
     private static readonly (OverlayWidgetType Type, string Label, string Icon, bool IsChart)[] PaletteItems =
     [
         (OverlayWidgetType.FpsText, "FPS", "\uE9F5", false),
-        (OverlayWidgetType.FpsLow1Text, "1% Low", "\uE9F5", false),
-        (OverlayWidgetType.FpsLow01Text, "0.1% Low", "\uE9F5", false),
         (OverlayWidgetType.CpuTempText, "CPU 温度", "\uE9B0", false),
         (OverlayWidgetType.CpuLoadText, "CPU 负载", "\uE9B0", false),
         (OverlayWidgetType.CpuClockText, "CPU 频率", "\uE9B0", false),
@@ -1837,6 +1835,9 @@ public sealed partial class GameOverlayPage : Page
         foreach (var item in doc.RootElement.EnumerateArray())
         {
             var type = (OverlayWidgetType)item.GetProperty("type").GetInt32();
+            // 1% Low / 0.1% Low 组件已移除 —— 旧布局里保存的这类组件直接跳过，
+            // 不创建不显示（枚举值保留，避免历史配置的类型编号错位）。
+            if (type is OverlayWidgetType.FpsLow1Text or OverlayWidgetType.FpsLow01Text) continue;
             var widget = new DesignerWidget
             {
                 Type = type,

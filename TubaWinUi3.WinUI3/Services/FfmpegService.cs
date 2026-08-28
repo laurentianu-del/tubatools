@@ -69,7 +69,7 @@ public static class FfmpegService
             urlResolver,
             FfmpegDir,
             postProcessor,
-            description: "视频处理核心组件 (镜像优先)",
+            description: "格式转换核心组件 (镜像优先)",
             glyph: "\uE8B2");
 
         return _downloadItem;

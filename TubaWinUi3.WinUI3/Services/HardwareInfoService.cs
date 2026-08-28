@@ -546,7 +546,10 @@ public static class HardwareInfoService
         section.Items.Add(gpuItem);
         var npuName = npuTask.Result;
         if (npuName != null)
-            section.Items.Add(Item("NPU", npuName));
+        {
+            var tops = NpuCatalog.LookupTops(npuName, cpuName);
+            section.Items.Add(Item("NPU", tops != null ? $"{npuName}（{tops}）" : npuName));
+        }
         section.Items.Add(Item("显示器", displayTask.Result));
         section.Items.Add(Item("硬盘", diskTask.Result));
         section.Items.Add(Item("声卡", soundTask.Result));
@@ -2214,7 +2217,9 @@ public static class HardwareInfoService
                 Manufacturer = Get(item, "Manufacturer"),
                 DriverVersion = Get(item, "DriverVersion"),
                 DriverDate = Get(item, "DriverDate"),
-                DeviceId = Get(item, "DeviceId")
+                DeviceId = Get(item, "DeviceId"),
+                // NPU 设备名多为笼统型号，算力需结合 CPU 型号判断代数
+                ComputeCapability = NpuCatalog.LookupTops(name, FirstName("Win32_Processor"))
             };
         }
 
