@@ -505,16 +505,22 @@ namespace TubaWinUi3.Services.RogueCleaner
             Queue(dispatcher, items.Count, delegate(int index) { items[index].ApplyPresentation(SoftwarePresentationResolver.Resolve(items[index].PresentationEvidence())); }, repaint);
         }
 
+        // 水合并行度：条目互相独立（各自的缓存均有锁保护），并行后整表在几秒内完成，
+        // 不再被串行解析（含 COM 标题探测等秒级操作）拖成"列表一直增长、一直刷新"。
+        private const int HydrateParallelism = 4;
+
         private static void Queue(Microsoft.UI.Dispatching.DispatcherQueue dispatcher, int count, Action<int> resolver, Action repaint)
         {
             if (dispatcher == null || count == 0) return;
+            int completed = 0;
             Task.Factory.StartNew(delegate
             {
-                for (int i = 0; i < count; i++)
+                Parallel.For(0, count, new ParallelOptions { MaxDegreeOfParallelism = HydrateParallelism }, delegate(int i)
                 {
                     try { resolver(i); } catch { }
-                    if ((i + 1) % 24 == 0) Repaint(dispatcher, repaint);
-                }
+                    int done = Interlocked.Increment(ref completed);
+                    if (done % 24 == 0) Repaint(dispatcher, repaint);
+                });
                 Repaint(dispatcher, repaint);
             });
         }

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.WindowsRuntime;
+using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
 using SkiaSharp;
@@ -126,11 +127,46 @@ public sealed partial class GameOverlayPage : Page
 
     private void OnPageLoaded(object sender, RoutedEventArgs e)
     {
+        if (!IsRunningAsAdmin())
+        {
+            AdminOverlay.Visibility = Visibility.Visible;
+            return;
+        }
+
         InitPalette();
         InitFontCombo();
         RefreshPresetCombo();
         LoadConfig();
         ScanGameWindows();
+    }
+
+    private static bool IsRunningAsAdmin()
+    {
+        using var identity = WindowsIdentity.GetCurrent();
+        var principal = new WindowsPrincipal(identity);
+        return principal.IsInRole(WindowsBuiltInRole.Administrator);
+    }
+
+    private void RestartAsAdmin_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var exePath = Environment.ProcessPath ?? "";
+            if (string.IsNullOrEmpty(exePath)) return;
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = exePath,
+                UseShellExecute = true,
+                Verb = "runas"
+            };
+            Process.Start(psi);
+            Application.Current.Exit();
+        }
+        catch
+        {
+            // User cancelled UAC prompt — do nothing
+        }
     }
 
     private void OnPageUnloaded(object sender, RoutedEventArgs e)

@@ -21,6 +21,7 @@ public sealed partial class HardwareDetailPage : Page
     private DispatcherTimer? _monitorTimer;
     private const int MaxPoints = 50;
     private HardwareDetailData? _lastDetailData;
+    private bool _pageAlive;
 
     private readonly ObservableCollection<double> _cpuHist = [];
     private readonly ObservableCollection<double> _gpuHist = [];
@@ -39,12 +40,14 @@ public sealed partial class HardwareDetailPage : Page
 
     private void HardwareDetailPage_Loaded(object sender, RoutedEventArgs e)
     {
+        _pageAlive = true;
         _ = LoadDetailAsync();
         InitRealtimeMonitor();
     }
 
     private void HardwareDetailPage_Unloaded(object sender, RoutedEventArgs e)
     {
+        _pageAlive = false;
         StopRealtimeMonitor();
     }
 
@@ -146,7 +149,14 @@ public sealed partial class HardwareDetailPage : Page
 
     private async void MonitorTimer_Tick(object? sender, object e)
     {
-        await UpdateMonitorAsync();
+        try
+        {
+            await UpdateMonitorAsync();
+        }
+        catch
+        {
+            // 页面销毁/卸载期间更新 UI 可能抛 COMException，忽略即可
+        }
     }
 
     private async Task UpdateMonitorAsync()
@@ -161,6 +171,9 @@ public sealed partial class HardwareDetailPage : Page
             return;
         }
 
+        // 读取期间页面可能已销毁（用户快速返回）：不再触碰已卸载的 UI
+        if (!_pageAlive) return;
+
         Push(_cpuHist, Val(sample.CpuLoad));
         Push(_gpuHist, Val(sample.GpuLoad));
         Push(_memHist, Val(sample.MemLoad));
@@ -170,18 +183,25 @@ public sealed partial class HardwareDetailPage : Page
         if (_isLaptop)
             Push(_batHist, Val(sample.BatPercent));
 
-        CpuLoadText.Text = sample.CpuLoad >= 0 ? $"{sample.CpuLoad:0}%" : "--";
-        GpuLoadText.Text = sample.GpuLoad >= 0 ? $"{sample.GpuLoad:0}%" : "--";
-        MemLoadText.Text = sample.MemLoad >= 0 ? $"{sample.MemLoad:0}%" : "--";
-        DiskReadText.Text = sample.DiskReadMBs >= 0 ? $"↑{sample.DiskReadMBs:0.0}" : "--";
-        DiskWriteText.Text = sample.DiskWriteMBs >= 0 ? $"↓{sample.DiskWriteMBs:0.0}" : "--";
-
-        if (_isLaptop)
+        try
         {
-            BatPercentText.Text = sample.BatPercent >= 0 ? $"{sample.BatPercent:0}%" : "--";
-            BatPowerText.Text = sample.BatPower >= 0
-                ? $"{(sample.BatCharging ? "+" : "")}{sample.BatPower:0.1}W"
-                : "";
+            CpuLoadText.Text = sample.CpuLoad >= 0 ? $"{sample.CpuLoad:0}%" : "--";
+            GpuLoadText.Text = sample.GpuLoad >= 0 ? $"{sample.GpuLoad:0}%" : "--";
+            MemLoadText.Text = sample.MemLoad >= 0 ? $"{sample.MemLoad:0}%" : "--";
+            DiskReadText.Text = sample.DiskReadMBs >= 0 ? $"↑{sample.DiskReadMBs:0.0}" : "--";
+            DiskWriteText.Text = sample.DiskWriteMBs >= 0 ? $"↓{sample.DiskWriteMBs:0.0}" : "--";
+
+            if (_isLaptop)
+            {
+                BatPercentText.Text = sample.BatPercent >= 0 ? $"{sample.BatPercent:0}%" : "--";
+                BatPowerText.Text = sample.BatPower >= 0
+                    ? $"{(sample.BatCharging ? "+" : "")}{sample.BatPower:0.1}W"
+                    : "";
+            }
+        }
+        catch
+        {
+            // 极少数情况下控件已被释放（如页面快速切换），不再更新
         }
     }
 
@@ -312,16 +332,23 @@ public sealed partial class HardwareDetailPage : Page
                 }
             }
 
+            // 数据构建（WMI/LHM 可能耗时数秒）期间页面可能已被用户关闭：
+            // 此时不能触碰已卸载的视觉树，否则在 async void 上下文中
+            // 抛出的 COMException 会直接导致进程崩溃（闪退）。
+            if (!_pageAlive) return;
+
             ApplyData(data);
             StatusBar.IsOpen = false;
         }
         catch (Exception ex)
         {
-            ShowStatusBar("硬件信息读取失败", ex.Message, InfoBarSeverity.Error);
+            if (_pageAlive)
+                ShowStatusBar("硬件信息读取失败", ex.Message, InfoBarSeverity.Error);
         }
         finally
         {
-            SetLoading(false);
+            if (_pageAlive)
+                SetLoading(false);
         }
     }
 

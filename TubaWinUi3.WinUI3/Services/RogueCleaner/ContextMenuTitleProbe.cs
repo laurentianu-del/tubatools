@@ -35,6 +35,10 @@ namespace TubaWinUi3.Services.RogueCleaner
     internal static class ContextCommandTitleProbe
     {
         private const int ProbeTimeoutMilliseconds = 1400;
+        // 子进程总等待上限：进程冷启动 + 进程内 1.4s COM 探测超时的余量
+        private const int ChildProbeTimeoutMilliseconds = 3200;
+        // 并发探测子进程上限：避免同一时刻实例化过多右键扩展
+        private static readonly SemaphoreSlim ChildProbeGate = new SemaphoreSlim(4, 4);
         private static readonly object CacheLock = new object();
         private static readonly Dictionary<string, ContextCommandProbeResult> Cache = new Dictionary<string, ContextCommandProbeResult>(StringComparer.OrdinalIgnoreCase);
 
@@ -47,13 +51,64 @@ namespace TubaWinUi3.Services.RogueCleaner
                 if (Cache.TryGetValue(key, out cached)) return cached;
             }
 
-            ContextCommandProbeResult result = ProbeWithTimeout(clsid, itemType, componentPath);
+            // 探测放在独立子进程（--context-title-probe）中执行：挂死的扩展 COM 调用只会拖垮子进程，
+            // 主进程等待超时后直接结束子进程，不泄漏线程、COM 对象与扩展 DLL。
+            ContextCommandProbeResult result = ProbeInChildProcess(clsid, itemType, componentPath)
+                ?? new ContextCommandProbeResult { Error = "读取动态命令文字超时，已放弃。" };
             lock (CacheLock) Cache[key] = result;
             return result;
         }
 
+        private static ContextCommandProbeResult ProbeInChildProcess(string clsid, string itemType, string componentPath)
+        {
+            string exe = Environment.ProcessPath;
+            if (string.IsNullOrWhiteSpace(exe) || !File.Exists(exe)) return ProbeFromComponent(componentPath, itemType, "无法启动探测子进程。");
+            string outFile = Path.Combine(Path.GetTempPath(), "tuba-ctxprobe-" + Guid.NewGuid().ToString("N") + ".json");
+            try
+            {
+                ChildProbeGate.Wait();
+                try
+                {
+                    var info = new ProcessStartInfo { FileName = exe, UseShellExecute = false, CreateNoWindow = true };
+                    info.ArgumentList.Add("--context-title-probe");
+                    info.ArgumentList.Add(clsid ?? string.Empty);
+                    info.ArgumentList.Add(itemType ?? string.Empty);
+                    info.ArgumentList.Add(componentPath ?? string.Empty);
+                    info.ArgumentList.Add("--probe-out");
+                    info.ArgumentList.Add(outFile);
+                    using (Process process = Process.Start(info))
+                    {
+                        if (process == null) return ProbeFromComponent(componentPath, itemType, "无法启动探测子进程。");
+                        if (!process.WaitForExit(ChildProbeTimeoutMilliseconds))
+                        {
+                            try { process.Kill(true); } catch { }
+                            return null; // 子进程被 COM 拖死：直接放弃，绝不在主进程内等待
+                        }
+                    }
+                    if (!File.Exists(outFile)) return ProbeFromComponent(componentPath, itemType, "探测子进程没有返回结果。");
+                    string json = File.ReadAllText(outFile, Encoding.UTF8);
+                    ContextCommandProbeResult probe = JsonSerializer.Deserialize<ContextCommandProbeResult>(json);
+                    return probe ?? new ContextCommandProbeResult { Error = "探测子进程返回了空结果。" };
+                }
+                finally { ChildProbeGate.Release(); }
+            }
+            catch (Exception ex)
+            {
+                return new ContextCommandProbeResult { Error = "探测失败：" + ex.Message };
+            }
+            finally { try { File.Delete(outFile); } catch { } }
+        }
+
+        // 子进程模式入口（App OnLaunched 的 --context-title-probe 分支调用）：
+        // 不查缓存、不再派生子进程，直接进程内探测；探测完成后子进程立即退出，
+        // 即使内部超时线程被 COM 拖住也只是后台线程，不会阻止进程退出，无泄漏。
+        internal static ContextCommandProbeResult ProbeForChildProcess(string clsid, string itemType, string componentPath)
+        {
+            return ProbeWithTimeout(clsid, itemType, componentPath);
+        }
+
         // 原版通过 `--context-title-probe` 子进程隔离动态菜单探测（COM 可能长时间不返回）；
-        // WinUI 3 移植改为进程内 STA 线程 + 超时保护，失败降级为组件资源文字提取，结果按 key 缓存。
+        // 此处实现为子进程内部的 STA 线程 + 超时保护，失败降级为组件资源文字提取。
         private static ContextCommandProbeResult ProbeWithTimeout(string clsid, string itemType, string componentPath)
         {
             ContextCommandProbeResult result = null;

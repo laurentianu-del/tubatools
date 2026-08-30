@@ -68,7 +68,12 @@ public sealed partial class CommunityToolsPage : Page
             {
                 tool.InstallStatus = CommunityToolService.CheckInstallStatus(tool);
                 tool.LocalPath = CommunityToolService.GetLocalPath(tool);
-                tool.IsAuthor = await CheckIsAuthorAsync(tool);
+
+                // 已安装的工具直接用本地元数据填充，不需要加载 plugin.json
+                if (tool.InstallStatus == CommunityToolInstallStatus.Installed)
+                {
+                    ApplyLocalMetadata(tool);
+                }
             }
 
             UpdateCategoryFilter();
@@ -205,12 +210,84 @@ public sealed partial class CommunityToolsPage : Page
         await ShowSubmitDialogAsync();
     }
 
-    private void ToolsGrid_ItemClick(object sender, ItemClickEventArgs e)
+    private async void ToolsGrid_ItemClick(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is CommunityTool tool)
+        if (e.ClickedItem is not CommunityTool tool) return;
+
+        // 已安装的工具直接打开，不需要加载详情
+        if (tool.InstallStatus == CommunityToolInstallStatus.Installed)
         {
-            ShowToolDetailAsync(tool);
+            CommunityToolService.LaunchPlugin(tool);
+            return;
         }
+
+        var detail = await LoadToolDetailAsync(tool);
+        if (detail is not null)
+            ShowToolDetailAsync(detail);
+    }
+
+    private async Task<CommunityTool?> LoadToolDetailAsync(CommunityTool tool)
+    {
+        LoadingProgress.Visibility = Visibility.Visible;
+
+        try
+        {
+            var detail = await CommunityToolService.LoadToolDetailAsync(tool);
+            if (detail is not null)
+            {
+                detail.InstallStatus = CommunityToolService.CheckInstallStatus(detail);
+                detail.LocalPath = CommunityToolService.GetLocalPath(detail);
+                if (GitHubAuthService.IsLoggedIn && !string.IsNullOrWhiteSpace(detail.Author))
+                {
+                    try
+                    {
+                        var user = await GitHubAuthService.GetCurrentUserAsync();
+                        detail.IsAuthor = user is not null && string.Equals(user.Login, detail.Author, StringComparison.OrdinalIgnoreCase);
+                    }
+                    catch { }
+                }
+            }
+            return detail;
+        }
+        catch
+        {
+            return null;
+        }
+        finally
+        {
+            LoadingProgress.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private static void ApplyLocalMetadata(CommunityTool tool)
+    {
+        var toolsRoot = ToolCatalog.ToolsRoot;
+        if (toolsRoot is null) return;
+
+        var toolDir = Path.Combine(toolsRoot, tool.Category, tool.Id);
+        var localItems = ToolCatalog.GetTools(tool.Category);
+        ToolItem? match = null;
+
+        foreach (var item in localItems)
+        {
+            if (item.Path.StartsWith(toolDir, StringComparison.OrdinalIgnoreCase))
+            {
+                match = item;
+                break;
+            }
+        }
+
+        if (match is null) return;
+
+        tool.Name = match.Name;
+        tool.Description = match.Description;
+        tool.Publisher = match.Publisher;
+        tool.Version = match.Version;
+        if (match.Tags.Count > 0) tool.Tags = match.Tags;
+
+        var iconPath = ToolIconService.GetCachedIconPath(match.Path);
+        if (!string.IsNullOrWhiteSpace(iconPath))
+            tool.IconPath = iconPath;
     }
 
     private void ToolsGrid_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -242,18 +319,6 @@ public sealed partial class CommunityToolsPage : Page
         if (btn.DataContext is not CommunityTool tool) return;
 
         await DeleteToolAsync(tool);
-    }
-
-    private static async Task<bool> CheckIsAuthorAsync(CommunityTool tool)
-    {
-        if (string.IsNullOrWhiteSpace(tool.Author)) return false;
-        if (!GitHubAuthService.IsLoggedIn) return false;
-        try
-        {
-            var user = await GitHubAuthService.GetCurrentUserAsync();
-            return user is not null && string.Equals(user.Login, tool.Author, StringComparison.OrdinalIgnoreCase);
-        }
-        catch { return false; }
     }
 
     private async Task DeleteToolAsync(CommunityTool tool)

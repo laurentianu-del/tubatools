@@ -1176,8 +1176,17 @@ public sealed partial class HomePage : Page
 
     private void InstallDropHook()
     {
-        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
-        if (hwnd != IntPtr.Zero) Win32DropHelper.EnsureInstalled(hwnd);
+        // 获取主窗口句柄并安装拖放钩子；此调用依赖 App.MainWindow 的 WinRT 封送，
+        // 启动早期可能尚未就绪而抛异常，不能让一个非关键钩子打断启动流程。
+        try
+        {
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
+            if (hwnd != IntPtr.Zero) Win32DropHelper.EnsureInstalled(hwnd);
+        }
+        catch
+        {
+            // 拖放钩子失败不影响其余功能
+        }
 
         if (!_dropEventSubscribed)
         {

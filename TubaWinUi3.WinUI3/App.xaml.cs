@@ -89,6 +89,42 @@ public partial class App : Application
             return;
         }
 
+        // 右键菜单「技术位置」的动态命令文字探测子进程模式：
+        // 主程序以自身 --context-title-probe 做 COM 隔离（挂死的扩展 COM 调用只拖垮这个子进程），
+        // 结果写入 --probe-out 指定的 JSON 文件后立即退出，不显示主窗口。
+        var probeIndex = Array.FindIndex(cmdLine, a => string.Equals(a, "--context-title-probe", StringComparison.OrdinalIgnoreCase));
+        if (probeIndex >= 0 && probeIndex + 3 < cmdLine.Length)
+        {
+            var probeOut = string.Empty;
+            var probeOutIndex = Array.FindIndex(cmdLine, a => string.Equals(a, "--probe-out", StringComparison.OrdinalIgnoreCase));
+            if (probeOutIndex >= 0 && probeOutIndex + 1 < cmdLine.Length) probeOut = cmdLine[probeOutIndex + 1];
+            try
+            {
+                var probe = Services.RogueCleaner.ContextCommandTitleProbe.ProbeForChildProcess(
+                    cmdLine[probeIndex + 1], cmdLine[probeIndex + 2], cmdLine[probeIndex + 3]);
+                if (!string.IsNullOrWhiteSpace(probeOut))
+                {
+                    File.WriteAllText(probeOut, System.Text.Json.JsonSerializer.Serialize(probe), new System.Text.UTF8Encoding(false));
+                }
+            }
+            catch
+            {
+                // 探测异常也写出失败结果，父进程据此降级，不弹出错误上报窗口
+                try
+                {
+                    if (!string.IsNullOrWhiteSpace(probeOut))
+                    {
+                        File.WriteAllText(probeOut, "{\"Title\":null,\"Icon\":null,\"Error\":\"探测过程出错。\",\"Source\":null}", new System.Text.UTF8Encoding(false));
+                    }
+                }
+                catch
+                {
+                }
+            }
+            Exit();
+            return;
+        }
+
         // 后端 --toast 模式：读取通知文件，弹出 Windows 原生 Toast 后立即退出（不显示主窗口）。
         // 双通道防重复：主程序已运行时 FileSystemWatcher 先消费文件，此处读不到即跳过。
         var toastIndex = Array.FindIndex(cmdLine, a => string.Equals(a, "--toast", StringComparison.OrdinalIgnoreCase));
@@ -215,8 +251,9 @@ public partial class App : Application
         }
 
         // 图标缓存清理与硬件盘点都不再抢启动窗口：图标清理延迟到空闲期执行，
-        // 硬件 WMI 盘点（20+ 条查询）移到首次打开硬件信息页时预热。
+        // 硬件 WMI 盘点（20+ 条查询）延迟 10s 后台预热，打开硬件信息页时直接命中缓存。
         _ = DelayThenRunAsync(TimeSpan.FromSeconds(15), () => { ToolIconService.CleanExpiredCache(); return Task.CompletedTask; });
+        _ = DelayThenRunAsync(TimeSpan.FromSeconds(10), () => { HardwareInfoService.PreloadAsync(); return Task.CompletedTask; });
         _ = Task.Run(() => ConfigManager.AutoMigratePathsIfNeeded());
 
         // 主动拦截：若用户开启了主动拦截，自动拉起 NativeAOT 后端（独立常驻进程）。
@@ -226,18 +263,24 @@ public partial class App : Application
             ActiveInterceptService.Start();
         }
 
+        var wizardShown = false;
         try
         {
             if (AppSettings.Get("SetupCompleted") == null)
             {
-                if (MainWindow?.Content is FrameworkElement root)
+                // 等待主窗口内容挂载（XamlRoot 就绪）后再显示向导：
+                // Activate() 返回时 XAML 树可能尚未挂载，直接 ShowAsync 会因
+                // XamlRoot 为空抛 ArgumentException，导致向导被静默跳过。
+                var root = await WaitForContentXamlRootAsync();
+                if (root?.XamlRoot is { } xamlRoot)
                 {
                     var wizard = new SetupWizardDialog
                     {
-                        XamlRoot = root.XamlRoot,
+                        XamlRoot = xamlRoot,
                         RequestedTheme = ThemeService.CurrentElementTheme
                     };
                     await wizard.ShowAsync();
+                    wizardShown = true;
                 }
             }
         }
@@ -247,7 +290,9 @@ public partial class App : Application
         }
         finally
         {
-            if (AppSettings.Get("SetupCompleted") == null)
+            // 仅当向导确实展示过（用户完成/跳过，或 ContentDialog 正常关闭）才标记完成；
+            // 若因 XamlRoot 未就绪等导致根本没有展示机会，保留未完成状态，下次启动再试。
+            if (wizardShown)
                 AppSettings.Set("SetupCompleted", true);
         }
 
@@ -291,6 +336,39 @@ public partial class App : Application
             await action();
         }
         catch { }
+    }
+
+    /// <summary>
+    /// 等待主窗口内容挂载完成并返回其根 FrameworkElement。
+    /// Activate() 返回时 XAML 树可能尚未挂载（XamlRoot 为空），
+    /// 等待 Loaded 事件（带超时兜底）以确保拿到有效的 XamlRoot。
+    /// </summary>
+    private static async Task<FrameworkElement?> WaitForContentXamlRootAsync()
+    {
+        var window = MainWindow;
+        if (window?.Content is not FrameworkElement content)
+            return null;
+
+        if (content.XamlRoot is not null)
+            return content;
+
+        var tcs = new TaskCompletionSource<FrameworkElement?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        RoutedEventHandler handler = null!;
+        handler = (_, _) =>
+        {
+            content.Loaded -= handler;
+            tcs.TrySetResult(content);
+        };
+        content.Loaded += handler;
+
+        var timeout = Task.Delay(TimeSpan.FromSeconds(15));
+        var done = await Task.WhenAny(tcs.Task, timeout);
+        if (done != tcs.Task)
+        {
+            content.Loaded -= handler;
+            return content.XamlRoot is not null ? content : null;
+        }
+        return await tcs.Task;
     }
 
     private static async Task ShowToolsBundleDownloadDialogAsync()

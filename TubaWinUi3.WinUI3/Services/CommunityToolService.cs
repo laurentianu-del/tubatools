@@ -41,10 +41,15 @@ public static class CommunityToolService
     private static DateTimeOffset _cacheTime;
     private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(10);
 
+    private static readonly Dictionary<string, CommunityTool> _detailCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, string> _shaMapCache = new(StringComparer.OrdinalIgnoreCase);
+
     public static void InvalidateCache()
     {
         _cache = null;
         _cacheTime = DateTimeOffset.MinValue;
+        _detailCache.Clear();
+        _shaMapCache.Clear();
     }
 
     public static async Task<List<CommunityTool>> GetPluginsAsync(int page = 1, int perPage = 30, CancellationToken ct = default)
@@ -79,6 +84,7 @@ public static class CommunityToolService
         var tools = new List<CommunityTool>();
         using var client = CreateApiClient();
 
+        // 只列出分类目录（1 次请求）
         var categoriesJson = await client.GetStringAsync(
             $"{GitCodeApiBase}/contents/{PluginsPath}", ct);
         var catDoc = JsonDocument.Parse(categoriesJson);
@@ -89,6 +95,7 @@ public static class CommunityToolService
             var category = catItem.GetProperty("name").GetString() ?? "";
             if (string.IsNullOrWhiteSpace(category)) continue;
 
+            // 列出该分类下的工具目录（N 次请求，但不再请求每个工具目录内的文件）
             var encCategory = Uri.EscapeDataString(category);
             var toolListJson = await client.GetStringAsync(
                 $"{GitCodeApiBase}/contents/{PluginsPath}/{encCategory}", ct);
@@ -100,34 +107,14 @@ public static class CommunityToolService
                 var toolDir = toolItem.GetProperty("name").GetString() ?? "";
                 if (string.IsNullOrWhiteSpace(toolDir)) continue;
 
-                var encToolDir = Uri.EscapeDataString(toolDir);
-                var filesJson = await client.GetStringAsync(
-                    $"{GitCodeApiBase}/contents/{PluginsPath}/{encCategory}/{encToolDir}", ct);
-                var filesDoc = JsonDocument.Parse(filesJson);
-
-                var shaMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                string? pluginJsonSha = null;
-
-                foreach (var fileItem in filesDoc.RootElement.EnumerateArray())
+                tools.Add(new CommunityTool
                 {
-                    var fileName = fileItem.GetProperty("name").GetString() ?? "";
-                    var fileSha = fileItem.TryGetProperty("sha", out var s) ? s.GetString() ?? "" : "";
-                    var filePath = fileItem.TryGetProperty("path", out var p) ? p.GetString() ?? "" : "";
-
-                    if (!string.IsNullOrWhiteSpace(fileSha) && !string.IsNullOrWhiteSpace(filePath))
-                        shaMap[filePath] = fileSha;
-
-                    if (fileName.Equals("plugin.json", StringComparison.OrdinalIgnoreCase))
-                        pluginJsonSha = fileSha;
-                }
-
-                if (pluginJsonSha is null) continue;
-
-                var pluginJson = await DownloadBlobAsync(pluginJsonSha, ct);
-                if (pluginJson is null) continue;
-
-                var tool = ParsePluginJson(pluginJson, category, toolDir, shaMap);
-                if (tool is not null) tools.Add(tool);
+                    Id = toolDir,
+                    Name = toolDir,
+                    Category = category,
+                    RepoPath = $"{PluginsPath}/{category}/{toolDir}",
+                    Tags = [],
+                });
             }
         }
 
@@ -138,35 +125,187 @@ public static class CommunityToolService
     {
         var tools = new List<CommunityTool>();
 
+        // 获取最新 commit 的 tree sha（1 次请求）
         var treeSha = await GetLatestTreeShaAsync(ct);
         if (treeSha is null) return tools;
 
+        // 获取 plugins 子树的 sha（1 次请求）
         var pluginsTreeSha = await GetSubTreeShaAsync(treeSha, PluginsPath, ct);
         if (pluginsTreeSha is null) return tools;
 
-        var categoryEntries = await EnumerateTreeAsync(pluginsTreeSha, ct);
+        // 用 recursive=1 一次获取整棵 plugins 子树（1 次请求，替代原来的 N+1+T 次请求）
+        var allEntries = await EnumerateTreeRecursiveAsync(pluginsTreeSha, ct);
 
-        foreach (var catEntry in categoryEntries)
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entry in allEntries)
         {
-            if (catEntry.Type != "tree") continue;
-
-            var toolEntries = await EnumerateTreeAsync(catEntry.Sha, ct);
-            foreach (var toolEntry in toolEntries)
+            // 缓存所有文件的 SHA，供 LoadToolDetailAsync 使用
+            if (entry.Type == "blob" && !string.IsNullOrWhiteSpace(entry.Path) && !string.IsNullOrWhiteSpace(entry.Sha))
             {
-                if (toolEntry.Type != "tree") continue;
-
-                var pluginJsonSha = await FindFileInTreeAsync(toolEntry.Sha, "plugin.json", ct);
-                if (pluginJsonSha is null) continue;
-
-                var pluginJson = await DownloadBlobAsync(pluginJsonSha, ct);
-                if (pluginJson is null) continue;
-
-                var tool = ParsePluginJson(pluginJson, catEntry.Path, toolEntry.Path);
-                if (tool is not null) tools.Add(tool);
+                var fullPath = $"{PluginsPath}/{entry.Path}";
+                _shaMapCache[fullPath] = entry.Sha;
             }
+
+            if (entry.Type != "tree") continue;
+
+            var parts = entry.Path.Split('/', 2);
+            if (parts.Length != 2) continue;
+
+            var category = parts[0];
+            var toolDir = parts[1];
+
+            // 跳过更深层的子目录（如 category/tool/subdir）
+            if (toolDir.Contains('/')) continue;
+
+            var key = $"{category}/{toolDir}";
+            if (!seen.Add(key)) continue;
+
+            tools.Add(new CommunityTool
+            {
+                Id = toolDir,
+                Name = toolDir,
+                Category = category,
+                RepoPath = $"{PluginsPath}/{category}/{toolDir}",
+                Tags = [],
+            });
         }
 
         return tools;
+    }
+
+    /// <summary>
+    /// 用 recursive=1 获取整棵子树的所有条目，一次请求替代多层遍历。
+    /// </summary>
+    private static async Task<List<(string Path, string Sha, string Type)>> EnumerateTreeRecursiveAsync(string treeSha, CancellationToken ct)
+    {
+        var result = new List<(string Path, string Sha, string Type)>();
+        using var client = CreateApiClient();
+        var json = await client.GetStringAsync($"{ApiBase}/git/trees/{treeSha}?recursive=1", ct);
+        var doc = JsonDocument.Parse(json);
+
+        if (!doc.RootElement.TryGetProperty("tree", out var tree)) return result;
+
+        foreach (var item in tree.EnumerateArray())
+        {
+            var path = item.GetProperty("path").GetString() ?? "";
+            var sha = item.GetProperty("sha").GetString() ?? "";
+            var type = item.GetProperty("type").GetString() ?? "";
+            result.Add((path, sha, type));
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// 按需加载单个工具的 plugin.json 详情。点进卡片时调用，替代初始加载时批量请求所有 plugin.json。
+    /// </summary>
+    public static async Task<CommunityTool?> LoadToolDetailAsync(CommunityTool summary, CancellationToken ct = default)
+    {
+        if (summary is null) return null;
+
+        var cacheKey = $"{CurrentSource}:{summary.RepoPath}";
+        if (_detailCache.TryGetValue(cacheKey, out var cached))
+            return cached;
+
+        try
+        {
+            CommunityTool? tool = null;
+
+            if (CurrentSource == CommunityDataSource.GitCode)
+            {
+                tool = await LoadToolDetailFromGitCodeAsync(summary, ct);
+            }
+            else
+            {
+                tool = await LoadToolDetailFromGitHubAsync(summary, ct);
+            }
+
+            if (tool is not null)
+            {
+                _detailCache[cacheKey] = tool;
+            }
+            return tool;
+        }
+        catch (OperationCanceledException) { throw; }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static async Task<CommunityTool?> LoadToolDetailFromGitCodeAsync(CommunityTool summary, CancellationToken ct)
+    {
+        using var client = CreateApiClient();
+
+        var repoPath = summary.RepoPath!;
+        var segments = repoPath.Split('/');
+        var encPath = string.Join("/", segments.Select(Uri.EscapeDataString));
+
+        var filesJson = await client.GetStringAsync(
+            $"{GitCodeApiBase}/contents/{encPath}", ct);
+        var filesDoc = JsonDocument.Parse(filesJson);
+
+        var shaMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        string? pluginJsonSha = null;
+
+        foreach (var fileItem in filesDoc.RootElement.EnumerateArray())
+        {
+            var fileName = fileItem.GetProperty("name").GetString() ?? "";
+            var fileSha = fileItem.TryGetProperty("sha", out var s) ? s.GetString() ?? "" : "";
+            var filePath = fileItem.TryGetProperty("path", out var p) ? p.GetString() ?? "" : "";
+
+            if (!string.IsNullOrWhiteSpace(fileSha) && !string.IsNullOrWhiteSpace(filePath))
+                shaMap[filePath] = fileSha;
+
+            if (fileName.Equals("plugin.json", StringComparison.OrdinalIgnoreCase))
+                pluginJsonSha = fileSha;
+        }
+
+        if (pluginJsonSha is null) return null;
+
+        var pluginJson = await DownloadBlobAsync(pluginJsonSha, ct);
+        if (pluginJson is null) return null;
+
+        var parts = repoPath.Split('/');
+        var category = parts.Length >= 2 ? parts[^2] : summary.Category;
+        var toolDir = parts.Length >= 1 ? parts[^1] : summary.Id;
+
+        return ParsePluginJson(pluginJson, category, toolDir, shaMap);
+    }
+
+    private static async Task<CommunityTool?> LoadToolDetailFromGitHubAsync(CommunityTool summary, CancellationToken ct)
+    {
+        var pluginJsonPath = $"{summary.RepoPath}/plugin.json";
+
+        if (!_shaMapCache.TryGetValue(pluginJsonPath, out var pluginJsonSha))
+        {
+            // SHA 缓存未命中（可能没经过目录列表），回退到直接查询
+            var treeSha = await GetLatestTreeShaAsync(ct);
+            if (treeSha is null) return null;
+            var pluginsTreeSha = await GetSubTreeShaAsync(treeSha, PluginsPath, ct);
+            if (pluginsTreeSha is null) return null;
+            var allEntries = await EnumerateTreeRecursiveAsync(pluginsTreeSha, ct);
+            foreach (var entry in allEntries)
+            {
+                if (entry.Type == "blob")
+                {
+                    var fullPath = $"{PluginsPath}/{entry.Path}";
+                    _shaMapCache[fullPath] = entry.Sha;
+                }
+            }
+            if (!_shaMapCache.TryGetValue(pluginJsonPath, out pluginJsonSha))
+                return null;
+        }
+
+        var pluginJson = await DownloadBlobAsync(pluginJsonSha, ct);
+        if (pluginJson is null) return null;
+
+        var repoPath = summary.RepoPath!;
+        var parts = repoPath.Split('/');
+        var category = parts.Length >= 2 ? parts[^2] : summary.Category;
+        var toolDir = parts.Length >= 1 ? parts[^1] : summary.Id;
+
+        return ParsePluginJson(pluginJson, category, toolDir);
     }
 
     public static async Task<List<string>> GetCategoriesAsync(CancellationToken ct = default)

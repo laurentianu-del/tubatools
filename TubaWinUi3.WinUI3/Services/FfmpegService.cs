@@ -131,6 +131,17 @@ public static class FfmpegService
     {
         if (!IsFfmpegReady) throw new InvalidOperationException("FFmpeg 未就绪");
 
+        // 提取第一个 -i 的输入文件，检查是否存在且非空
+        var inputMatch = System.Text.RegularExpressions.Regex.Match(arguments, @"-i\s+""([^""]+)""");
+        if (inputMatch.Success)
+        {
+            var inputPath = inputMatch.Groups[1].Value;
+            if (!File.Exists(inputPath))
+                throw new FileNotFoundException($"输入文件不存在：{inputPath}");
+            if (new FileInfo(inputPath).Length == 0)
+                throw new InvalidOperationException($"输入文件为空（0 字节），无法转换：{Path.GetFileName(inputPath)}");
+        }
+
         var psi = new System.Diagnostics.ProcessStartInfo
         {
             FileName = FfmpegPath,
@@ -155,7 +166,17 @@ public static class FfmpegService
         var stdout = await stdoutTask;
 
         if (proc.ExitCode != 0)
-            throw new Exception($"FFmpeg 退出码 {proc.ExitCode}: {stderr}");
+        {
+            var exitCode = proc.ExitCode;
+            var isCrash = FormatConvertPlanner.IsFfmpegCrash(exitCode);
+            var hint = isCrash
+                ? "\n\nFFmpeg 进程异常终止（崩溃），可能原因：\n" +
+                  "① 源文件损坏或格式异常（尝试用其他播放器确认文件正常）\n" +
+                  "② FFmpeg 二进制不完整（设置页 → 删除 FFmpeg 后重新下载）\n" +
+                  "③ 系统缺少解码器依赖（安装 Visual C++ 运行库）"
+                : "";
+            throw new Exception($"FFmpeg 退出码 {exitCode}: {stderr}{hint}");
+        }
 
         return stdout + stderr;
     }

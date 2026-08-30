@@ -18,6 +18,34 @@
     </Page.Resources>
 
     <Grid>
+        <!-- Admin Required Overlay -->
+        <Grid x:Name="AdminOverlay" Visibility="Collapsed"
+              Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+              Canvas.ZIndex="9999">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="20">
+                <FontIcon Glyph="&#xE72E;" FontSize="64"
+                          Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                          HorizontalAlignment="Center" />
+                <TextBlock Text="请在管理员模式下运行"
+                           FontSize="28" FontWeight="Bold"
+                           HorizontalAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                <TextBlock Text="游戏监控的 FPS 检测和硬件数据采集需要管理员权限才能正常工作。&#x0a;请右键以管理员身份运行本程序。"
+                           FontSize="14" TextAlignment="Center"
+                           TextWrapping="Wrap" MaxWidth="480"
+                           HorizontalAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Button x:Name="BtnRestartAsAdmin" Click="RestartAsAdmin_Click"
+                        Style="{ThemeResource AccentButtonStyle}" Padding="20,10"
+                        HorizontalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE7EF;" FontSize="16" />
+                        <TextBlock Text="以管理员身份重新启动" FontSize="14" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Grid>
+
         <!-- Main Content -->
         <Grid x:Name="MainContent" Padding="24,16,24,16" RowSpacing="12">
             <Grid.RowDefinitions>
@@ -133,8 +161,12 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <!-- Settings Bar -->
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="10" Margin="0,0,0,8">
+                    <!-- Settings Bar (窄窗口时允许左右滚动) -->
+                    <ScrollViewer Grid.Row="0" HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Disabled"
+                                  HorizontalScrollMode="Enabled" ZoomMode="Disabled"
+                                  Margin="0,0,0,8">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
                         <TextBlock Text="画布:" VerticalAlignment="Center" FontSize="12" />
                         <NumberBox x:Name="NbCanvasW" Minimum="200" Maximum="2000"
                                    SpinButtonPlacementMode="Compact" Width="85" FontSize="12"
@@ -169,6 +201,7 @@
                         <ComboBox x:Name="CmbFont" Width="140" FontSize="12"
                                   SelectionChanged="Font_Changed" />
                     </StackPanel>
+                    </ScrollViewer>
                     <!-- Canvas -->
                     <Border Grid.Row="1" Padding="4" CornerRadius="8"
                             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"

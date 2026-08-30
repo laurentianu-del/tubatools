@@ -1,4 +1,6 @@
 using System.Runtime.InteropServices;
+using System.Text;
+using Windows.Storage.Pickers;
 
 namespace TubaWinUi3.Services;
 
@@ -85,5 +87,63 @@ public static class Win32Dialogs
             Flags = OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR
         };
         return GetSaveFileName(ref ofn) ? ofn.lpstrFile.TrimEnd('\0') : null;
+    }
+
+    /// <summary>选择文件夹：优先 WinRT 原生选择器（InitializeWithWindow），失败时回退 Win32 浏览对话框。</summary>
+    public static string? PickFolder()
+    {
+        try
+        {
+            var picker = new FolderPicker
+            {
+                SuggestedStartLocation = PickerLocationId.ComputerFolder
+            };
+            picker.FileTypeFilter.Add("*");
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, Hwnd());
+            var folder = picker.PickSingleFolderAsync().AsTask().GetAwaiter().GetResult();
+            return folder?.Path;
+        }
+        catch
+        {
+            return BrowseForFolder();
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct BROWSEINFO
+    {
+        public IntPtr hwndOwner;
+        public IntPtr pidlRoot;
+        public string pszDisplayName;
+        public string lpszTitle;
+        public int ulFlags;
+        public IntPtr lpfn;
+        public IntPtr lParam;
+        public int iImage;
+    }
+
+    [DllImport("shell32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern IntPtr SHBrowseForFolder(ref BROWSEINFO lpbi);
+
+    [DllImport("shell32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool SHGetPathFromIDList(IntPtr pidl, [MarshalAs(UnmanagedType.LPWStr)] StringBuilder pszPath);
+
+    private const int BIF_RETURNONLYFSDIRS = 0x0001;
+    private const int BIF_NEWDIALOGSTYLE = 0x0040;
+
+    private static string? BrowseForFolder()
+    {
+        var bi = new BROWSEINFO
+        {
+            hwndOwner = Hwnd(),
+            lpszTitle = "选择目标文件夹",
+            ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE,
+            pszDisplayName = new string(new char[260])
+        };
+        var pidl = SHBrowseForFolder(ref bi);
+        if (pidl == IntPtr.Zero) return null;
+        var path = new StringBuilder(260);
+        SHGetPathFromIDList(pidl, path);
+        return path.Length > 0 ? path.ToString() : null;
     }
 }

@@ -1292,3 +1292,4 @@ optimizerDuck-temp/
 
 # macOS metadata
 .DS_Store
+.commandcode/ 

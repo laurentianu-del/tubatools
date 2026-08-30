@@ -892,6 +892,7 @@ public sealed partial class FormatConverterPage : Page
             {
                 var isImageVideo = item.Category == SourceCategory.Image
                                    && (target.Ext == ".mp4" || target.Ext == ".webm");
+                var isGifTarget = target.Ext == ".gif";
                 var args = isImageVideo
                     ? FormatConvertPlanner.BuildImageVideoArgs(source, target, settings.ImageVideoSeconds, settings.MaxEdge)
                     : FormatConvertPlanner.BuildFfmpegArgs(source, target, settings.Crf, settings.Preset,
@@ -901,9 +902,17 @@ public sealed partial class FormatConverterPage : Page
                 {
                     await FfmpegService.RunFfmpegAsync(args, null, ct);
                 }
+                catch (Exception ex) when (isGifTarget && IsFfmpegCrashException(ex))
+                {
+                    // palette filter_complex 导致 FFmpeg 崩溃，用最简参数重试
+                    TryDeleteQuiet(outputPath);
+                    docProgress.Report($"GIF 调色板模式失败，正在用简化模式重试...");
+                    var fallbackArgs = FormatConvertPlanner.BuildFfmpegGifFallbackArgs(source, settings.VideoWidth);
+                    await FfmpegService.RunFfmpegAsync(fallbackArgs, null, ct);
+                }
                 catch
                 {
-                    TryDeleteQuiet(outputPath); // 失败时清理可能残留的 0 字节半成品
+                    TryDeleteQuiet(outputPath);
                     throw;
                 }
                 return [outputPath];
@@ -1291,6 +1300,16 @@ public sealed partial class FormatConverterPage : Page
     private static void TryDeleteQuiet(string? path)
     {
         try { if (path is not null && File.Exists(path)) File.Delete(path); } catch { }
+    }
+
+    /// <summary>判断异常是否为 FFmpeg 崩溃（退出码为负或 >125）。</summary>
+    private static bool IsFfmpegCrashException(Exception ex)
+    {
+        if (ex is not Exception { Message: var msg }) return false;
+        // 匹配 "FFmpeg 退出码 -541478725" 或 "FFmpeg 退出码 139" 等
+        var match = System.Text.RegularExpressions.Regex.Match(msg, @"FFmpeg 退出码\s*(-?\d+)");
+        if (!match.Success || !int.TryParse(match.Groups[1].Value, out var code)) return false;
+        return FormatConvertPlanner.IsFfmpegCrash(code);
     }
 
     private DispatcherTimer? _toastBarTimer;

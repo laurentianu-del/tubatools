@@ -74,6 +74,11 @@ public sealed partial class RogueCleanerPage : Page
     private List<SpecialMenuEntry> _specialEntries = [];
     private List<AdvancedMenuEntry> _advancedEntries = [];
     private List<CleanupBatch> _batches = [];
+    // 刷新代数：新一轮刷新开始时递增；旧一轮的延迟水合重绘/图标转换携带旧代数，直接丢弃，
+    // 避免新旧数据交错导致列表反复重建（"列表无限刷新"）。
+    private int _cmRefreshGeneration;
+    private int _specialRefreshGeneration;
+    private int _advancedRefreshGeneration;
 
     public RogueCleanerPage()
     {
@@ -2448,9 +2453,9 @@ public sealed partial class RogueCleanerPage : Page
     private async Task ConvertMenuIconsAsync()
     {
         bool changed = false;
-        foreach (var e in _cmEntries) changed |= await SetMenuIconAsync(e.Id, e.SoftwareIcon, v => e.IconDisplay = v);
-        foreach (var e in _specialEntries) changed |= await SetMenuIconAsync(e.Id, e.SoftwareIcon, v => e.IconDisplay = v);
-        foreach (var e in _advancedEntries) changed |= await SetMenuIconAsync(e.Id, e.SoftwareIcon, v => e.IconDisplay = v);
+        foreach (var e in _cmEntries) changed |= await SetMenuIconAsync(e.Id, e.SoftwareIcon, () => e.IconDisplay, v => e.IconDisplay = v);
+        foreach (var e in _specialEntries) changed |= await SetMenuIconAsync(e.Id, e.SoftwareIcon, () => e.IconDisplay, v => e.IconDisplay = v);
+        foreach (var e in _advancedEntries) changed |= await SetMenuIconAsync(e.Id, e.SoftwareIcon, () => e.IconDisplay, v => e.IconDisplay = v);
         if (changed)
         {
             ApplyCmFilter();
@@ -2459,21 +2464,30 @@ public sealed partial class RogueCleanerPage : Page
         }
     }
 
-    private async Task<bool> SetMenuIconAsync(string id, System.Drawing.Image? icon, Action<ImageSource> setter)
+    private async Task<bool> SetMenuIconAsync(string id, System.Drawing.Image? icon, Func<ImageSource> current, Action<ImageSource> setter)
     {
         if (string.IsNullOrEmpty(id)) return false;
-        // 刷新后条目是全新对象：缓存命中也要把图标赋给新条目并触发重新绑定
+        // 刷新后条目是全新对象：缓存命中也要把图标赋给新条目并触发重新绑定。
+        // 只有当图标确实变化（尚未赋值）时才返回 true，避免每次重绘都重建列表（"列表无限刷新"）。
         if (_menuIcons.TryGetValue(id, out var cached))
         {
-            setter(cached);
-            return true;
+            if (!ReferenceEquals(current(), cached))
+            {
+                setter(cached);
+                return true;
+            }
+            return false;
         }
         if (icon == null) return false;
         var bmp = await ToBitmapImageAsync(icon);
         if (bmp == null) return false;
         _menuIcons[id] = bmp;
-        setter(bmp);
-        return true;
+        if (!ReferenceEquals(current(), bmp))
+        {
+            setter(bmp);
+            return true;
+        }
+        return false;
     }
 
     private static async Task<BitmapImage?> ToBitmapImageAsync(System.Drawing.Image? bitmap)
@@ -2823,6 +2837,7 @@ public sealed partial class RogueCleanerPage : Page
     {
         if (!CmRefreshBtn.IsEnabled) return;
         CmRefreshBtn.IsEnabled = false;
+        int generation = ++_cmRefreshGeneration;
         CmStatusText.Text = "正在枚举当前用户、所有用户以及 32/64 位右键入口……";
         CmEmptyText.Visibility = Visibility.Visible;
         CmEmptyText.Text = "正在加载右键菜单清单…";
@@ -2832,6 +2847,7 @@ public sealed partial class RogueCleanerPage : Page
                 DispatcherQueue.TryEnqueue(() =>
                 {
                     CmRefreshBtn.IsEnabled = true;
+                    if (generation != _cmRefreshGeneration) return; // 已有更新的刷新，丢弃陈旧结果
                     if (t.IsFaulted)
                     {
                         Logger.Error("枚举右键菜单失败", t.Exception);
@@ -2851,7 +2867,12 @@ public sealed partial class RogueCleanerPage : Page
                     List<ContextMenuEntry> candidates = _cmInventory.Entries.Where(i => !i.AdvancedOnly).ToList();
                     _cmPresentationCandidates = candidates.Count;
                     ApplyCmFilter();
-                    SoftwarePresentationQueue.Hydrate(DispatcherQueue, candidates, () => { _ = ConvertMenuIconsAsync(); ApplyCmFilter(); });
+                    // 重绘只做图标转换；确有变化时 ConvertMenuIconsAsync 内部会按视图重绘，
+                    // 不再在每次重绘时额外重建一次列表。
+                    SoftwarePresentationQueue.Hydrate(DispatcherQueue, candidates, () =>
+                    {
+                        if (generation == _cmRefreshGeneration) _ = ConvertMenuIconsAsync();
+                    });
                 });
             }, TaskScheduler.Default);
     }
@@ -3181,6 +3202,7 @@ public sealed partial class RogueCleanerPage : Page
     {
         if (!SpecialRefreshBtn.IsEnabled) return;
         SpecialRefreshBtn.IsEnabled = false;
+        int generation = ++_specialRefreshGeneration;
         SpecialStatusText.Text = "正在枚举专用模块……";
         Task.Run(() => new SpecialMenuInventoryService(_store).Enumerate())
             .ContinueWith(t =>
@@ -3188,6 +3210,7 @@ public sealed partial class RogueCleanerPage : Page
                 DispatcherQueue.TryEnqueue(() =>
                 {
                     SpecialRefreshBtn.IsEnabled = true;
+                    if (generation != _specialRefreshGeneration) return; // 已有更新的刷新，丢弃陈旧结果
                     if (t.IsFaulted)
                     {
                         Logger.Error("专用模块枚举失败", t.Exception);
@@ -3197,7 +3220,10 @@ public sealed partial class RogueCleanerPage : Page
                     _specialEntries = t.Result?.Entries ?? [];
                     foreach (var entry in _specialEntries) { entry.SoftwareIcon = null; entry.SoftwareName = "正在识别…"; }
                     ApplySpecialFilter();
-                    SoftwarePresentationQueue.Hydrate(DispatcherQueue, _specialEntries, () => { _ = ConvertMenuIconsAsync(); ApplySpecialFilter(); });
+                    SoftwarePresentationQueue.Hydrate(DispatcherQueue, _specialEntries, () =>
+                    {
+                        if (generation == _specialRefreshGeneration) _ = ConvertMenuIconsAsync();
+                    });
                     SpecialStatusText.Text = "共发现 " + _specialEntries.Count + " 项；" + (t.Result?.Warnings?.Count ?? 0) + " 个位置未读取。";
                 });
             }, TaskScheduler.Default);
@@ -3334,6 +3360,7 @@ public sealed partial class RogueCleanerPage : Page
     {
         if (!AdvRefreshBtn.IsEnabled) return;
         AdvRefreshBtn.IsEnabled = false;
+        int generation = ++_advancedRefreshGeneration;
         AdvancedStatusText.Text = "正在后台枚举高级菜单，不阻塞鼠标……";
         Task.Run(() => new AdvancedMenuInventoryService(_store).Enumerate())
             .ContinueWith(t =>
@@ -3341,6 +3368,7 @@ public sealed partial class RogueCleanerPage : Page
                 DispatcherQueue.TryEnqueue(() =>
                 {
                     AdvRefreshBtn.IsEnabled = true;
+                    if (generation != _advancedRefreshGeneration) return; // 已有更新的刷新，丢弃陈旧结果
                     if (t.IsFaulted)
                     {
                         Logger.Error("高级菜单枚举失败", t.Exception);
@@ -3350,7 +3378,10 @@ public sealed partial class RogueCleanerPage : Page
                     _advancedEntries = t.Result?.Entries ?? [];
                     foreach (var entry in _advancedEntries) { entry.SoftwareIcon = null; entry.SoftwareName = "正在识别…"; }
                     ApplyAdvancedFilter();
-                    SoftwarePresentationQueue.Hydrate(DispatcherQueue, _advancedEntries, () => { _ = ConvertMenuIconsAsync(); ApplyAdvancedFilter(); });
+                    SoftwarePresentationQueue.Hydrate(DispatcherQueue, _advancedEntries, () =>
+                    {
+                        if (generation == _advancedRefreshGeneration) _ = ConvertMenuIconsAsync();
+                    });
                     AdvancedStatusText.Text = "共发现 " + _advancedEntries.Count + " 项；" + (t.Result?.Warnings?.Count ?? 0) + " 个位置已安全跳过。现代菜单仅列出应用包清单明确声明的文件资源管理器命令。";
                 });
             }, TaskScheduler.Default);

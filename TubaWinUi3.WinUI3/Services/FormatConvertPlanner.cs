@@ -44,11 +44,12 @@ public static class FormatConvertPlanner
             return args;
         }
 
-        // GIF 动图
+        // GIF 动图（filter_complex 内生成调色板 + 应用，单次完成，质量高且避免编码器崩溃）
         if (target.Ext == ".gif")
         {
             var w = videoWidth > 0 ? videoWidth : 480;
-            return $"-i \"{source}\" -vf \"fps=15,scale={w}:-1:flags=lanczos\" -an \"{output}\"";
+            var vfBase = $"fps=15,scale={w}:-1:flags=lanczos";
+            return $"-i \"{source}\" -filter_complex \"[0:v] {vfBase},split [a][b];[b] palettegen=stats_mode=diff [p];[a][p] paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle\" -an \"{output}\"";
         }
 
         // 常规视频转码
@@ -70,6 +71,20 @@ public static class FormatConvertPlanner
         sb.Append($" -c:a {target.DefaultACodec} \"{output}\"");
         return sb.ToString();
     }
+
+    /// <summary>
+    /// GIF 降级参数：最简单的 -vf 路径，不使用 filter_complex，
+    /// 用于 palette 方式导致 FFmpeg 崩溃时的兜底重试。
+    /// </summary>
+    public static string BuildFfmpegGifFallbackArgs(string source, int videoWidth)
+    {
+        var output = BuildOutputPath(source, ".gif");
+        var w = videoWidth > 0 ? videoWidth : 480;
+        return $"-i \"{source}\" -vf \"fps=15,scale={w}:-1\" -an \"{output}\"";
+    }
+
+    /// <summary>FFmpeg 退出码是否表示进程崩溃（非正常错误退出）。</summary>
+    public static bool IsFfmpegCrash(int exitCode) => exitCode < 0 || exitCode > 125;
 
     /// <summary>
     /// 构造 ImageMagick 参数（格式转换 + 压缩：质量/strip/最长边缩放）。
