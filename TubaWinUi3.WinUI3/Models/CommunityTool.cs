@@ -9,12 +9,12 @@ namespace TubaWinUi3.Models;
 public sealed class CommunityTool : INotifyPropertyChanged
 {
     public required string Id { get; init; }
-    public required string Name { get; init; }
-    public string? Version { get; init; }
-    public string? Description { get; init; }
+    public required string Name { get; set; }
+    public string? Version { get; set; }
+    public string? Description { get; set; }
     public required string Category { get; init; }
-    public string? Publisher { get; init; }
-    public IReadOnlyList<string> Tags { get; init; } = [];
+    public string? Publisher { get; set; }
+    public IReadOnlyList<string> Tags { get; set; } = [];
     public string? Icon { get; init; }
     public string? DownloadUrl { get; init; }
     public string? DownloadFilter { get; init; }
