@@ -1,4 +1,5 @@
-using System.Runtime.InteropServices;
+using FluentCleaner.Models;
+using FluentCleaner.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -7,45 +8,15 @@ using Windows.UI;
 
 namespace TubaWinUi3.Services;
 
+/// <summary>
+/// 垃圾清理（重构版）：基于 FluentCleaner.Core 引擎与 Winapp2.ini 规则库。
+/// 规则库可从原仓库 builtbybel/FluentCleaner 一键更新。
+/// </summary>
 public sealed class JunkCleanerTool : IBuiltinTool
 {
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private struct OPENFILENAME
-    {
-        public int lStructSize;
-        public IntPtr hwndOwner;
-        public IntPtr hInstance;
-        public string lpstrFilter;
-        public string lpstrCustomFilter;
-        public int nMaxCustFilter;
-        public int nFilterIndex;
-        public string lpstrFile;
-        public int nMaxFile;
-        public string lpstrFileTitle;
-        public int nMaxFileTitle;
-        public string lpstrInitialDir;
-        public string lpstrTitle;
-        public int Flags;
-        public short nFileOffset;
-        public short nFileExtension;
-        public string lpstrDefExt;
-        public IntPtr lCustData;
-        public IntPtr lpfnHook;
-        public string lpTemplateName;
-        public IntPtr pvReserved;
-        public int dwReserved;
-        public int FlagsEx;
-    }
-
-    [DllImport("comdlg32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    private static extern bool GetSaveFileName(ref OPENFILENAME ofn);
-
-    private const int OFN_OVERWRITEPROMPT = 0x00000002;
-    private const int OFN_PATHMUSTEXIST = 0x00000800;
-    private const int OFN_NOCHANGEDIR = 0x00000008;
     public string Id => "junk-cleaner";
     public string Name => "垃圾清理";
-    public string Description => "扫描并清理系统临时文件、浏览器缓存、回收站等垃圾文件。";
+    public string Description => "基于 Winapp2 规则库扫描并清理应用缓存、临时文件与注册表残留（引擎来自 FluentCleaner）。";
     public string Glyph => "\uE74D";
     public string Category => "系统工具";
     public BuiltinToolKind Kind => BuiltinToolKind.ProgressTask;
@@ -56,10 +27,15 @@ public sealed class JunkCleanerTool : IBuiltinTool
     private static readonly Color AccentYellow = Color.FromArgb(255, 251, 191, 36);
     private static readonly Color AccentPurple = Color.FromArgb(255, 167, 139, 250);
 
-    private List<JunkCategory>? _categories;
-    private List<AiJunkSuggestion>? _aiSuggestions;
+    private readonly Winapp2Parser _parser = new();
+    private readonly DetectionService _detection = new();
+    private readonly CleaningService _cleaner = new();
+
+    private List<CleanerEntry>? _allEntries;
+    private List<JunkItem>? _items;
+    private List<AppxItem>? _appxItems;
     private CancellationTokenSource? _cts;
-    private bool _aiFullScan;
+    private bool _busy;
 
     public Task ExecuteAsync(BuiltinToolContext context)
     {
@@ -76,7 +52,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
         App.MainWindow?.NavigateToToolPage(typeof(ToolContentPage), new ToolContentPageParam
         {
             Title = "垃圾清理",
-            Description = "扫描并清理系统临时文件、浏览器缓存、回收站等垃圾文件",
+            Description = "基于 Winapp2 规则库扫描并清理应用缓存、临时文件与注册表残留",
             Content = scroll,
             OnClose = () => _cts?.Cancel()
         });
@@ -84,25 +60,74 @@ public sealed class JunkCleanerTool : IBuiltinTool
         return Task.CompletedTask;
     }
 
+    // One UI row: an entry that was analyzed and found junk.
+    private sealed class JunkItem
+    {
+        public required CleanerEntry Entry { get; init; }
+        public required ScanResult Result { get; init; }
+        public bool Selected { get; set; } = true;
+        public bool HasRegistry => Result.RegistryToDelete.Count > 0;
+        public long SizeBytes => Result.TotalBytes;
+    }
+
+    // One UI row in the Winappx bloatware section.
+    private sealed class AppxItem
+    {
+        public required AppxEntry Entry { get; init; }
+        public bool Selected { get; set; }
+    }
+
+    private sealed class UiState
+    {
+        public TextBlock DbInfoText = null!;
+        public TextBlock TotalSizeText = null!;
+        public TextBlock TotalFilesText = null!;
+        public TextBlock ItemCountText = null!;
+        public Button ScanBtn = null!;
+        public Button CleanBtn = null!;
+        public Button SelectAllBtn = null!;
+        public Button DeselectAllBtn = null!;
+        public Button UpdateDbBtn = null!;
+        public StackPanel CategoryList = null!;
+        public ProgressRing LoadingRing = null!;
+        public StackPanel LoadingPanel = null!;
+        public TextBlock LoadingText = null!;
+        public TextBlock ResultText = null!;
+        public Border ConfirmPanel = null!;
+        public TextBlock ConfirmText = null!;
+        public Button ConfirmYesBtn = null!;
+        public Button ConfirmNoBtn = null!;
+        public Button ScanAppxBtn = null!;
+        public Button RemoveAppxBtn = null!;
+        public TextBlock AppxStatus = null!;
+        public StackPanel AppxList = null!;
+    }
+
     private StackPanel BuildDialogContent()
     {
-        var totalSizeText = new TextBlock { FontSize = 22, FontWeight = Microsoft.UI.Text.FontWeights.Bold, Foreground = new SolidColorBrush(AccentBlue) };
-        var totalFilesText = new TextBlock { FontSize = 22, FontWeight = Microsoft.UI.Text.FontWeights.Bold, Foreground = new SolidColorBrush(AccentGreen) };
-        var categoryCountText = new TextBlock { FontSize = 22, FontWeight = Microsoft.UI.Text.FontWeights.Bold };
+        var dbInfoText = new TextBlock
+        {
+            FontSize = 12,
+            Foreground = new SolidColorBrush(ThemeColors.DimText),
+            TextWrapping = TextWrapping.Wrap
+        };
 
-        var sizeCard = MakeStatCard("总大小", totalSizeText, "\uEDA2", AccentBlue);
-        var filesCard = MakeStatCard("项目数", totalFilesText, "\uE8C8", AccentGreen);
-        var catCard = MakeStatCard("分类", categoryCountText, "\uE7F4", AccentPurple);
+        var totalSizeText = new TextBlock { FontSize = 22, FontWeight = Microsoft.UI.Text.FontWeights.Bold, Foreground = new SolidColorBrush(AccentBlue), Text = "0 B" };
+        var totalFilesText = new TextBlock { FontSize = 22, FontWeight = Microsoft.UI.Text.FontWeights.Bold, Foreground = new SolidColorBrush(AccentGreen), Text = "0" };
+        var itemCountText = new TextBlock { FontSize = 22, FontWeight = Microsoft.UI.Text.FontWeights.Bold, Text = "0" };
 
         var statsGrid = new Grid { ColumnSpacing = 10 };
         statsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         statsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         statsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var sizeCard = MakeStatCard("可清理大小", totalSizeText, "\uEDA2", AccentBlue);
+        var filesCard = MakeStatCard("文件数", totalFilesText, "\uE8C8", AccentGreen);
+        var countCard = MakeStatCard("发现垃圾的项目", itemCountText, "\uE7F4", AccentPurple);
         statsGrid.Children.Add(sizeCard); Grid.SetColumn(sizeCard, 0);
         statsGrid.Children.Add(filesCard); Grid.SetColumn(filesCard, 1);
-        statsGrid.Children.Add(catCard); Grid.SetColumn(catCard, 2);
+        statsGrid.Children.Add(countCard); Grid.SetColumn(countCard, 2);
 
-        var scanBtn = new Button
+        Button MakeActionButton(string text, string glyph, bool enabled = true) => new()
         {
             Content = new StackPanel
             {
@@ -110,105 +135,40 @@ public sealed class JunkCleanerTool : IBuiltinTool
                 Spacing = 6,
                 Children =
                 {
-                    new FontIcon { Glyph = "\uE72C", FontSize = 12 },
-                    new TextBlock { Text = "快速扫描" }
-                }
-            }
-        };
-
-        var aiQuickScanBtn = new Button
-        {
-            Content = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Spacing = 6,
-                Children =
-                {
-                    new FontIcon { Glyph = "\uE945", FontSize = 12 },
-                    new TextBlock { Text = "AI 快速扫描" }
-                }
-            }
-        };
-
-        var aiFullScanBtn = new Button
-        {
-            Content = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Spacing = 6,
-                Children =
-                {
-                    new FontIcon { Glyph = "\uE721", FontSize = 12 },
-                    new TextBlock { Text = "AI 完全扫描" }
-                }
-            }
-        };
-
-        var cleanBtn = new Button
-        {
-            Content = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Spacing = 6,
-                Children =
-                {
-                    new FontIcon { Glyph = "\uE74D", FontSize = 12 },
-                    new TextBlock { Text = "清理" }
+                    new FontIcon { Glyph = glyph, FontSize = 12 },
+                    new TextBlock { Text = text }
                 }
             },
-            IsEnabled = false
+            IsEnabled = enabled
         };
 
+        var scanBtn = MakeActionButton("扫描垃圾", "\uE72C");
+        var cleanBtn = MakeActionButton("清理", "\uE74D", enabled: false);
         var selectAllBtn = new Button { Content = "全选", Padding = new Thickness(8, 4, 8, 4) };
         var deselectAllBtn = new Button { Content = "取消全选", Padding = new Thickness(8, 4, 8, 4) };
-        var exportBtn = new Button
-        {
-            Content = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Spacing = 6,
-                Children =
-                {
-                    new FontIcon { Glyph = "\uE896", FontSize = 12 },
-                    new TextBlock { Text = "导出报告" }
-                }
-            },
-            Visibility = Visibility.Collapsed
-        };
+        var updateDbBtn = MakeActionButton("更新规则库", "\uE895");
 
         var actionBar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         actionBar.Children.Add(scanBtn);
-        actionBar.Children.Add(aiQuickScanBtn);
-        actionBar.Children.Add(aiFullScanBtn);
         actionBar.Children.Add(cleanBtn);
         actionBar.Children.Add(selectAllBtn);
         actionBar.Children.Add(deselectAllBtn);
-        actionBar.Children.Add(exportBtn);
+        actionBar.Children.Add(updateDbBtn);
 
-        var categoryList = new StackPanel { Spacing = 8 };
-        var listScroll = new ScrollViewer
-        {
-            Content = categoryList,
-            MaxHeight = 320,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
-        };
-
-        var aiLogList = new StackPanel { Spacing = 4 };
-        var aiLogScroll = new ScrollViewer
-        {
-            Content = aiLogList,
-            MaxHeight = 280,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Visibility = Visibility.Collapsed,
-            Padding = new Thickness(12),
-            Background = new SolidColorBrush(ThemeColors.CardBg),
-            BorderBrush = new SolidColorBrush(ThemeColors.BorderColor),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(6)
-        };
+        var categoryList = new StackPanel { Spacing = 12 };
 
         var loadingRing = new ProgressRing { Width = 28, Height = 28, IsActive = true };
-        var loadingText = new TextBlock { Text = "正在扫描垃圾文件...", FontSize = 13, Foreground = new SolidColorBrush(ThemeColors.DimText), VerticalAlignment = VerticalAlignment.Center };
+        var loadingText = new TextBlock
+        {
+            Text = "",
+            FontSize = 13,
+            Foreground = new SolidColorBrush(ThemeColors.DimText),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextWrapping = TextWrapping.NoWrap,
+            MaxLines = 1,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Width = 640
+        };
         var loadingPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -244,412 +204,360 @@ public sealed class JunkCleanerTool : IBuiltinTool
                 Children =
                 {
                     confirmText,
-                    new StackPanel
-                    {
-                        Orientation = Orientation.Horizontal,
-                        Spacing = 8,
-                        Children =
-                        {
-                            confirmYesBtn,
-                            confirmNoBtn
-                        }
-                    }
+                    new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { confirmYesBtn, confirmNoBtn } }
                 }
             }
         };
 
-        var aiWarningTip = new InfoBar
+        var registryTip = new InfoBar
         {
-            Title = "AI 扫描结果仅供参考",
-            Message = "AI 分析可能存在误判，请仔细核对每项内容后再清理，避免误删重要文件。",
+            Title = "规则包含注册表清理",
+            Message = "部分 Winapp2 规则会删除注册表残留项，清理前请仔细核对，必要时先备份注册表。",
             Severity = InfoBarSeverity.Warning,
             IsOpen = true,
             IsClosable = true,
             Visibility = Visibility.Collapsed
         };
 
-        var contentGrid = new Grid { RowSpacing = 10 };
-        contentGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        contentGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        contentGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        contentGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        contentGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        contentGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        contentGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-        contentGrid.Children.Add(statsGrid); Grid.SetRow(statsGrid, 0);
-        contentGrid.Children.Add(actionBar); Grid.SetRow(actionBar, 1);
-        contentGrid.Children.Add(confirmPanel); Grid.SetRow(confirmPanel, 2);
-        contentGrid.Children.Add(aiWarningTip); Grid.SetRow(aiWarningTip, 3);
-        contentGrid.Children.Add(loadingPanel); Grid.SetRow(loadingPanel, 4);
-        contentGrid.Children.Add(aiLogScroll); Grid.SetRow(aiLogScroll, 5);
-        contentGrid.Children.Add(listScroll); Grid.SetRow(listScroll, 6);
-
         var resultText = new TextBlock
         {
             FontSize = 14,
             FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = new SolidColorBrush(AccentGreen),
-            Visibility = Visibility.Collapsed
+            TextWrapping = TextWrapping.NoWrap,
+            MaxLines = 2,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Height = 44,
+            VerticalAlignment = VerticalAlignment.Top
         };
 
+        var contentGrid = new Grid { RowSpacing = 10 };
+        for (var i = 0; i < 6; i++)
+            contentGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        contentGrid.Children.Add(dbInfoText); Grid.SetRow(dbInfoText, 0);
+        contentGrid.Children.Add(statsGrid); Grid.SetRow(statsGrid, 1);
+        contentGrid.Children.Add(actionBar); Grid.SetRow(actionBar, 2);
+        contentGrid.Children.Add(confirmPanel); Grid.SetRow(confirmPanel, 3);
+        contentGrid.Children.Add(loadingPanel); Grid.SetRow(loadingPanel, 4);
+        contentGrid.Children.Add(registryTip); Grid.SetRow(registryTip, 5);
+
         var root = new StackPanel { Spacing = 14, MaxWidth = 880 };
-        root.Children.Add(new TextBlock
-        {
-            Text = "扫描并清理系统临时文件、浏览器缓存、回收站等垃圾文件，释放磁盘空间",
-            FontSize = 12,
-            Foreground = new SolidColorBrush(ThemeColors.DimText)
-        });
         root.Children.Add(contentGrid);
         root.Children.Add(resultText);
+        root.Children.Add(categoryList);
 
-        root.Tag = new JunkCleanerState
+        // --- 预装应用清理（Winappx.ini） ---
+        var appxStatus = new TextBlock
         {
+            FontSize = 12,
+            Foreground = new SolidColorBrush(ThemeColors.DimText),
+            TextWrapping = TextWrapping.Wrap
+        };
+        var appxList = new StackPanel { Spacing = 6 };
+        var scanAppxBtn = new Button { Content = "扫描预装应用" };
+        var removeAppxBtn = new Button { Content = "卸载选中", IsEnabled = false };
+        var appxExpander = new Expander
+        {
+            Header = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                Children =
+                {
+                    new FontIcon { Glyph = "\uE7B8", FontSize = 14 },
+                    new TextBlock { Text = "预装应用清理（Winappx.ini）" }
+                }
+            },
+            IsExpanded = false,
+            Content = new StackPanel
+            {
+                Spacing = 10,
+                Children =
+                {
+                    new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { scanAppxBtn, removeAppxBtn } },
+                    appxStatus,
+                    appxList
+                }
+            }
+        };
+        root.Children.Add(appxExpander);
+
+        root.Tag = new UiState
+        {
+            DbInfoText = dbInfoText,
             TotalSizeText = totalSizeText,
             TotalFilesText = totalFilesText,
-            CategoryCountText = categoryCountText,
+            ItemCountText = itemCountText,
             ScanBtn = scanBtn,
-            AiQuickScanBtn = aiQuickScanBtn,
-            AiFullScanBtn = aiFullScanBtn,
             CleanBtn = cleanBtn,
             SelectAllBtn = selectAllBtn,
             DeselectAllBtn = deselectAllBtn,
-            ExportBtn = exportBtn,
+            UpdateDbBtn = updateDbBtn,
             CategoryList = categoryList,
-            ListScroll = listScroll,
             LoadingRing = loadingRing,
             LoadingPanel = loadingPanel,
             LoadingText = loadingText,
             ResultText = resultText,
-            AiLogList = aiLogList,
-            AiLogScroll = aiLogScroll,
             ConfirmPanel = confirmPanel,
             ConfirmText = confirmText,
             ConfirmYesBtn = confirmYesBtn,
             ConfirmNoBtn = confirmNoBtn,
-            AiWarningTip = aiWarningTip
+            ScanAppxBtn = scanAppxBtn,
+            RemoveAppxBtn = removeAppxBtn,
+            AppxStatus = appxStatus,
+            AppxList = appxList
         };
 
-        scanBtn.Click += async (_, _) =>
-        {
-            _cts?.Cancel();
-            _cts = new CancellationTokenSource();
-            _aiSuggestions = null;
-            exportBtn.Visibility = Visibility.Collapsed;
-            await ScanStandardAsync(root, _cts.Token);
-        };
+        scanBtn.Click += async (_, _) => await ScanAllAsync(root);
+        cleanBtn.Click += async (_, _) => await CleanSelectedAsync(root);
+        updateDbBtn.Click += async (_, _) => await UpdateDatabaseAsync(root);
+        scanAppxBtn.Click += async (_, _) => await ScanAppxAsync(root);
+        removeAppxBtn.Click += async (_, _) => await RemoveAppxAsync(root);
 
-        aiQuickScanBtn.Click += async (_, _) =>
-        {
-            _cts?.Cancel();
-            _cts = new CancellationTokenSource();
-            _aiFullScan = false;
-            await ScanAiAsync(root, _cts.Token);
-        };
+        selectAllBtn.Click += (_, _) => SetAllSelected(root, true);
+        deselectAllBtn.Click += (_, _) => SetAllSelected(root, false);
 
-        aiFullScanBtn.Click += async (_, _) =>
-        {
-            _cts?.Cancel();
-            _cts = new CancellationTokenSource();
-            _aiFullScan = true;
-            await ScanAiAsync(root, _cts.Token);
-        };
-
-        cleanBtn.Click += async (_, _) =>
-        {
-            if (_aiSuggestions is not null)
-            {
-                await CleanAiAsync(root);
-            }
-            else if (_categories is not null)
-            {
-                await CleanStandardAsync(root);
-            }
-        };
-
-        selectAllBtn.Click += (_, _) =>
-        {
-            if (_aiSuggestions is not null)
-            {
-                foreach (var s in _aiSuggestions) s.Selected = true;
-                RenderAiSuggestions(root);
-            }
-            else if (_categories is not null)
-            {
-                foreach (var c in _categories) c.Selected = true;
-                RenderCategories(root);
-            }
-        };
-
-        deselectAllBtn.Click += (_, _) =>
-        {
-            if (_aiSuggestions is not null)
-            {
-                foreach (var s in _aiSuggestions) s.Selected = false;
-                RenderAiSuggestions(root);
-            }
-            else if (_categories is not null)
-            {
-                foreach (var c in _categories) c.Selected = false;
-                RenderCategories(root);
-            }
-        };
-
-        exportBtn.Click += async (_, _) =>
-        {
-            if (_aiSuggestions is null) return;
-            await ExportAiReportAsync(root);
-        };
-
+        RefreshDbInfo(root);
         return root;
     }
 
-    private async Task ScanStandardAsync(StackPanel root, CancellationToken ct)
+    // --- Database info / update --------------------------------------
+
+    private void RefreshDbInfo(StackPanel root)
     {
         var state = GetState(root);
         if (state is null) return;
 
-        state.LoadingPanel.Visibility = Visibility.Visible;
-        state.LoadingRing.IsActive = true;
-        state.LoadingText.Text = "正在扫描垃圾文件...";
-        state.AiLogScroll.Visibility = Visibility.Collapsed;
-        state.AiLogList.Children.Clear();
-        state.CategoryList.Children.Clear();
-        state.ListScroll.Visibility = Visibility.Visible;
-        state.CleanBtn.IsEnabled = false;
-        state.ScanBtn.IsEnabled = false;
-        state.AiQuickScanBtn.IsEnabled = false;
-        state.AiFullScanBtn.IsEnabled = false;
-        state.ResultText.Visibility = Visibility.Collapsed;
+        var w2 = JunkCleanerDatabase.GetInfo(JunkDatabaseKind.Winapp2);
+        var wx = JunkCleanerDatabase.GetInfo(JunkDatabaseKind.Winappx);
 
-        _categories = await JunkCleanerService.ScanAsync(ct);
+        string Describe(JunkDatabaseInfo? info) => info is null
+            ? "缺失"
+            : info.IsBundled
+                ? $"内置副本 · {info.EntryCount} 条规则"
+                : $"已更新 · 版本 {info.Version} · {info.EntryCount} 条规则 · {info.UpdatedAt:yyyy-MM-dd HH:mm}";
 
-        RefreshUI(root);
-        RenderCategories(root);
-
-        state.LoadingPanel.Visibility = Visibility.Collapsed;
-        state.LoadingRing.IsActive = false;
-        state.CleanBtn.IsEnabled = _categories.Any(c => c.SizeBytes > 0);
-        state.ScanBtn.IsEnabled = true;
-        state.AiQuickScanBtn.IsEnabled = true;
-        state.AiFullScanBtn.IsEnabled = true;
+        state.DbInfoText.Text =
+            $"Winapp2.ini：{Describe(w2)}\nWinappx.ini（预装应用清理）：{Describe(wx)} · 来源 builtbybel/FluentCleaner（点击「更新规则库」可手动获取最新版）";
     }
 
-    private async Task ScanAiAsync(StackPanel root, CancellationToken ct)
+    private async Task UpdateDatabaseAsync(StackPanel root)
     {
         var state = GetState(root);
-        if (state is null) return;
+        if (state is null || _busy) return;
 
-        if (AiService.IsUsingDefaultModel)
-        {
-            AppendAiLog(state, "提示", "⚠️ 自带模型可能出现排队/限额满速，质量低下等问题。推荐使用 DeepSeek V4 Pro。", AccentYellow);
-        }
-
-        var scanLabel = _aiFullScan ? "AI 完全扫描" : "AI 快速扫描";
+        _busy = true;
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
 
         state.LoadingPanel.Visibility = Visibility.Visible;
         state.LoadingRing.IsActive = true;
-        state.LoadingText.Text = $"{scanLabel}已启动，正在收集系统信息...";
-        state.AiLogList.Children.Clear();
-        state.AiLogScroll.Visibility = Visibility.Visible;
-        state.CategoryList.Children.Clear();
-        state.ListScroll.Visibility = Visibility.Collapsed;
-        state.CleanBtn.IsEnabled = false;
+        state.LoadingText.Text = "正在更新规则库...";
         state.ScanBtn.IsEnabled = false;
-        state.AiQuickScanBtn.IsEnabled = false;
-        state.AiFullScanBtn.IsEnabled = false;
-        state.ExportBtn.Visibility = Visibility.Collapsed;
+        state.UpdateDbBtn.IsEnabled = false;
         state.ResultText.Visibility = Visibility.Collapsed;
 
-        _categories = null;
-
-        AppendAiLog(state, "开始", $"{scanLabel}已启动，正在收集系统信息...", AccentBlue);
-
-        var progress = new Progress<AiAnalyzerProgress>(p =>
+        try
         {
-            state.LoadingText.Text = p.Status;
-            if (p.Log is not null)
-            {
-                var color = p.Log switch
-                {
-                    var l when l.Contains("[工具调用") => AccentYellow,
-                    var l when l.Contains("[工具结果") => AccentGreen,
-                    var l when l.StartsWith("[AI 思考]") => AccentPurple,
-                    var l when l.StartsWith("[完成]") => AccentGreen,
-                    _ => ThemeColors.PrimaryText
-                };
-                var label = p.Log switch
-                {
-                    var l when l.Contains("[工具调用") => "工具",
-                    var l when l.Contains("[工具结果") => "结果",
-                    var l when l.StartsWith("[AI 思考]") => "思考",
-                    var l when l.StartsWith("[完成]") => "完成",
-                    var l when l.StartsWith("[第") => "等待",
-                    _ => "信息"
-                };
-                AppendAiLog(state, label, p.Log, color);
-            }
-        });
+            // Throttle: scanning reports thousands of per-file paths; only repaint ~10x/s
+            // so the header row doesn't flicker under the flood of updates.
+            var progress = CreateUiProgress(state);
 
-        List<AiChatMessage>? continuationMessages = null;
+            await JunkCleanerDatabase.UpdateAllFromRepoAsync(progress, _cts.Token);
 
-        while (true)
+            _allEntries = null;   // force re-parse on next scan
+            _items = null;
+            _appxItems = null;
+            state.CategoryList.Children.Clear();
+            state.AppxList.Children.Clear();
+
+            state.ResultText.Text = "规则库更新完成";
+            state.ResultText.Foreground = new SolidColorBrush(AccentGreen);
+            state.ResultText.Visibility = Visibility.Visible;
+        }
+        catch (OperationCanceledException)
         {
-            try
+            state.ResultText.Text = "规则库更新已取消";
+            state.ResultText.Foreground = new SolidColorBrush(ThemeColors.DimText);
+            state.ResultText.Visibility = Visibility.Visible;
+        }
+        catch (Exception ex)
+        {
+            state.ResultText.Text = $"规则库更新失败：{ex.Message}";
+            state.ResultText.Foreground = new SolidColorBrush(AccentRed);
+            state.ResultText.Visibility = Visibility.Visible;
+        }
+        finally
+        {
+            _busy = false;
+            state.LoadingPanel.Visibility = Visibility.Collapsed;
+            state.LoadingRing.IsActive = false;
+            state.ScanBtn.IsEnabled = true;
+            state.UpdateDbBtn.IsEnabled = true;
+            RefreshDbInfo(root);
+        }
+    }
+
+    private async Task<List<CleanerEntry>> LoadEntriesAsync()
+    {
+        if (_allEntries is not null) return _allEntries;
+        if (!JunkCleanerDatabase.Exists(JunkDatabaseKind.Winapp2)) return [];
+
+        var entries = await _parser.ParseFileAsync(
+            JunkCleanerDatabase.GetEffectivePath(JunkDatabaseKind.Winapp2));
+
+        // 用户自定义规则（与 FluentCleaner 一致：<数据目录>\JunkCleaner\Custom\*.ini）
+        if (Directory.Exists(JunkCleanerDatabase.CustomDir))
+        {
+            foreach (var file in Directory.GetFiles(JunkCleanerDatabase.CustomDir, "*.ini"))
             {
-                _aiSuggestions = await AiJunkAnalyzerService.AnalyzeAsync(progress, ct, continuationMessages, _aiFullScan);
-
-                if (_aiSuggestions.Count == 0)
+                try
                 {
-                    state.ResultText.Text = "AI 未发现可清理的垃圾文件";
-                    state.ResultText.Foreground = new SolidColorBrush(AccentGreen);
-                    state.ResultText.Visibility = Visibility.Visible;
+                    foreach (var ce in await _parser.ParseFileAsync(file))
+                    {
+                        ce.IsCustom = true;
+                        bool hasDetection = ce.DetectFiles.Count > 0 || ce.DetectKeys.Count > 0 || ce.SpecialDetect is not null;
+                        if (hasDetection && !_detection.IsInstalled(ce)) continue;
+                        entries.RemoveAll(e => string.Equals(e.Name, ce.Name, StringComparison.OrdinalIgnoreCase));
+                        entries.Add(ce);
+                    }
                 }
-                else
-                {
-                    AppendAiLog(state, "完成", $"分析完成，共发现 {_aiSuggestions.Count} 个可清理项目", AccentGreen);
-
-                    state.AiLogScroll.Visibility = Visibility.Collapsed;
-                    state.ListScroll.Visibility = Visibility.Visible;
-                    RenderAiSuggestions(root);
-                    state.CleanBtn.IsEnabled = _aiSuggestions.Any(s => s.Selected);
-                    state.ExportBtn.Visibility = Visibility.Visible;
-                }
-                break;
+                catch { }
             }
-            catch (AiMaxRoundsReachedException ex)
+        }
+
+        _allEntries = entries;
+        return entries;
+    }
+
+    // --- Scan --------------------------------------------------------
+
+    private async Task ScanAllAsync(StackPanel root)
+    {
+        var state = GetState(root);
+        if (state is null || _busy) return;
+
+        if (!JunkCleanerDatabase.Exists(JunkDatabaseKind.Winapp2))
+        {
+            state.ResultText.Text = "内置 Winapp2 规则库缺失，请点击「更新规则库」重新获取。";
+            state.ResultText.Foreground = new SolidColorBrush(AccentYellow);
+            return;
+        }
+
+        _busy = true;
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+        var ct = _cts.Token;
+
+        state.LoadingPanel.Visibility = Visibility.Visible;
+        state.LoadingRing.IsActive = true;
+        state.CleanBtn.IsEnabled = false;
+        state.ScanBtn.IsEnabled = false;
+        state.UpdateDbBtn.IsEnabled = false;
+        state.ResultText.Visibility = Visibility.Collapsed;
+        state.CategoryList.Children.Clear();
+        state.ConfirmPanel.Visibility = Visibility.Collapsed;
+
+        try
+        {
+            var entries = await LoadEntriesAsync();
+            if (entries.Count == 0)
             {
-                AppendAiLog(state, "暂停", $"已达到 {ex.RoundsCompleted} 轮上限", AccentYellow);
-
-                state.LoadingPanel.Visibility = Visibility.Collapsed;
-                state.LoadingRing.IsActive = false;
-
-                state.ConfirmText.Text = $"AI 已分析 {ex.RoundsCompleted} 轮，尚未输出最终报告。AI 可能还在探查更多目录。你可以选择继续让 AI 分析，或者停止并查看当前已有的探查记录。";
-                state.ConfirmYesBtn.Content = "继续分析";
-                state.ConfirmNoBtn.Content = "停止";
-                state.ConfirmPanel.Visibility = Visibility.Visible;
-
-                var roundTcs = new TaskCompletionSource<int>();
-                void OnRoundYes(object s, RoutedEventArgs e) { roundTcs.TrySetResult(1); }
-                void OnRoundNo(object s, RoutedEventArgs e) { roundTcs.TrySetResult(2); }
-
-                state.ConfirmYesBtn.Click += OnRoundYes;
-                state.ConfirmNoBtn.Click += OnRoundNo;
-
-                var roundChoice = await roundTcs.Task;
-
-                state.ConfirmYesBtn.Click -= OnRoundYes;
-                state.ConfirmNoBtn.Click -= OnRoundNo;
-                state.ConfirmPanel.Visibility = Visibility.Collapsed;
-
-                if (roundChoice == 1)
-                {
-                    continuationMessages = ex.Messages;
-                    AppendAiLog(state, "继续", "用户选择继续分析...", AccentBlue);
-                    state.LoadingPanel.Visibility = Visibility.Visible;
-                    state.LoadingRing.IsActive = true;
-                    state.LoadingText.Text = "继续分析...";
-                    continue;
-                }
-
-                AppendAiLog(state, "停止", "用户选择停止分析", AccentYellow);
-                state.ResultText.Text = "AI 分析已停止（达到轮次上限）";
+                state.ResultText.Text = "规则库为空或解析失败，请尝试重新更新规则库。";
                 state.ResultText.Foreground = new SolidColorBrush(AccentYellow);
                 state.ResultText.Visibility = Visibility.Visible;
-                break;
+                return;
             }
-            catch (OperationCanceledException)
+
+            var progress = CreateUiProgress(state);
+
+            var items = new List<JunkItem>();
+            var installedCount = 0;
+
+            for (var i = 0; i < entries.Count; i++)
             {
-                AppendAiLog(state, "取消", "AI 扫描已取消", AccentRed);
-                state.ResultText.Text = "AI 扫描已取消";
-                state.ResultText.Foreground = new SolidColorBrush(ThemeColors.DimText);
-                state.ResultText.Visibility = Visibility.Visible;
-                break;
+                ct.ThrowIfCancellationRequested();
+                var entry = entries[i];
+                state.LoadingText.Text = $"正在分析 ({i + 1}/{entries.Count})：{entry.Name}";
+
+                var result = await Task.Run(async () =>
+                {
+                    if (!_detection.IsInstalled(entry)) return null;
+                    return await _cleaner.AnalyzeAsync(entry, progress, ct);
+                }, ct);
+
+                if (result is null) continue;
+                installedCount++;
+
+                if (result.FilesToDelete.Count > 0 || result.RegistryToDelete.Count > 0)
+                    items.Add(new JunkItem { Entry = entry, Result = result, Selected = entry.Default });
             }
-            catch (Exception ex)
-            {
-                AppendAiLog(state, "错误", $"AI 扫描失败：{ex.Message}", AccentRed);
-                state.ResultText.Text = $"AI 扫描失败：{ex.Message}";
-                state.ResultText.Foreground = new SolidColorBrush(AccentRed);
-                state.ResultText.Visibility = Visibility.Visible;
-                break;
-            }
+
+            _items = items;
+            RenderItems(root);
+
+            state.TotalFilesText.Text = items.Sum(x => x.Result.FilesToDelete.Count).ToString();
+            state.TotalSizeText.Text = ScanResult.FormatBytes(items.Sum(x => x.SizeBytes));
+            state.ItemCountText.Text = items.Count.ToString();
+
+            state.ResultText.Text = items.Count > 0
+                ? $"扫描完成：{installedCount} 个已安装应用中，{items.Count} 个项目发现可清理的垃圾。"
+                : $"扫描完成：{installedCount} 个已安装应用，未发现可清理的垃圾。";
+            state.ResultText.Foreground = new SolidColorBrush(items.Count > 0 ? AccentGreen : AccentBlue);
+            state.ResultText.Visibility = Visibility.Visible;
         }
-
-        state.LoadingPanel.Visibility = Visibility.Collapsed;
-        state.LoadingRing.IsActive = false;
-        state.ScanBtn.IsEnabled = true;
-        state.AiQuickScanBtn.IsEnabled = true;
-        state.AiFullScanBtn.IsEnabled = true;
+        catch (OperationCanceledException)
+        {
+            state.ResultText.Text = "扫描已取消";
+            state.ResultText.Foreground = new SolidColorBrush(ThemeColors.DimText);
+            state.ResultText.Visibility = Visibility.Visible;
+        }
+        catch (Exception ex)
+        {
+            state.ResultText.Text = $"扫描失败：{ex.Message}";
+            state.ResultText.Foreground = new SolidColorBrush(AccentRed);
+            state.ResultText.Visibility = Visibility.Visible;
+        }
+        finally
+        {
+            _busy = false;
+            state.LoadingPanel.Visibility = Visibility.Collapsed;
+            state.LoadingRing.IsActive = false;
+            state.ScanBtn.IsEnabled = true;
+            state.UpdateDbBtn.IsEnabled = true;
+            if (GetState(root) is { } st)
+                st.CleanBtn.IsEnabled = _items?.Any(x => x.Selected) ?? false;
+        }
     }
 
-    private static void AppendAiLog(JunkCleanerState state, string label, string text, Color accent)
+    // --- Clean -------------------------------------------------------
+
+    private void SetAllSelected(StackPanel root, bool selected)
     {
-        var dimAccent = Color.FromArgb(30, accent.R, accent.G, accent.B);
-
-        var badge = new Border
-        {
-            Padding = new Thickness(6, 1, 6, 1),
-            CornerRadius = new CornerRadius(3),
-            Background = new SolidColorBrush(dimAccent),
-            VerticalAlignment = VerticalAlignment.Top,
-            Child = new TextBlock
-            {
-                Text = label,
-                FontSize = 10,
-                Foreground = new SolidColorBrush(accent),
-                FontWeight = Microsoft.UI.Text.FontWeights.Bold
-            }
-        };
-
-        var content = new TextBlock
-        {
-            Text = text,
-            FontSize = 12,
-            Foreground = new SolidColorBrush(ThemeColors.PrimaryText),
-            TextWrapping = TextWrapping.Wrap,
-            Opacity = label is "结果" or "思考" ? 0.85 : 1.0
-        };
-
-        var row = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            Padding = new Thickness(0, 2, 0, 2)
-        };
-        row.Children.Add(badge);
-        row.Children.Add(content);
-
-        state.AiLogList.Children.Add(row);
-
-        state.AiLogScroll.ChangeView(null, state.AiLogScroll.ScrollableHeight, null);
+        if (_items is null) return;
+        foreach (var item in _items) item.Selected = selected;
+        RenderItems(root);
     }
 
-    private async Task CleanAiAsync(StackPanel root)
+    private async Task CleanSelectedAsync(StackPanel root)
     {
         var state = GetState(root);
-        if (state is null || _aiSuggestions is null) return;
+        if (state is null || _items is null || _busy) return;
 
-        var selected = _aiSuggestions.Where(s => s.Selected).ToList();
+        var selected = _items.Where(x => x.Selected).ToList();
         if (selected.Count == 0) return;
 
-        var totalSize = selected.Sum(s => s.SizeBytes);
-        var sizeInfo = totalSize > 0 ? $"（共 {AiJunkAnalyzerService.FormatSize(totalSize)}）" : "";
-        state.ConfirmText.Text = $"即将清理 {selected.Count} 个项目{sizeInfo}，此操作不可撤销。确定继续？";
+        var totalSize = selected.Sum(x => x.SizeBytes);
+        var registryCount = selected.Count(x => x.HasRegistry);
+        state.ConfirmText.Text = $"即将清理 {selected.Count} 个项目（共 {ScanResult.FormatBytes(totalSize)}）" +
+            (registryCount > 0 ? $"，其中 {registryCount} 个项目包含注册表清理。" : "。") +
+            "此操作不可撤销，确定继续？";
         state.ConfirmPanel.Visibility = Visibility.Visible;
 
         var tcs = new TaskCompletionSource<bool>();
-
-        void OnYes(object s, RoutedEventArgs e)
-        {
-            tcs.TrySetResult(true);
-        }
-
-        void OnNo(object s, RoutedEventArgs e)
-        {
-            tcs.TrySetResult(false);
-        }
-
+        void OnYes(object s, RoutedEventArgs e) => tcs.TrySetResult(true);
+        void OnNo(object s, RoutedEventArgs e) => tcs.TrySetResult(false);
         state.ConfirmYesBtn.Click += OnYes;
         state.ConfirmNoBtn.Click += OnNo;
 
@@ -661,205 +569,324 @@ public sealed class JunkCleanerTool : IBuiltinTool
 
         if (!confirmed) return;
 
-        state.CleanBtn.IsEnabled = false;
-        state.ScanBtn.IsEnabled = false;
-        state.AiQuickScanBtn.IsEnabled = false;
-        state.AiFullScanBtn.IsEnabled = false;
-        state.ResultText.Visibility = Visibility.Collapsed;
-
-        state.LoadingPanel.Visibility = Visibility.Visible;
-        state.LoadingRing.IsActive = true;
-        state.LoadingText.Text = "正在清理文件...";
-
+        _busy = true;
         _cts?.Cancel();
         _cts = new CancellationTokenSource();
+        var ct = _cts.Token;
 
-        var cleanProgress = new Progress<CleanProgress>(p =>
-        {
-            root.DispatcherQueue.TryEnqueue(() =>
-            {
-                state.LoadingText.Text = $"正在清理 ({p.Current}/{p.Total})：{Path.GetFileName(p.CurrentPath)}";
-            });
-        });
-
-        var cleaned = await Task.Run(() => AiJunkAnalyzerService.CleanSelected(_aiSuggestions, cleanProgress, _cts.Token));
-
-        state.LoadingPanel.Visibility = Visibility.Collapsed;
-        state.LoadingRing.IsActive = false;
-
-        state.ResultText.Text = $"清理完成！释放了 {AiJunkAnalyzerService.FormatSize(cleaned)} 空间";
-        state.ResultText.Foreground = new SolidColorBrush(AccentGreen);
-        state.ResultText.Visibility = Visibility.Visible;
-
-        _aiSuggestions = _aiSuggestions.Where(s =>
-        {
-            if (!s.Selected) return true;
-            return Directory.Exists(s.Path) || File.Exists(s.Path);
-        }).ToList();
-
-        RenderAiSuggestions(root);
-        state.ScanBtn.IsEnabled = true;
-        state.AiQuickScanBtn.IsEnabled = true;
-        state.AiFullScanBtn.IsEnabled = true;
-        state.CleanBtn.IsEnabled = _aiSuggestions.Any(s => s.Selected);
-    }
-
-    private async Task ExportAiReportAsync(StackPanel root)
-    {
-        if (_aiSuggestions is null) return;
-
-        var json = AiJunkAnalyzerService.ExportReportJson(_aiSuggestions);
-
-        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
-        var savePath = PickSaveFile(hwnd, "导出 AI 清理报告", "JSON 文件\0*.json\0所有文件\0*.*\0\0", "AiJunkReport.json", "json");
-        if (string.IsNullOrWhiteSpace(savePath)) return;
-
-        if (!savePath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
-            savePath += ".json";
+        state.CleanBtn.IsEnabled = false;
+        state.ScanBtn.IsEnabled = false;
+        state.UpdateDbBtn.IsEnabled = false;
+        state.ResultText.Visibility = Visibility.Collapsed;
+        state.LoadingPanel.Visibility = Visibility.Visible;
+        state.LoadingRing.IsActive = true;
 
         try
         {
-            await Task.Run(() => File.WriteAllText(savePath, json, System.Text.Encoding.UTF8));
-            var state = GetState(root);
-            if (state is not null)
+            long totalBytes = 0;
+            int totalDeleted = 0;
+
+            var progress = CreateUiProgress(state);
+
+            for (var i = 0; i < selected.Count; i++)
             {
-                state.ResultText.Text = $"报告已导出：{savePath}";
-                state.ResultText.Foreground = new SolidColorBrush(AccentBlue);
-                state.ResultText.Visibility = Visibility.Visible;
+                ct.ThrowIfCancellationRequested();
+                var item = selected[i];
+                state.LoadingText.Text = $"正在清理 ({i + 1}/{selected.Count})：{item.Entry.Name}";
+
+                var (count, bytes) = await _cleaner.CleanAsync(item.Result, progress, ct);
+                totalDeleted += count;
+                totalBytes += bytes;
             }
+
+            // Drop fully cleaned items; keep the ones still holding leftovers.
+            _items = _items.Where(x => !x.Selected ||
+                    x.Result.FilesToDelete.Count > 0 && AnyFileLeft(x.Result.FilesToDelete) ||
+                    x.Result.RegistryToDelete.Count > 0 && AnyRegistryLeft(x.Result))
+                .ToList();
+            foreach (var item in _items) item.Selected = true;
+
+            RenderItems(root);
+
+            state.TotalFilesText.Text = _items.Sum(x => x.Result.FilesToDelete.Count).ToString();
+            state.TotalSizeText.Text = ScanResult.FormatBytes(_items.Sum(x => x.SizeBytes));
+            state.ItemCountText.Text = _items.Count.ToString();
+
+            state.ResultText.Text = $"清理完成！共删除 {totalDeleted} 项，释放 {ScanResult.FormatBytes(totalBytes)} 空间。";
+            state.ResultText.Foreground = new SolidColorBrush(AccentGreen);
+            state.ResultText.Visibility = Visibility.Visible;
+        }
+        catch (OperationCanceledException)
+        {
+            state.ResultText.Text = "清理已取消";
+            state.ResultText.Foreground = new SolidColorBrush(ThemeColors.DimText);
+            state.ResultText.Visibility = Visibility.Visible;
         }
         catch (Exception ex)
         {
-            var state = GetState(root);
-            if (state is not null)
+            state.ResultText.Text = $"清理失败：{ex.Message}";
+            state.ResultText.Foreground = new SolidColorBrush(AccentRed);
+            state.ResultText.Visibility = Visibility.Visible;
+        }
+        finally
+        {
+            _busy = false;
+            state.LoadingPanel.Visibility = Visibility.Collapsed;
+            state.LoadingRing.IsActive = false;
+            state.ScanBtn.IsEnabled = true;
+            state.UpdateDbBtn.IsEnabled = true;
+            if (GetState(root) is { } st)
+                st.CleanBtn.IsEnabled = _items?.Any(x => x.Selected) ?? false;
+        }
+    }
+
+    private static bool AnyFileLeft(List<string> files)
+    {
+        foreach (var f in files)
+            try { if (File.Exists(f)) return true; } catch { }
+        return false;
+    }
+
+    private static bool AnyRegistryLeft(ScanResult result)
+    {
+        foreach (var reg in result.RegistryToDelete)
+        {
+            try
             {
-                state.ResultText.Text = $"导出失败：{ex.Message}";
-                state.ResultText.Foreground = new SolidColorBrush(AccentRed);
-                state.ResultText.Visibility = Visibility.Visible;
+                var idx = reg.KeyPath.IndexOf('\\');
+                if (idx < 0) continue;
+                using var root = RegistryHelpers.OpenHive(reg.KeyPath[..idx].ToUpperInvariant());
+                using var key = root?.OpenSubKey(reg.KeyPath[(idx + 1)..]);
+                if (key is not null) return true;
             }
+            catch { }
+        }
+        return false;
+    }
+
+    // --- Winappx: preinstalled apps -----------------------------------
+
+    private async Task ScanAppxAsync(StackPanel root)
+    {
+        var state = GetState(root);
+        if (state is null || _busy) return;
+
+        if (!JunkCleanerDatabase.Exists(JunkDatabaseKind.Winappx))
+        {
+            state.AppxStatus.Text = "Winappx.ini 缺失，请先点击「更新规则库」。";
+            return;
+        }
+
+        _busy = true;
+        state.ScanAppxBtn.IsEnabled = false;
+        state.AppxStatus.Text = "正在枚举已安装的预装应用（PowerShell）...";
+        try
+        {
+            var all = await AppxService.ParseDatabaseAsync(
+                JunkCleanerDatabase.GetEffectivePath(JunkDatabaseKind.Winappx));
+            var installed = await AppxService.ScanInstalledAsync(all);
+
+            _appxItems = installed.Select(e => new AppxItem { Entry = e }).ToList();
+            RenderAppx(root);
+
+            state.AppxStatus.Text = installed.Count == 0
+                ? "未发现 Winappx 清单中的预装应用。"
+                : $"发现 {installed.Count} 个预装应用。默认不勾选，请谨慎勾选后再卸载（卸载 Store 应用不可恢复）。";
+        }
+        catch (Exception ex)
+        {
+            state.AppxStatus.Text = $"扫描失败：{ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+            state.ScanAppxBtn.IsEnabled = true;
+            if (GetState(root) is { } st)
+                st.RemoveAppxBtn.IsEnabled = _appxItems?.Any(x => x.Selected) ?? false;
         }
     }
 
-    private static string? PickSaveFile(IntPtr hwnd, string title, string filter, string defaultFileName, string defaultExtension)
-    {
-        var buffer = defaultFileName + new string('\0', 1024 - defaultFileName.Length);
-        var ofn = new OPENFILENAME
-        {
-            lStructSize = Marshal.SizeOf<OPENFILENAME>(),
-            hwndOwner = hwnd,
-            lpstrFilter = filter,
-            lpstrFile = buffer,
-            nMaxFile = 1024,
-            lpstrTitle = title,
-            lpstrDefExt = defaultExtension,
-            Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR,
-            nFilterIndex = 1
-        };
-
-        return GetSaveFileName(ref ofn) ? ofn.lpstrFile.TrimEnd('\0') : null;
-    }
-
-    private async Task CleanStandardAsync(StackPanel root)
+    private async Task RemoveAppxAsync(StackPanel root)
     {
         var state = GetState(root);
-        if (state is null || _categories is null) return;
+        if (state is null || _appxItems is null || _busy) return;
 
-        state.CleanBtn.IsEnabled = false;
-        state.ScanBtn.IsEnabled = false;
-        state.AiQuickScanBtn.IsEnabled = false;
-        state.AiFullScanBtn.IsEnabled = false;
-        state.ResultText.Visibility = Visibility.Collapsed;
+        var selected = _appxItems.Where(x => x.Selected).ToList();
+        if (selected.Count == 0) return;
 
-        state.LoadingPanel.Visibility = Visibility.Visible;
-        state.LoadingRing.IsActive = true;
-        state.LoadingText.Text = "正在清理文件...";
+        state.ConfirmText.Text = $"即将卸载 {selected.Count} 个预装应用：{string.Join("、", selected.Select(x => x.Entry.Name))}。" +
+            "此操作不可恢复（可尝试在 Microsoft Store 重新安装），确定继续？";
+        state.ConfirmPanel.Visibility = Visibility.Visible;
 
-        _cts?.Cancel();
-        _cts = new CancellationTokenSource();
+        var tcs = new TaskCompletionSource<bool>();
+        void OnYes(object s, RoutedEventArgs e) => tcs.TrySetResult(true);
+        void OnNo(object s, RoutedEventArgs e) => tcs.TrySetResult(false);
+        state.ConfirmYesBtn.Click += OnYes;
+        state.ConfirmNoBtn.Click += OnNo;
 
-        var progress = new Progress<CleanProgress>(p =>
+        var confirmed = await tcs.Task;
+
+        state.ConfirmYesBtn.Click -= OnYes;
+        state.ConfirmNoBtn.Click -= OnNo;
+        state.ConfirmPanel.Visibility = Visibility.Collapsed;
+
+        if (!confirmed) return;
+
+        _busy = true;
+        state.RemoveAppxBtn.IsEnabled = false;
+        state.ScanAppxBtn.IsEnabled = false;
+        state.AppxStatus.Text = "正在卸载...";
+        try
         {
-            root.DispatcherQueue.TryEnqueue(() =>
+            var ok = 0;
+            var fail = 0;
+            for (var i = 0; i < selected.Count; i++)
             {
-                state.LoadingText.Text = $"正在清理 ({p.Current}/{p.Total})：{Path.GetFileName(p.CurrentPath)}";
+                var item = selected[i];
+                state.AppxStatus.Text = $"正在卸载 ({i + 1}/{selected.Count})：{item.Entry.Name}...";
+                if (await AppxService.RemoveAsync(item.Entry)) ok++;
+                else fail++;
+            }
+
+            // Re-scan: drop the ones that are now gone.
+            var installed = await AppxService.GetInstalledNamesAsync();
+            _appxItems = _appxItems.Where(x => !x.Selected ||
+                    !installed.Any(n => n.Contains(x.Entry.PackageName, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+            RenderAppx(root);
+
+            state.AppxStatus.Text = fail == 0
+                ? $"卸载完成：成功移除 {ok} 个预装应用。"
+                : $"卸载完成：成功 {ok} 个，失败 {fail} 个（部分应用受保护，需在设置中手动卸载）。";
+        }
+        catch (Exception ex)
+        {
+            state.AppxStatus.Text = $"卸载失败：{ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+            state.ScanAppxBtn.IsEnabled = true;
+            if (GetState(root) is { } st)
+                st.RemoveAppxBtn.IsEnabled = _appxItems?.Any(x => x.Selected) ?? false;
+        }
+    }
+
+    private void RenderAppx(StackPanel root)
+    {
+        var state = GetState(root);
+        if (state is null) return;
+
+        state.AppxList.Children.Clear();
+        if (_appxItems is null || _appxItems.Count == 0) return;
+
+        foreach (var item in _appxItems.OrderBy(x => x.Entry.Name))
+        {
+            var nameText = new TextBlock
+            {
+                Text = item.Entry.Name,
+                FontSize = 14,
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                Foreground = new SolidColorBrush(ThemeColors.PrimaryText),
+                TextWrapping = TextWrapping.Wrap
+            };
+            var warnText = new TextBlock
+            {
+                Text = item.Entry.Warning ?? item.Entry.PackageName,
+                FontSize = 11,
+                Foreground = new SolidColorBrush(ThemeColors.DimText),
+                TextWrapping = TextWrapping.Wrap,
+                MaxLines = 2,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            };
+
+            var toggle = new ToggleSwitch
+            {
+                IsOn = item.Selected,
+                OnContent = "",
+                OffContent = "",
+                MinWidth = 76
+            };
+            toggle.Toggled += (_, _) =>
+            {
+                item.Selected = toggle.IsOn;
+                var st = GetState(root);
+                if (st is not null)
+                    st.RemoveAppxBtn.IsEnabled = _appxItems?.Any(x => x.Selected) ?? false;
+            };
+
+            var infoPanel = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+            infoPanel.Children.Add(nameText);
+            infoPanel.Children.Add(warnText);
+
+            var grid = new Grid { ColumnSpacing = 12 };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.Children.Add(infoPanel);
+            grid.Children.Add(toggle); Grid.SetColumn(toggle, 1);
+
+            state.AppxList.Children.Add(new Border
+            {
+                Padding = new Thickness(14, 10, 14, 10),
+                Background = new SolidColorBrush(ThemeColors.CardBg),
+                BorderBrush = new SolidColorBrush(ThemeColors.BorderColor),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Child = grid
             });
-        });
-
-        var cleaned = await Task.Run(() => JunkCleanerService.Clean(_categories, progress, _cts.Token));
-
-        state.LoadingPanel.Visibility = Visibility.Collapsed;
-        state.LoadingRing.IsActive = false;
-
-        state.ResultText.Text = $"清理完成！释放了 {JunkCleanerService.FormatSize(cleaned)} 空间";
-        state.ResultText.Visibility = Visibility.Visible;
-
-        RefreshUI(root);
-        RenderCategories(root);
-        state.ScanBtn.IsEnabled = true;
-        state.AiQuickScanBtn.IsEnabled = true;
-        state.AiFullScanBtn.IsEnabled = true;
+        }
     }
 
-    private void RefreshUI(StackPanel root)
+    // --- Rendering ---------------------------------------------------
+
+    private void RenderItems(StackPanel root)
     {
         var state = GetState(root);
-        if (state is null || _categories is null) return;
-
-        var totalSize = _categories.Sum(c => c.SizeBytes);
-        var totalFiles = _categories.Sum(c => c.FileCount);
-        state.TotalSizeText.Text = JunkCleanerService.FormatSize(totalSize);
-        state.TotalFilesText.Text = totalFiles.ToString();
-        state.CategoryCountText.Text = _categories.Count.ToString();
-    }
-
-    private void RefreshAiUI(StackPanel root)
-    {
-        var state = GetState(root);
-        if (state is null || _aiSuggestions is null) return;
-
-        var totalSize = _aiSuggestions.Where(s => s.Selected).Sum(s => s.SizeBytes);
-        state.TotalSizeText.Text = AiJunkAnalyzerService.FormatSize(totalSize);
-        state.TotalFilesText.Text = _aiSuggestions.Count(s => s.Selected).ToString();
-        state.CategoryCountText.Text = _aiSuggestions.Select(s => s.Category).Distinct().Count().ToString();
-    }
-
-    private void RenderCategories(StackPanel root)
-    {
-        var state = GetState(root);
-        if (state is null || _categories is null) return;
+        if (state is null) return;
 
         state.CategoryList.Children.Clear();
-        state.AiWarningTip.Visibility = Visibility.Collapsed;
+        if (_items is null || _items.Count == 0) return;
 
-        foreach (var cat in _categories)
+        var registryAny = _items.Any(x => x.HasRegistry);
+
+        foreach (var group in _items
+                     .GroupBy(x =>
+                     {
+                         var info = CategoryResolver.TryMapLangSecRef(x.Entry);
+                         return (info.Name, info.Order);
+                     })
+                     .OrderBy(g => g.Key.Order))
         {
-            state.CategoryList.Children.Add(CreateCategoryRow(cat, root));
+            var groupSize = group.Sum(x => x.SizeBytes);
+            var groupHeader = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            groupHeader.Children.Add(new TextBlock
+            {
+                Text = group.Key.Name,
+                FontSize = 15,
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                Foreground = new SolidColorBrush(ThemeColors.PrimaryText)
+            });
+            groupHeader.Children.Add(new TextBlock
+            {
+                Text = $"{group.Count()} 项 · {ScanResult.FormatBytes(groupSize)}",
+                FontSize = 12,
+                VerticalAlignment = VerticalAlignment.Center,
+                Foreground = new SolidColorBrush(ThemeColors.DimText)
+            });
+            state.CategoryList.Children.Add(groupHeader);
+
+            var list = new StackPanel { Spacing = 6 };
+            foreach (var item in group.OrderByDescending(x => x.SizeBytes).ThenBy(x => x.Entry.Name))
+                list.Children.Add(CreateItemRow(item, root));
+            state.CategoryList.Children.Add(list);
         }
 
-        RefreshUI(root);
-        state.CleanBtn.IsEnabled = _categories.Any(c => c.Selected && c.SizeBytes > 0);
+        state.CleanBtn.IsEnabled = _items.Any(x => x.Selected);
     }
 
-    private void RenderAiSuggestions(StackPanel root)
+    private Border CreateItemRow(JunkItem item, StackPanel root)
     {
-        var state = GetState(root);
-        if (state is null || _aiSuggestions is null) return;
-
-        state.CategoryList.Children.Clear();
-        state.AiWarningTip.Visibility = Visibility.Visible;
-
-        foreach (var item in _aiSuggestions)
-        {
-            state.CategoryList.Children.Add(CreateAiSuggestionRow(item, root));
-        }
-
-        RefreshAiUI(root);
-        state.CleanBtn.IsEnabled = _aiSuggestions.Any(s => s.Selected);
-    }
-
-    private Border CreateCategoryRow(JunkCategory cat, StackPanel root)
-    {
-        var accent = ParseHex(cat.ColorHex);
+        var accent = item.HasRegistry ? AccentYellow : AccentBlue;
         var dimAccent = Color.FromArgb(26, accent.R, accent.G, accent.B);
 
         var iconBorder = new Border
@@ -868,50 +895,59 @@ public sealed class JunkCleanerTool : IBuiltinTool
             Height = 36,
             Background = new SolidColorBrush(dimAccent),
             CornerRadius = new CornerRadius(6),
-            Child = new FontIcon { FontSize = 16, Foreground = new SolidColorBrush(accent), Glyph = cat.Glyph }
+            Child = new FontIcon { FontSize = 16, Foreground = new SolidColorBrush(accent), Glyph = item.HasRegistry ? "\uE7BA" : "\uE8B7" }
         };
 
         var nameText = new TextBlock
         {
-            Text = cat.Name,
+            Text = item.Entry.Name,
             FontSize = 14,
             FontWeight = Microsoft.UI.Text.FontWeights.Bold,
-            Foreground = new SolidColorBrush(ThemeColors.PrimaryText)
+            Foreground = new SolidColorBrush(ThemeColors.PrimaryText),
+            TextWrapping = TextWrapping.Wrap
         };
 
         var descText = new TextBlock
         {
-            Text = cat.Description,
+            Text = item.Entry.Warning ?? $"{item.Result.FilesToDelete.Count} 个文件 · {item.Result.RegistryToDelete.Count} 项注册表",
             FontSize = 11,
-            Foreground = new SolidColorBrush(ThemeColors.DimText)
+            Foreground = new SolidColorBrush(ThemeColors.DimText),
+            TextWrapping = TextWrapping.Wrap,
+            MaxLines = 2,
+            TextTrimming = TextTrimming.CharacterEllipsis
         };
 
         var sizeText = new TextBlock
         {
-            Text = cat.FileCount > 0 ? JunkCleanerService.FormatSize(cat.SizeBytes) : "无文件",
+            Text = item.SizeBytes > 0 ? ScanResult.FormatBytes(item.SizeBytes) : (item.HasRegistry ? "注册表" : "0 B"),
             FontSize = 14,
             FontWeight = Microsoft.UI.Text.FontWeights.Bold,
-            Foreground = new SolidColorBrush(cat.FileCount > 0 ? accent : ThemeColors.DimText)
+            Foreground = new SolidColorBrush(item.SizeBytes > 0 || item.HasRegistry ? accent : ThemeColors.DimText)
         };
 
         var countText = new TextBlock
         {
-            Text = cat.FileCount > 0 ? $"{cat.FileCount} 个文件" : "",
+            Text = item.HasRegistry ? "含注册表项" : $"{item.Result.FilesToDelete.Count} 个文件",
             FontSize = 11,
-            Foreground = new SolidColorBrush(ThemeColors.DimText)
+            Foreground = new SolidColorBrush(item.HasRegistry ? AccentYellow : ThemeColors.DimText)
         };
 
         var toggle = new ToggleSwitch
         {
-            IsOn = cat.Selected,
+            IsOn = item.Selected,
             OnContent = "",
             OffContent = "",
             MinWidth = 76
         };
         toggle.Toggled += (_, _) =>
         {
-            cat.Selected = toggle.IsOn;
-            GetState(root)?.CleanBtn.IsEnabled = _categories?.Any(c => c.Selected && c.SizeBytes > 0) ?? false;
+            item.Selected = toggle.IsOn;
+            var st = GetState(root);
+            if (st is not null)
+            {
+                st.CleanBtn.IsEnabled = _items?.Any(x => x.Selected) ?? false;
+                st.ItemCountText.Text = _items?.Count(x => x.Selected).ToString() ?? "0";
+            }
         };
 
         var infoPanel = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
@@ -943,183 +979,21 @@ public sealed class JunkCleanerTool : IBuiltinTool
         };
     }
 
-    private Border CreateAiSuggestionRow(AiJunkSuggestion item, StackPanel root)
+    private static UiState? GetState(StackPanel root) => root?.Tag as UiState;
+
+    // Progress reporting throttled to ~10 reports/second so per-file scan updates
+    // never flood the dispatcher and make the header layout jump around.
+    private static Progress<string> CreateUiProgress(UiState state)
     {
-        var riskColor = item.RiskLevel switch
+        var lastReport = DateTime.MinValue;
+        return new Progress<string>(p =>
         {
-            "safe" => AccentGreen,
-            "low" => AccentBlue,
-            "medium" => AccentYellow,
-            "high" => AccentRed,
-            _ => AccentGreen
-        };
-
-        var riskLabel = item.RiskLevel switch
-        {
-            "safe" => "安全",
-            "low" => "低风险",
-            "medium" => "中风险",
-            "high" => "高风险",
-            _ => "安全"
-        };
-
-        var riskGlyph = item.RiskLevel switch
-        {
-            "safe" => "\uE73E",
-            "low" => "\uE73E",
-            "medium" => "\uE7BA",
-            "high" => "\uE783",
-            _ => "\uE73E"
-        };
-
-        var dimRisk = Color.FromArgb(26, riskColor.R, riskColor.G, riskColor.B);
-
-        var iconBorder = new Border
-        {
-            Width = 36,
-            Height = 36,
-            Background = new SolidColorBrush(dimRisk),
-            CornerRadius = new CornerRadius(6),
-            Child = new FontIcon { FontSize = 16, Foreground = new SolidColorBrush(riskColor), Glyph = riskGlyph }
-        };
-
-        var pathText = new TextBlock
-        {
-            Text = item.Path,
-            FontSize = 14,
-            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
-            Foreground = new SolidColorBrush(ThemeColors.PrimaryText)
-        };
-
-        var descText = new TextBlock
-        {
-            Text = item.Description,
-            FontSize = 12,
-            Foreground = new SolidColorBrush(ThemeColors.DimText),
-            TextWrapping = TextWrapping.Wrap
-        };
-
-        var reasonText = new TextBlock
-        {
-            Text = item.Reason,
-            FontSize = 11,
-            Foreground = new SolidColorBrush(Color.FromArgb(180, ThemeColors.DimText.R, ThemeColors.DimText.G, ThemeColors.DimText.B)),
-            TextWrapping = TextWrapping.Wrap
-        };
-
-        var riskBadge = new Border
-        {
-            Padding = new Thickness(8, 2, 8, 2),
-            CornerRadius = new CornerRadius(4),
-            Background = new SolidColorBrush(dimRisk),
-            Child = new TextBlock
-            {
-                Text = riskLabel,
-                FontSize = 11,
-                Foreground = new SolidColorBrush(riskColor),
-                FontWeight = Microsoft.UI.Text.FontWeights.Bold
-            }
-        };
-
-        var categoryBadge = new Border
-        {
-            Padding = new Thickness(8, 2, 8, 2),
-            CornerRadius = new CornerRadius(4),
-            Background = new SolidColorBrush(Color.FromArgb(20, AccentPurple.R, AccentPurple.G, AccentPurple.B)),
-            Child = new TextBlock
-            {
-                Text = item.Category,
-                FontSize = 11,
-                Foreground = new SolidColorBrush(AccentPurple)
-            }
-        };
-
-        var sizeText = new TextBlock
-        {
-            Text = item.SizeBytes > 0 ? AiJunkAnalyzerService.FormatSize(item.SizeBytes) : "--",
-            FontSize = 14,
-            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
-            Foreground = new SolidColorBrush(item.SizeBytes > 0 ? riskColor : ThemeColors.DimText)
-        };
-
-        var sizeLabel = new TextBlock
-        {
-            Text = item.SizeBytes > 0 ? (Directory.Exists(item.Path) ? "文件夹" : "文件") : "",
-            FontSize = 11,
-            Foreground = new SolidColorBrush(ThemeColors.DimText)
-        };
-
-        var sizePanel = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
-        sizePanel.Children.Add(sizeText);
-        sizePanel.Children.Add(sizeLabel);
-
-        var toggle = new ToggleSwitch
-        {
-            IsOn = item.Selected,
-            OnContent = "",
-            OffContent = "",
-            MinWidth = 76
-        };
-        toggle.Toggled += (_, _) =>
-        {
-            item.Selected = toggle.IsOn;
-            var st = GetState(root);
-            if (st is not null)
-            {
-                st.CleanBtn.IsEnabled = _aiSuggestions?.Any(s => s.Selected) ?? false;
-                st.TotalFilesText.Text = _aiSuggestions?.Count(s => s.Selected).ToString() ?? "0";
-            }
-        };
-
-        var infoPanel = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
-        infoPanel.Children.Add(pathText);
-        infoPanel.Children.Add(descText);
-        infoPanel.Children.Add(reasonText);
-
-        var badgePanel = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 6,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        badgePanel.Children.Add(riskBadge);
-        badgePanel.Children.Add(categoryBadge);
-
-        var grid = new Grid { ColumnSpacing = 12, RowSpacing = 4 };
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        grid.Children.Add(iconBorder);
-        grid.Children.Add(infoPanel); Grid.SetColumn(infoPanel, 1);
-        grid.Children.Add(badgePanel); Grid.SetColumn(badgePanel, 2); Grid.SetRow(badgePanel, 0);
-        grid.Children.Add(sizePanel); Grid.SetColumn(sizePanel, 3); Grid.SetRowSpan(sizePanel, 2);
-        grid.Children.Add(toggle); Grid.SetColumn(toggle, 4); Grid.SetRow(toggle, 0); Grid.SetRowSpan(toggle, 2);
-
-        return new Border
-        {
-            Padding = new Thickness(14, 10, 14, 10),
-            Background = new SolidColorBrush(ThemeColors.CardBg),
-            BorderBrush = new SolidColorBrush(ThemeColors.BorderColor),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(6),
-            Child = grid
-        };
+            var now = DateTime.UtcNow;
+            if ((now - lastReport).TotalMilliseconds < 100) return;
+            lastReport = now;
+            state.LoadingText.Text = p;
+        });
     }
-
-    private static Color ParseHex(string hex)
-    {
-        var r = Convert.ToByte(hex[1..3], 16);
-        var g = Convert.ToByte(hex[3..5], 16);
-        var b = Convert.ToByte(hex[5..7], 16);
-        return Color.FromArgb(255, r, g, b);
-    }
-
-    private static JunkCleanerState? GetState(StackPanel root) => root?.Tag as JunkCleanerState;
 
     private static Border MakeStatCard(string label, TextBlock value, string glyph, Color accent)
     {
@@ -1151,32 +1025,5 @@ public sealed class JunkCleanerTool : IBuiltinTool
             CornerRadius = new CornerRadius(6),
             Child = grid
         };
-    }
-
-    private sealed class JunkCleanerState
-    {
-        public TextBlock TotalSizeText = null!;
-        public TextBlock TotalFilesText = null!;
-        public TextBlock CategoryCountText = null!;
-        public Button ScanBtn = null!;
-        public Button AiQuickScanBtn = null!;
-        public Button AiFullScanBtn = null!;
-        public Button CleanBtn = null!;
-        public Button SelectAllBtn = null!;
-        public Button DeselectAllBtn = null!;
-        public Button ExportBtn = null!;
-        public StackPanel CategoryList = null!;
-        public ScrollViewer ListScroll = null!;
-        public ProgressRing LoadingRing = null!;
-        public StackPanel LoadingPanel = null!;
-        public TextBlock LoadingText = null!;
-        public TextBlock ResultText = null!;
-        public StackPanel AiLogList = null!;
-        public ScrollViewer AiLogScroll = null!;
-        public Border ConfirmPanel = null!;
-        public TextBlock ConfirmText = null!;
-        public Button ConfirmYesBtn = null!;
-        public Button ConfirmNoBtn = null!;
-        public InfoBar AiWarningTip = null!;
     }
 }

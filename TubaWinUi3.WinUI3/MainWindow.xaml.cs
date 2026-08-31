@@ -455,6 +455,11 @@ public sealed partial class MainWindow : Window
         flyout.ShowAt(AiQuickButton);
     }
 
+    private void NewbieTutorialButton_Click(object sender, RoutedEventArgs e)
+    {
+        NewbieTutorialWindow.Show();
+    }
+
     private void OnBackdropChanged()
     {
         DispatcherQueue.TryEnqueue(() => BackdropService.ApplyBackdrop(this));

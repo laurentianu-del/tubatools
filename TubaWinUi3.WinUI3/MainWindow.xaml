@@ -232,6 +232,18 @@
                         </Button>
 
                         <Button
+                            x:Name="NewbieTutorialButton"
+                            Click="NewbieTutorialButton_Click"
+                            Width="34" Height="30"
+                            Padding="0"
+                            BorderThickness="0"
+                            Background="Transparent"
+                            ToolTipService.ToolTip="新手教程"
+                            AutomationProperties.Name="新手教程">
+                            <FontIcon FontSize="14" Glyph="&#xE7BE;" />
+                        </Button>
+
+                        <Button
                             x:Name="DownloadQueueButton"
                             Click="DownloadQueueButton_Click"
                             Width="34" Height="30"

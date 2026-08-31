@@ -58,6 +58,15 @@ dotnet test --filter "FullyQualifiedName~ToolCatalogTests"        # one class / 
 - 图片→MP4/WebM 借用 FFmpeg（`BuildImageVideoArgs`：静态图 -loop 1 + 时长，GIF 直接转码）；OCR/ZIP/合并/拆分等非普通目标是 `ConvertSpecial`，由页面专门调度。
 - Win32 拖放复用 `Win32DropHelper`（管理员 UIPI 绕过）；文件多选用 `Win32Dialogs.PickOpenMultiple`。
 
+### 垃圾清理（JunkCleanerTool）— FluentCleaner.Core 引擎架构
+- 「垃圾清理」内置工具已完全重构为 **Winapp2.ini 规则库驱动**，引擎移植自 builtbybel/FluentCleaner（MIT）的 `FluentCleaner.Core`，代码在 `Services/JunkCleaner/`，保留上游命名空间 `FluentCleaner.Models` / `FluentCleaner.Services` 以便对照上游更新。
+- 管线：`Winapp2Parser`（FileKeyN/RegKeyN/ExcludeKeyN/Detect/DetectFile/SpecialDetect 多值键解析）→ `DetectionService`（注册表/文件/SpecialDetect 检测已安装应用，OR 逻辑）→ `CleaningService`（两阶段：Analyze 只读构建删除清单 + Clean 真删；CreateFileW 探测锁定文件、跳过 reparse point、REMOVESELF 剪除空目录、注册表排除分支保护）→ `PathExpander`（%EnvVar% 展开 + 通配符路径段递归解析）。
+- 规则库管理 `JunkCleanerDatabase`：**两个规则库随应用内置**于 `Assets/JunkCleaner/`（Winapp2.ini 清理规则 + Winappx.ini 预装应用清单，csproj `Assets\**` Content 自动打包）。数据目录 `<DataDir>/JunkCleaner/` 存在副本时优先（`GetEffectivePath(kind)`），否则回退读内置文件——离线开箱即用。「更新规则库」手动触发，从原仓库拉取（raw.githubusercontent → jsdelivr CDN → gh-proxy 三级回退），先下临时文件校验再原子替换，覆盖 Winapp2 与 Winappx 两个文件。自定义规则放 `<DataDir>/JunkCleaner/Custom/*.ini`。
+- 预装应用清理：Winappx 驱动，`AppxService`（移植上游，PowerShell `Get-AppxPackage` 检测 / `Remove-AppxPackage` 卸载）在工具页底部「预装应用清理」Expander 区，默认不勾选，卸载前确认。
+- UI 防闪：扫描时进度文本单行截断 + `CreateUiProgress` 100ms 节流（避免千级路径刷新导致顶栏忽大忽小）；结果文本固定高度常驻（不 Collapsed/Visible 切换），布局不再重排。
+- UI：条目按 `CategoryResolver`（LangSecRef → 分类，回退 Section → 其他应用程序）分组展示，逐条开关默认取 ini 的 `Default`；清理前有确认面板，含注册表项目黄色警示。旧硬编码分类 `JunkCleanerService` 与 AI 扫描 `AiJunkAnalyzerService` 已删除。
+- 测试：`Winapp2ParserTests`（解析/Key 模型/分类映射）。
+
 ### Adding a built-in tool
 1. New class in `TubaWinUi3.WinUI3/Services/BuiltinTools/` implementing `IBuiltinTool`.
 2. Pick `BuiltinToolKind`: `Dialog` / `BackgroundTask` / `ProgressTask` / `InstantAction`.

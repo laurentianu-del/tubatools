@@ -19,6 +19,7 @@ public static class BuiltinToolRegistry
     {
         Register(new CertBlockTool());
         Register(new RogueCleanerTool());
+        Register(new SandboxieTool());
         Register(new PortViewerTool());
         Register(new HostsEditorTool());
         Register(new KeyboardTestTool());
@@ -40,7 +41,6 @@ public static class BuiltinToolRegistry
         Register(new BenchmarkCloudTool());
         Register(new LatencyImageQueryTool());
         Register(new WindowsImageTool());
-        Register(new FirPeTool());
         Register(new PcTutorialTool());
         Register(new AntiMotionSicknessTool());
         Register(new GameMonitorTool());
@@ -57,7 +57,6 @@ public static class BuiltinToolRegistry
         Register(new RatingSystemTool());
         Register(new VolumeShaderTool());
         Register(new StressTestTool());
-        Register(new MemoryManagerTool());
         Register(new TrafficMonitorTool());
         Register(new WingetStoreTool());
 
