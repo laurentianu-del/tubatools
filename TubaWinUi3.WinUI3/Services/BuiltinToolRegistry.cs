@@ -59,7 +59,8 @@ public static class BuiltinToolRegistry
         Register(new StressTestTool());
         Register(new MemoryManagerTool());
         Register(new TrafficMonitorTool());
-        Register(new BitdefenderTool());
+        Register(new WingetStoreTool());
+
         Register(new StartupManagerTool());
     }
 

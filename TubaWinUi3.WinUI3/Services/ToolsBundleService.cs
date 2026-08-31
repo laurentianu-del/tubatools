@@ -14,11 +14,13 @@ public static class ToolsBundleService
 {
     private const string Owner = "luolangaga";
     private const string Repo = "tubatool";
-    private const string GitHubReleaseApi = $"https://api.github.com/repos/{Owner}/{Repo}/releases/latest";
+    private const string GitHubReleasesApi = $"https://api.github.com/repos/{Owner}/{Repo}/releases";
     private const string GitCodeOwner = "luolangaga";
     private const string GitCodeRepo = "tubatool";
     private const string GitCodeReleaseApiBase = $"https://api.gitcode.com/api/v5/repos/{GitCodeOwner}/{GitCodeRepo}/releases";
     private const string ToolsAssetName = "Tools.zip";
+    private const int ReleasesPerPage = 100;
+    private const int MaxReleasePages = 5;
 
     private static readonly HttpClient _httpClient = new()
     {
@@ -156,15 +158,7 @@ public static class ToolsBundleService
     {
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ToolsBundle");
-
-            var url = $"{GitCodeReleaseApiBase}/latest";
-            var response = await client.GetAsync(url, ct);
-            if (!response.IsSuccessStatusCode) return null;
-
-            var json = await response.Content.ReadAsStringAsync(ct);
-            return ParseReleaseJson(json);
+            return await WalkReleasesForToolsAsync(GitCodeReleaseApiBase, ct);
         }
         catch { return null; }
     }
@@ -173,44 +167,86 @@ public static class ToolsBundleService
     {
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ToolsBundle");
-
-            var response = await client.GetAsync(GitHubReleaseApi, ct);
-            if (!response.IsSuccessStatusCode) return null;
-
-            var json = await response.Content.ReadAsStringAsync(ct);
-            return ParseReleaseJson(json);
+            return await WalkReleasesForToolsAsync(GitHubReleasesApi, ct);
         }
         catch { return null; }
     }
 
-    private static (string Url, long Size, string Version)? ParseReleaseJson(string json)
+    /// <summary>
+    /// 从最新发行版开始逐版本向下扫描（分页），返回第一个带 Tools.zip 的发行版。
+    /// 某个发行版没附带工具包更新时（例如纯应用更新），自动回退到更早的版本。
+    /// </summary>
+    private static async Task<(string Url, long Size, string Version)?> WalkReleasesForToolsAsync(
+        string releasesApi, CancellationToken ct)
     {
-        try
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-ToolsBundle");
+
+        for (var page = 1; page <= MaxReleasePages; page++)
         {
-            var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
+            var url = $"{releasesApi}?page={page}&per_page={ReleasesPerPage}";
+            var response = await client.GetAsync(url, ct);
+            if (!response.IsSuccessStatusCode) return null;
 
-            var tagName = root.GetProperty("tag_name").GetString() ?? "";
-            var versionStr = tagName.TrimStart('v', 'V');
+            var json = await response.Content.ReadAsStringAsync(ct);
 
-            if (!root.TryGetProperty("assets", out var assetsEl)) return null;
-
-            foreach (var asset in assetsEl.EnumerateArray())
+            try
             {
-                var name = asset.GetProperty("name").GetString() ?? "";
-                if (!name.Equals(ToolsAssetName, StringComparison.OrdinalIgnoreCase)) continue;
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
 
-                var downloadUrl = asset.GetProperty("browser_download_url").GetString() ?? "";
-                var assetSize = asset.TryGetProperty("size", out var sizeEl) ? sizeEl.GetInt64() : 0;
+                var match = ScanReleasesForTools(root);
+                if (match is not null) return match;
 
-                if (string.IsNullOrEmpty(downloadUrl)) continue;
-                return (downloadUrl, assetSize, versionStr);
+                // 本页不满一页说明已到最后一页，仍未找到 Tools.zip
+                if (root.ValueKind != JsonValueKind.Array || root.GetArrayLength() < ReleasesPerPage) return null;
             }
-
-            return null;
+            catch { return null; }
         }
-        catch { return null; }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 按 JSON 数组顺序（发行版列表均为最新在前）扫描，返回第一个带 Tools.zip 的发行版。
+    /// </summary>
+    internal static (string Url, long Size, string Version)? ScanReleasesForTools(JsonElement releases)
+    {
+        if (releases.ValueKind != JsonValueKind.Array) return null;
+
+        foreach (var release in releases.EnumerateArray())
+        {
+            var match = ParseToolsAsset(release);
+            if (match is not null) return match;
+        }
+
+        return null;
+    }
+
+    private static (string Url, long Size, string Version)? ParseToolsAsset(JsonElement release)
+    {
+        var tagName = release.TryGetProperty("tag_name", out var tagEl) ? tagEl.GetString() ?? "" : "";
+        if (tagName.Length == 0) return null;
+
+        // 与 /releases/latest 语义一致：跳过草稿和预发布
+        if (release.TryGetProperty("draft", out var draftEl) && draftEl.GetBoolean()) return null;
+        if (release.TryGetProperty("prerelease", out var preEl) && preEl.GetBoolean()) return null;
+
+        if (!release.TryGetProperty("assets", out var assetsEl)) return null;
+
+        foreach (var asset in assetsEl.EnumerateArray())
+        {
+            var name = asset.GetProperty("name").GetString() ?? "";
+            if (!name.Equals(ToolsAssetName, StringComparison.OrdinalIgnoreCase)) continue;
+
+            var downloadUrl = asset.GetProperty("browser_download_url").GetString() ?? "";
+            if (string.IsNullOrEmpty(downloadUrl)) continue;
+
+            var versionStr = tagName.TrimStart('v', 'V');
+            var assetSize = asset.TryGetProperty("size", out var sizeEl) ? sizeEl.GetInt64() : 0;
+            return (downloadUrl, assetSize, versionStr);
+        }
+
+        return null;
     }
 }
