@@ -157,6 +157,24 @@ public sealed class TubaChatProvider : IAiProvider
         [EnumeratorCancellation] CancellationToken streamToken)
     {
         var messages = BuildMessages(request);
+
+        // 无进展检测（死循环最后手段）：连续多轮纯工具调用未产出回答 → 向 system 消息注入
+        // 终止指令，催促模型立即总结停止；消息每轮从请求重建，注入不会残留进消息树
+        if (AgentToolLoopGuard.ShouldInjectStopDirective)
+        {
+            const string stopDirective =
+                "\n\n【系统检测】已连续多轮仅调用工具而未产出回答，疑似陷入循环。请立即停止调用新工具，直接基于已有信息给出最终回答；如确需更多信息，先向用户说明。";
+            if (messages.Count > 0 && messages[0] is SystemChatMessage sys
+                && sys.Content.Count > 0 && sys.Content[0].Text is { } sysText)
+            {
+                messages[0] = OpenAI.Chat.ChatMessage.CreateSystemMessage(sysText + stopDirective);
+            }
+            else
+            {
+                messages.Insert(0, OpenAI.Chat.ChatMessage.CreateSystemMessage(stopDirective.TrimStart()));
+            }
+        }
+
         var options = BuildOptions(request);
         _lastRequestBody = $"messages={messages.Count}, tools={request.Tools?.Count ?? 0}, model={ModelId}";
         _lastRawResponse = null;
@@ -167,6 +185,9 @@ public sealed class TubaChatProvider : IAiProvider
         // 思维链长度护栏：当前轮已转发的 reasoning 字符数与是否已发出截断提示
         var thinkingLength = 0;
         var thinkingTruncated = false;
+        // 无进展检测：本轮是否产出过用户可见文本 / 工具调用（供流结束后 ReportRound 上报）
+        var hasUserText = false;
+        var hasToolCalls = false;
 
         await foreach (var update in chat.CompleteChatStreamingAsync(messages, options, streamToken))
         {
@@ -176,7 +197,10 @@ public sealed class TubaChatProvider : IAiProvider
                 foreach (var part in content)
                 {
                     if (part.Kind == ChatMessageContentPartKind.Text && part.Text is { Length: > 0 })
+                    {
+                        hasUserText = true;
                         yield return new StreamEvent.TextDelta(part.Text);
+                    }
                 }
             }
 
@@ -221,6 +245,7 @@ public sealed class TubaChatProvider : IAiProvider
                     {
                         call.StartEmitted = true;
                         var id = call.Id;
+                        hasToolCalls = true;
                         yield return new StreamEvent.ToolCallStart(id, call.Name.ToString(), null);
                         foreach (var chunk in call.ArgChunks)
                             yield return new StreamEvent.ToolCallDelta(id, chunk);
@@ -251,10 +276,14 @@ public sealed class TubaChatProvider : IAiProvider
             if (call.StartEmitted) continue;
             call.Id ??= $"tba_{call.Index}";
             call.StartEmitted = true;
+            hasToolCalls = true;
             yield return new StreamEvent.ToolCallStart(call.Id, call.Name.ToString(), null);
             foreach (var chunk in call.ArgChunks)
                 yield return new StreamEvent.ToolCallDelta(call.Id, chunk);
         }
+
+        // 无进展检测：上报本轮进展（有文本 → 清零；纯工具轮 → 递增，达阈值后注入终止指令）
+        AgentToolLoopGuard.ReportRound(hasUserText, hasToolCalls);
 
         _lastUsage = usage;
         _isTruncated = isTruncated;

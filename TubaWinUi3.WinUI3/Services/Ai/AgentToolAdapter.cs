@@ -45,8 +45,15 @@ internal sealed class AgentToolAdapter : IAssistTool
     {
         // 技能强制触发（「电脑选购」技能要求用浏览器查京东实时价格）→ 拦截 web_search，
         // 与 AgentRuntime 中的运行时拦截语义一致。
+        // 拦截计数：同一会话内第二次起直接强硬终止，防弱模型反复尝试被禁工具空转烧轮次。
         if (_tool.Name == "web_search" && AgentToolContext.SkillTriggerActive)
         {
+            if (AgentToolLoopGuard.RegisterWebSearchBlocked() >= 2)
+            {
+                return
+                    "[web_search 已禁用] 本任务中 web_search 已连续两次被拦截，请勿再尝试。请改用浏览器工具：browser_navigate / browser_get_page / browser_run_js；或基于已有信息直接总结回答。";
+            }
+
             return
                 "web_search 已被禁用：当前任务触发了「电脑选购」技能，要求用浏览器查询京东实时价格（搜索返回的不是可购买的真实价格）。请改用浏览器工具：browser_navigate 打开 https://search.jd.com/Search?keyword=商品名（URL 编码），再用 browser_get_page / browser_run_js 提取价格。";
         }

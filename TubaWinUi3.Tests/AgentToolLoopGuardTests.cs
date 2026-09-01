@@ -131,4 +131,81 @@ public class AgentToolLoopGuardTests
         Assert.Contains("结果:显卡价格", afterReset);
         Assert.Equal(2, calls); // Reset 后重新执行
     }
+
+    // ---------- 无进展检测（连续纯工具轮 → 注入终止指令） ----------
+
+    /// <summary>连续纯工具轮递增，达到阈值后触发终止指令注入；未达阈值不触发。</summary>
+    [Fact]
+    public void ReportRound_PureToolRounds_IncrementUntilThreshold()
+    {
+        AgentToolLoopGuard.Reset();
+        Assert.False(AgentToolLoopGuard.ShouldInjectStopDirective);
+
+        // 阈值 - 1 轮：仍未触发
+        for (var i = 1; i < AgentToolLoopGuard.NoProgressThreshold; i++)
+        {
+            AgentToolLoopGuard.ReportRound(hadUserText: false, hadToolCalls: true);
+            Assert.False(AgentToolLoopGuard.ShouldInjectStopDirective);
+        }
+
+        // 第阈值轮：触发
+        AgentToolLoopGuard.ReportRound(hadUserText: false, hadToolCalls: true);
+        Assert.True(AgentToolLoopGuard.ShouldInjectStopDirective);
+        Assert.Equal(AgentToolLoopGuard.NoProgressThreshold, AgentToolLoopGuard.ConsecutiveToolRounds);
+    }
+
+    /// <summary>模型产出用户可见文本 = 有进展，计数清零；无工具也无文本的空轮同样清零。</summary>
+    [Fact]
+    public void ReportRound_UserText_ResetsProgress()
+    {
+        AgentToolLoopGuard.Reset();
+        AgentToolLoopGuard.ReportRound(false, true);
+        AgentToolLoopGuard.ReportRound(false, true);
+        AgentToolLoopGuard.ReportRound(true, true); // 模型开口了
+        Assert.Equal(0, AgentToolLoopGuard.ConsecutiveToolRounds);
+
+        AgentToolLoopGuard.ReportRound(false, false); // 空轮
+        Assert.Equal(0, AgentToolLoopGuard.ConsecutiveToolRounds);
+    }
+
+    /// <summary>Reset（新对话）清空无进展计数。</summary>
+    [Fact]
+    public void ReportRound_Reset_ClearsProgress()
+    {
+        AgentToolLoopGuard.Reset();
+        for (var i = 0; i < AgentToolLoopGuard.NoProgressThreshold; i++)
+            AgentToolLoopGuard.ReportRound(false, true);
+        Assert.True(AgentToolLoopGuard.ShouldInjectStopDirective);
+
+        AgentToolLoopGuard.Reset();
+        Assert.False(AgentToolLoopGuard.ShouldInjectStopDirective);
+        Assert.Equal(0, AgentToolLoopGuard.ConsecutiveToolRounds);
+    }
+
+    // ---------- web_search 技能拦截计数 ----------
+
+    /// <summary>web_search 被技能拦截：第二次起返回强硬终止文案，不再重复引导。</summary>
+    [Fact]
+    public async Task WebSearchBlocked_SecondTime_ReturnsHardStop()
+    {
+        AgentToolLoopGuard.Reset();
+        var adapter = MakeAdapter("web_search", (Func<string, string>)(query => "结果"));
+        using var doc = JsonDocument.Parse("""{"query":"RTX 5090"}""");
+
+        var prev = AgentToolContext.SkillTriggerActive;
+        try
+        {
+            AgentToolContext.SkillTriggerActive = true;
+
+            var first = await adapter.ExecuteAsync(doc.RootElement);
+            var second = await adapter.ExecuteAsync(doc.RootElement);
+
+            Assert.Contains("web_search 已被禁用", first);
+            Assert.Contains("已连续两次被拦截", second); // 第二次直接终止，不再给长引导
+        }
+        finally
+        {
+            AgentToolContext.SkillTriggerActive = prev;
+        }
+    }
 }
