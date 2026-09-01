@@ -1,5 +1,6 @@
 using System.Net.Http;
 using System.Reflection;
+using System.Text.Json;
 using Microsoft.Extensions.AI;
 
 namespace TubaWinUi3.Services.Agent;
@@ -45,6 +46,8 @@ public static class AgentErrorPolicy
     /// <summary>
     /// 工具执行失败 → 结构化错误文本（作为 tool 结果回填给模型，
     /// 模型据此修正参数或换一种方式重试，实现错误恢复闭环）。
+    /// 区分可重试（参数/调用方式问题）与系统性失败（勿重试）——旧的统一
+    /// "请重试"式鼓励会让模型对同一失败操作反复调用空转烧轮次（死循环放大环节之一）。
     /// </summary>
     public static string FormatToolError(Exception ex, string toolName)
     {
@@ -53,7 +56,10 @@ public static class AgentErrorPolicy
         while (current is TargetInvocationException && current.InnerException is not null)
             current = current.InnerException;
 
-        return $"[工具错误] {toolName} 执行失败：{current.Message}\n请检查参数是否正确后重试，或换一种方式完成用户的目标。";
+        var message = string.IsNullOrWhiteSpace(current.Message) ? current.GetType().Name : current.Message;
+        return current is ArgumentException or JsonException or FormatException
+            ? $"[工具错误] {toolName} 参数无效：{message}。请检查调用参数后重试，或换一种方式完成用户的目标。"
+            : $"[工具错误] {toolName} 执行失败：{message}。此问题属于系统/环境层面，重复调用不会改变结果，请勿重试；请改用其他工具或直接基于已有信息总结回答。";
     }
 
     /// <summary>

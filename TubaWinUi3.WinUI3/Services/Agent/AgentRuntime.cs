@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.AI;
+using TubaWinUi3.Services.Ai;
 
 namespace TubaWinUi3.Services.Agent;
 
@@ -73,6 +74,17 @@ public static class AgentRuntime
         for (var round = 0; round < maxRounds; round++)
         {
             ct.ThrowIfCancellationRequested();
+
+            // 无进展检测：连续多轮纯工具调用（无用户可见文本）视为疑似死循环，
+            // 直接终止（而非注入指令——旧引擎循环自有，无需再等模型"自觉"）。
+            // 计数由每轮末尾 AgentToolLoopGuard.ReportRound 维护。
+            if (AgentToolLoopGuard.ShouldInjectStopDirective)
+            {
+                AgentDebugLog.Info("连续纯工具轮达阈值，终止循环");
+                cb.OnError?.Invoke("检测到连续多轮仅调用工具而未产出回复，疑似陷入循环，已自动停止。请简化指令或补充说明后重试。");
+                return true;
+            }
+
             cb.OnRoundStarted?.Invoke();
             AgentDebugLog.Info($"第 {round + 1}/{maxRounds} 轮开始，历史 {history.Count} 条");
 
@@ -205,13 +217,28 @@ public static class AgentRuntime
                     continue;
                 }
 
-                // 技能强制触发：禁用 web_search（价格必须来自浏览器，搜索不是可购买的真实价格）
+                // 技能强制触发：禁用 web_search（价格必须来自浏览器，搜索不是可购买的真实价格）。
+                // 拦截计数：第二次起直接强硬终止，防弱模型反复尝试被禁工具空转烧轮次。
                 if (call.Name == "web_search" &&
                     (AgentToolContext.Current?.IsSkillTriggerActive == true || AgentToolContext.SkillTriggerActive))
                 {
                     AgentDebugLog.Info($"技能触发中，禁用 web_search（call {call.Id}）");
+                    var blocked = AgentToolLoopGuard.RegisterWebSearchBlocked();
                     toolResults.Add(new ChatMessage(ChatRole.Tool,
-                        [new FunctionResultContent(callId: call.Id, result: "web_search 已被禁用：当前任务触发了「电脑选购」技能，要求用浏览器查询京东实时价格（搜索返回的不是可购买的真实价格）。请改用浏览器工具：browser_navigate 打开 https://search.jd.com/Search?keyword=商品名（URL 编码），再用 browser_get_page / browser_run_js 提取价格。")]));
+                        [new FunctionResultContent(callId: call.Id, result: blocked >= 2
+                            ? "[web_search 已禁用] 本任务中 web_search 已连续两次被拦截，请勿再尝试。请改用浏览器工具：browser_navigate / browser_get_page / browser_run_js；或基于已有信息直接总结回答。"
+                            : "web_search 已被禁用：当前任务触发了「电脑选购」技能，要求用浏览器查询京东实时价格（搜索返回的不是可购买的真实价格）。请改用浏览器工具：browser_navigate 打开 https://search.jd.com/Search?keyword=商品名（URL 编码），再用 browser_get_page / browser_run_js 提取价格。")]));
+                    continue;
+                }
+
+                // 重复调用护栏：非空参数且签名完全相同的第二次调用直接拦截（不真正执行），
+                // 打破模型"反复调用同一操作"的循环；空参数（查询类）豁免——允许重复取最新值。
+                var normalizedArgs = AgentToolLoopGuard.NormalizeArgs(call.Args);
+                if (normalizedArgs is not null && AgentToolLoopGuard.IsDuplicate(tool.Name, normalizedArgs))
+                {
+                    AgentDebugLog.Info($"重复调用拦截：{tool.Name} 相同参数已执行过（call {call.Id}）");
+                    toolResults.Add(new ChatMessage(ChatRole.Tool,
+                        [new FunctionResultContent(callId: call.Id, result: "[重复调用已拦截] 相同参数的工具调用在本轮对话中已执行过，结果不会变化。请勿重复执行，直接基于已有结果继续完成用户的目标；确有必要时先向用户说明再进行下一步。")]));
                     continue;
                 }
 
@@ -233,7 +260,11 @@ public static class AgentRuntime
                 try
                 {
                     var result = await tool.Function.InvokeAsync(new AIFunctionArguments(AgentArgsJson.ParseToDictionary(call.Args)), ct);
-                    step.Result = result?.ToString() ?? "";
+                    var text = result?.ToString() ?? "";
+                    // 空结果标记：避免模型把"无内容返回"误判为执行失败而无限重试（死循环放大环节之一）
+                    step.Result = TruncateResult(string.IsNullOrWhiteSpace(text)
+                        ? "（工具已执行，未返回内容）"
+                        : text);
                     step.Status = AgentStepStatus.Success;
                     step.Duration = DateTime.Now - step.StartedAt;
                     cb.OnStepCompleted?.Invoke(step);
@@ -270,6 +301,9 @@ public static class AgentRuntime
 
             // 本轮工具链执行完毕 → 结算步骤组（UI 折叠该轮步骤链，下一轮文本/步骤另起一组）
             cb.OnRoundCompleted?.Invoke();
+
+            // 无进展统计：模型未产出用户可见文本、仅调用工具 → 计数递增，达阈值后循环开头终止
+            AgentToolLoopGuard.ReportRound(hadUserText: fullText.Length > 0, hadToolCalls: true);
         }
 
         cb.OnError?.Invoke("对话轮次已达上限，请简化你的问题或点击「继续」让助手继续。");
@@ -313,8 +347,17 @@ public static class AgentRuntime
                     AgentDebugLog.Info($"确认执行工具 {p.Tool.Name} 开始");
                     try
                     {
+                        // 用户明确确认的操作：直接执行（不拦截，用户知情同意），
+                        // 但登记签名——后续轮次模型再发起相同调用会被 RunLoopAsync 拦截
+                        var normalized = AgentToolLoopGuard.NormalizeArgs(p.Args);
+                        if (normalized is not null) AgentToolLoopGuard.IsDuplicate(p.Tool.Name, normalized);
+
                         var result = await p.Tool.Function.InvokeAsync(new AIFunctionArguments(AgentArgsJson.ParseToDictionary(p.Args)), ct);
-                        resultText = result?.ToString() ?? "";
+                        var text = result?.ToString() ?? "";
+                        // 空结果标记 + 超长截断（与 RunLoopAsync 直接执行路径一致）
+                        resultText = TruncateResult(string.IsNullOrWhiteSpace(text)
+                            ? "（工具已执行，未返回内容）"
+                            : text);
                         p.Step.Result = resultText;
                         p.Step.Status = AgentStepStatus.Success;
                         p.Step.Duration = DateTime.Now - p.Step.StartedAt;
@@ -356,6 +399,21 @@ public static class AgentRuntime
     }
 
     // ---------- 内部辅助 ----------
+
+    /// <summary>
+    /// 工具结果长度上限：超长结果截断保留开头（控制上下文体积——上下文越满模型
+    /// 越容易迷失、越绕越深；上限与 <see cref="AgentToolLoopGuard.MaxToolResultChars"/>
+    /// 一致，新/旧引擎行为统一）；防切断 surrogate pair（emoji 等）。
+    /// </summary>
+    private static string TruncateResult(string text)
+    {
+        if (text.Length <= AgentToolLoopGuard.MaxToolResultChars)
+            return text;
+
+        var cut = text[..AgentToolLoopGuard.MaxToolResultChars];
+        if (char.IsHighSurrogate(cut[^1])) cut = cut[..^1];
+        return cut + $"\n…（结果过长，已截断 {text.Length - AgentToolLoopGuard.MaxToolResultChars} 字符）";
+    }
 
     /// <summary>
     /// 本地 token 估算（API 未返回 usage 时的兜底）：

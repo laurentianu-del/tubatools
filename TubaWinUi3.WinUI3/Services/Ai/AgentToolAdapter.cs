@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Text;
 using System.Text.Json;
 using FieldCure.Ai.Providers.Models;
 using Microsoft.Extensions.AI;
@@ -18,7 +17,7 @@ internal sealed class AgentToolAdapter : IAssistTool
 {
     /// <summary>工具结果最大长度（字符）：超长结果截断保留开头，控制上下文体积
     /// （与思维链截断互补，双管齐下；旧引擎 AgentMemory 截 1200，这里放宽兼容大结果）。</summary>
-    private const int MaxToolResultChars = 6000;
+    private const int MaxToolResultChars = AgentToolLoopGuard.MaxToolResultChars;
 
     /// <summary>任意工具开始执行（供 UI 联动，如 bot 头像 orbit 态）。</summary>
     public static event Action<string>? ToolExecutionStarted;
@@ -134,54 +133,9 @@ internal sealed class AgentToolAdapter : IAssistTool
     }
 
     /// <summary>
-    /// 参数规范化：对象递归按键排序序列化（{ "b":1,"a":2 } 与 { "a":2,"b":1 } 视为相同）。
+    /// 参数规范化：委托 <see cref="AgentToolLoopGuard.NormalizeArgs"/>（新/旧引擎共用实现）。
     /// 空对象/非对象返回 null，表示不做去重（查询类工具允许重复取最新值）。
     /// </summary>
     private static string? NormalizeArgs(JsonElement parameters)
-    {
-        if (parameters.ValueKind != JsonValueKind.Object || !parameters.EnumerateObject().Any())
-            return null;
-
-        using var doc = JsonDocument.Parse(parameters.GetRawText());
-        var sb = new StringBuilder();
-        AppendNormalized(doc.RootElement, sb);
-        return sb.ToString();
-    }
-
-    private static void AppendNormalized(JsonElement el, StringBuilder sb)
-    {
-        switch (el.ValueKind)
-        {
-            case JsonValueKind.Object:
-            {
-                sb.Append('{');
-                var first = true;
-                foreach (var prop in el.EnumerateObject().OrderBy(p => p.Name, StringComparer.Ordinal))
-                {
-                    if (!first) sb.Append(',');
-                    first = false;
-                    sb.Append(JsonSerializer.Serialize(prop.Name)).Append(':');
-                    AppendNormalized(prop.Value, sb);
-                }
-                sb.Append('}');
-                break;
-            }
-            case JsonValueKind.Array:
-            {
-                sb.Append('[');
-                var first = true;
-                foreach (var item in el.EnumerateArray())
-                {
-                    if (!first) sb.Append(',');
-                    first = false;
-                    AppendNormalized(item, sb);
-                }
-                sb.Append(']');
-                break;
-            }
-            default:
-                sb.Append(el.GetRawText()); // 字符串/数字/布尔/null 原样（含引号，保真）
-                break;
-        }
-    }
+        => AgentToolLoopGuard.NormalizeArgs(parameters.GetRawText());
 }
