@@ -114,7 +114,7 @@
         <WebView2 x:Name="BotAvatar" Grid.Row="1"
                   Width="72" Height="72"
                   HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                  Margin="0,0,24,152"
+                  Margin="0,0,96,152"
                   DefaultBackgroundColor="Transparent"
                   IsHitTestVisible="False" />
     </Grid>
