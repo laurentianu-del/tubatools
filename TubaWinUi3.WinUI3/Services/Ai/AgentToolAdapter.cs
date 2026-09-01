@@ -14,6 +14,11 @@ namespace TubaWinUi3.Services.Ai;
 /// </summary>
 internal sealed class AgentToolAdapter : IAssistTool
 {
+    /// <summary>任意工具开始执行（供 UI 联动，如 bot 头像 orbit 态）。</summary>
+    public static event Action<string>? ToolExecutionStarted;
+    /// <summary>任意工具执行结束（无论成败均触发）。</summary>
+    public static event Action<string>? ToolExecutionFinished;
+
     private readonly AgentTool _tool;
     private readonly string _parameterSchema;
 
@@ -35,17 +40,25 @@ internal sealed class AgentToolAdapter : IAssistTool
     public bool RequiresConfirmation =>
         _tool.AlwaysConfirm || (!AgentToolContext.IsFullAccess && (_tool.IsPlanTool || _tool.RequiresConfirmation));
 
-    public Task<string> ExecuteAsync(JsonElement parameters, CancellationToken ct = default)
+    public async Task<string> ExecuteAsync(JsonElement parameters, CancellationToken ct = default)
     {
         // 技能强制触发（「电脑选购」技能要求用浏览器查京东实时价格）→ 拦截 web_search，
         // 与 AgentRuntime 中的运行时拦截语义一致。
         if (_tool.Name == "web_search" && AgentToolContext.SkillTriggerActive)
         {
-            return Task.FromResult(
-                "web_search 已被禁用：当前任务触发了「电脑选购」技能，要求用浏览器查询京东实时价格（搜索返回的不是可购买的真实价格）。请改用浏览器工具：browser_navigate 打开 https://search.jd.com/Search?keyword=商品名（URL 编码），再用 browser_get_page / browser_run_js 提取价格。");
+            return
+                "web_search 已被禁用：当前任务触发了「电脑选购」技能，要求用浏览器查询京东实时价格（搜索返回的不是可购买的真实价格）。请改用浏览器工具：browser_navigate 打开 https://search.jd.com/Search?keyword=商品名（URL 编码），再用 browser_get_page / browser_run_js 提取价格。";
         }
 
-        return ExecuteCoreAsync(parameters, ct);
+        ToolExecutionStarted?.Invoke(_tool.Name);
+        try
+        {
+            return await ExecuteCoreAsync(parameters, ct);
+        }
+        finally
+        {
+            ToolExecutionFinished?.Invoke(_tool.Name);
+        }
     }
 
     private async Task<string> ExecuteCoreAsync(JsonElement parameters, CancellationToken ct)

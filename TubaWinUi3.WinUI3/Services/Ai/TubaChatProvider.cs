@@ -35,6 +35,9 @@ public sealed class TubaChatProvider : IAiProvider
     /// <summary>每轮完成（含取消前已拿到的用量）上报，页面据此累计会话 token 统计。</summary>
     public static event Action<TokenUsage?>? UsageReported;
 
+    /// <summary>流请求失败（网络/超时/服务端错误）时触发；用户主动停止不触发。供 UI 联动（如 bot 头像 alert 态）。</summary>
+    public static event Action<string>? RequestFailed;
+
     private TokenUsage? _lastUsage;
     private bool _isTruncated;
     private string? _lastRequestBody;
@@ -85,11 +88,14 @@ public sealed class TubaChatProvider : IAiProvider
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
+                RequestFailed?.Invoke("AI 服务响应超时（120 秒）");
                 channel.Writer.TryComplete(new TimeoutException("AI 服务响应超时（120 秒），请重试。"));
             }
             catch (Exception ex)
             {
                 LogStreamFailure(request, ex);
+                // 用户主动停止（ct 已取消）不算失败，不触发 alert
+                if (!ct.IsCancellationRequested) RequestFailed?.Invoke(ex.Message);
                 channel.Writer.TryComplete(ex);
             }
         }, ct);

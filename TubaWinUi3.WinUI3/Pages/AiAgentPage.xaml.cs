@@ -1,9 +1,11 @@
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
+using Microsoft.Web.WebView2.Core;
 using FieldCure.Ai.Providers.Models;
 using FieldCure.AssistStudio.Controls;
 using TubaWinUi3.Controls.AgentChat;
@@ -44,6 +46,7 @@ public sealed partial class AiAgentPage : UserControl
     private bool _isProcessing;
     private bool _suppressToggleEvent;
     private bool _syncingCombos;
+    private bool _botAvatarInitStarted;
     private DispatcherTimer? _saveTimer;
 
     // 会话级 token 统计（多轮累加，随 display.json meta 条目恢复）
@@ -79,6 +82,9 @@ public sealed partial class AiAgentPage : UserControl
         Chat.MessageAdded += OnMessageAdded;
         Chat.EmptyStateContent = BuildWelcomeContent();
         TubaChatProvider.UsageReported += OnUsageReported;
+        TubaChatProvider.RequestFailed += OnRequestFailed;
+        AgentToolAdapter.ToolExecutionStarted += OnToolExecutionStarted;
+        AgentToolAdapter.ToolExecutionFinished += OnToolExecutionFinished;
         AgentToolContext.MemoryModified += OnMemoryModified;
 
         _suppressToggleEvent = true;
@@ -100,16 +106,213 @@ public sealed partial class AiAgentPage : UserControl
         Storyboard.SetTargetProperty(opacity, "Opacity");
         sb.Children.Add(opacity);
         sb.Begin();
+
+        // bloub bot 头像（只初始化一次，Loaded 可能多次触发）
+        if (!_botAvatarInitStarted)
+        {
+            _botAvatarInitStarted = true;
+            ActualThemeChanged += (_, _) => BotSendColors();
+            _ = InitBotAvatarAsync();
+        }
+    }
+
+    // ---------- bloub bot 头像（WebView2 + Assets/BotAvatar 本地页） ----------
+
+    private bool _botAvatarReady;
+
+    /// <summary>
+    /// 初始化顶栏 bot 头像：共享 WebView2 环境 + 虚拟主机 botavatar 映射本地资产。
+    /// 纯装饰组件，任何失败都静默吞掉，不影响助手功能。
+    /// </summary>
+    private async Task InitBotAvatarAsync()
+    {
+        try
+        {
+            if (BotAvatar.CoreWebView2 is null)
+                await BotAvatar.EnsureCoreWebView2Async(await WebView2EnvironmentService.GetAsync());
+            var core = BotAvatar.CoreWebView2;
+            if (core is null) return;
+            core.SetVirtualHostNameToFolderMapping(
+                "botavatar", Path.Combine(AppContext.BaseDirectory, "Assets", "BotAvatar"),
+                CoreWebView2HostResourceAccessKind.Allow);
+            core.Settings.AreDefaultContextMenusEnabled = false;
+            core.Settings.AreDevToolsEnabled = false;
+            BotSendColors();
+            var tcs = new TaskCompletionSource<bool>();
+            void OnNav(object? s, CoreWebView2NavigationCompletedEventArgs e) => tcs.TrySetResult(e.IsSuccess);
+            core.NavigationCompleted += OnNav;
+            try
+            {
+                core.Navigate("https://botavatar/botavatar.html");
+                await tcs.Task.WaitAsync(TimeSpan.FromSeconds(15));
+            }
+            finally
+            {
+                core.NavigationCompleted -= OnNav;
+            }
+            _botAvatarReady = true;
+            StartGazePolling();
+        }
+        catch { }
+    }
+
+    // ---- 视线跟随：ChatPanel 的 WebView2 会吞掉其上的 XAML 指针事件，
+    // ---- 所以用 GetCursorPos 低频轮询（引擎自带 0.24s 平滑，15fps 足够）。
+
+    [DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out POINT lpPoint);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT { public int X; public int Y; }
+
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _gazeTimer;
+    private bool _gazeInside;
+
+    private void StartGazePolling()
+    {
+        if (_gazeTimer is not null) return;
+        _gazeTimer = _dq.CreateTimer();
+        _gazeTimer.Interval = TimeSpan.FromMilliseconds(66);
+        _gazeTimer.Tick += (_, _) => UpdateGaze();
+        _gazeTimer.Start();
+    }
+
+    private void StopGazePolling()
+    {
+        _gazeTimer?.Stop();
+        _gazeTimer = null;
+        if (_gazeInside) { _gazeInside = false; BotLookRelease(); }
+    }
+
+    private void UpdateGaze()
+    {
+        try
+        {
+            CheckBotIdleSleep();
+            var window = App.MainWindow;
+            if (window?.AppWindow is not { } appWindow) return;
+            if (!GetCursorPos(out var p)) return;
+
+            // 物理像素 → DIP（窗口原点 + 光标）
+            var scale = XamlRoot?.RasterizationScale ?? 1.0;
+            var origin = appWindow.Position;
+            var size = appWindow.Size;
+            if (p.X < origin.X || p.Y < origin.Y ||
+                p.X > origin.X + size.Width || p.Y > origin.Y + size.Height)
+            {
+                if (_gazeInside) { _gazeInside = false; BotLookRelease(); }
+                return;
+            }
+
+            // 头像中心（窗口 DIP 坐标），按窗口半宽/半高归一化（原版规则：视线在窗口边缘饱和）
+            var toRoot = BotAvatar.TransformToVisual(null);
+            var center = toRoot.TransformPoint(new Windows.Foundation.Point(
+                BotAvatar.ActualWidth / 2, BotAvatar.ActualHeight / 2));
+            var cx = (p.X - origin.X) / scale;
+            var cy = (p.Y - origin.Y) / scale;
+            var halfW = Math.Max(1, window.Bounds.Width / 2);
+            var halfH = Math.Max(1, window.Bounds.Height / 2);
+            var nx = Math.Clamp((cx - center.X) / halfW, -1, 1);
+            var ny = Math.Clamp((cy - center.Y) / halfH, -1, 1);
+            _gazeInside = true;
+            BotLook(nx, ny);
+        }
+        catch { }
+    }
+
+    private void BotLook(double nx, double ny) => BotPost(new { type = "look", nx, ny });
+    private void BotLookRelease() => BotPost(new { type = "look", active = false });
+
+    // ---- 空闲入睡：5 分钟无会话活动小球打盹，任何会话活动即醒 ----
+
+    private DateTime _lastBotActivity = DateTime.UtcNow;
+    private bool _botSleeping;
+
+    private void TouchBotActivity()
+    {
+        _lastBotActivity = DateTime.UtcNow;
+        if (!_botSleeping) return;
+        _botSleeping = false;
+        if (!_isProcessing && !_botAlerting) BotSetState("idle");
+    }
+
+    private void CheckBotIdleSleep()
+    {
+        if (_botSleeping || _isProcessing || _botAlerting) return;
+        if (DateTime.UtcNow - _lastBotActivity <= TimeSpan.FromMinutes(5)) return;
+        _botSleeping = true;
+        BotSetState("sleep"); // 缩成小点点打盹，收到下一条消息自动醒来
+    }
+
+    private void BotPost(object payload)
+    {
+        if (!_botAvatarReady) return;
+        try { BotAvatar.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(payload)); }
+        catch { }
+    }
+
+    /// <summary>
+    /// 按主题下发配色：body 墨色取系统强调色（图吧风格，避开 x.ai 原版纯黑形象），
+    /// 眼睛镂空底色取顶栏近似底色。强调色资源缺失时回退中性色。
+    /// </summary>
+    private void BotSendColors()
+    {
+        var dark = ActualTheme == ElementTheme.Dark;
+        var accentKey = dark ? "SystemAccentColorLight2" : "SystemAccentColorDark2";
+        var ink = Application.Current.Resources.TryGetValue(accentKey, out var accentRes)
+                  && accentRes is Windows.UI.Color accent
+            ? $"#{accent.R:X2}{accent.G:X2}{accent.B:X2}"
+            : dark ? "#f2f2f4" : "#1b1b1f";
+        BotPost(new { type = "colors", ink, paper = dark ? "#272727" : "#f9f9f9" });
+    }
+
+    private void BotSetState(string id) => BotPost(new { type = "state", id });
+    private void BotPulse(string id, int ms = 2200) => BotPost(new { type = "pulse", id, ms });
+
+    private bool _botAlerting;
+
+    private void OnRequestFailed(string reason) => BotAlert();
+
+    private void OnToolExecutionStarted(string name)
+    {
+        if (_isProcessing && !_botAlerting) BotSetState("orbit"); // 转圈圈 = 工具干活中
+    }
+
+    private void OnToolExecutionFinished(string name)
+    {
+        // 回到"…"思考态，等下一轮工具或最终回复定稿
+        if (_isProcessing && !_botAlerting) BotSetState("thinking");
+    }
+
+    /// <summary>回复失败：alert（"！"）态停留 4 秒后自动回落，期间不被 wink 覆盖。</summary>
+    private void BotAlert()
+    {
+        _botAlerting = true;
+        BotSetState("alert");
+        var t = _dq.CreateTimer();
+        t.Interval = TimeSpan.FromSeconds(4);
+        t.IsRepeating = false;
+        t.Tick += (_, _) =>
+        {
+            _botAlerting = false;
+            if (!_isProcessing) BotSetState("idle");
+        };
+        t.Start();
     }
 
     /// <summary>页面卸载（内置工具关闭时调用）：停止防抖保存、取消事件订阅并释放 ChatPanel。</summary>
     public void Unload()
     {
+        try { BotAvatar.CoreWebView2?.Navigate("about:blank"); } catch { }
+        StopGazePolling();
         SaveNow();
         _saveTimer?.Stop();
         Chat.UserMessageSubmitted -= OnUserMessageSubmitted;
         Chat.MessageAdded -= OnMessageAdded;
         TubaChatProvider.UsageReported -= OnUsageReported;
+        TubaChatProvider.RequestFailed -= OnRequestFailed;
+        AgentToolAdapter.ToolExecutionStarted -= OnToolExecutionStarted;
+        AgentToolAdapter.ToolExecutionFinished -= OnToolExecutionFinished;
         AgentToolContext.MemoryModified -= OnMemoryModified;
         AgentToolContext.SkillTriggerActive = false;
         AgentToolContext.ActiveMemory = null;
@@ -124,6 +327,9 @@ public sealed partial class AiAgentPage : UserControl
         _isProcessing = true;
         UpdateInputState();
         UpdateRunState();
+        TouchBotActivity(); // 睡觉中被叫醒（随后 thinking 覆盖）
+        _botAlerting = false;
+        BotSetState("thinking");
 
         // 技能触发：命中触发词 → 系统提示词末尾注入强指令 + 本次发送内禁用 web_search
         var (trigger, fragments) = BuildTriggerPayload(e.Text ?? "");
@@ -159,6 +365,8 @@ public sealed partial class AiAgentPage : UserControl
         _isProcessing = false;
         AgentToolContext.SkillTriggerActive = false;
         Chat.MemoryText = _memory?.Read() ?? "";
+        if (!_botAlerting) BotPulse("wink"); // 回复定稿：眨眼示意后回到 idle（alert 进行中不覆盖）
+        TouchBotActivity();
         UpdateRunState();
         UpdateInputState();
         ScheduleSave();
@@ -299,6 +507,8 @@ public sealed partial class AiAgentPage : UserControl
         Chat.ClearConversation();
         RebuildSystemPrompt();
         Chat.FocusInput();
+        BotPulse("play", 2600); // 新对话：小球放个烟花
+        TouchBotActivity();
         UpdateInputState();
     }
 
@@ -317,6 +527,7 @@ public sealed partial class AiAgentPage : UserControl
         AgentToolContext.ActiveMemory = _memory;
         AgentToolContext.SkillTriggerActive = false;
         Chat.MemoryText = _memory.Read() ?? "";
+        TouchBotActivity();
 
         // 恢复会话级 token 统计（meta 条目；旧会话的步骤链记录不再渲染）
         var display = AiAssistantService.LoadConversationDisplay(meta.Id);

@@ -32,11 +32,11 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <Border Width="40" Height="40" CornerRadius="12"
-                        Background="{ThemeResource AccentFillColorDefaultBrush}">
-                    <FontIcon Glyph="&#xE946;" FontSize="18"
-                              Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
-                </Border>
+                <!-- bloub bot 头像（Assets/BotAvatar/，虚拟主机 botavatar）：状态联动
+                     空闲 idle / 处理中 thinking（"…"点脉冲）/ 完成 wink -->
+                <WebView2 x:Name="BotAvatar" Width="40" Height="40"
+                          DefaultBackgroundColor="Transparent"
+                          VerticalAlignment="Center" />
 
                 <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" Spacing="8">
