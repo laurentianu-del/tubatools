@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using FieldCure.Ai.Providers.Models;
 using Microsoft.Extensions.AI;
@@ -64,7 +65,72 @@ internal sealed class AgentToolAdapter : IAssistTool
     private async Task<string> ExecuteCoreAsync(JsonElement parameters, CancellationToken ct)
     {
         var args = AgentArgsJson.ParseToDictionary(parameters.GetRawText());
+
+        // 重复调用护栏：非空参数且签名完全相同的第二次调用直接拦截（不真正执行），
+        // 打破模型"反复调用同一操作"的循环（死循环放大环节之一）；
+        // 空参数（查询类，如实时温度）豁免——允许重复取最新值。
+        var normalized = NormalizeArgs(parameters);
+        if (normalized is not null && AgentToolLoopGuard.IsDuplicate(_tool.Name, normalized))
+        {
+            return "[重复调用已拦截] 相同参数的工具调用在本轮对话中已执行过，结果不会变化。请勿重复执行，直接基于已有结果继续完成用户的目标；确有必要时先向用户说明再进行下一步。";
+        }
+
         var result = await _tool.Function.InvokeAsync(new AIFunctionArguments(args), ct);
-        return result?.ToString() ?? "";
+        var text = result?.ToString();
+
+        // 空结果标记：避免模型把"无内容返回"误判为执行失败而无限重试（死循环放大环节之一）
+        return string.IsNullOrWhiteSpace(text) ? "（工具已执行，未返回内容）" : text;
+    }
+
+    /// <summary>
+    /// 参数规范化：对象递归按键排序序列化（{ "b":1,"a":2 } 与 { "a":2,"b":1 } 视为相同）。
+    /// 空对象/非对象返回 null，表示不做去重（查询类工具允许重复取最新值）。
+    /// </summary>
+    private static string? NormalizeArgs(JsonElement parameters)
+    {
+        if (parameters.ValueKind != JsonValueKind.Object || !parameters.EnumerateObject().Any())
+            return null;
+
+        using var doc = JsonDocument.Parse(parameters.GetRawText());
+        var sb = new StringBuilder();
+        AppendNormalized(doc.RootElement, sb);
+        return sb.ToString();
+    }
+
+    private static void AppendNormalized(JsonElement el, StringBuilder sb)
+    {
+        switch (el.ValueKind)
+        {
+            case JsonValueKind.Object:
+            {
+                sb.Append('{');
+                var first = true;
+                foreach (var prop in el.EnumerateObject().OrderBy(p => p.Name, StringComparer.Ordinal))
+                {
+                    if (!first) sb.Append(',');
+                    first = false;
+                    sb.Append(JsonSerializer.Serialize(prop.Name)).Append(':');
+                    AppendNormalized(prop.Value, sb);
+                }
+                sb.Append('}');
+                break;
+            }
+            case JsonValueKind.Array:
+            {
+                sb.Append('[');
+                var first = true;
+                foreach (var item in el.EnumerateArray())
+                {
+                    if (!first) sb.Append(',');
+                    first = false;
+                    AppendNormalized(item, sb);
+                }
+                sb.Append(']');
+                break;
+            }
+            default:
+                sb.Append(el.GetRawText()); // 字符串/数字/布尔/null 原样（含引号，保真）
+                break;
+        }
     }
 }

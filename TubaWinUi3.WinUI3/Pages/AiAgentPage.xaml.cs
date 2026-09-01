@@ -577,6 +577,7 @@ public sealed partial class AiAgentPage : UserControl
         _memory = null;
         AgentToolContext.ActiveMemory = null;
         AgentToolContext.SkillTriggerActive = false;
+        AgentToolLoopGuard.Reset(); // 新会话：清空工具重复调用登记（防循环护栏按会话重置）
         Chat.MemoryText = null;
         Chat.ClearConversation();
         RebuildSystemPrompt();
