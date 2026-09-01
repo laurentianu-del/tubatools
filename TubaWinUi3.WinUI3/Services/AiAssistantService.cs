@@ -812,22 +812,30 @@ public sealed partial class AiAssistantService
     {
         error = null;
         var mainWindow = App.MainWindow;
-        if (mainWindow?.Content is not FrameworkElement root || root.XamlRoot is not { } xamlRoot)
+        if (mainWindow is null)
         {
             error = "主窗口尚未就绪，无法打开内置工具";
             return false;
         }
 
-        var context = new BuiltinToolContext { XamlRoot = xamlRoot };
-        // 工具执行可能来自线程池（AI 工具调用），窗口创建必须回到 UI 线程；
-        // async lambda 让 ForceWindowScope 覆盖 ExecuteAsync 全程（工具可能在 await 之后才导航）
+        // AI 工具调用可能来自线程池线程；窗口创建/导航必须回到 UI 线程。
+        // 注意：Content/XamlRoot 都是 COM 对象，只能在 UI 线程读取——若在排队前
+        // 访问会抛 RPC_E_WRONG_THREAD（"应用程序调用一个已为另一线程整理的接口"）。
+        // 因此取 XamlRoot、ForceWindowScope、ExecuteAsync 全程统一放进回调内。
+        // async lambda 让 ForceWindowScope 覆盖 ExecuteAsync 全程（工具可能在 await 之后才导航）。
         mainWindow.DispatcherQueue.TryEnqueue(async () =>
         {
-            using var scope = BuiltinToolWindow.ForceWindowScope();
-            MainWindow.ActiveToolName = builtin.Name;
             try
             {
-                await builtin.ExecuteAsync(context);
+                if (mainWindow.Content is not FrameworkElement root || root.XamlRoot is not { } xamlRoot)
+                {
+                    Services.Agent.AgentDebugLog.Error($"[AI] 主窗口未就绪，无法打开内置工具 '{builtin.Name}'");
+                    return;
+                }
+
+                using var scope = BuiltinToolWindow.ForceWindowScope();
+                MainWindow.ActiveToolName = builtin.Name;
+                await builtin.ExecuteAsync(new BuiltinToolContext { XamlRoot = xamlRoot });
             }
             catch (Exception ex)
             {
