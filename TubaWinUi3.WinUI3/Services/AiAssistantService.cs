@@ -756,6 +756,23 @@ public sealed partial class AiAssistantService
 
             if (tool is not null)
             {
+                // link.json 内置链接工具的 EffectivePath 是它所在的目录，直接 Launch 会打开
+                // 资源管理器文件夹而不是工具窗口 → 必须解析回内置工具并以独立窗口打开
+                if (tool.IsBuiltinLink && !string.IsNullOrWhiteSpace(tool.BuiltinToolId))
+                {
+                    var linkedBuiltin = BuiltinToolRegistry.GetById(tool.BuiltinToolId);
+                    if (linkedBuiltin is not null)
+                    {
+                        if (LaunchBuiltinToolInWindow(linkedBuiltin, out var error))
+                        {
+                            message = $"已在新窗口打开内置工具：{linkedBuiltin.Name}";
+                            return true;
+                        }
+                        message = error ?? "打开内置工具失败";
+                        return false;
+                    }
+                }
+
                 ToolProcessLauncher.Launch(tool.EffectivePath, tool.EffectiveWorkingDir);
                 message = $"已启动：{tool.Name}";
                 return true;
@@ -833,6 +850,23 @@ public sealed partial class AiAssistantService
 
             if (extTool is not null)
             {
+                // 内置链接工具（EffectivePath 是目录）不能被当作外部工具解析，
+                // 否则推荐卡片点击会打开文件夹 → 解析回内置工具
+                if (extTool.IsBuiltinLink && !string.IsNullOrWhiteSpace(extTool.BuiltinToolId))
+                {
+                    var linkedBuiltin = BuiltinToolRegistry.GetById(extTool.BuiltinToolId);
+                    if (linkedBuiltin is not null)
+                    {
+                        recommendations[recommendations.IndexOf(rec)] = rec with
+                        {
+                            BuiltinId = linkedBuiltin.Id,
+                            IsBuiltin = true,
+                            ToolPath = null
+                        };
+                        continue;
+                    }
+                }
+
                 var updated = rec with { ToolPath = extTool.EffectivePath, IsBuiltin = false };
                 recommendations[recommendations.IndexOf(rec)] = updated;
                 continue;
@@ -1480,14 +1514,30 @@ public sealed partial class AiAssistantService
 
             if (tool is not null)
             {
+                // 内置链接工具（EffectivePath 是所在目录）必须解析回内置工具并以窗口打开，
+                // 不能把目录当程序 Launch（否则会打开资源管理器文件夹）
+                if (tool.IsBuiltinLink && !string.IsNullOrWhiteSpace(tool.BuiltinToolId))
+                {
+                    var linkedBuiltin = BuiltinToolRegistry.GetById(tool.BuiltinToolId);
+                    if (linkedBuiltin is not null)
+                        return LaunchBuiltinToolInWindow(linkedBuiltin, out var linkError)
+                            ? $"已在新窗口打开内置工具：{linkedBuiltin.Name}"
+                            : (string.IsNullOrWhiteSpace(linkError) ? "打开内置工具失败" : $"打开内置工具失败：{linkError}");
+                }
+
                 ToolProcessLauncher.Launch(tool.EffectivePath, tool.EffectiveWorkingDir);
                 return $"已启动工具：{tool.Name}";
             }
 
-            var builtin = BuiltinToolRegistry.GetById(toolName);
+            // 兜底：按名称匹配内置工具并以独立窗口打开（原实现只按 Id 匹配且提示"需手动启动"）
+            var builtin = BuiltinToolRegistry.Tools.FirstOrDefault(t =>
+                t.Name.Equals(toolName, StringComparison.OrdinalIgnoreCase) ||
+                t.Name.Contains(toolName, StringComparison.OrdinalIgnoreCase));
             if (builtin is not null)
             {
-                return $"内置工具 '{builtin.Name}' 需要在界面中手动启动";
+                return LaunchBuiltinToolInWindow(builtin, out var error)
+                    ? $"已在新窗口打开内置工具：{builtin.Name}"
+                    : (string.IsNullOrWhiteSpace(error) ? "打开内置工具失败" : $"打开内置工具失败：{error}");
             }
 
             return $"未找到工具：{toolName}";

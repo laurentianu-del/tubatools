@@ -19,6 +19,11 @@ public static class ToolProcessLauncher
 
     public static void Launch(string exePath, string? workingDirectory = null, bool runAsAdmin = false)
     {
+        // 防呆：UseShellExecute=true 时若 FileName 是已存在的目录，会打开资源管理器窗口
+        // 而不是启动程序（link.json 内置链接工具的 EffectivePath 就是其所在目录）。
+        // 这类工具必须走 BuiltinToolRegistry + 内置工具窗口通道，绝不能直接 Launch。
+        if (Directory.Exists(exePath))
+            throw new InvalidOperationException($"路径是文件夹而非可执行程序，不能直接启动：{exePath}");
         try
         {
             Process.Start(new ProcessStartInfo
