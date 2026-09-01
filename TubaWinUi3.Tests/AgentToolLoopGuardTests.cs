@@ -208,4 +208,82 @@ public class AgentToolLoopGuardTests
             AgentToolContext.SkillTriggerActive = prev;
         }
     }
+
+    // ---------- 异常终态文案（区分可重试 / 系统性勿重试） ----------
+
+    /// <summary>系统性失败（非参数类异常）→ 回传"请勿重试"终态文案，不再上抛中断会话。</summary>
+    [Fact]
+    public async Task SystemError_ReturnsNoRetryTerminalText()
+    {
+        AgentToolLoopGuard.Reset();
+        var adapter = MakeAdapter("flaky_tool",
+            (Func<string>)(() => throw new InvalidOperationException("磁盘被占用")));
+        using var doc = JsonDocument.Parse("{}");
+
+        var result = await adapter.ExecuteAsync(doc.RootElement);
+
+        Assert.Contains("[工具错误]", result);
+        Assert.Contains("磁盘被占用", result);
+        Assert.Contains("请勿重试", result); // 系统性失败明确禁止重试
+    }
+
+    /// <summary>参数类错误（ArgumentException）→ 标记"参数无效"，允许调整参数后重试。</summary>
+    [Fact]
+    public async Task ParamError_MarkedRetryable()
+    {
+        AgentToolLoopGuard.Reset();
+        var adapter = MakeAdapter("arg_tool",
+            (Func<string, string>)(arg => throw new ArgumentException("路径不能为空", nameof(arg))));
+        using var doc = JsonDocument.Parse("""{"arg":""}""");
+
+        var result = await adapter.ExecuteAsync(doc.RootElement);
+
+        Assert.Contains("[工具错误]", result);
+        Assert.Contains("参数无效", result);
+        Assert.DoesNotContain("请勿重试", result);
+    }
+
+    /// <summary>用户主动取消（ct 取消）→ 异常原样上抛，不转成错误文案。</summary>
+    [Fact]
+    public async Task UserCancellation_ReThrown()
+    {
+        AgentToolLoopGuard.Reset();
+        var adapter = MakeAdapter("slow_tool",
+            (Func<string>)(() => throw new OperationCanceledException()));
+        using var doc = JsonDocument.Parse("{}");
+        using var cts = new CancellationTokenSource();
+        cts.Cancel(); // 用户停止信号
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() => adapter.ExecuteAsync(doc.RootElement, cts.Token));
+    }
+
+    // ---------- 工具结果长度上限（控制上下文体积） ----------
+
+    /// <summary>超长工具结果截断保留开头 + 截断标记，不再整段灌进上下文。</summary>
+    [Fact]
+    public async Task OverlongResult_IsTruncatedWithMarker()
+    {
+        AgentToolLoopGuard.Reset();
+        var adapter = MakeAdapter("big_output", (Func<string>)(() => new string('长', 8000)));
+        using var doc = JsonDocument.Parse("{}");
+
+        var result = await adapter.ExecuteAsync(doc.RootElement);
+
+        Assert.StartsWith(new string('长', 6000), result);
+        Assert.Contains("结果过长，已截断", result);
+        Assert.True(result.Length < 8000, "截断后必须显著小于原始长度");
+    }
+
+    /// <summary>正常长度结果原样返回，不追加任何标记。</summary>
+    [Fact]
+    public async Task NormalResult_Unchanged()
+    {
+        AgentToolLoopGuard.Reset();
+        var adapter = MakeAdapter("normal_tool", (Func<string>)(() => "温度 36℃"));
+        using var doc = JsonDocument.Parse("{}");
+
+        var result = await adapter.ExecuteAsync(doc.RootElement);
+
+        Assert.Equal("温度 36℃", result);
+    }
 }

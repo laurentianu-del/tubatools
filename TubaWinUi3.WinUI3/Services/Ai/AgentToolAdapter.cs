@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using FieldCure.Ai.Providers.Models;
@@ -15,6 +16,10 @@ namespace TubaWinUi3.Services.Ai;
 /// </summary>
 internal sealed class AgentToolAdapter : IAssistTool
 {
+    /// <summary>工具结果最大长度（字符）：超长结果截断保留开头，控制上下文体积
+    /// （与思维链截断互补，双管齐下；旧引擎 AgentMemory 截 1200，这里放宽兼容大结果）。</summary>
+    private const int MaxToolResultChars = 6000;
+
     /// <summary>任意工具开始执行（供 UI 联动，如 bot 头像 orbit 态）。</summary>
     public static event Action<string>? ToolExecutionStarted;
     /// <summary>任意工具执行结束（无论成败均触发）。</summary>
@@ -63,6 +68,17 @@ internal sealed class AgentToolAdapter : IAssistTool
         {
             return await ExecuteCoreAsync(parameters, ct);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw; // 用户主动停止：原样上抛，不算工具失败
+        }
+        catch (Exception ex)
+        {
+            // 终态错误标记：工具异常转成结构化文案回传（而不是上抛中断会话）。
+            // 区分可重试（参数/调用方式问题）与系统性失败（勿重试）——旧的统一
+            // "请重试"式鼓励会让模型对同一失败操作反复调用空转烧轮次（死循环放大环节）。
+            return FormatToolError(ex);
+        }
         finally
         {
             ToolExecutionFinished?.Invoke(_tool.Name);
@@ -86,7 +102,35 @@ internal sealed class AgentToolAdapter : IAssistTool
         var text = result?.ToString();
 
         // 空结果标记：避免模型把"无内容返回"误判为执行失败而无限重试（死循环放大环节之一）
-        return string.IsNullOrWhiteSpace(text) ? "（工具已执行，未返回内容）" : text;
+        if (string.IsNullOrWhiteSpace(text))
+            return "（工具已执行，未返回内容）";
+
+        // 工具结果长度上限：超长结果截断保留开头（与思维链截断互补，控制上下文体积——
+        // 上下文越满模型越容易迷失、越绕越深）；防切断 surrogate pair（emoji 等）
+        if (text.Length > MaxToolResultChars)
+        {
+            var cut = text[..MaxToolResultChars];
+            if (char.IsHighSurrogate(cut[^1])) cut = cut[..^1];
+            return cut + $"\n…（结果过长，已截断 {text.Length - MaxToolResultChars} 字符）";
+        }
+        return text;
+    }
+
+    /// <summary>
+    /// 工具异常 → 回传给模型的终态错误文案。
+    /// 参数类错误（可调整后重试）与系统性错误（勿重复调用）分开表述，避免模型
+    /// 对同一失败操作反复调用陷入空转。自动解包 AIFunction 的反射包装异常。
+    /// </summary>
+    private static string FormatToolError(Exception ex)
+    {
+        var inner = ex;
+        while (inner is TargetInvocationException { InnerException: { } tie } && tie != inner)
+            inner = tie;
+
+        var message = string.IsNullOrWhiteSpace(inner.Message) ? inner.GetType().Name : inner.Message;
+        return inner is ArgumentException or JsonException or FormatException
+            ? $"[工具错误] 参数无效：{message}。请检查调用参数后重试，或换一种方式完成用户的目标。"
+            : $"[工具错误] 执行失败：{message}。此问题属于系统/环境层面，重复调用不会改变结果，请勿重试；请改用其他工具或直接基于已有信息总结回答。";
     }
 
     /// <summary>
