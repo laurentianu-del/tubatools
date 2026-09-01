@@ -1,12 +1,14 @@
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Diagnostics;
+using Microsoft.UI;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.Web.WebView2.Core;
+using Windows.Foundation;
 using FieldCure.Ai.Providers.Models;
 using FieldCure.AssistStudio.Controls;
 using TubaWinUi3.Controls.AgentChat;
@@ -113,6 +115,7 @@ public sealed partial class AiAgentPage : UserControl
         {
             _botAvatarInitStarted = true;
             ActualThemeChanged += (_, _) => BotSendColors();
+            Chat.LayoutUpdated += (_, _) => UpdateBotAnchor(); // 动态锚定输入框（相对定位）
             _ = InitBotAvatarAsync();
         }
     }
@@ -130,6 +133,9 @@ public sealed partial class AiAgentPage : UserControl
     {
         try
         {
+            // 透明双保险：Ensure 前显式设置控件级透明（XAML 已有 Transparent，这里再设一次防解析遗漏；
+            // WinUI 3 的 DefaultBackgroundColor 内部映射 CoreWebView2Controller，无需也不可直达控制器）
+            BotAvatar.DefaultBackgroundColor = Colors.Transparent;
             if (BotAvatar.CoreWebView2 is null)
                 await BotAvatar.EnsureCoreWebView2Async(await WebView2EnvironmentService.GetAsync());
             var core = BotAvatar.CoreWebView2;
@@ -172,6 +178,67 @@ public sealed partial class AiAgentPage : UserControl
         {
             Debug.WriteLine($"[BotAvatar] 初始化异常: {ex.Message}");
         }
+    }
+
+    // ---- 输入框锚定：吉祥物以输入框为相对位置（不再用拍脑袋的底部留白）。
+    // ---- ChatPanel 是组件库黑盒，输入区元素不公开，运行时在可视化树里找最底部
+    // ---- 的输入型元素（TextBox/RichEditBox/WebView2），TransformToVisual 换算成页面
+    // ---- 坐标后绝对定位——输入框多高/在哪，吉祥物就贴在哪，布局变化自动跟随。
+
+    private void UpdateBotAnchor()
+    {
+        var anchor = FindInputAnchor();
+        var root = BotAvatar.Parent as UIElement;
+        if (anchor is null || root is null || !_botAvatarReady) return;
+        Point p;
+        try
+        {
+            p = anchor.TransformToVisual(root).TransformPoint(new Point(0, 0));
+        }
+        catch
+        {
+            return;
+        }
+        // 右对齐输入框右缘（留 24px），悬浮在输入框正上方（留 12px）
+        var left = p.X + anchor.ActualWidth - BotAvatar.ActualWidth - 24;
+        var top = p.Y - BotAvatar.ActualHeight - 12;
+        if (left < 0) left = 0;
+        if (top < 0) top = 0;
+        var m = new Thickness(left, top, 0, 0);
+        if (Math.Abs(m.Left - BotAvatar.Margin.Left) < 0.5 && Math.Abs(m.Top - BotAvatar.Margin.Top) < 0.5) return;
+        BotAvatar.HorizontalAlignment = HorizontalAlignment.Left;
+        BotAvatar.VerticalAlignment = VerticalAlignment.Top;
+        BotAvatar.Margin = m;
+    }
+
+    /// <summary>在 ChatPanel 可视化树中找输入区：TextBox/RichEditBox/WebView2 中顶部坐标最大者（输入区常驻最底部）。</summary>
+    private FrameworkElement? FindInputAnchor()
+    {
+        var root = BotAvatar.Parent as UIElement;
+        if (root is null) return null;
+        FrameworkElement? best = null;
+        var bestTop = double.NegativeInfinity;
+        void Walk(DependencyObject node)
+        {
+            if (node is TextBox or RichEditBox or WebView2)
+            {
+                try
+                {
+                    var t = ((UIElement)node).TransformToVisual(root).TransformPoint(new Point(0, 0));
+                    if (t.Y > bestTop)
+                    {
+                        bestTop = t.Y;
+                        best = (FrameworkElement)node;
+                    }
+                }
+                catch { }
+            }
+            var count = VisualTreeHelper.GetChildrenCount(node);
+            for (var i = 0; i < count; i++)
+                Walk(VisualTreeHelper.GetChild(node, i));
+        }
+        Walk(Chat);
+        return best;
     }
 
     // ---- 视线跟随：ChatPanel 的 WebView2 会吞掉其上的 XAML 指针事件，

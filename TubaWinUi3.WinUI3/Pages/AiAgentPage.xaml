@@ -108,13 +108,15 @@
             Placeholder="描述目标，或直接要求助手诊断、执行命令、整理报告…（Enter 发送，Shift+Enter 换行）" />
 
         <!-- bloub bot 吉祥物（Assets/BotAvatar/，虚拟主机 botavatar）：悬浮在输入框上方。
-             后声明 → 叠在 ChatPanel 之上；IsHitTestVisible=False → 鼠标穿透不挡聊天交互。
-             底部对齐 + 底部留白 ≈ 输入框高度，即落在输入框正上方（原版同款位置）。
+             位置由 C# 动态锚定（UpdateBotAnchor）：运行时在 ChatPanel 可视化树中找输入区
+             （TextBox/RichEditBox/WebView2 中最底部者），用 TransformToVisual 换算成页面坐标
+             后设置 Margin，输入框多高/在哪就贴在哪——不再用拍脑袋的底部留白。
+             找不到锚点时回退到默认 Margin。IsHitTestVisible=False → 鼠标穿透不挡聊天交互。
              状态联动见 AiAgentPage.xaml.cs 顶部注释：15 态全接入。 -->
         <WebView2 x:Name="BotAvatar" Grid.Row="1"
                   Width="72" Height="72"
-                  HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                  Margin="0,0,96,152"
+                  HorizontalAlignment="Left" VerticalAlignment="Top"
+                  Margin="0,0,0,0"
                   DefaultBackgroundColor="Transparent"
                   IsHitTestVisible="False" />
     </Grid>
