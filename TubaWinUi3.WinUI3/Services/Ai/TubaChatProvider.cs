@@ -42,6 +42,14 @@ public sealed class TubaChatProvider : IAiProvider
     internal const int MaxThinkingChars = 6000;
 
     /// <summary>
+    /// 历史回传总量预算（字符，不含 system）：协议消息重建后若超过该预算，
+    /// 从最旧消息开始丢弃（保留首条 system 与最新 user）。30 轮工具循环中每轮回传
+    /// 思考(≤6000)+结果(≤6000)，历史无上限会撑爆 DeepSeek 64K 上下文窗口——
+    /// 这是死循环"烧穿上下文"的路径；预算只在超限时生效，正常会话完全无感知。
+    /// </summary>
+    internal const int HistoryBudgetChars = 40000;
+
+    /// <summary>
     /// 截断思维链到 <see cref="MaxThinkingChars"/> 并追加截断标记；null/短文本原样返回。
     /// 保留开头（推理关键段在前），避免切断 surrogate pair（emoji 等）产生孤立代理字符，
     /// 防止 JSON 序列化异常或回传乱码。
@@ -497,7 +505,79 @@ public sealed class TubaChatProvider : IAiProvider
             else
                 list.Insert(0, OpenAI.Chat.ChatMessage.CreateSystemMessage(prompt));
         }
-        return list;
+        return TrimHistory(list);
+    }
+
+    /// <summary>
+    /// 历史预算压缩：协议消息总量（不含 system）超过 <see cref="HistoryBudgetChars"/> 时
+    /// 从最旧开始丢弃，保留首条 system 与最新一条 user（模型需知道系统指令与当前任务）。
+    /// 仅在超限时生效；删除最旧的历史不会破坏 DeepSeek 网关的 reasoning 回传校验
+    /// （该校验只作用于当前请求中实际存在的 assistant 消息）。
+    /// </summary>
+    internal static List<OpenAI.Chat.ChatMessage> TrimHistory(List<OpenAI.Chat.ChatMessage> list)
+    {
+        if (list.Count <= 2) return list;
+
+        // 保留集：首条 system + 最新 user
+        var keep = new HashSet<int>();
+        for (var i = 0; i < list.Count; i++)
+        {
+            if (list[i] is SystemChatMessage) { keep.Add(i); break; }
+        }
+        for (var i = list.Count - 1; i >= 0; i--)
+        {
+            if (list[i] is UserChatMessage) { keep.Add(i); break; }
+        }
+
+        var total = 0L;
+        foreach (var m in list)
+        {
+            if (m is not SystemChatMessage) total += RoughLength(m);
+        }
+        if (total <= HistoryBudgetChars) return list;
+
+        // 从最旧的非保留消息开始丢弃，直到达标（删光非保留项为止）
+        var drop = new HashSet<int>();
+        for (var i = 0; i < list.Count && total > HistoryBudgetChars; i++)
+        {
+            if (keep.Contains(i)) continue;
+            total -= RoughLength(list[i]);
+            drop.Add(i);
+        }
+
+        var result = new List<OpenAI.Chat.ChatMessage>(list.Count - drop.Count);
+        for (var i = 0; i < list.Count; i++)
+        {
+            if (!drop.Contains(i)) result.Add(list[i]);
+        }
+        return result;
+    }
+
+    /// <summary>协议消息字符量估算：文本 + 工具调用参数 + 思考链（reasoning_content）。</summary>
+    internal static int RoughLength(OpenAI.Chat.ChatMessage m)
+    {
+        switch (m)
+        {
+            case SystemChatMessage sm:
+                return sm.Content.Sum(p => p.Text?.Length ?? 0);
+            case UserChatMessage um:
+                return um.Content.Sum(p => p.Text?.Length ?? 0);
+            case AssistantChatMessage am:
+            {
+                var len = am.Content.Sum(p => p.Text?.Length ?? 0);
+                foreach (var tc in am.ToolCalls)
+                    len += tc.FunctionArguments?.ToString()?.Length ?? 0;
+#pragma warning disable SCME0001 // JsonPatch 为评估 API，但这是 SDK 唯一支持扩展字段（reasoning_content）的途径
+                if (am.Patch.TryGetValue("$.reasoning_content"u8, out string? r))
+                    len += r.Length;
+#pragma warning restore SCME0001
+                return len;
+            }
+            case ToolChatMessage tm:
+                return tm.Content.Sum(p => p.Text?.Length ?? 0);
+            default:
+                return 0;
+        }
     }
 
     internal static OpenAI.Chat.ChatMessage ToOpenAiMessage(FcChatMessage m, string? fallbackThinking = null) => m.Role switch

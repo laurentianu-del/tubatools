@@ -422,4 +422,83 @@ public class TubaChatProviderTests
         Assert.EndsWith("[思维链过长，已截断]", result);
         Assert.DoesNotContain("\uD83D", result); // 无孤立高代理字符
     }
+
+    // ---------- 历史预算压缩（防 30 轮工具循环回传撑爆上下文） ----------
+
+    /// <summary>构造多轮工具循环历史：每轮思考 5000 + 工具结果 4000 字符。</summary>
+    private static AiRequest MakeLoopRequest(int rounds)
+    {
+        var history = new List<FcChatMessage>
+        {
+            new(ChatRole.User, "查显卡价格"),
+            // 根气泡：思考累积（无工具调用的 assistant；Content 为空故不产生独立协议消息）
+            new(ChatRole.Assistant, "") { ThinkingContent = new string('思', 5000) },
+        };
+        for (var i = 0; i < rounds; i++)
+        {
+            history.Add(new(ChatRole.Assistant, "")
+            {
+                ToolCalls =
+                [
+                    new ToolCall { Id = $"c{i}", FunctionName = "web_search", Arguments = """{"query":"显卡价格"}""" },
+                ]
+            });
+            history.Add(new(ChatRole.Tool, new string('果', 4000)) { ToolCallId = $"c{i}" });
+        }
+        return new AiRequest { Messages = history, SystemPrompt = "你是图吧助手" };
+    }
+
+    /// <summary>30 轮大历史超过预算：压缩生效，system 与最新 user 保留，总量回落到预算内。</summary>
+    [Fact]
+    public void BuildMessages_OverlongHistory_TrimsOldestMessages()
+    {
+        var request = MakeLoopRequest(rounds: 30);
+
+        var result = TubaChatProvider.BuildMessages(request);
+
+        // 保留集：system + user + 最近的工具轮次
+        Assert.IsType<SystemChatMessage>(result[0]);
+        Assert.Contains(result, m => m is UserChatMessage);
+        Assert.True(result.Count < 40, $"30 轮历史应被压缩，实际 {result.Count} 条");
+
+        var total = result.Where(m => m is not SystemChatMessage).Sum(TubaChatProvider.RoughLength);
+        Assert.True(total <= TubaChatProvider.HistoryBudgetChars, $"压缩后总量须在预算内，实际 {total}");
+    }
+
+    /// <summary>短历史不触发压缩：消息原样保留（顺序与条数不变）。</summary>
+    [Fact]
+    public void BuildMessages_ShortHistory_Unchanged()
+    {
+        var history = new List<FcChatMessage>
+        {
+            new(ChatRole.User, "查一下"),
+            new(ChatRole.Assistant, "好的") { ToolCalls = [new ToolCall { Id = "c1", FunctionName = "get_info", Arguments = "{}" }] },
+            new(ChatRole.Tool, "结果") { ToolCallId = "c1" },
+        };
+        var request = new AiRequest { Messages = history, SystemPrompt = "你是图吧助手" };
+
+        var result = TubaChatProvider.BuildMessages(request);
+
+        Assert.Equal(4, result.Count); // system + user + assistant + tool，全部保留
+    }
+
+    /// <summary>TrimHistory 直接验证：超预算时删最旧，system 与新 user 始终保留且顺序正确。</summary>
+    [Fact]
+    public void TrimHistory_PreservesSystemAndLatestUser()
+    {
+        var msgs = new List<OpenAI.Chat.ChatMessage> { OpenAI.Chat.ChatMessage.CreateSystemMessage("sys") };
+        for (var i = 0; i < 30; i++)
+        {
+            msgs.Add(OpenAI.Chat.ChatMessage.CreateAssistantMessage(new string('a', 2000)));
+            msgs.Add(OpenAI.Chat.ChatMessage.CreateToolMessage($"c{i}", new string('b', 2000)));
+        }
+        msgs.Add(OpenAI.Chat.ChatMessage.CreateUserMessage("当前任务"));
+
+        var trimmed = TubaChatProvider.TrimHistory(msgs);
+
+        Assert.IsType<SystemChatMessage>(trimmed[0]); // system 在最前
+        var last = Assert.IsType<UserChatMessage>(trimmed[^1]); // 最新 user 在最后
+        Assert.Equal("当前任务", last.Content[0].Text);
+        Assert.True(trimmed.Count < msgs.Count, "超预算必须丢弃最旧消息");
+    }
 }
