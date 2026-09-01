@@ -46,7 +46,11 @@ dotnet test --filter "FullyQualifiedName~ToolCatalogTests"        # one class / 
 - `AgentSession`/`AgentRuntime` 仍是**独立的旧引擎**（AiQuickAskFlyout 及测试使用），页面不再直接依赖；技能触发经 `AgentToolContext.SkillTriggerActive` 静态桥接（web_search 拦截）。
 - 历史/记忆/技能沿用 `AiAssistantService` 的 messages.json / display.json / skills.json / memory.md；skills 默认全开、按会话存档。
 - **包缺陷**：FieldCure 0.21.0 的 `.pri` 声明了缺失的 `AssistStudio.Controls/icon.png`，csproj 中 `FixFieldCureMissingPriPayload` 目标在构建期补位（升级包版本时若仍报 MSB3030 需检查该目标）。
-- **聊天区右下角 bot 吉祥物**：`Assets/BotAvatar/`（bloub 引擎，github.com/jeremy-prt/bloub，MIT；esbuild IIFE 打包 + `botavatar.html`）经 72×72 透明 WebView2 + 虚拟主机 `botavatar` **悬浮在输入框正上方**（XAML 后声明叠加在 Row=1，`IsHitTestVisible=False` 鼠标穿透；**不要放顶栏/别处**——用户明确要求输入框上方）。**位置动态锚定**：`UpdateBotAnchor` + `FindInputAnchor` 运行时遍历 ChatPanel 可视化树找输入区（TextBox/RichEditBox/WebView2 顶部坐标最大者），`TransformToVisual` 换算后 `Left/Top` 绝对定位（右对齐输入框右缘留 24px、上方留 12px），订阅 `Chat.LayoutUpdated` 自动跟随。**透明三件套**：XAML + Ensure 前代码显式 `DefaultBackgroundColor=Transparent` + HTML 根元素 `background: transparent !important`。**15 态全接入**（`BotPost` postMessage 联动）：
+- **聊天区 bot 吉祥物（双实例）**：`Assets/BotAvatar/`（bloub 引擎，github.com/jeremy-prt/bloub，MIT；esbuild IIFE 打包 + `botavatar.html`），**两个 WebView2 实例共用同一引擎与虚拟主机 `botavatar`、状态广播同步**（`BotPost` 遍历发送）：
+  - **聊天区大号 72×72**：XAML 后声明叠加在 Row=1，`IsHitTestVisible=False` 鼠标穿透；**位置动态锚定输入框**：`UpdateBotAnchor` + `FindInputAnchor` 运行时遍历 ChatPanel 可视化树找输入区（TextBox/RichEditBox/WebView2 顶部坐标最大者），`TransformToVisual` 换算后 `Left/Top` 绝对定位（右对齐输入框右缘留 24px、上方留 52px），订阅 `Chat.LayoutUpdated` 自动跟随。**透明限制**：该实例悬浮在 ChatPanel 消息区 WebView2 之上，透明 WebView2 无法穿透另一 WebView2（平台限制），背景可能显示不透明块/下层灰底——顶栏实例在原生区域透明正常。
+  - **顶栏小号 34×34**（`BotAvatarMini`）：顶栏右侧操作组最前（模型选择器旁），原生 XAML 区域透明必然生效。
+  - 初始化：`InitBotAvatarAsync` = `Task.WhenAll(InitBotWebViewAsync(wv, isMain))`，isMain 才置 `_botAvatarReady` + 启动视线轮询；`SendColorsTo(wv)` 逐实例补发主题色（绕过 ready 守卫）；`Unload` 两个实例都 Navigate about:blank。
+  - **15 态全接入**（`BotPost` postMessage 联动）：
   - `thinking` 发消息 → `orbit` 工具执行（HTML 桥 3s 循环重放，环 3.6s 会淡出）→ 定稿庆祝三选一（`_roundTokens` 分级：0→`wink` 眨眼 / >0→`notify` 蓝点 / >4000→`burst` 爆炸）
   - `alert` 请求失败（`TubaChatProvider.RequestFailed`）、`play` 新对话、`sleep` 5 分钟无活动、`wide`/`exclaim` 完全访问开关开/关、`swirl` 打开 AI 设置、`comet` 历史会话加载完成、`egg`/`hexagon` AI 写入记忆时随机变形
   - 空闲时视线跟随鼠标（ChatPanel 的 WebView2 吞 XAML 指针事件，用 `GetCursorPos` 66ms 轮询，仅 baseFace 态生效）；body 墨色取系统强调色（`BotSendColors`，导航成功后再补发一次）

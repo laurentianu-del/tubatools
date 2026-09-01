@@ -51,6 +51,12 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <!-- 顶栏小号吉祥物（与聊天区大号同引擎同状态，透明原生区域必然生效） -->
+                    <WebView2 x:Name="BotAvatarMini" Width="34" Height="34"
+                              DefaultBackgroundColor="Transparent"
+                              VerticalAlignment="Center"
+                              IsHitTestVisible="False"
+                              ToolTipService.ToolTip="AI 助手状态" />
                     <Border x:Name="TokenUsageBubble" CornerRadius="12" Padding="10,7"
                             Background="{ThemeResource ControlFillColorSecondaryBrush}"
                             VerticalAlignment="Center" Visibility="Collapsed"

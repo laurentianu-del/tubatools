@@ -125,20 +125,25 @@ public sealed partial class AiAgentPage : UserControl
     private bool _botAvatarReady;
 
     /// <summary>
-    /// 初始化聊天区右上角吉祥物：共享 WebView2 环境 + 虚拟主机 botavatar 映射本地资产。
+    /// 初始化吉祥物：聊天区大号 + 顶栏小号，共享同一引擎与虚拟主机，状态广播保持一致。
     /// 纯装饰组件，任何失败都静默吞掉（不影响助手功能），但会留下 Debug 日志；
     /// 首次导航失败自动重试一次，避免白屏导致吉祥物"消失"。
     /// </summary>
     private async Task InitBotAvatarAsync()
+        => await Task.WhenAll(
+            InitBotWebViewAsync(BotAvatar, isMain: true),
+            InitBotWebViewAsync(BotAvatarMini, isMain: false));
+
+    private async Task InitBotWebViewAsync(WebView2 wv, bool isMain)
     {
         try
         {
-            // 透明双保险：Ensure 前显式设置控件级透明（XAML 已有 Transparent，这里再设一次防解析遗漏；
-            // WinUI 3 的 DefaultBackgroundColor 内部映射 CoreWebView2Controller，无需也不可直达控制器）
-            BotAvatar.DefaultBackgroundColor = Colors.Transparent;
-            if (BotAvatar.CoreWebView2 is null)
-                await BotAvatar.EnsureCoreWebView2Async(await WebView2EnvironmentService.GetAsync());
-            var core = BotAvatar.CoreWebView2;
+            // 控件级透明（XAML 已有 Transparent，这里 Ensure 前再设一次防解析遗漏；
+            // WinUI3 的 DefaultBackgroundColor 由控件内部映射到 CoreWebView2Controller）
+            wv.DefaultBackgroundColor = Colors.Transparent;
+            if (wv.CoreWebView2 is null)
+                await wv.EnsureCoreWebView2Async(await WebView2EnvironmentService.GetAsync());
+            var core = wv.CoreWebView2;
             if (core is null) return;
             core.SetVirtualHostNameToFolderMapping(
                 "botavatar", Path.Combine(AppContext.BaseDirectory, "Assets", "BotAvatar"),
@@ -156,9 +161,12 @@ public sealed partial class AiAgentPage : UserControl
                     core.Navigate("https://botavatar/botavatar.html");
                     if (await tcs.Task.WaitAsync(TimeSpan.FromSeconds(15)))
                     {
-                        _botAvatarReady = true;
-                        BotSendColors(); // 导航完成后补发主题色（导航前 PostWebMessageAsJson 无效）
-                        StartGazePolling();
+                        if (isMain)
+                        {
+                            _botAvatarReady = true;
+                            StartGazePolling();
+                        }
+                        SendColorsTo(wv); // 导航完成后补发主题色（导航前 PostWebMessageAsJson 无效）
                         return;
                     }
                     Debug.WriteLine($"[BotAvatar] 第 {attempt + 1} 次导航失败，重试…");
@@ -180,6 +188,23 @@ public sealed partial class AiAgentPage : UserControl
         }
     }
 
+    /// <summary>按主题下发配色到单个实例（初始化补发用，绕过 _botAvatarReady 守卫）。</summary>
+    private void SendColorsTo(WebView2 wv)
+    {
+        var dark = ActualTheme == ElementTheme.Dark;
+        var accentKey = dark ? "SystemAccentColorLight2" : "SystemAccentColorDark2";
+        var ink = Application.Current.Resources.TryGetValue(accentKey, out var accentRes)
+                  && accentRes is Windows.UI.Color accent
+            ? $"#{accent.R:X2}{accent.G:X2}{accent.B:X2}"
+            : dark ? "#f2f2f4" : "#1b1b1f";
+        try
+        {
+            wv.CoreWebView2?.PostWebMessageAsJson(
+                JsonSerializer.Serialize(new { type = "colors", ink, paper = dark ? "#272727" : "#f9f9f9" }));
+        }
+        catch { }
+    }
+
     // ---- 输入框锚定：吉祥物以输入框为相对位置（不再用拍脑袋的底部留白）。
     // ---- ChatPanel 是组件库黑盒，输入区元素不公开，运行时在可视化树里找最底部
     // ---- 的输入型元素（TextBox/RichEditBox/WebView2），TransformToVisual 换算成页面
@@ -199,9 +224,9 @@ public sealed partial class AiAgentPage : UserControl
         {
             return;
         }
-        // 右对齐输入框右缘（留 24px），悬浮在输入框正上方（留 12px）
+        // 右对齐输入框右缘（留 24px），悬浮在输入框正上方（留 52px，比输入框高出一截）
         var left = p.X + anchor.ActualWidth - BotAvatar.ActualWidth - 24;
-        var top = p.Y - BotAvatar.ActualHeight - 12;
+        var top = p.Y - BotAvatar.ActualHeight - 52;
         if (left < 0) left = 0;
         if (top < 0) top = 0;
         var m = new Thickness(left, top, 0, 0);
@@ -332,8 +357,9 @@ public sealed partial class AiAgentPage : UserControl
     private void BotPost(object payload)
     {
         if (!_botAvatarReady) return;
-        try { BotAvatar.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(payload)); }
-        catch { }
+        var json = JsonSerializer.Serialize(payload);
+        try { BotAvatar.CoreWebView2?.PostWebMessageAsJson(json); } catch { }
+        try { BotAvatarMini.CoreWebView2?.PostWebMessageAsJson(json); } catch { }
     }
 
     /// <summary>
@@ -407,6 +433,7 @@ public sealed partial class AiAgentPage : UserControl
     public void Unload()
     {
         try { BotAvatar.CoreWebView2?.Navigate("about:blank"); } catch { }
+        try { BotAvatarMini.CoreWebView2?.Navigate("about:blank"); } catch { }
         StopGazePolling();
         SaveNow();
         _saveTimer?.Stop();
