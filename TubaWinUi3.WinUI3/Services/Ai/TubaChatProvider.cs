@@ -32,6 +32,28 @@ public sealed class TubaChatProvider : IAiProvider
     /// <summary>工具调用循环默认温度（与旧 AgentRuntime.DefaultTemperature 保持一致，保证调用稳定）。</summary>
     private const float DefaultTemperature = 0.4f;
 
+    /// <summary>
+    /// 思维链最大长度（字符）：思考模型（DeepSeek 系）单轮 reasoning_content 超过该长度即截断。
+    /// 思维链随工具循环逐轮累积，若不设上限会无限撑爆上下文——思考文本越长，模型越容易
+    /// "过度确认"、在工具循环里越绕越深直至死循环（用户反馈"思维链死循环"）。
+    /// 截断后字段仍非空，满足 DeepSeek 网关 "reasoning_content must be passed back" 要求
+    /// （网关校验字段存在，不逐字比对）。
+    /// </summary>
+    internal const int MaxThinkingChars = 6000;
+
+    /// <summary>
+    /// 截断思维链到 <see cref="MaxThinkingChars"/> 并追加截断标记；null/短文本原样返回。
+    /// 保留开头（推理关键段在前），避免切断 surrogate pair（emoji 等）产生孤立代理字符，
+    /// 防止 JSON 序列化异常或回传乱码。
+    /// </summary>
+    internal static string? TruncateThinking(string? thinking)
+    {
+        if (string.IsNullOrEmpty(thinking) || thinking.Length <= MaxThinkingChars) return thinking;
+        var cut = thinking[..MaxThinkingChars];
+        if (cut.Length > 0 && char.IsHighSurrogate(cut[^1])) cut = cut[..^1];
+        return cut + "\n\n[思维链过长，已截断]";
+    }
+
     /// <summary>每轮完成（含取消前已拿到的用量）上报，页面据此累计会话 token 统计。</summary>
     public static event Action<TokenUsage?>? UsageReported;
 
@@ -142,6 +164,9 @@ public sealed class TubaChatProvider : IAiProvider
         var toolCalls = new Dictionary<int, StreamedToolCall>();
         TokenUsage? usage = null;
         var isTruncated = false;
+        // 思维链长度护栏：当前轮已转发的 reasoning 字符数与是否已发出截断提示
+        var thinkingLength = 0;
+        var thinkingTruncated = false;
 
         await foreach (var update in chat.CompleteChatStreamingAsync(messages, options, streamToken))
         {
@@ -156,12 +181,28 @@ public sealed class TubaChatProvider : IAiProvider
             }
 
             // 思考链增量（DeepSeek 系 reasoning_content，与 M.E.AI 同款 JsonPatch 提取）
+            // 思维链最大长度护栏：单轮累计超过 MaxThinkingChars 后丢弃后续增量——
+            // 截断发生在转发前，UI 渲染 / 消息树存储 / 网关回传三处一致，防止思考文本
+            // 无限膨胀撑爆上下文、模型"过度确认"陷入工具循环死循环。
 #pragma warning disable SCME0001 // JsonPatch 为评估 API，但这是 SDK 唯一支持扩展字段（reasoning_content）的途径
             if (update.Patch.TryGetValue("$.choices[0].delta.reasoning_content"u8, out string? reasoning)
                 && !string.IsNullOrEmpty(reasoning))
 #pragma warning restore SCME0001
             {
-                yield return new StreamEvent.ThinkingDelta(reasoning);
+                var room = MaxThinkingChars - thinkingLength;
+                if (room > 0)
+                {
+                    var chunk = reasoning.Length <= room ? reasoning : reasoning[..room];
+                    // 防切断 surrogate pair（emoji 等）产生孤立代理字符
+                    if (chunk.Length > 0 && char.IsHighSurrogate(chunk[^1])) chunk = chunk[..^1];
+                    thinkingLength += chunk.Length;
+                    yield return new StreamEvent.ThinkingDelta(chunk);
+                }
+                else if (!thinkingTruncated)
+                {
+                    thinkingTruncated = true;
+                    yield return new StreamEvent.ThinkingDelta("\n\n[思维链过长，已截断]");
+                }
             }
 
             // 工具调用增量：OpenAI SDK 按 Index 下发 ToolCallId/函数名/参数片段
@@ -270,7 +311,7 @@ public sealed class TubaChatProvider : IAiProvider
             ToolCalls = toolCalls,
             Usage = usage,
             IsTruncated = isTruncated,
-            ThinkingContent = thinking
+            ThinkingContent = TruncateThinking(thinking)
         };
     }
 
@@ -464,8 +505,10 @@ public sealed class TubaChatProvider : IAiProvider
             }
         }
 
-        // DeepSeek 思考模型要求 reasoning 原样回传（JsonPatch 是 SDK 扩展字段唯一途径）
-        var thinking = !string.IsNullOrWhiteSpace(m.ThinkingContent) ? m.ThinkingContent : fallbackThinking;
+        // DeepSeek 思考模型要求 reasoning 原样回传（JsonPatch 是 SDK 扩展字段唯一途径）；
+        // 历史恢复的 thinking 未走流式护栏可能超长，回传前防御性截断，保证请求体体积受控
+        var thinking = TruncateThinking(
+            !string.IsNullOrWhiteSpace(m.ThinkingContent) ? m.ThinkingContent : fallbackThinking);
         if (!string.IsNullOrWhiteSpace(thinking))
         {
 #pragma warning disable SCME0001 // JsonPatch 为评估 API，但这是 SDK 唯一支持扩展字段（reasoning_content）的途径

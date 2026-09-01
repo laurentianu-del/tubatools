@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.AI;
 using OpenAI.Chat;
+using TubaWinUi3.Services.Ai;
 
 namespace TubaWinUi3.Services.Agent;
 
@@ -69,7 +70,9 @@ public sealed class ReasoningEchoChatClient : DelegatingChatClient
                         sdk.ToolCalls.Add(tc);
 
 #pragma warning disable SCME0001 // JsonPatch 为评估 API，但这是 SDK 唯一支持扩展字段（reasoning_content）的途径
-                    sdk.Patch.Set("$.reasoning_content"u8, string.Concat(reasoning));
+                    // 思维链最大长度护栏：与 TubaChatProvider 同一上限，超长 reasoning 截断
+                    // 再回传（防思考文本无限膨胀撑爆上下文导致工具循环死循环）；字段保持非空
+                    sdk.Patch.Set("$.reasoning_content"u8, TubaChatProvider.TruncateThinking(string.Concat(reasoning))!);
 #pragma warning restore SCME0001
 
                     m.RawRepresentation = sdk;

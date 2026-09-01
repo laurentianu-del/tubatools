@@ -373,4 +373,53 @@ public class TubaChatProviderTests
         Assert.Equal("需打开官网页面", reasoning);
         Assert.Single(update.ToolCallUpdates);
     }
+
+    // ---------- 思维链最大长度护栏（防"思维链死循环"：思考文本无限膨胀撑爆上下文） ----------
+
+    /// <summary>思维链最大长度护栏：超长 thinking 回传前被截断，保留截断标记且字段非空（满足网关回传要求）。</summary>
+    [Fact]
+    public void ToAssistantMessage_OverlongThinking_IsTruncatedWithMarker()
+    {
+        var longThinking = new string('思', TubaChatProvider.MaxThinkingChars + 500);
+        var msg = new FcChatMessage(ChatRole.Assistant, "回答") { ThinkingContent = longThinking };
+
+        var result = Assert.IsType<AssistantChatMessage>(TubaChatProvider.ToAssistantMessage(msg));
+#pragma warning disable SCME0001 // JsonPatch 为评估 API，测试验证 reasoning_content 补丁注入
+        Assert.True(result.Patch.TryGetValue("$.reasoning_content"u8, out string? reasoning));
+#pragma warning restore SCME0001
+
+        Assert.StartsWith(new string('思', TubaChatProvider.MaxThinkingChars), reasoning);
+        Assert.EndsWith("[思维链过长，已截断]", reasoning);
+        Assert.True(reasoning.Length <= TubaChatProvider.MaxThinkingChars + 32, "截断后仅允许追加标记余量");
+    }
+
+    /// <summary>思维链最大长度护栏：恰好等于上限时原样返回，不截断、不追加标记。</summary>
+    [Fact]
+    public void TruncateThinking_AtLimit_Unchanged()
+    {
+        var thinking = new string('a', TubaChatProvider.MaxThinkingChars);
+
+        Assert.Equal(thinking, TubaChatProvider.TruncateThinking(thinking));
+    }
+
+    /// <summary>思维链最大长度护栏：null/空串原样返回，不发明 reasoning_content。</summary>
+    [Fact]
+    public void TruncateThinking_NullOrEmpty_Unchanged()
+    {
+        Assert.Null(TubaChatProvider.TruncateThinking(null));
+        Assert.Equal("", TubaChatProvider.TruncateThinking(""));
+    }
+
+    /// <summary>思维链最大长度护栏：截断点落在 emoji 代理对中间时回退一位，不产生孤立代理字符。</summary>
+    [Fact]
+    public void TruncateThinking_CutAtSurrogatePair_NoLoneSurrogate()
+    {
+        // 截断点正好落在 😀（U+1F600，surrogate pair D83D DE00）中间
+        var thinking = new string('a', TubaChatProvider.MaxThinkingChars - 1) + "😀" + new string('b', 200);
+        var result = TubaChatProvider.TruncateThinking(thinking)!;
+
+        Assert.StartsWith(new string('a', TubaChatProvider.MaxThinkingChars - 1), result);
+        Assert.EndsWith("[思维链过长，已截断]", result);
+        Assert.DoesNotContain("\uD83D", result); // 无孤立高代理字符
+    }
 }

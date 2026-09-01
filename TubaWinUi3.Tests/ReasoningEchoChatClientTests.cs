@@ -3,6 +3,7 @@ using Microsoft.Extensions.AI;
 using OpenAI.Chat;
 using TubaWinUi3.Services;
 using TubaWinUi3.Services.Agent;
+using TubaWinUi3.Services.Ai;
 
 namespace TubaWinUi3.Tests;
 
@@ -64,6 +65,24 @@ public class ReasoningEchoChatClientTests
         Assert.Equal(2, echoed.Count);
         Assert.Null(echoed[0].RawRepresentation);
         Assert.Null(echoed[1].RawRepresentation);
+    }
+
+    /// <summary>思维链最大长度护栏：旧引擎回传同样截断超长 reasoning，字段保持非空。</summary>
+    [Fact]
+    public void EchoReasoning_OverlongReasoning_IsTruncated()
+    {
+        var longReasoning = new string('思', TubaChatProvider.MaxThinkingChars + 100);
+        var msg = new Microsoft.Extensions.AI.ChatMessage(Microsoft.Extensions.AI.ChatRole.Assistant, "回答");
+        msg.Contents.Add(new TextReasoningContent(longReasoning));
+
+        var echoed = ReasoningEchoChatClient.EchoReasoning([msg]).Single();
+        var sdk = Assert.IsType<AssistantChatMessage>(echoed.RawRepresentation);
+#pragma warning disable SCME0001
+        var json = ModelReaderWriter.Write(sdk).ToString();
+#pragma warning restore SCME0001
+
+        Assert.Contains("[思维链过长，已截断]", json);
+        Assert.True(json.Length < longReasoning.Length, "回传的 reasoning 必须被截短");
     }
 
     [Fact]
