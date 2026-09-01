@@ -51,8 +51,10 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <!-- 顶栏小号吉祥物（与聊天区大号同引擎同状态，透明原生区域必然生效） -->
-                    <WebView2 x:Name="BotAvatarMini" Width="34" Height="34"
+                    <!-- bloub 吉祥物（唯一实例）：顶栏原生区域 → WebView2 透明必然生效，不悬浮在
+                         消息区 WebView2 之上（那是平台穿不透的灰色块）。动画随顶栏操作触发：
+                         设置 swirl / 模型切换 notify / 完全访问 wide|exclaim / 新对话 play / 历史 comet。 -->
+                    <WebView2 x:Name="BotAvatar" Width="44" Height="44"
                               DefaultBackgroundColor="Transparent"
                               VerticalAlignment="Center"
                               IsHitTestVisible="False"
@@ -112,18 +114,5 @@
             x:Name="Chat"
             Grid.Row="1"
             Placeholder="描述目标，或直接要求助手诊断、执行命令、整理报告…（Enter 发送，Shift+Enter 换行）" />
-
-        <!-- bloub bot 吉祥物（Assets/BotAvatar/，虚拟主机 botavatar）：悬浮在输入框上方。
-             位置由 C# 动态锚定（UpdateBotAnchor）：运行时在 ChatPanel 可视化树中找输入区
-             （TextBox/RichEditBox/WebView2 中最底部者），用 TransformToVisual 换算成页面坐标
-             后设置 Margin，输入框多高/在哪就贴在哪——不再用拍脑袋的底部留白。
-             找不到锚点时回退到默认 Margin。IsHitTestVisible=False → 鼠标穿透不挡聊天交互。
-             状态联动见 AiAgentPage.xaml.cs 顶部注释：15 态全接入。 -->
-        <WebView2 x:Name="BotAvatar" Grid.Row="1"
-                  Width="72" Height="72"
-                  HorizontalAlignment="Left" VerticalAlignment="Top"
-                  Margin="0,0,0,0"
-                  DefaultBackgroundColor="Transparent"
-                  IsHitTestVisible="False" />
     </Grid>
 </UserControl>

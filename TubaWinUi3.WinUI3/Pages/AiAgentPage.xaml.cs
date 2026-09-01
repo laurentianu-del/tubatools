@@ -115,26 +115,23 @@ public sealed partial class AiAgentPage : UserControl
         {
             _botAvatarInitStarted = true;
             ActualThemeChanged += (_, _) => BotSendColors();
-            Chat.LayoutUpdated += (_, _) => UpdateBotAnchor(); // 动态锚定输入框（相对定位）
             _ = InitBotAvatarAsync();
         }
     }
 
-    // ---------- bloub bot 吉祥物（WebView2 + Assets/BotAvatar 本地页，悬浮在聊天区右上角） ----------
+    // ---------- bloub bot 吉祥物（WebView2 + Assets/BotAvatar 本地页，顶栏唯一实例） ----------
 
     private bool _botAvatarReady;
 
     /// <summary>
-    /// 初始化吉祥物：聊天区大号 + 顶栏小号，共享同一引擎与虚拟主机，状态广播保持一致。
-    /// 纯装饰组件，任何失败都静默吞掉（不影响助手功能），但会留下 Debug 日志；
-    /// 首次导航失败自动重试一次，避免白屏导致吉祥物"消失"。
+    /// 初始化吉祥物（顶栏唯一实例）：共享引擎与虚拟主机。
+    /// 放在顶栏原生区域而非悬浮在消息区 WebView2 之上——透明 WebView2 无法穿透另一
+    /// WebView2（平台限制），顶栏透明必然生效。纯装饰组件，任何失败都静默吞掉
+    /// （不影响助手功能），但会留下 Debug 日志；首次导航失败自动重试一次。
     /// </summary>
-    private async Task InitBotAvatarAsync()
-        => await Task.WhenAll(
-            InitBotWebViewAsync(BotAvatar, isMain: true),
-            InitBotWebViewAsync(BotAvatarMini, isMain: false));
+    private async Task InitBotAvatarAsync() => await InitBotWebViewAsync(BotAvatar);
 
-    private async Task InitBotWebViewAsync(WebView2 wv, bool isMain)
+    private async Task InitBotWebViewAsync(WebView2 wv)
     {
         try
         {
@@ -161,11 +158,8 @@ public sealed partial class AiAgentPage : UserControl
                     core.Navigate("https://botavatar/botavatar.html");
                     if (await tcs.Task.WaitAsync(TimeSpan.FromSeconds(15)))
                     {
-                        if (isMain)
-                        {
-                            _botAvatarReady = true;
-                            StartGazePolling();
-                        }
+                        _botAvatarReady = true;
+                        StartGazePolling();
                         SendColorsTo(wv); // 导航完成后补发主题色（导航前 PostWebMessageAsJson 无效）
                         return;
                     }
@@ -203,67 +197,6 @@ public sealed partial class AiAgentPage : UserControl
                 JsonSerializer.Serialize(new { type = "colors", ink, paper = dark ? "#272727" : "#f9f9f9" }));
         }
         catch { }
-    }
-
-    // ---- 输入框锚定：吉祥物以输入框为相对位置（不再用拍脑袋的底部留白）。
-    // ---- ChatPanel 是组件库黑盒，输入区元素不公开，运行时在可视化树里找最底部
-    // ---- 的输入型元素（TextBox/RichEditBox/WebView2），TransformToVisual 换算成页面
-    // ---- 坐标后绝对定位——输入框多高/在哪，吉祥物就贴在哪，布局变化自动跟随。
-
-    private void UpdateBotAnchor()
-    {
-        var anchor = FindInputAnchor();
-        var root = BotAvatar.Parent as UIElement;
-        if (anchor is null || root is null || !_botAvatarReady) return;
-        Point p;
-        try
-        {
-            p = anchor.TransformToVisual(root).TransformPoint(new Point(0, 0));
-        }
-        catch
-        {
-            return;
-        }
-        // 右对齐输入框右缘（留 24px），悬浮在输入框正上方（留 52px，比输入框高出一截）
-        var left = p.X + anchor.ActualWidth - BotAvatar.ActualWidth - 24;
-        var top = p.Y - BotAvatar.ActualHeight - 52;
-        if (left < 0) left = 0;
-        if (top < 0) top = 0;
-        var m = new Thickness(left, top, 0, 0);
-        if (Math.Abs(m.Left - BotAvatar.Margin.Left) < 0.5 && Math.Abs(m.Top - BotAvatar.Margin.Top) < 0.5) return;
-        BotAvatar.HorizontalAlignment = HorizontalAlignment.Left;
-        BotAvatar.VerticalAlignment = VerticalAlignment.Top;
-        BotAvatar.Margin = m;
-    }
-
-    /// <summary>在 ChatPanel 可视化树中找输入区：TextBox/RichEditBox/WebView2 中顶部坐标最大者（输入区常驻最底部）。</summary>
-    private FrameworkElement? FindInputAnchor()
-    {
-        var root = BotAvatar.Parent as UIElement;
-        if (root is null) return null;
-        FrameworkElement? best = null;
-        var bestTop = double.NegativeInfinity;
-        void Walk(DependencyObject node)
-        {
-            if (node is TextBox or RichEditBox or WebView2)
-            {
-                try
-                {
-                    var t = ((UIElement)node).TransformToVisual(root).TransformPoint(new Point(0, 0));
-                    if (t.Y > bestTop)
-                    {
-                        bestTop = t.Y;
-                        best = (FrameworkElement)node;
-                    }
-                }
-                catch { }
-            }
-            var count = VisualTreeHelper.GetChildrenCount(node);
-            for (var i = 0; i < count; i++)
-                Walk(VisualTreeHelper.GetChild(node, i));
-        }
-        Walk(Chat);
-        return best;
     }
 
     // ---- 视线跟随：ChatPanel 的 WebView2 会吞掉其上的 XAML 指针事件，
@@ -359,7 +292,6 @@ public sealed partial class AiAgentPage : UserControl
         if (!_botAvatarReady) return;
         var json = JsonSerializer.Serialize(payload);
         try { BotAvatar.CoreWebView2?.PostWebMessageAsJson(json); } catch { }
-        try { BotAvatarMini.CoreWebView2?.PostWebMessageAsJson(json); } catch { }
     }
 
     /// <summary>
@@ -433,7 +365,6 @@ public sealed partial class AiAgentPage : UserControl
     public void Unload()
     {
         try { BotAvatar.CoreWebView2?.Navigate("about:blank"); } catch { }
-        try { BotAvatarMini.CoreWebView2?.Navigate("about:blank"); } catch { }
         StopGazePolling();
         SaveNow();
         _saveTimer?.Stop();
@@ -542,6 +473,7 @@ public sealed partial class AiAgentPage : UserControl
 
     private void SkillsButton_Click(object sender, RoutedEventArgs e)
     {
+        BotPulse("notify", 1200); // 顶栏操作：打开技能菜单 → 蓝点通知
         RefreshSkillsPanel();
         if (Resources["SkillsFlyout"] is Flyout flyout)
             flyout.ShowAt(SkillsButton);
@@ -912,6 +844,7 @@ public sealed partial class AiAgentPage : UserControl
         if (provider.Id == prevId) return;
 
         AiProviderStore.SetSelected(provider.Id);
+        BotPulse("notify", 1200); // 顶栏操作：切换提供商 → 蓝点通知
         RefreshProviderCombos();
     }
 
@@ -925,6 +858,7 @@ public sealed partial class AiAgentPage : UserControl
         if (model.Id.Equals(prev, StringComparison.OrdinalIgnoreCase)) return;
 
         AiProviderStore.SetSelected(provider.Id, model.Id);
+        BotPulse("notify", 1200); // 顶栏操作：切换模型 → 蓝点通知（下一条消息生效）
         UpdateServiceStatus();
     }
 
