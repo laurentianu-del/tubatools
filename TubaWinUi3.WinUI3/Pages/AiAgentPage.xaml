@@ -107,14 +107,14 @@
             Grid.Row="1"
             Placeholder="描述目标，或直接要求助手诊断、执行命令、整理报告…（Enter 发送，Shift+Enter 换行）" />
 
-        <!-- bloub bot 吉祥物（Assets/BotAvatar/，虚拟主机 botavatar）：悬浮在聊天区右上角。
+        <!-- bloub bot 吉祥物（Assets/BotAvatar/，虚拟主机 botavatar）：悬浮在输入框上方。
              后声明 → 叠在 ChatPanel 之上；IsHitTestVisible=False → 鼠标穿透不挡聊天交互。
-             状态联动：空闲 idle / 处理中 thinking（"…"点脉冲）/ 工具执行 orbit（转圈）/
-             定稿 wink / 失败 alert（"！"）/ 新对话 play（烟花）/ 5 分钟无活动 sleep -->
+             底部对齐 + 底部留白 ≈ 输入框高度，即落在输入框正上方（原版同款位置）。
+             状态联动见 AiAgentPage.xaml.cs 顶部注释：15 态全接入。 -->
         <WebView2 x:Name="BotAvatar" Grid.Row="1"
                   Width="72" Height="72"
-                  HorizontalAlignment="Right" VerticalAlignment="Top"
-                  Margin="0,14,18,0"
+                  HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                  Margin="0,0,24,152"
                   DefaultBackgroundColor="Transparent"
                   IsHitTestVisible="False" />
     </Grid>

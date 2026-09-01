@@ -287,6 +287,24 @@ public sealed partial class AiAgentPage : UserControl
     private void BotSetState(string id) => BotPost(new { type = "state", id });
     private void BotPulse(string id, int ms = 2200) => BotPost(new { type = "pulse", id, ms });
 
+    // ---- 15 态联动总览（bloub 引擎全状态接入）----
+    //  idle        空闲休息（默认）
+    //  thinking    用户发消息："…"点脉冲
+    //  orbit       工具执行中：环绕转圈（AgentToolAdapter 事件，HTML 桥 3s 循环重放）
+    //  wink        回复定稿且本轮无 token 消耗：眨一下眼
+    //  notify      回复定稿且本轮有 token 消耗：蓝点通知（"用量到了"）
+    //  burst       回复定稿且本轮消耗 >4000 tokens：爆炸重组的"大活"庆祝
+    //  alert       请求失败（TubaChatProvider.RequestFailed）头顶"！"
+    //  play        新对话：放烟花
+    //  sleep       5 分钟无会话活动：缩成点点打盹
+    //  wide        完全访问开关打开：惊讶瞪眼（"你确定全权放行？"）
+    //  exclaim     完全访问开关关闭：竖感叹（"呼，权限收回"）
+    //  swirl       打开 AI 设置页：环形过渡（原版"进入设置视图"语义）
+    //  comet       历史会话加载完成：彗星回归（"从存档回来"）
+    //  egg/hexagon AI 写入记忆：随机变形彩蛋（"记到脑子里了"）
+    private const int BurstTokenThreshold = 4000;
+    private int _roundTokens; // 本轮（自上次定稿起）消耗，定稿时决定 wink/notify/burst
+
     private bool _botAlerting;
 
     private void OnRequestFailed(string reason) => BotAlert();
@@ -343,6 +361,7 @@ public sealed partial class AiAgentPage : UserControl
     private void OnUserMessageSubmitted(object? sender, MessageSentEventArgs e)
     {
         _isProcessing = true;
+        _roundTokens = 0; // 新一轮开始，清零本轮消耗
         UpdateInputState();
         UpdateRunState();
         TouchBotActivity(); // 睡觉中被叫醒（随后 thinking 覆盖）
@@ -383,11 +402,22 @@ public sealed partial class AiAgentPage : UserControl
         _isProcessing = false;
         AgentToolContext.SkillTriggerActive = false;
         Chat.MemoryText = _memory?.Read() ?? "";
-        if (!_botAlerting) BotPulse("wink"); // 回复定稿：眨眼示意后回到 idle（alert 进行中不覆盖）
+        if (!_botAlerting) BotCelebrateRound(); // 定稿庆祝：本轮消耗决定 wink / notify / burst
         TouchBotActivity();
         UpdateRunState();
         UpdateInputState();
         ScheduleSave();
+    }
+
+    /// <summary>
+    /// 定稿庆祝（alert 进行中不覆盖）：本轮 token 消耗越大，动画越热闹——
+    /// 无消耗 wink（眨眼）、有消耗 notify（蓝点通知）、>4000 burst（爆炸庆祝）。
+    /// </summary>
+    private void BotCelebrateRound()
+    {
+        if (_roundTokens > BurstTokenThreshold) { BotPulse("burst", 2800); return; }
+        if (_roundTokens > 0) { BotPulse("notify", 2200); return; }
+        BotPulse("wink");
     }
 
     private void AddPersisted(string role, string content, string? thinking)
@@ -575,6 +605,7 @@ public sealed partial class AiAgentPage : UserControl
         await WhenChatReadyAsync();
         await Chat.RenderRestoredMessagesAsync();
         Chat.FocusInput();
+        BotPulse("comet", 2400); // 历史会话加载完成：彗星回归（"从存档回来"）
         UpdateInputState();
     }
 
@@ -806,6 +837,7 @@ public sealed partial class AiAgentPage : UserControl
     /// <summary>跳转设置页 AI 服务配置（提供商 / API Key / 模型）。</summary>
     private void AiSettingsButton_Click(object sender, RoutedEventArgs e)
     {
+        BotPulse("swirl", 1500); // 进入设置视图：环形过渡（原版语义）
         App.MainWindow?.NavigateToSettings("AiApiEndpoint");
     }
 
@@ -830,6 +862,8 @@ public sealed partial class AiAgentPage : UserControl
         if (_suppressToggleEvent) return;
         AgentToolContext.IsFullAccess = FullAccessToggle.IsOn;
         UpdateRunState();
+        // 完全访问开关：打开惊讶瞪眼（"你确定全权放行？"），关闭竖感叹（"呼，权限收回"）
+        BotPulse(FullAccessToggle.IsOn ? "wide" : "exclaim", 1800);
     }
 
     // ---------- 状态 / 统计 ----------
@@ -863,6 +897,7 @@ public sealed partial class AiAgentPage : UserControl
         {
             _sessionPromptTokens += usage.InputTokens;
             _sessionCompletionTokens += usage.OutputTokens;
+            _roundTokens += usage.InputTokens + usage.OutputTokens; // 本轮消耗（定稿庆祝分级用）
             if (usage.CacheReadInputTokens is { } hit)
             {
                 _sessionCacheHits += (int)hit;
@@ -880,6 +915,8 @@ public sealed partial class AiAgentPage : UserControl
         {
             if (_memory is { } m)
                 Chat.MemoryText = m.Read() ?? "";
+            // 彩蛋：AI 记下了东西 → 随机变形（egg 蛋形 / hexagon 六边形，"记到脑子里了"）
+            BotPulse(Random.Shared.Next(2) == 0 ? "egg" : "hexagon", 1800);
         });
     }
 
@@ -904,7 +941,7 @@ public sealed partial class AiAgentPage : UserControl
     }
 
     private void ResetTokenStats()
-        => _sessionPromptTokens = _sessionCompletionTokens = _sessionCacheHits = _sessionCacheMisses = 0;
+        => _sessionPromptTokens = _sessionCompletionTokens = _sessionCacheHits = _sessionCacheMisses = _roundTokens = 0;
 
     private static string FormatTokens(int tokens)
         => tokens >= 1000 ? $"{tokens / 1000.0:F1}k" : tokens.ToString();
