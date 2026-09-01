@@ -3,13 +3,19 @@
 <head>
 <meta charset="utf-8" />
 <!--
-  bloub bot 头像（AI 助手顶栏动画）
+  bloub bot 吉祥物（AI 助手聊天区输入框上方悬浮动画）
   引擎来自 https://github.com/jeremy-prt/bloub （MIT License）
   src/bot 纯函数引擎经 esbuild 打包为 bloub.bot.js（无框架、无 DOM 依赖）。
   宿主通信（WinUI WebView2 PostWebMessageAsJson）：
-    { type:"state",  id:"thinking" }           持久切换状态（14 态见 states）
+    { type:"state",  id:"thinking" }           持久切换状态（15 态见 states.ts）
     { type:"pulse",  id:"wink", ms:2200 }      短暂状态，ms 后回落到 back（默认 idle）
     { type:"colors", ink:"#1b1b1f", paper:"#f9f9f9" }  主题配色（body/眼睛镂空底色）
+  15 态联动（AiAgentPage.xaml.cs）：
+    idle 空闲 / thinking 发消息 / orbit 工具执行（桥内 3s 循环重放）/
+    wink 定稿无消耗 / notify 定稿有消耗 / burst 定稿 >4000 tokens /
+    alert 失败 / play 新对话 / sleep 5 分钟无活动 / wide 完全访问开 /
+    exclaim 完全访问关 / swirl 打开设置 / comet 历史加载完成 /
+    egg / hexagon AI 写入记忆随机变形
 -->
 <title>bot-avatar</title>
 <style>
