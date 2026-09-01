@@ -67,6 +67,9 @@ public class AgentRuntimeLoopGuardTests
         _ => el.GetRawText()
     };
 
+    private static ChatResponseUpdate Reasoning(string t)
+        => new(ChatRole.Assistant, new AIContent[] { new TextReasoningContent(t) });
+
     private static ChatResponseUpdate Text(string t)
         => new(ChatRole.Assistant, t);
 
@@ -212,6 +215,58 @@ public class AgentRuntimeLoopGuardTests
         {
             AgentToolContext.IsFullAccess = prev;
         }
+    }
+
+    // ---------- 思维链长度护栏 ----------
+
+    /// <summary>超长思维链截断保留开头：8000 字符思考 → 回填历史时最多 6000。</summary>
+    [Fact]
+    public async Task RunLoop_OverlongReasoning_IsTruncated()
+    {
+        AgentToolLoopGuard.Reset();
+
+        var client = new ScriptedChatClient(
+            () => [Reasoning(new string('思', 8000)), Text("回答完毕")]);
+
+        var history = NewHistory();
+        var done = await AgentRuntime.RunLoopAsync(history, new AgentRunCallbacks(), CancellationToken.None, clientOverride: client);
+
+        Assert.True(done);
+        var assistant = history.First(m => m.Role == ChatRole.Assistant);
+        var reasoning = assistant.Contents.OfType<TextReasoningContent>().FirstOrDefault();
+        Assert.NotNull(reasoning);
+        Assert.Equal(6000, reasoning!.Text?.Length); // 8000 → 截断到 6000 保留开头
+    }
+
+    // ---------- 历史预算压缩 ----------
+
+    /// <summary>历史超预算时从最旧丢弃，保留首条 system，压缩后总长收敛到预算内。</summary>
+    [Fact]
+    public void TrimHistory_OverBudget_DropsOldestKeepingFirstSystem()
+    {
+        var history = new List<ChatMessage> { new(ChatRole.System, "sys") };
+        for (var i = 0; i < 30; i++)
+            history.Add(new ChatMessage(ChatRole.User, new string('长', 3000))); // 约 90K 字符
+        var before = history.Count;
+
+        AgentRuntime.TrimHistory(history);
+
+        Assert.True(history.Count < before, "超限历史应被压缩");
+        Assert.Equal(ChatRole.System, history[0].Role); // 首条 system 保留
+        var total = history.Skip(1).Sum(m => (m.Text ?? "").Length);
+        Assert.True(total <= 40000, $"压缩后总长应 <= 40000，实际 {total}");
+    }
+
+    /// <summary>预算内历史原样保留（正常会话无感知）。</summary>
+    [Fact]
+    public void TrimHistory_UnderBudget_Unchanged()
+    {
+        var history = new List<ChatMessage> { new(ChatRole.System, "sys"), new(ChatRole.User, "hi") };
+        var before = history.Count;
+
+        AgentRuntime.TrimHistory(history);
+
+        Assert.Equal(before, history.Count);
     }
 
     /// <summary>最小脚本化流式 IChatClient：按轮返回预设响应（模拟模型行为）。</summary>

@@ -75,6 +75,10 @@ public static class AgentRuntime
         {
             ct.ThrowIfCancellationRequested();
 
+            // 历史预算压缩：协议回传总量超限时从最旧丢弃（保留首条 system），
+            // 防 30 轮工具循环回传（思考+结果）撑爆 64K 上下文——死循环"烧穿上下文"的路径。
+            TrimHistory(history);
+
             // 无进展检测：连续多轮纯工具调用（无用户可见文本）视为疑似死循环，
             // 直接终止（而非注入指令——旧引擎循环自有，无需再等模型"自觉"）。
             // 计数由每轮末尾 AgentToolLoopGuard.ReportRound 维护。
@@ -96,6 +100,10 @@ public static class AgentRuntime
 
             var fullText = new StringBuilder();
             var reasoningSb = new StringBuilder();
+            // 思考链最大长度护栏（与新引擎 TubaChatProvider.MaxThinkingChars 一致）：
+            // 单轮思考体积无上限是死循环放大环节之一（思考越滚越长 → 上下文越满 →
+            // 模型越绕越深），逐段累积时即限流，回填历史时 TruncateThinking 双保险。
+            var reasoningRoom = TubaChatProvider.MaxThinkingChars;
             var callContents = new List<FunctionCallContent>();
             AgentUsage? usage = null;
 
@@ -117,9 +125,25 @@ public static class AgentRuntime
                         }
 
                         // 思考链（reasoning_content）增量：M.E.AI 适配器转为 TextReasoningContent，
-                        // 逐段累积，随助手消息存入历史（后续请求需原样回传）
+                        // 逐段累积，随助手消息存入历史（后续请求需原样回传）。
+                        // 超限后丢弃后续增量；截断保留开头（推理关键段在前），防切断 surrogate pair。
                         foreach (var trc in update.Contents.OfType<TextReasoningContent>())
-                            reasoningSb.Append(trc.Text);
+                        {
+                            if (reasoningRoom <= 0) continue;
+                            var t = trc.Text ?? "";
+                            if (t.Length <= reasoningRoom)
+                            {
+                                reasoningSb.Append(t);
+                                reasoningRoom -= t.Length;
+                            }
+                            else
+                            {
+                                var cut = t[..reasoningRoom];
+                                if (char.IsHighSurrogate(cut[^1])) cut = cut[..^1];
+                                reasoningSb.Append(cut);
+                                reasoningRoom = 0;
+                            }
+                        }
 
                         // M.E.AI 10.x：流式工具调用以 FunctionCallContent 到达，
                         // 同一 CallId 的后续更新携带累积后的完整参数，取最后一条。
@@ -188,7 +212,8 @@ public static class AgentRuntime
 
             var assistantMsg = new ChatMessage(ChatRole.Assistant, fullText.ToString());
             if (reasoningSb.Length > 0)
-                assistantMsg.Contents.Add(new TextReasoningContent(reasoningSb.ToString()));
+                assistantMsg.Contents.Add(new TextReasoningContent(
+                    TubaChatProvider.TruncateThinking(reasoningSb.ToString()) ?? ""));
             foreach (var c in calls)
                 assistantMsg.Contents.Add(new FunctionCallContent(
                     callId: c.Id,
@@ -413,6 +438,57 @@ public static class AgentRuntime
         var cut = text[..AgentToolLoopGuard.MaxToolResultChars];
         if (char.IsHighSurrogate(cut[^1])) cut = cut[..^1];
         return cut + $"\n…（结果过长，已截断 {text.Length - AgentToolLoopGuard.MaxToolResultChars} 字符）";
+    }
+
+    /// <summary>
+    /// 历史回传总量预算压缩（与新引擎 TubaChatProvider.TrimHistory 同语义）：
+    /// 估算总长超过 <see cref="TubaChatProvider.HistoryBudgetChars"/> 时从最旧丢弃，
+    /// 保留首条 system（DeepSeek 网关要求 system 在前，且拒绝多条 system）。
+    /// 30 轮工具循环中每轮回传思考(≤6000)+结果(≤6000)，无上限会撑爆 64K 上下文窗口——
+    /// 这是死循环"烧穿上下文"的路径；预算只在超限时生效，正常会话完全无感知。
+    /// </summary>
+    internal static void TrimHistory(List<ChatMessage> history)
+    {
+        var total = history.Sum(RoughLength);
+        if (total <= TubaChatProvider.HistoryBudgetChars) return;
+
+        // 从最旧丢弃；最新 user 位于尾部，正常不会先被丢
+        for (var i = 0; i < history.Count && total > TubaChatProvider.HistoryBudgetChars; i++)
+        {
+            if (i == 0 && history[i].Role == ChatRole.System) continue;
+            total -= RoughLength(history[i]);
+            history.RemoveAt(i);
+            i--;
+        }
+    }
+
+    /// <summary>单条消息的粗略字符估算（文本/思考/工具调用与结果，用于预算压缩阈值判断）。</summary>
+    private static long RoughLength(ChatMessage m)
+    {
+        var len = 0L;
+        var hasTextContent = false;
+        foreach (var c in m.Contents)
+        {
+            switch (c)
+            {
+                case TextContent tc:
+                    hasTextContent = true;
+                    len += tc.Text?.Length ?? 0;
+                    break;
+                case TextReasoningContent trc:
+                    len += trc.Text?.Length ?? 0;
+                    break;
+                case FunctionCallContent fcc:
+                    len += fcc.Name?.Length ?? 0;
+                    if (fcc.Arguments is not null) len += JsonSerializer.Serialize(fcc.Arguments).Length;
+                    break;
+                case FunctionResultContent frc:
+                    len += frc.Result?.ToString()?.Length ?? 0;
+                    break;
+            }
+        }
+        if (!hasTextContent) len += m.Text?.Length ?? 0;
+        return len;
     }
 
     /// <summary>

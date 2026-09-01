@@ -55,6 +55,14 @@ dotnet test --filter "FullyQualifiedName~ToolCatalogTests"        # one class / 
   - `alert` 请求失败（`TubaChatProvider.RequestFailed`）、`play` 新对话、`sleep` 5 分钟无活动、`wide`/`exclaim` 完全访问开关开/关、`swirl` 打开 AI 设置、`comet` 历史会话加载完成、`egg`/`hexagon` AI 写入记忆时随机变形
   - 空闲时视线跟随鼠标（ChatPanel 的 WebView2 吞 XAML 指针事件，用 `GetCursorPos` 66ms 轮询，仅 baseFace 态生效）；body 墨色取系统强调色（`BotSendColors`，导航成功后再补发一次）
 - 初始化失败不静默：Debug.WriteLine 留日志 + 首次导航失败自动重试一次。相关静态事件：`TubaChatProvider.RequestFailed`、`AgentToolAdapter.ToolExecutionStarted/Finished`。
+- **防死循环护栏（会话级）**：`Services/Ai/AgentToolLoopGuard`（静态、线程安全，新/旧引擎共用；新对话 `AiAgentPage.ResetToNewChat` 调 `Reset()` 清空）。
+  - **重复调用拦截**：同会话「工具+参数」相同（`NormalizeArgs` 递归按键排序签名）第二次直接拦截不执行，空参数（查询类）豁免；`MaxToolResultChars=6000` 结果截断 + 空结果标记「未返回内容」。
+  - **无进展检测**：连续 6 轮纯工具调用（无用户文本）→ 新引擎 `TubaChatProvider` 在首条 system 注入终止指令，旧引擎 `AgentRuntime` 直接终止循环。
+  - **web_search 技能拦截计数**：技能触发（配电脑查价）拦截第二次起返回硬终止「已连续两次被拦截」。
+  - **思维链护栏**：`TubaChatProvider.MaxThinkingChars=6000` 流式按轮限流 + `TruncateThinking` 截断（保留开头+标记，防切断 surrogate pair）；旧引擎 `AgentRuntime` 流式累积同样限流。
+  - **历史预算压缩**：`HistoryBudgetChars=40000`，超限从最旧丢（保留首条 system——DeepSeek 网关拒绝多条 system）；新引擎 `TubaChatProvider.TrimHistory` 与旧引擎 `AgentRuntime.TrimHistory` 同语义。
+  - **错误终态分类**：`FormatToolError` 参数类异常（Argument/Json/Format）→「可调整重试」，其余系统性失败 →「请勿重试」（`AgentToolAdapter` 与 `AgentErrorPolicy` 文案对齐）。
+  - 兜底：两引擎均有轮次上限（`MaxToolCallRounds=30` / `AgentRuntime.DefaultMaxRounds=30`）。
 
 ### 格式转换（FormatConverterPage）— 多引擎批量转换架构
 - 「格式转换」内置工具 = `FormatConverterPage`（替换了旧的 VideoProcessorPage）。UI 为「拖入 → 选目标格式 → 文件队列逐个处理」，队列项有 等待/转换中/完成/失败/跳过 状态，**单个文件失败不中断批次**。
