@@ -27,18 +27,11 @@
                 BorderThickness="0,0,0,1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
             <Grid ColumnSpacing="14">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <!-- bloub bot 头像（Assets/BotAvatar/，虚拟主机 botavatar）：状态联动
-                     空闲 idle / 处理中 thinking（"…"点脉冲）/ 完成 wink -->
-                <WebView2 x:Name="BotAvatar" Width="40" Height="40"
-                          DefaultBackgroundColor="Transparent"
-                          VerticalAlignment="Center" />
-
-                <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <TextBlock x:Name="TitleText" Text="新对话" FontSize="18"
                                    FontWeight="Bold" TextTrimming="CharacterEllipsis" />
@@ -57,7 +50,7 @@
                     </StackPanel>
                 </StackPanel>
 
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                     <Border x:Name="TokenUsageBubble" CornerRadius="12" Padding="10,7"
                             Background="{ThemeResource ControlFillColorSecondaryBrush}"
                             VerticalAlignment="Center" Visibility="Collapsed"
@@ -113,5 +106,16 @@
             x:Name="Chat"
             Grid.Row="1"
             Placeholder="描述目标，或直接要求助手诊断、执行命令、整理报告…（Enter 发送，Shift+Enter 换行）" />
+
+        <!-- bloub bot 吉祥物（Assets/BotAvatar/，虚拟主机 botavatar）：悬浮在聊天区右上角。
+             后声明 → 叠在 ChatPanel 之上；IsHitTestVisible=False → 鼠标穿透不挡聊天交互。
+             状态联动：空闲 idle / 处理中 thinking（"…"点脉冲）/ 工具执行 orbit（转圈）/
+             定稿 wink / 失败 alert（"！"）/ 新对话 play（烟花）/ 5 分钟无活动 sleep -->
+        <WebView2 x:Name="BotAvatar" Grid.Row="1"
+                  Width="72" Height="72"
+                  HorizontalAlignment="Right" VerticalAlignment="Top"
+                  Margin="0,14,18,0"
+                  DefaultBackgroundColor="Transparent"
+                  IsHitTestVisible="False" />
     </Grid>
 </UserControl>

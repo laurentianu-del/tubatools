@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Diagnostics;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -116,13 +117,14 @@ public sealed partial class AiAgentPage : UserControl
         }
     }
 
-    // ---------- bloub bot 头像（WebView2 + Assets/BotAvatar 本地页） ----------
+    // ---------- bloub bot 吉祥物（WebView2 + Assets/BotAvatar 本地页，悬浮在聊天区右上角） ----------
 
     private bool _botAvatarReady;
 
     /// <summary>
-    /// 初始化顶栏 bot 头像：共享 WebView2 环境 + 虚拟主机 botavatar 映射本地资产。
-    /// 纯装饰组件，任何失败都静默吞掉，不影响助手功能。
+    /// 初始化聊天区右上角吉祥物：共享 WebView2 环境 + 虚拟主机 botavatar 映射本地资产。
+    /// 纯装饰组件，任何失败都静默吞掉（不影响助手功能），但会留下 Debug 日志；
+    /// 首次导航失败自动重试一次，避免白屏导致吉祥物"消失"。
     /// </summary>
     private async Task InitBotAvatarAsync()
     {
@@ -137,23 +139,39 @@ public sealed partial class AiAgentPage : UserControl
                 CoreWebView2HostResourceAccessKind.Allow);
             core.Settings.AreDefaultContextMenusEnabled = false;
             core.Settings.AreDevToolsEnabled = false;
-            BotSendColors();
-            var tcs = new TaskCompletionSource<bool>();
-            void OnNav(object? s, CoreWebView2NavigationCompletedEventArgs e) => tcs.TrySetResult(e.IsSuccess);
-            core.NavigationCompleted += OnNav;
-            try
+
+            for (var attempt = 0; attempt < 2; attempt++)
             {
-                core.Navigate("https://botavatar/botavatar.html");
-                await tcs.Task.WaitAsync(TimeSpan.FromSeconds(15));
+                var tcs = new TaskCompletionSource<bool>();
+                void OnNav(object? s, CoreWebView2NavigationCompletedEventArgs e) => tcs.TrySetResult(e.IsSuccess);
+                core.NavigationCompleted += OnNav;
+                try
+                {
+                    core.Navigate("https://botavatar/botavatar.html");
+                    if (await tcs.Task.WaitAsync(TimeSpan.FromSeconds(15)))
+                    {
+                        _botAvatarReady = true;
+                        BotSendColors(); // 导航完成后补发主题色（导航前 PostWebMessageAsJson 无效）
+                        StartGazePolling();
+                        return;
+                    }
+                    Debug.WriteLine($"[BotAvatar] 第 {attempt + 1} 次导航失败，重试…");
+                }
+                catch (TimeoutException)
+                {
+                    Debug.WriteLine($"[BotAvatar] 第 {attempt + 1} 次导航超时，重试…");
+                }
+                finally
+                {
+                    core.NavigationCompleted -= OnNav;
+                }
             }
-            finally
-            {
-                core.NavigationCompleted -= OnNav;
-            }
-            _botAvatarReady = true;
-            StartGazePolling();
+            Debug.WriteLine("[BotAvatar] 两次导航均失败，吉祥物不显示");
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[BotAvatar] 初始化异常: {ex.Message}");
+        }
     }
 
     // ---- 视线跟随：ChatPanel 的 WebView2 会吞掉其上的 XAML 指针事件，
