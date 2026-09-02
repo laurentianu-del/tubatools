@@ -182,24 +182,6 @@
                                     </Grid>
                                 </Border>
 
-                                <Border x:Name="SettingsThemeCard" Style="{StaticResource SettingsCardStyle}">
-                                    <Grid ColumnSpacing="16">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <Border Style="{StaticResource IconBorderStyle}">
-                                            <FontIcon FontSize="18" Glyph="&#xE771;" />
-                                        </Border>
-                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                            <TextBlock FontWeight="Bold" Text="应用主题" />
-                                            <TextBlock Opacity="1.0" FontSize="13" Text="选择浅色、深色或跟随系统" />
-                                        </StackPanel>
-                                        <ComboBox x:Name="ThemeComboBox" Grid.Column="2" MinWidth="120" SelectionChanged="ThemeComboBox_SelectionChanged" />
-                                    </Grid>
-                                </Border>
-
                                 <Border x:Name="SettingsCompactModeCard" Style="{StaticResource SettingsCardStyle}">
                                     <Grid ColumnSpacing="16">
                                         <Grid.ColumnDefinitions>

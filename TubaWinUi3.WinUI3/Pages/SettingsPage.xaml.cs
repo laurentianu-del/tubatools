@@ -105,7 +105,6 @@ public sealed partial class SettingsPage : Page
 
     private static readonly Dictionary<string, string> SettingKeyToExpander = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["Theme"] = "GeneralExpander",
         ["CompactMode"] = "GeneralExpander",
         ["NavLayoutMode"] = "GeneralExpander",
         ["DefaultPage"] = "GeneralExpander",
@@ -140,7 +139,6 @@ public sealed partial class SettingsPage : Page
 
     private static readonly Dictionary<string, string> SettingKeyToCardName = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["Theme"] = "SettingsThemeCard",
         ["CompactMode"] = "SettingsCompactModeCard",
         ["NavLayoutMode"] = "SettingsNavLayoutCard",
         ["DefaultPage"] = "SettingsDefaultPageCard",
@@ -189,7 +187,6 @@ public sealed partial class SettingsPage : Page
             : "版本 1.0.0";
 
         LoadSettingsGif();
-        InitThemeComboBox();
         InitCompactModeToggle();
         InitNavLayoutComboBox();
         InitDefaultPageComboBox();
@@ -340,30 +337,6 @@ public sealed partial class SettingsPage : Page
     private void NavTestPage_Tapped(object sender, TappedRoutedEventArgs e)
     {
         Frame.Navigate(typeof(TestPage));
-    }
-
-    private void InitThemeComboBox()
-    {
-        ThemeComboBox.Items.Add("跟随系统");
-        ThemeComboBox.Items.Add("浅色");
-        ThemeComboBox.Items.Add("深色");
-        ThemeComboBox.SelectedIndex = ThemeService.CurrentTheme switch
-        {
-            AppTheme.Light => 1,
-            AppTheme.Dark => 2,
-            _ => 0
-        };
-    }
-
-    private void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        var theme = ThemeComboBox.SelectedIndex switch
-        {
-            1 => AppTheme.Light,
-            2 => AppTheme.Dark,
-            _ => AppTheme.Default
-        };
-        ThemeService.SetTheme(theme);
     }
 
     private void InitCompactModeToggle()

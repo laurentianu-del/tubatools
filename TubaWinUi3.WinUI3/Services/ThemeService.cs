@@ -5,7 +5,6 @@ namespace TubaWinUi3.Services;
 
 public static class ThemeService
 {
-    private const string Key = "AppTheme";
     private static AppTheme _currentTheme = AppTheme.Default;
 
     /// <summary>
@@ -23,19 +22,9 @@ public static class ThemeService
         _ => ElementTheme.Default
     };
 
-    public static void SetTheme(AppTheme theme)
-    {
-        _currentTheme = theme;
-        AppSettings.Set(Key, theme.ToString());
-        ApplyTheme(theme);
-    }
-
     public static void ApplySavedTheme()
     {
-        var saved = AppSettings.Get(Key);
-        if (saved is not null && Enum.TryParse<AppTheme>(saved, out var theme))
-            _currentTheme = theme;
-
+        _currentTheme = AppTheme.Default;
         ApplyTheme(_currentTheme);
     }
 
