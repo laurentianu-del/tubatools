@@ -156,6 +156,15 @@ public sealed partial class HomePage : Page
         base.OnNavigatedTo(e);
         SubscribeStaticEvents();
 
+        // 离开页面期间（如在设置页切换简洁模式）事件收不到，回到页面时重新同步，
+        // 否则缓存页面会停留在构造时的旧模式，必须重启才生效
+        var compactMode = CompactModeService.IsCompactModeEnabled();
+        if (compactMode != _compactMode)
+        {
+            _compactMode = compactMode;
+            ApplyCompactMode();
+        }
+
         if (e.Parameter is SearchNavigationTarget target && target.HighlightToolPath is not null)
         {
             _highlightToolPath = target.HighlightToolPath;

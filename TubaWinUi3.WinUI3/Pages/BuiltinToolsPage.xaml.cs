@@ -1,7 +1,5 @@
-using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using TubaWinUi3.Models;
 using TubaWinUi3.Services;
@@ -15,17 +13,30 @@ public sealed partial class BuiltinToolsPage : Page
     private string? _pendingHighlightId;
     private string? _autoExecuteBuiltinId;
     private bool _builtinToolOpenModeInitializing;
+    private bool _compactMode;
+    private readonly Dictionary<string, GridView> _gridsByCategory = new(StringComparer.CurrentCultureIgnoreCase);
 
     public BuiltinToolsPage()
     {
         InitializeComponent();
         InitBuiltinToolOpenModeComboBox();
+        _compactMode = CompactModeService.IsCompactModeEnabled();
         LoadTools();
     }
 
     protected override void OnNavigatedTo(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
+        CompactModeService.CompactModeChanged += OnCompactModeChanged;
+
+        // 离开页面期间（如设置页切换简洁模式）事件收不到，回到页面时重新同步，
+        // 否则缓存页面会一直停留在构造时的旧模式，必须重启才生效
+        var compactMode = CompactModeService.IsCompactModeEnabled();
+        if (compactMode != _compactMode)
+        {
+            _compactMode = compactMode;
+            RebuildPivot();
+        }
 
         if (e.Parameter is SearchNavigationTarget target && target.HighlightBuiltinId is not null)
         {
@@ -54,6 +65,28 @@ public sealed partial class BuiltinToolsPage : Page
             _autoExecuteBuiltinId = null;
             _ = AutoExecuteBuiltinToolAsync(builtinId);
         }
+    }
+
+    protected override void OnNavigatedFrom(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
+    {
+        base.OnNavigatedFrom(e);
+        CompactModeService.CompactModeChanged -= OnCompactModeChanged;
+    }
+
+    private void OnCompactModeChanged(bool enabled)
+    {
+        if (_compactMode == enabled) return;
+        _compactMode = enabled;
+        RebuildPivot();
+    }
+
+    private void RebuildPivot()
+    {
+        // 重建分类页以应用对应的模板与容器样式（与首页一致：普通卡片 / 简洁列表）
+        var selectedIndex = BuiltinPivot.SelectedIndex;
+        LoadTools();
+        if (selectedIndex >= 0 && selectedIndex < BuiltinPivot.Items.Count)
+            BuiltinPivot.SelectedIndex = selectedIndex;
     }
 
     private void InitBuiltinToolOpenModeComboBox()
@@ -92,59 +125,51 @@ public sealed partial class BuiltinToolsPage : Page
     {
         if (ct.IsCancellationRequested) return;
 
+        var tool = BuiltinToolRegistry.GetById(builtinId);
+        if (tool is null) return;
+
+        // 先切到所属分类的 Pivot 页，再等待布局完成
+        SelectCategory(tool.Category);
+
         try { await Task.Delay(100, ct); } catch (OperationCanceledException) { return; }
         if (ct.IsCancellationRequested) return;
 
-        var card = FindCard(builtinId);
-        if (card is null) return;
+        if (!_gridsByCategory.TryGetValue(tool.Category, out var grid)) return;
 
-        var scrollViewer = FindParent<ScrollViewer>(card);
-        if (scrollViewer is not null)
+        var vm = grid.Items.OfType<BuiltinToolViewModel>().FirstOrDefault(v => v.Id == builtinId);
+        if (vm is null) return;
+
+        grid.ScrollIntoView(vm);
+        try { await Task.Delay(100, ct); } catch (OperationCanceledException) { return; }
+
+        var container = grid.ContainerFromItem(vm) as GridViewItem;
+        if (container is null || ct.IsCancellationRequested) return;
+
+        container.StartBringIntoView(new BringIntoViewOptions
         {
-            var transform = card.TransformToVisual(scrollViewer);
-            var point = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
-            var targetOffset = scrollViewer.VerticalOffset + point.Y - scrollViewer.ViewportHeight / 2 + card.ActualHeight / 2;
-            targetOffset = Math.Max(0, Math.Min(targetOffset, scrollViewer.ScrollableHeight));
-            scrollViewer.ChangeView(null, targetOffset, null, disableAnimation: false);
-        }
+            AnimationDesired = true,
+            VerticalAlignmentRatio = 0.5
+        });
 
-        try { await Task.Delay(600, ct); } catch (OperationCanceledException) { return; }
+        try { await Task.Delay(500, ct); } catch (OperationCanceledException) { return; }
         if (ct.IsCancellationRequested) return;
 
-        SearchHighlightService.HighlightBorder(card);
+        if (container.ContentTemplateRoot is Border border)
+            SearchHighlightService.HighlightBorder(border);
     }
 
-    private Border? FindCard(string builtinId)
+    private void SelectCategory(string category)
     {
-        foreach (var child in GroupsPanel.Children)
+        foreach (var item in BuiltinPivot.Items)
         {
-            if (child is not StackPanel section) continue;
-            foreach (var sectionChild in section.Children)
+            if (item is PivotItem pivotItem &&
+                pivotItem.Header is string header &&
+                header.Equals(category, StringComparison.CurrentCultureIgnoreCase))
             {
-                if (sectionChild is not GridView grid) continue;
-                foreach (var item in grid.Items)
-                {
-                    if (item is BuiltinToolViewModel vm && vm.Id == builtinId)
-                    {
-                        var container = grid.ContainerFromItem(item) as GridViewItem;
-                        if (container?.ContentTemplateRoot is Border border)
-                            return border;
-                    }
-                }
+                BuiltinPivot.SelectedItem = pivotItem;
+                return;
             }
         }
-        return null;
-    }
-
-    private static T? FindParent<T>(DependencyObject child) where T : DependencyObject
-    {
-        var parent = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(child);
-        while (parent is not null)
-        {
-            if (parent is T result) return result;
-            parent = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(parent);
-        }
-        return null;
     }
 
     /// <summary>
@@ -182,7 +207,8 @@ public sealed partial class BuiltinToolsPage : Page
 
     private void LoadTools()
     {
-        GroupsPanel.Children.Clear();
+        BuiltinPivot.Items.Clear();
+        _gridsByCategory.Clear();
 
         var grouped = BuiltinToolRegistry.Tools
             .GroupBy(t => t.Category)
@@ -191,120 +217,33 @@ public sealed partial class BuiltinToolsPage : Page
 
         foreach (var group in grouped)
         {
-            GroupsPanel.Children.Add(CreateGroupSection(group.Key, group.ToList()));
+            BuiltinPivot.Items.Add(CreatePivotItem(group.Key, group.ToList()));
         }
 
         ToolCountText.Text = $"{BuiltinToolRegistry.Tools.Count} 个内置工具";
     }
 
-    private UIElement CreateGroupSection(string category, List<IBuiltinTool> tools)
+    private PivotItem CreatePivotItem(string category, List<IBuiltinTool> tools)
     {
-        var section = new StackPanel { Spacing = 10 };
-
-        var headerGrid = new Grid();
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        var title = new TextBlock
-        {
-            Text = category,
-            FontSize = 16,
-            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-
-        var countBadge = new Border
-        {
-            Padding = new Thickness(8, 1, 8, 2),
-            CornerRadius = new CornerRadius(4),
-            Background = (Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"],
-            Child = new TextBlock
-            {
-                Text = tools.Count.ToString(),
-                FontSize = 12,
-                Opacity = 0.7
-            }
-        };
-
-        Grid.SetColumn(title, 0);
-        Grid.SetColumn(countBadge, 1);
-        headerGrid.Children.Add(title);
-        headerGrid.Children.Add(countBadge);
-        section.Children.Add(headerGrid);
-
         var viewModels = tools.Select(t => new BuiltinToolViewModel(t)).ToList();
 
         var grid = new GridView
         {
             ItemsSource = viewModels,
-            ItemContainerStyle = (Style)Resources["BuiltinCardStyle"],
+            ItemContainerStyle = (Style)Resources[_compactMode ? "BuiltinCompactCardStyle" : "BuiltinToolCardStyle"],
+            ItemTemplate = (DataTemplate)Resources[_compactMode ? "BuiltinCompactCardTemplate" : "BuiltinNormalCardTemplate"],
             IsItemClickEnabled = true,
             SelectionMode = ListViewSelectionMode.None,
             Padding = new Thickness(0),
+            Margin = new Thickness(0, 8, 0, 0),
         };
 
         grid.ItemClick += BuiltinGrid_ItemClick;
         grid.SizeChanged += BuiltinGrid_SizeChanged;
 
-        grid.ItemTemplate = CreateCompactItemTemplate();
+        _gridsByCategory[category] = grid;
 
-        section.Children.Add(grid);
-
-        return section;
-    }
-
-    private DataTemplate CreateCompactItemTemplate()
-    {
-        return (DataTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load("""
-            <DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>
-                <Border
-                    Padding="8,10,8,6"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    HorizontalAlignment="Stretch"
-                    VerticalAlignment="Stretch"
-                    PointerEntered="BuiltinCard_PointerEntered"
-                    PointerExited="BuiltinCard_PointerExited">
-                    <StackPanel HorizontalAlignment="Center" Spacing="6">
-                        <Border
-                            Width="52"
-                            Height="52"
-                            HorizontalAlignment="Center"
-                            Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                            CornerRadius="10">
-                            <FontIcon
-                                FontSize="26"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Glyph="{Binding Glyph}" />
-                        </Border>
-                        <TextBlock
-                            HorizontalAlignment="Center"
-                            FontSize="13"
-                            MaxLines="2"
-                            Text="{Binding Name}"
-                            TextAlignment="Center"
-                            TextTrimming="CharacterEllipsis"
-                            TextWrapping="Wrap"
-                            Width="84" />
-                    </StackPanel>
-                </Border>
-            </DataTemplate>
-            """);
-    }
-
-    private void BuiltinCard_PointerEntered(object sender, PointerRoutedEventArgs e)
-    {
-        if (sender is Border border)
-            border.Background = (Brush)Application.Current.Resources["ControlFillColorSecondaryBrush"];
-    }
-
-    private void BuiltinCard_PointerExited(object sender, PointerRoutedEventArgs e)
-    {
-        if (sender is Border border)
-            border.Background = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"];
+        return new PivotItem { Header = category, Content = grid };
     }
 
     private void BuiltinGrid_ItemClick(object sender, ItemClickEventArgs e)
@@ -313,14 +252,26 @@ public sealed partial class BuiltinToolsPage : Page
             _ = ExecuteToolAsync(vm);
     }
 
+    private void BuiltinOpenButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: BuiltinToolViewModel vm })
+            _ = ExecuteToolAsync(vm);
+    }
+
     private void BuiltinGrid_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (sender is not GridView grid) return;
+        if (sender is GridView grid)
+            UpdateItemWidth(grid);
+    }
+
+    private void UpdateItemWidth(GridView grid)
+    {
         var panel = grid.ItemsPanelRoot as ItemsWrapGrid;
         if (panel is null) return;
 
-        double minItemWidth = 100;
-        double spacing = 10;
+        // 与首页一致：普通模式最小宽度 280、间距 12；简洁模式最小宽度 100、间距 10
+        double minItemWidth = _compactMode ? 100 : 280;
+        double spacing = _compactMode ? 10 : 12;
         double availableWidth = grid.ActualWidth - grid.Padding.Left - grid.Padding.Right;
         if (availableWidth <= 0) return;
 
