@@ -51,6 +51,8 @@ public static class BuiltinToolRegistry
         Register(new OfficialWebsitesTool());
         Register(new DotnetCompletionTool());
         Register(new FormatConvertTool());
+        Register(new RuntimeRepairTool());
+        Register(new DiskHealthTool());
         Register(new LanFileShareTool());
         Register(new QuickDeviceCheckTool());
         Register(new EnergyStarTool());
