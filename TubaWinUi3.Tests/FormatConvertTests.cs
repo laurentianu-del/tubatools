@@ -258,7 +258,12 @@ public class FormatConvertPlannerTests
     public void BuildFfmpegArgs_Gif_AppliesPaletteFilter()
     {
         var args = FormatConvertPlanner.BuildFfmpegArgs(@"C:\in\m.mp4", Gif, 23, "medium", 0, false);
-        Assert.Contains("-vf \"fps=15,scale=480:-1:flags=lanczos\"", args);
+        // GIF 走 filter_complex 调色板路径（palettegen + paletteuse，单次完成避免编码器崩溃），
+        // 缩放/帧率滤镜在 filter_complex 内部；旧的 -vf 直通格式已由 BuildFfmpegGifFallbackArgs 降级承载
+        Assert.Contains("-filter_complex", args);
+        Assert.Contains("palettegen=stats_mode=diff", args);
+        Assert.Contains("paletteuse=dither=bayer", args);
+        Assert.Contains("fps=15,scale=480:-1:flags=lanczos", args);
         Assert.Contains("-an", args);
     }
 

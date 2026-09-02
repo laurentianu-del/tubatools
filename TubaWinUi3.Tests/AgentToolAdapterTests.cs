@@ -9,7 +9,9 @@ namespace TubaWinUi3.Tests;
 /// <summary>
 /// ChatPanel 工具适配层测试：AgentTool → IAssistTool 的元数据映射、
 /// 完全访问模式下的动态确认策略、技能触发对 web_search 的拦截。
+/// 与 AgentToolLoopGuardTests 同集合串行：两者都读写 AgentToolLoopGuard 静态状态。
 /// </summary>
+[Collection("AgentToolRegistry")]
 public class AgentToolAdapterTests
 {
     private static AgentTool MakeTool(

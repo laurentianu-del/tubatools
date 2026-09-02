@@ -8,7 +8,9 @@ namespace TubaWinUi3.Tests;
 
 /// <summary>
 /// Agent 工具循环护栏测试：重复调用拦截（防模型对同一操作反复调用陷入死循环）与空结果标记。
+/// 与 AgentToolAdapterTests / AgentRuntime 系列同集合串行：都读写 AgentToolLoopGuard 静态状态。
 /// </summary>
+[Collection("AgentToolRegistry")]
 public class AgentToolLoopGuardTests
 {
     private static AgentToolAdapter MakeAdapter(string name, Delegate func)
