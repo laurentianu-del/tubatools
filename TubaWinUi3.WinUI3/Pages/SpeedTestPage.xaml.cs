@@ -1,12 +1,18 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
+using LiveChartsCore;
+using LiveChartsCore.Defaults;
+using LiveChartsCore.SkiaSharpView;
+using LiveChartsCore.SkiaSharpView.Painting;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
+using SkiaSharp;
 using TubaWinUi3.Services;
 using Windows.Foundation;
 using Windows.UI;
@@ -26,8 +32,9 @@ public sealed partial class SpeedTestPage : Page
 
     private readonly SpeedTestEngine _engine = new();
     private readonly Stopwatch _testSw = new();
-    private readonly List<(double T, double V)> _dlHistory = new();
-    private readonly List<(double T, double V)> _ulHistory = new();
+    private readonly ObservableCollection<ObservablePoint> _dlPts = new();
+    private readonly ObservableCollection<ObservablePoint> _ulPts = new();
+    private LineSeries<ObservablePoint>? _dlSeries, _ulSeries;
 
     private CancellationTokenSource? _cts;
     private DispatcherTimer? _animTimer;
@@ -73,8 +80,10 @@ public sealed partial class SpeedTestPage : Page
 
         ActualThemeChanged += (_, _) => RecolorUi();
 
+        ChartInitializer.EnsureConfigured();
         InitColors();
         BuildGauge();
+        InitChart();
         SetChipsIdle();
         SetButtonReady();
         ResetToIdle();
@@ -129,7 +138,7 @@ public sealed partial class SpeedTestPage : Page
     {
         InitColors();
         BuildGauge();
-        RedrawChart();
+        RebuildChartTheme();
         ReapplyChips();
     }
 
@@ -255,7 +264,10 @@ public sealed partial class SpeedTestPage : Page
             Point = new Point(PolarX(f1, radius), PolarY(f1, radius)),
             Size = new Size(radius, radius),
             SweepDirection = SweepDirection.Clockwise,
-            IsLargeArc = f1 - f0 > 0.5
+            // IsLargeArc 的语义是“扫过 >180°”，整圈 270° ⇒ 阈值 = 180/270 = 2/3。
+            // 之前误用 0.5：当弧长处于 135°~180°（读数过半但未到 2/3）时被错误标记为大弧，
+            // ArcSegment 会绕远路补弧 → 进度弧“飞出去”。此边界必须用 2/3。
+            IsLargeArc = f1 - f0 > 2.0 / 3.0
         });
         var geo = new PathGeometry();
         geo.Figures.Add(fig);
@@ -287,9 +299,8 @@ public sealed partial class SpeedTestPage : Page
         ResetToIdle();
         SetChipsIdle();
         ErrorBar.IsOpen = false;
-        _dlHistory.Clear();
-        _ulHistory.Clear();
-        RedrawChart();
+        _dlPts.Clear();
+        _ulPts.Clear();
 
         try
         {
@@ -399,10 +410,9 @@ public sealed partial class SpeedTestPage : Page
         ResultBanner.Visibility = Visibility.Visible;
 
         double peak = Math.Max(
-            _dlHistory.Count > 0 ? _dlHistory.Max(s => s.V) : 0,
-            _ulHistory.Count > 0 ? _ulHistory.Max(s => s.V) : 0);
-        ChartHint.Text = "峰值速率 " + FmtValue(peak) + " Mbps · 曲线随测试自动缩放";
-        RedrawChart();
+            _dlPts.Count > 0 ? _dlPts.Max(s => s.Y) ?? 0 : 0,
+            _ulPts.Count > 0 ? _ulPts.Max(s => s.Y) ?? 0 : 0);
+        ChartHint.Text = "峰值速率 " + FmtValue(peak) + " Mbps · 图表由 LiveCharts 渲染，纵轴自动缩放";
     }
 
     private void ApplyResultBanner()
@@ -460,8 +470,8 @@ public sealed partial class SpeedTestPage : Page
         DlValue.Text = FmtValue(mbps);
         StatusText.Text = $"下载测试中：{FmtValue(mbps)} Mbps · 4 路并发";
         SetProgress(_phaseBaseProgress + progress * 0.57);
-        _dlHistory.Add((_phaseStartGlobalSec + seconds, mbps));
-        RedrawChart();
+        _dlPts.Add(new ObservablePoint(_phaseStartGlobalSec + seconds, mbps));
+        TrimSeries(_dlPts);
     }
 
     private void OnUlLive(double mbps, double progress, double seconds)
@@ -471,8 +481,8 @@ public sealed partial class SpeedTestPage : Page
         UlValue.Text = FmtValue(mbps);
         StatusText.Text = $"上传测试中：{FmtValue(mbps)} Mbps · 3 路并发";
         SetProgress(_phaseBaseProgress + progress * 0.35);
-        _ulHistory.Add((_phaseStartGlobalSec + seconds, mbps));
-        RedrawChart();
+        _ulPts.Add(new ObservablePoint(_phaseStartGlobalSec + seconds, mbps));
+        TrimSeries(_ulPts);
     }
 
     private void SetProgress(double frac)
@@ -610,129 +620,64 @@ public sealed partial class SpeedTestPage : Page
     private TextBlock? ChipTextOf(Border chip) =>
         chip == ChipPing ? ChipPingText : chip == ChipDownload ? ChipDownloadText : ChipUploadText;
 
-    // ───────────────────────────── 曲线图 ─────────────────────────────
+    // ───────────────────────────── 实时曲线（LiveCharts2） ─────────────────────────────
 
-    private void ChartCanvas_SizeChanged(object sender, SizeChangedEventArgs e) => RedrawChart();
-
-    private void RedrawChart()
+    private void InitChart()
     {
-        var canvas = ChartCanvas;
-        double w = canvas.ActualWidth;
-        double h = canvas.ActualHeight;
-        if (w <= 10 || h <= 10) return;
-
-        canvas.Children.Clear();
-
-        double maxV = Math.Max(
-            _dlHistory.Count > 0 ? _dlHistory.Max(s => s.V) : 0,
-            _ulHistory.Count > 0 ? _ulHistory.Max(s => s.V) : 0);
-        double maxT = Math.Max(
-            _dlHistory.Count > 0 ? _dlHistory.Max(s => s.T) : 0,
-            _ulHistory.Count > 0 ? _ulHistory.Max(s => s.T) : 0);
-
-        if (maxV <= 0)
+        _dlSeries = new LineSeries<ObservablePoint>
         {
-            DrawBaseline(canvas, w, h);
-            return;
-        }
-
-        maxV = NiceCeil(maxV);
-        maxT = Math.Max(0.5, maxT);
-        double left = 10, right = w - 40, top = 8, bottom = h - 10;
-
-        // 水平网格 + 数值标签
-        for (int i = 0; i <= 3; i++)
-        {
-            double f = i / 3.0;
-            double y = bottom - f * (bottom - top);
-            canvas.Children.Add(new Line
-            {
-                X1 = left, X2 = right, Y1 = y, Y2 = y,
-                Stroke = new SolidColorBrush(Color.FromArgb(30, _textSecondary.R, _textSecondary.G, _textSecondary.B)),
-                StrokeThickness = 1,
-                IsHitTestVisible = false
-            });
-            var label = new TextBlock
-            {
-                Text = (maxV * f).ToString("0.#"),
-                FontSize = 10,
-                Foreground = BrushRes("TextFillColorTertiaryBrush", _textSecondary)
-            };
-            Canvas.SetLeft(label, right + 6);
-            Canvas.SetTop(label, y - 8);
-            canvas.Children.Add(label);
-        }
-
-        DrawSeries(canvas, _dlHistory, _dlColor, maxT, maxV, left, right, top, bottom);
-        DrawSeries(canvas, _ulHistory, _ulColor, maxT, maxV, left, right, top, bottom);
-
-        // 末端圆点：跟随最近更新的曲线
-        if (_dlHistory.Count > 0 && (_ulHistory.Count == 0 || _dlHistory[^1].T >= _ulHistory[^1].T))
-            DrawEndDot(canvas, _dlHistory, _dlColor, maxT, maxV, left, right, top, bottom);
-        else if (_ulHistory.Count > 0)
-            DrawEndDot(canvas, _ulHistory, _ulColor, maxT, maxV, left, right, top, bottom);
-    }
-
-    private void DrawBaseline(Canvas canvas, double w, double h)
-    {
-        canvas.Children.Add(new Line
-        {
-            X1 = 10, X2 = w - 40, Y1 = h / 2, Y2 = h / 2,
-            Stroke = new SolidColorBrush(Color.FromArgb(30, _textSecondary.R, _textSecondary.G, _textSecondary.B)),
-            StrokeThickness = 1,
-            IsHitTestVisible = false
-        });
-    }
-
-    private static void DrawSeries(Canvas canvas, List<(double T, double V)> data, Color color,
-        double maxT, double maxV, double left, double right, double top, double bottom)
-    {
-        if (data.Count < 2) return;
-        var fig = new PathFigure
-        {
-            StartPoint = MapPt(data[0], maxT, maxV, left, right, top, bottom),
-            IsClosed = false,
-            IsFilled = false
+            Values = _dlPts,
+            Stroke = new SolidColorPaint(Sk(_dlColor)) { StrokeThickness = 2.5f },
+            Fill = new SolidColorPaint(SkA(_dlColor, 45)),
+            GeometrySize = 0,
+            LineSmoothness = 0.35,
+            IsHoverable = false
         };
-        var seg = new PolyLineSegment();
-        for (int i = 1; i < data.Count; i++)
-            seg.Points.Add(MapPt(data[i], maxT, maxV, left, right, top, bottom));
-        fig.Segments.Add(seg);
-        var geo = new PathGeometry();
-        geo.Figures.Add(fig);
-        canvas.Children.Add(new Path
+        _ulSeries = new LineSeries<ObservablePoint>
         {
-            Data = geo,
-            Stroke = new SolidColorBrush(color),
-            StrokeThickness = 2,
-            StrokeLineJoin = PenLineJoin.Round,
-            IsHitTestVisible = false
-        });
+            Values = _ulPts,
+            Stroke = new SolidColorPaint(Sk(_ulColor)) { StrokeThickness = 2.5f },
+            Fill = new SolidColorPaint(SkA(_ulColor, 45)),
+            GeometrySize = 0,
+            LineSmoothness = 0.35,
+            IsHoverable = false
+        };
+
+        RateChart.Series = new ISeries[] { _dlSeries, _ulSeries };
+        RateChart.AnimationsSpeed = TimeSpan.FromMilliseconds(120);
+        RateChart.EasingFunction = null;
+        RateChart.LegendPosition = LiveChartsCore.Measure.LegendPosition.Hidden;
+
+        RebuildChartTheme();
     }
 
-    private static Point MapPt((double T, double V) s, double maxT, double maxV,
-        double left, double right, double top, double bottom)
-        => new(left + (s.T / maxT) * (right - left), bottom - (s.V / maxV) * (bottom - top));
-
-    private void DrawEndDot(Canvas canvas, List<(double T, double V)> data, Color color,
-        double maxT, double maxV, double left, double right, double top, double bottom)
+    private void RebuildChartTheme()
     {
-        if (data.Count == 0) return;
-        var p = MapPt(data[^1], maxT, maxV, left, right, top, bottom);
-        var dot = new Ellipse { Width = 7, Height = 7, Fill = new SolidColorBrush(color), IsHitTestVisible = false };
-        Canvas.SetLeft(dot, p.X - 3.5);
-        Canvas.SetTop(dot, p.Y - 3.5);
-        canvas.Children.Add(dot);
+        RateChart.XAxes = new Axis[] { new Axis { IsVisible = false } };
+        RateChart.YAxes = new Axis[]
+        {
+            new Axis
+            {
+                MinLimit = 0,
+                Labeler = v => v >= 100 ? v.ToString("0") : v.ToString("0.#"),
+                LabelsPaint = new SolidColorPaint(Sk(_textSecondary)),
+                SeparatorsPaint = new SolidColorPaint(SkA(_textSecondary, 36)),
+                TextSize = 10,
+                ShowSeparatorLines = true,
+                TicksPaint = null
+            }
+        };
     }
 
-    private static double NiceCeil(double v)
+    private static void TrimSeries(ObservableCollection<ObservablePoint> pts)
     {
-        if (v < 1) return 1;
-        double n = Math.Pow(10, Math.Floor(Math.Log10(v)));
-        double f = v / n;
-        double m = f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10;
-        return m * n;
+        if (pts.Count <= 900) return;
+        for (int i = 0; i < 150; i++) pts.RemoveAt(0);
     }
+
+    private static SKColor Sk(Color c) => new(c.R, c.G, c.B, 255);
+
+    private static SKColor SkA(Color c, byte alpha) => new(c.R, c.G, c.B, alpha);
 
     // ───────────────────────────── 通用辅助 ─────────────────────────────
 
@@ -747,16 +692,25 @@ public sealed partial class SpeedTestPage : Page
 
     private void SetButtonReady()
     {
-        StartButton.Background = BrushRes("AccentFillColorDefaultBrush", Color.FromArgb(255, 0, 120, 212));
-        StartButton.Foreground = BrushRes("TextOnAccentFillColorPrimaryBrush", Microsoft.UI.Colors.White);
+        // 原生 AccentButtonStyle：悬停/按下/禁用反馈全部交给系统
+        StartButton.Style = (Style)Application.Current.Resources["AccentButtonStyle"];
+        // 清除停止态残留的红色前景局部值，让 AccentButtonStyle 的白色文字生效
+        StartButton.ClearValue(Button.ForegroundProperty);
+        StartIcon.ClearValue(FontIcon.ForegroundProperty);
+        StartText.ClearValue(TextBlock.ForegroundProperty);
         StartIcon.Glyph = "\uE768";
         StartText.Text = "开始测速";
     }
 
     private void SetButtonRunning()
     {
-        StartButton.Background = new SolidColorBrush(ColorRes("SystemFillColorCriticalBrush", Color.FromArgb(255, 220, 53, 69)));
-        StartButton.Foreground = BrushRes("TextOnAccentFillColorPrimaryBrush", Microsoft.UI.Colors.White);
+        // 停止态：原生默认按钮样式 + 红色文字图标（不改 Background，保留系统悬停反馈）
+        StartButton.Style = null;
+        var red = ColorRes("SystemFillColorCriticalBrush", Color.FromArgb(255, 220, 53, 69));
+        var redBrush = new SolidColorBrush(red);
+        StartButton.Foreground = redBrush;
+        StartIcon.Foreground = redBrush;
+        StartText.Foreground = redBrush;
         StartIcon.Glyph = "\uE71A";
         StartText.Text = "停止测速";
     }
