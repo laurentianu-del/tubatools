@@ -28,7 +28,7 @@
             </Border>
             <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                 <TextBlock FontSize="20" FontWeight="SemiBold" Text="网速测试" />
-                <TextBlock FontSize="12" Opacity="0.85" Text="基于浙大测速节点 speedtest.zju.edu.cn · 多线程并发 · 原生 WinUI3" />
+                <TextBlock FontSize="12" Opacity="0.85" Text="基于浙大测速节点 speedtest.zju.edu.cn · 多线程并发测速" />
             </StackPanel>
             <Button x:Name="BackButton" Grid.Column="2" Click="BackButton_Click" Padding="10,5" VerticalAlignment="Center">
                 <StackPanel Orientation="Horizontal" Spacing="6">
@@ -51,27 +51,75 @@
                         BorderThickness="1" CornerRadius="14" Padding="22,14,22,18">
                     <StackPanel Spacing="6">
 
-                        <!-- 阶段指示 -->
-                        <StackPanel x:Name="PhaseChips" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-                            <Border x:Name="ChipPing" CornerRadius="999" Padding="11,4">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <FontIcon x:Name="ChipPingIcon" FontSize="12" Glyph="&#xE823;" />
-                                    <TextBlock x:Name="ChipPingText" FontSize="12" Text="延迟" />
-                                </StackPanel>
-                            </Border>
-                            <Border x:Name="ChipDownload" CornerRadius="999" Padding="11,4">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <FontIcon x:Name="ChipDownloadIcon" FontSize="12" Glyph="&#xE896;" />
-                                    <TextBlock x:Name="ChipDownloadText" FontSize="12" Text="下载" />
-                                </StackPanel>
-                            </Border>
-                            <Border x:Name="ChipUpload" CornerRadius="999" Padding="11,4">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <FontIcon x:Name="ChipUploadIcon" FontSize="12" Glyph="&#xE898;" />
-                                    <TextBlock x:Name="ChipUploadText" FontSize="12" Text="上传" />
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
+                        <!-- 阶段步骤条：延迟 → 下载 → 上传 -->
+                        <Grid HorizontalAlignment="Center" Margin="0,2,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="38" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="38" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <!-- 步骤 1：延迟 -->
+                            <Grid Grid.Column="0" Grid.Row="0" Width="44" Height="44">
+                                <Ellipse x:Name="StepPingHalo" Width="44" Height="44" Opacity="0"
+                                         IsHitTestVisible="False" />
+                                <Border x:Name="ChipPing" Width="34" Height="34" CornerRadius="17"
+                                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                                        Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                                    <FontIcon x:Name="ChipPingIcon" FontSize="14" Glyph="&#xE823;"
+                                              Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                </Border>
+                            </Grid>
+                            <TextBlock x:Name="ChipPingText" Grid.Column="0" Grid.Row="1" Text="延迟"
+                                       FontSize="11" HorizontalAlignment="Center" Margin="0,3,0,0"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+                            <!-- 连接线 1（延迟 → 下载） -->
+                            <Border x:Name="StepLink1" Grid.Column="1" Grid.Row="0" Height="3"
+                                    VerticalAlignment="Center" CornerRadius="1.5"
+                                    Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+                            <!-- 步骤 2：下载 -->
+                            <Grid Grid.Column="2" Grid.Row="0" Width="44" Height="44">
+                                <Ellipse x:Name="StepDownloadHalo" Width="44" Height="44" Opacity="0"
+                                         IsHitTestVisible="False" />
+                                <Border x:Name="ChipDownload" Width="34" Height="34" CornerRadius="17"
+                                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                                        Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                                    <FontIcon x:Name="ChipDownloadIcon" FontSize="14" Glyph="&#xE896;"
+                                              Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                </Border>
+                            </Grid>
+                            <TextBlock x:Name="ChipDownloadText" Grid.Column="2" Grid.Row="1" Text="下载"
+                                       FontSize="11" HorizontalAlignment="Center" Margin="0,3,0,0"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+                            <!-- 连接线 2（下载 → 上传） -->
+                            <Border x:Name="StepLink2" Grid.Column="3" Grid.Row="0" Height="3"
+                                    VerticalAlignment="Center" CornerRadius="1.5"
+                                    Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+                            <!-- 步骤 3：上传 -->
+                            <Grid Grid.Column="4" Grid.Row="0" Width="44" Height="44">
+                                <Ellipse x:Name="StepUploadHalo" Width="44" Height="44" Opacity="0"
+                                         IsHitTestVisible="False" />
+                                <Border x:Name="ChipUpload" Width="34" Height="34" CornerRadius="17"
+                                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                                        Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                                    <FontIcon x:Name="ChipUploadIcon" FontSize="14" Glyph="&#xE898;"
+                                              Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                </Border>
+                            </Grid>
+                            <TextBlock x:Name="ChipUploadText" Grid.Column="4" Grid.Row="1" Text="上传"
+                                       FontSize="11" HorizontalAlignment="Center" Margin="0,3,0,0"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </Grid>
 
                         <!-- 仪表盘 + 读数 -->
                         <Grid Width="330" Height="330" HorizontalAlignment="Center">

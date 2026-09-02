@@ -518,6 +518,14 @@ public sealed partial class SpeedTestPage : Page
 
         string txt = double.IsNaN(_targetValue) && Math.Abs(_displayValue) < 0.01 ? "--" : FmtValue(_displayValue);
         if (ValueText.Text != txt) ValueText.Text = txt;
+
+        // 进行中步骤的呼吸光晕
+        if (_activeChip is not null)
+        {
+            var halo = HaloOf(_activeChip);
+            if (halo is not null)
+                halo.Opacity = 0.3 + 0.25 * (0.5 + 0.5 * Math.Sin(now * 5.0));
+        }
     }
 
     private double ValueToFraction(double v)
@@ -527,9 +535,9 @@ public sealed partial class SpeedTestPage : Page
         return Math.Clamp(1 - 1 / Math.Pow(1.12, Math.Sqrt(v)), 0, 1); // 速率：对数刻度
     }
 
-    // ───────────────────────────── 阶段 Chip ─────────────────────────────
+    // ───────────────────────────── 阶段步骤条 ─────────────────────────────
 
-    private enum ChipState { Idle, Active, Done }
+    private enum ChipState { Pending, Active, Done }
 
     private void SetChipsIdle()
     {
@@ -542,7 +550,7 @@ public sealed partial class SpeedTestPage : Page
     {
         _doneChips.Remove(chip);
         if (_activeChip == chip) _activeChip = null;
-        SetChipCore(chip, ChipState.Idle, default);
+        SetChipCore(chip, ChipState.Pending, default);
     }
 
     private void SetChipActive(Border chip)
@@ -570,45 +578,66 @@ public sealed partial class SpeedTestPage : Page
     {
         if (_doneChips.Contains(chip)) SetChipCore(chip, ChipState.Done, doneColor);
         else if (_activeChip == chip) SetChipCore(chip, ChipState.Active, default);
-        else SetChipCore(chip, ChipState.Idle, default);
+        else SetChipCore(chip, ChipState.Pending, default);
     }
 
     private void SetChipCore(Border chip, ChipState state, Color doneColor)
     {
         var icon = ChipIconOf(chip);
         var text = ChipTextOf(chip);
+        var halo = HaloOf(chip);
         if (icon is null || text is null) return;
+
+        var onAccent = BrushRes("TextOnAccentFillColorPrimaryBrush", Microsoft.UI.Colors.White);
+        var dim = BrushRes("TextFillColorSecondaryBrush", _textSecondary);
 
         switch (state)
         {
             case ChipState.Active:
             {
-                var onAccent = BrushRes("TextOnAccentFillColorPrimaryBrush", Microsoft.UI.Colors.White);
-                chip.Background = BrushRes("AccentFillColorDefaultBrush", Color.FromArgb(255, 0, 120, 212));
+                var accentBrush = BrushRes("AccentFillColorDefaultBrush", Color.FromArgb(255, 0, 120, 212));
+                chip.Background = accentBrush;
                 icon.Foreground = onAccent;
-                text.Foreground = onAccent;
+                text.Foreground = accentBrush;
+                text.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
                 icon.Glyph = OriginalGlyph(chip);
+                if (halo is not null) { halo.Fill = accentBrush; halo.Opacity = 0.55; }
                 break;
             }
             case ChipState.Done:
             {
-                var white = BrushRes("TextOnAccentFillColorPrimaryBrush", Microsoft.UI.Colors.White);
                 chip.Background = new SolidColorBrush(doneColor);
-                icon.Foreground = white;
-                text.Foreground = white;
+                icon.Foreground = onAccent;
+                text.Foreground = new SolidColorBrush(doneColor);
+                text.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
                 icon.Glyph = "\uE73E"; // 完成对勾
+                if (halo is not null) halo.Opacity = 0;
                 break;
             }
             default:
             {
-                var dim = BrushRes("TextFillColorSecondaryBrush", _textSecondary);
                 chip.Background = BrushRes("SubtleFillColorSecondaryBrush", Color.FromArgb(255, 240, 240, 240));
                 icon.Foreground = dim;
                 text.Foreground = dim;
+                text.FontWeight = Microsoft.UI.Text.FontWeights.Normal;
                 icon.Glyph = OriginalGlyph(chip);
+                if (halo is not null) { halo.Opacity = 0; halo.Fill = null; }
                 break;
             }
         }
+
+        RefreshLinks();
+    }
+
+    /// <summary>连接线点亮规则：步骤 1 完成 → 连线 1 变绿；步骤 2 完成 → 连线 2 变绿。</summary>
+    private void RefreshLinks()
+    {
+        StepLink1.Background = _doneChips.Contains(ChipPing)
+            ? BrushRes("SystemFillColorSuccessBrush", Color.FromArgb(255, 22, 163, 74))
+            : BrushRes("DividerStrokeColorDefaultBrush", Color.FromArgb(255, 200, 200, 200));
+        StepLink2.Background = _doneChips.Contains(ChipDownload)
+            ? BrushRes("SystemFillColorSuccessBrush", Color.FromArgb(255, 22, 163, 74))
+            : BrushRes("DividerStrokeColorDefaultBrush", Color.FromArgb(255, 200, 200, 200));
     }
 
     private string OriginalGlyph(Border chip)
@@ -619,6 +648,9 @@ public sealed partial class SpeedTestPage : Page
 
     private TextBlock? ChipTextOf(Border chip) =>
         chip == ChipPing ? ChipPingText : chip == ChipDownload ? ChipDownloadText : ChipUploadText;
+
+    private Ellipse? HaloOf(Border chip) =>
+        chip == ChipPing ? StepPingHalo : chip == ChipDownload ? StepDownloadHalo : StepUploadHalo;
 
     // ───────────────────────────── 实时曲线（LiveCharts2） ─────────────────────────────
 
