@@ -61,6 +61,7 @@ public static class BuiltinToolRegistry
         Register(new StressTestTool());
         Register(new TrafficMonitorTool());
         Register(new WingetStoreTool());
+        Register(new WindowsFeatureTool());
 
         Register(new StartupManagerTool());
     }
