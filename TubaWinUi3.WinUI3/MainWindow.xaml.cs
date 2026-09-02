@@ -748,7 +748,7 @@ public sealed partial class MainWindow : Window
             BuiltinToolWindow.Show(pageType, parameter, title);
             return;
         }
-        NavFrame.Navigate(pageType, parameter);
+        NavFrame.Navigate(pageType, parameter, new DrillInNavigationTransitionInfo());
     }
 
     public void NavigateToSettings(string? highlightSettingKey = null)

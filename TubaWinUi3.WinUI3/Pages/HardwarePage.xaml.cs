@@ -133,7 +133,7 @@ public sealed partial class HardwarePage : Page
 
     private void DetailButton_Click(object sender, RoutedEventArgs e)
     {
-        Frame.Navigate(typeof(HardwareDetailPage));
+        Frame.Navigate(typeof(HardwareDetailPage), null, new SlideNavigationTransitionInfo() { Effect = SlideNavigationTransitionEffect.FromRight });
     }
 
     private void TitleText_Tapped(object sender, TappedRoutedEventArgs e)

@@ -8,6 +8,7 @@ using LiveChartsCore.SkiaSharpView.WinUI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media.Animation;
 using SkiaSharp;
 using TubaWinUi3.Models;
 using TubaWinUi3.Services;
@@ -225,7 +226,7 @@ public sealed partial class HardwareDetailPage : Page
         if (Frame.CanGoBack)
             Frame.GoBack();
         else
-            Frame.Navigate(typeof(HardwarePage));
+            Frame.Navigate(typeof(HardwarePage), null, new SlideNavigationTransitionInfo() { Effect = SlideNavigationTransitionEffect.FromRight });
     }
 
     private async void ExportButton_Click(object sender, RoutedEventArgs e)
