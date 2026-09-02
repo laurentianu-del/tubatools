@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
 using System.Threading;
 using LiveChartsCore;
 using LiveChartsCore.Defaults;
@@ -64,6 +66,12 @@ public sealed partial class SpeedTestPage : Page
     private readonly HashSet<Border> _doneChips = new();
     private Border? _activeChip;
 
+    // 常用网站连通性列表
+    private readonly List<SiteRowView> _siteRows = new();
+    private readonly HttpClient _siteHttp = CreateSiteHttp();
+    private CancellationTokenSource? _siteCts;
+    private bool _siteBusy;
+
     public SpeedTestPage()
     {
         InitializeComponent();
@@ -87,6 +95,8 @@ public sealed partial class SpeedTestPage : Page
         SetChipsIdle();
         SetButtonReady();
         ResetToIdle();
+        BuildSiteList();
+        _ = ProbeAllSitesAsync();
 
         _ = LoadPublicIpAsync();
     }
@@ -94,9 +104,11 @@ public sealed partial class SpeedTestPage : Page
     private void SpeedTestPage_Unloaded(object sender, RoutedEventArgs e)
     {
         _cts?.Cancel();
+        _siteCts?.Cancel();
         _animTimer?.Stop();
         _running = false;
         _engine.Dispose();
+        _siteHttp.Dispose();
     }
 
     private async Task LoadPublicIpAsync()
@@ -140,6 +152,7 @@ public sealed partial class SpeedTestPage : Page
         BuildGauge();
         RebuildChartTheme();
         ReapplyChips();
+        RecolorSiteRows();
     }
 
     private void ResetToIdle()
@@ -759,6 +772,282 @@ public sealed partial class SpeedTestPage : Page
 
     private static Brush BrushRes(string key, Color fallback)
         => Application.Current.Resources.TryGetValue(key, out var v) && v is Brush b ? b : new SolidColorBrush(fallback);
+
+    // ───────────────────────────── 常用网站连通性 ─────────────────────────────
+
+    private sealed class SiteDef
+    {
+        public required string Name { get; init; }
+        public required string Domain { get; init; }
+        public required string Url { get; init; }
+        public required uint BadgeRgb { get; init; }   // 0xAARRGGBB 品牌色
+        public string? Letter { get; init; }           // null = 微软四色方格
+    }
+
+    private static readonly SiteDef[] SiteDefs =
+    {
+        new() { Name = "百度",     Domain = "www.baidu.com",          Url = "https://www.baidu.com/",          BadgeRgb = 0xFF2932E1, Letter = "B" },
+        new() { Name = "网易",     Domain = "www.163.com",            Url = "https://www.163.com/",            BadgeRgb = 0xFFDE1A22, Letter = "N" },
+        new() { Name = "腾讯",     Domain = "www.qq.com",             Url = "https://www.qq.com/",             BadgeRgb = 0xFF1479D7, Letter = "T" },
+        new() { Name = "哔哩哔哩", Domain = "www.bilibili.com",       Url = "https://www.bilibili.com/",       BadgeRgb = 0xFFFB7299, Letter = "B" },
+        new() { Name = "GitHub",  Domain = "github.com",             Url = "https://github.com/",             BadgeRgb = 0xFF24292F, Letter = "G" },
+        new() { Name = "GitCode", Domain = "gitcode.com",            Url = "https://gitcode.com/",            BadgeRgb = 0xFF1F7BF4, Letter = "G" },
+        new() { Name = "微软",     Domain = "www.microsoft.com",      Url = "https://www.microsoft.com/",      BadgeRgb = 0xFF00A4EF, Letter = null },
+        new() { Name = "Steam",   Domain = "store.steampowered.com", Url = "https://store.steampowered.com/", BadgeRgb = 0xFF171A21, Letter = "S" },
+    };
+
+    private sealed class SiteRowView
+    {
+        public required string Url { get; init; }
+        public required Border Row { get; init; }
+        public required TextBlock LatText { get; init; }
+        public required Ellipse Dot { get; init; }
+        public double? RttMs { get; set; } // null = 未测；NaN = 超时/不可达
+    }
+
+    private static HttpClient CreateSiteHttp()
+    {
+        var handler = new SocketsHttpHandler
+        {
+            ConnectTimeout = TimeSpan.FromSeconds(3),
+            PooledConnectionLifetime = TimeSpan.FromSeconds(6),
+            MaxConnectionsPerServer = 4
+        };
+        return new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(8) };
+    }
+
+    private void BuildSiteList()
+    {
+        SiteGrid.Children.Clear();
+        _siteRows.Clear();
+
+        for (int i = 0; i < SiteDefs.Length; i++)
+        {
+            var def = SiteDefs[i];
+            var row = new Border
+            {
+                Background = BrushRes("SubtleFillColorSecondaryBrush", Color.FromArgb(255, 245, 245, 245)),
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(10, 7, 12, 7)
+            };
+            ToolTipService.SetToolTip(row, $"{def.Name} · {def.Domain}");
+
+            var line = new Grid { ColumnSpacing = 10 };
+            line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            line.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            line.Children.Add(BuildBadge(def));
+
+            var nameCol = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 0 };
+            nameCol.Children.Add(new TextBlock
+            {
+                Text = def.Name,
+                FontSize = 13,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            });
+            nameCol.Children.Add(new TextBlock
+            {
+                Text = def.Domain,
+                FontSize = 10.5,
+                Opacity = 0.55,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            });
+            Grid.SetColumn(nameCol, 1);
+            line.Children.Add(nameCol);
+
+            var dot = new Ellipse { Width = 8, Height = 8, VerticalAlignment = VerticalAlignment.Center };
+            var lat = new TextBlock
+            {
+                Text = "检测中…",
+                FontSize = 13,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                MinWidth = 60,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            var dim = BrushRes("TextFillColorSecondaryBrush", Color.FromArgb(255, 120, 120, 120));
+            dot.Fill = dim;
+            lat.Foreground = dim;
+            var tail = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 6,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            tail.Children.Add(dot);
+            tail.Children.Add(lat);
+            Grid.SetColumn(tail, 2);
+            line.Children.Add(tail);
+
+            row.Child = line;
+            Grid.SetRow(row, i / 2);
+            Grid.SetColumn(row, i % 2);
+            SiteGrid.Children.Add(row);
+            _siteRows.Add(new SiteRowView { Url = def.Url, Row = row, LatText = lat, Dot = dot });
+        }
+    }
+
+    private static Border BuildBadge(SiteDef def)
+    {
+        UIElement inner = def.Letter is string letter
+            ? new TextBlock
+            {
+                Text = letter,
+                FontSize = 15,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            }
+            : BuildMsLogo();
+
+        return new Border
+        {
+            Width = 34,
+            Height = 34,
+            CornerRadius = new CornerRadius(9),
+            VerticalAlignment = VerticalAlignment.Center,
+            Background = new SolidColorBrush(BadgeColor(def.BadgeRgb)),
+            Child = inner
+        };
+    }
+
+    private static Border BuildMsLogo()
+    {
+        var grid = new Grid { Width = 20, Height = 20 };
+        grid.RowDefinitions.Add(new RowDefinition());
+        grid.RowDefinitions.Add(new RowDefinition());
+        grid.ColumnDefinitions.Add(new ColumnDefinition());
+        grid.ColumnDefinitions.Add(new ColumnDefinition());
+        var cells = new (byte R, byte G, byte B)[]
+        {
+            (0xF2, 0x50, 0x22), (0x7F, 0xBA, 0x00), // 红 / 绿
+            (0x00, 0xA4, 0xEF), (0xFF, 0xB9, 0x00)  // 蓝 / 黄
+        };
+        for (int r = 0; r < 2; r++)
+            for (int c = 0; c < 2; c++)
+            {
+                var (rr, gg, bb) = cells[r * 2 + c];
+                var cell = new Border
+                {
+                    Margin = new Thickness(0.6),
+                    CornerRadius = new CornerRadius(1.2),
+                    Background = new SolidColorBrush(Color.FromArgb(255, rr, gg, bb))
+                };
+                Grid.SetRow(cell, r);
+                Grid.SetColumn(cell, c);
+                grid.Children.Add(cell);
+            }
+        return new Border
+        {
+            Width = 34,
+            Height = 34,
+            CornerRadius = new CornerRadius(9),
+            VerticalAlignment = VerticalAlignment.Center,
+            Background = new SolidColorBrush(Color.FromArgb(255, 250, 250, 250)),
+            Child = grid
+        };
+    }
+
+    private static Color BadgeColor(uint argb)
+        => Color.FromArgb((byte)(argb >> 24), (byte)(argb >> 16), (byte)(argb >> 8), (byte)argb);
+
+    private async Task ProbeAllSitesAsync()
+    {
+        if (_siteBusy) return;
+        _siteBusy = true;
+        SiteRefreshButton.IsEnabled = false;
+        _siteCts?.Cancel();
+        _siteCts = new CancellationTokenSource();
+        var ct = _siteCts.Token;
+
+        var dim = BrushRes("TextFillColorSecondaryBrush", Color.FromArgb(255, 120, 120, 120));
+        foreach (var view in _siteRows)
+        {
+            view.RttMs = null;
+            view.Dot.Fill = dim;
+            view.LatText.Foreground = dim;
+            view.LatText.Text = "检测中…";
+        }
+
+        try
+        {
+            await Task.WhenAll(_siteRows.Select(v => ProbeSiteAsync(v, ct)));
+        }
+        catch (OperationCanceledException) { /* 手动刷新或页面卸载 */ }
+        catch (Exception) { /* 单项失败已各自处理 */ }
+        finally
+        {
+            _siteBusy = false;
+            SiteRefreshButton.IsEnabled = true;
+        }
+    }
+
+    private async Task ProbeSiteAsync(SiteRowView view, CancellationToken outer)
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(outer);
+        cts.CancelAfter(TimeSpan.FromSeconds(4.5));
+        var url = view.Url + (view.Url.Contains('?') ? "&" : "?") + "t=" + Stopwatch.GetTimestamp();
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            using var resp = await _siteHttp.SendAsync(
+                new HttpRequestMessage(HttpMethod.Get, url) { Version = HttpVersion.Version11 },
+                HttpCompletionOption.ResponseHeadersRead,
+                cts.Token);
+            // 首响应头到达即停止计时，不读取 body（连接随即关闭，保证每次都是全新连接的真实延迟）
+            double ms = sw.Elapsed.TotalMilliseconds;
+            EngineLive(() => ApplySiteResult(view, ms));
+        }
+        catch (OperationCanceledException) { EngineLive(() => ApplySiteResult(view, double.NaN)); }
+        catch (HttpRequestException) { EngineLive(() => ApplySiteResult(view, double.NaN)); }
+        catch (Exception) { EngineLive(() => ApplySiteResult(view, double.NaN)); }
+    }
+
+    private void ApplySiteResult(SiteRowView view, double rttMs)
+    {
+        Color color;
+        string text;
+        if (double.IsNaN(rttMs))
+        {
+            color = ColorRes("SystemFillColorCriticalBrush", Color.FromArgb(255, 220, 53, 69));
+            text = "超时";
+        }
+        else if (rttMs < 150)
+        {
+            color = ColorRes("SystemFillColorSuccessBrush", Color.FromArgb(255, 22, 163, 74));
+            text = $"{rttMs:0} ms";
+        }
+        else if (rttMs <= 400)
+        {
+            color = ColorRes("SystemFillColorCautionBrush", Color.FromArgb(255, 234, 160, 0));
+            text = $"{rttMs:0} ms";
+        }
+        else
+        {
+            color = ColorRes("SystemFillColorCriticalBrush", Color.FromArgb(255, 220, 53, 69));
+            text = $"{rttMs:0} ms";
+        }
+
+        view.RttMs = rttMs;
+        var brush = new SolidColorBrush(color);
+        view.Dot.Fill = brush;
+        view.LatText.Foreground = brush;
+        view.LatText.Text = text;
+    }
+
+    private void RecolorSiteRows()
+    {
+        if (_siteRows.Count == 0) return;
+        var bg = BrushRes("SubtleFillColorSecondaryBrush", Color.FromArgb(255, 245, 245, 245));
+        foreach (var view in _siteRows)
+        {
+            view.Row.Background = bg;
+            if (view.RttMs is double ms) ApplySiteResult(view, ms);
+        }
+    }
+
+    private void SiteRefreshButton_Click(object sender, RoutedEventArgs e) => _ = ProbeAllSitesAsync();
 
     private void BackButton_Click(object sender, RoutedEventArgs e) => App.MainWindow?.NavigateBack();
 }
