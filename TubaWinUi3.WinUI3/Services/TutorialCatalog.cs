@@ -174,16 +174,6 @@ public static class TutorialCatalog
             },
             "hosts 文件改动会影响全系统域名解析，编辑前建议备份原文件内容。"),
 
-        ["junction-manager"] = new ToolTutorial(
-            "超链接管理器（Junction/Symbolic Link 管理）用于查看和清理系统中的目录链接，排查 C 盘被\"搬家\"软件占用的空间问题。",
-            new (string, string)[]
-            {
-                ("打开超链接管理器", "在主界面点击「超链接管理器」卡片。"),
-                ("浏览链接", "列表显示选定目录下的 Junction/符号链接及其指向目标。"),
-                ("管理链接", "对失效或多余的链接可执行删除；删除链接本身不会删除被指向的真实文件。")
-            },
-            "不熟悉的系统链接（如 Documents and Settings）请勿删除，可能导致系统功能异常。"),
-
         ["cpu-ranking"] = new ToolTutorial(
             "CPU 天梯图收录主流处理器的性能排名，帮助你在装机、升级时快速判断 CPU 的性能档次。",
             new (string, string)[]
