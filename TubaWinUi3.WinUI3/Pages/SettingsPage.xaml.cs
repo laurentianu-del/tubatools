@@ -1907,12 +1907,6 @@ public sealed partial class SettingsPage : Page
         _ = dialog.ShowAsync();
     }
 
-    private void CustomToolManagerButton_Click(object sender, RoutedEventArgs e)
-    {
-        var window = new CustomToolManagerWindow();
-        window.Activate();
-    }
-
     private async void ExportAppButton_Click(object sender, RoutedEventArgs e)
     {
         var exportPath = PickSaveFile("导出当前软件", "压缩包\0*.zip\0所有文件\0*.*\0\0", "TubaWinUi3-Custom.zip", "zip");

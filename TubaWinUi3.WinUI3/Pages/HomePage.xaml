@@ -233,16 +233,57 @@
 
         </Grid>
 
-        <ScrollViewer
-            x:Name="TagBarScrollViewer"
+        <Grid
+            x:Name="TagBarArea"
             Grid.Row="1"
-            HorizontalScrollBarVisibility="Hidden"
-            HorizontalScrollMode="Enabled"
-            VerticalScrollBarVisibility="Disabled"
-            VerticalScrollMode="Disabled"
+            ColumnSpacing="8"
             Visibility="Collapsed">
-            <StackPanel x:Name="TagBarPanel" Orientation="Horizontal" Spacing="6" />
-        </ScrollViewer>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!-- 单行模式：标签过多时可横向滚动，并显示滚动条提示可滚动 -->
+            <ScrollViewer
+                x:Name="TagBarScrollViewer"
+                Grid.Column="0"
+                HorizontalScrollBarVisibility="Auto"
+                HorizontalScrollMode="Enabled"
+                VerticalScrollBarVisibility="Disabled"
+                VerticalScrollMode="Disabled">
+                <StackPanel x:Name="TagBarPanel" Orientation="Horizontal" Spacing="6" />
+            </ScrollViewer>
+
+            <!-- 展开模式：标签多行换行显示，超高部分纵向滚动 -->
+            <ScrollViewer
+                x:Name="TagWrapScrollViewer"
+                Grid.Column="0"
+                MaxHeight="120"
+                HorizontalScrollBarVisibility="Disabled"
+                HorizontalScrollMode="Disabled"
+                VerticalScrollBarVisibility="Auto"
+                VerticalScrollMode="Enabled"
+                Visibility="Collapsed">
+                <!-- 内容在代码中注入（多行换行面板） -->
+            </ScrollViewer>
+
+            <Button
+                x:Name="TagExpandButton"
+                Grid.Column="1"
+                VerticalAlignment="Center"
+                Padding="10,4"
+                Click="TagExpandButton_Click"
+                ToolTipService.ToolTip="展开 / 收起全部标签"
+                Visibility="Collapsed">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <FontIcon
+                        x:Name="TagExpandIcon"
+                        FontSize="11"
+                        Glyph="&#xE70D;" />
+                    <TextBlock x:Name="TagExpandText" Text="展开" />
+                </StackPanel>
+            </Button>
+        </Grid>
 
         <Grid Grid.Row="2">
             <GridView

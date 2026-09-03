@@ -41,6 +41,47 @@ public sealed class AiRowTemplateSelector : DataTemplateSelector
         => SelectTemplateCore(item);
 }
 
+/// <summary>右键菜单主列表的“场景分区标题”行（Key=场景名，Count=场景内项数，不可选中）。</summary>
+public sealed class CmSectionHeaderVm
+{
+    public string Key { get; init; } = "";
+    public int Count { get; init; }
+}
+
+/// <summary>右键菜单主列表行模板选择器：场景分区标题行与条目行分别使用不同模板。</summary>
+public sealed class CmRowTemplateSelector : DataTemplateSelector
+{
+    public DataTemplate? ItemTemplate { get; set; }
+    public DataTemplate? HeaderTemplate { get; set; }
+
+    protected override DataTemplate SelectTemplateCore(object item)
+        => item is CmSectionHeaderVm ? HeaderTemplate! : ItemTemplate!;
+
+    protected override DataTemplate SelectTemplateCore(object item, DependencyObject container)
+        => SelectTemplateCore(item);
+}
+
+/// <summary>右键菜单主列表的“场景分组”中间结构：Key = 场景名，自身是条目集合。
+/// 供按场景排序后拍平为“分区标题 + 条目”列表使用。</summary>
+internal sealed class CmSceneGroup : List<ContextMenuEntry>
+{
+    public string Key { get; }
+
+    public CmSceneGroup(string key, IEnumerable<ContextMenuEntry> items)
+        : base(items)
+    {
+        Key = key;
+    }
+}
+
+/// <summary>左侧“场景分类”导航项（Scene="" 表示全部场景）。</summary>
+internal sealed class CmSceneNavVm
+{
+    public string Key { get; init; } = "";
+    public string Scene { get; init; } = "";
+    public int Count { get; init; }
+}
+
 /// <summary>「流氓软件的克星」内置工具页面（移植自 RogueCleaner，MIT）。</summary>
 public sealed partial class RogueCleanerPage : Page
 {
@@ -70,6 +111,8 @@ public sealed partial class RogueCleanerPage : Page
     // 右键菜单管理
     private bool _cmAllMode;
     private string _cmSearchKeyword = "";
+    private string _cmSceneFilter = ""; // 左侧“场景分类”选中的场景，空 = 全部
+    private bool _syncingCmSceneNav;
     private List<ContextMenuEntry> _cmEntries = [];
     private List<SpecialMenuEntry> _specialEntries = [];
     private List<AdvancedMenuEntry> _advancedEntries = [];
@@ -2754,6 +2797,33 @@ public sealed partial class RogueCleanerPage : Page
     private List<SpecialMenuEntry> _visibleSpecialEntries = [];
     private List<AdvancedMenuEntry> _visibleAdvancedEntries = [];
 
+    // 主列表按“场景”分组：组顺序遵循固定清单（贴近用户感知的右击场景），
+    // 未列出的场景（如“文件类型 .xxx”）统一排到末尾并按键名稳定排序。
+    private static readonly string[] CmSceneOrder =
+    [
+        "所有文件", "所有文件系统对象", "可执行文件", "快捷方式", "未知文件",
+        "文件夹", "文件夹对象", "文件夹拖放", "文件夹背景", "桌面背景",
+        "磁盘", "磁盘拖放", "命令仓库",
+        "文件右键", "文件夹右键", "文件夹空白处右键", "磁盘右键", "文件资源管理器右键"
+    ];
+
+    private static int CmSceneRank(string scene)
+    {
+        int index = Array.IndexOf(CmSceneOrder, scene);
+        return index < 0 ? 1000 : index;
+    }
+
+    /// <summary>把过滤后的条目按 Scene 分组（组内保留原有排序，组间按场景清单排序）。</summary>
+    private static List<CmSceneGroup> BuildCmSceneGroups(IReadOnlyList<ContextMenuEntry> entries)
+    {
+        return entries
+            .GroupBy(e => e.Scene)
+            .Select(g => new CmSceneGroup(g.Key, g))
+            .OrderBy(g => CmSceneRank(g.Key))
+            .ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
     // ---------- 视图切换（原版为三个独立窗口，这里为页面内三个视图） ----------
 
     private void CmSpecial_Click(object sender, RoutedEventArgs e)
@@ -2881,35 +2951,113 @@ public sealed partial class RogueCleanerPage : Page
     {
         if (_cmInventory == null) return;
         bool searching = !string.IsNullOrWhiteSpace(_cmSearchKeyword);
+
+        // 1) 基础候选集：搜索 / 常规主列表（已识别第三方 + 用户自建；「展示全部」时含系统内置等）
+        List<ContextMenuEntry> pool;
         if (searching)
         {
-            // 搜索模式：从完整清单中匹配（含系统内置/未识别/技术记录），不受「仅第三方」限制
-            _visibleCmEntries = _cmInventory.Entries.Where(e => RogueCleanerViewFilters.MatchesKeyword(e, _cmSearchKeyword)).ToList();
+            pool = _cmInventory.Entries.Where(e => RogueCleanerViewFilters.MatchesKeyword(e, _cmSearchKeyword)).ToList();
+        }
+        else
+        {
+            pool = _cmInventory.Entries.Where(e => _cmAllMode || RogueCleanerViewFilters.MatchesMainMenuList(e)).ToList();
+        }
+
+        // 场景分类筛选（左侧导航；空 = 全部场景）。
+        // 若当前选中的场景在候选集中已不存在（如搜索/「展示全部」切换把它滤掉），自动回到全部场景。
+        if (_cmSceneFilter.Length > 0 && !pool.Any(e => e.Scene == _cmSceneFilter))
+            _cmSceneFilter = "";
+        _visibleCmEntries = string.IsNullOrEmpty(_cmSceneFilter)
+            ? pool
+            : pool.Where(e => e.Scene == _cmSceneFilter).ToList();
+
+        // 3) 统计文案
+        if (searching)
+        {
             CmSummaryText.Text = "搜索“" + _cmSearchKeyword + "”：主列表匹配 " + _visibleCmEntries.Count + " 项（含系统内置与未识别项）";
             CmStatusText.Text = "当前为搜索模式，按名称、软件、命令、位置或组件编号过滤；清空搜索框返回常规列表。";
         }
         else
         {
-            // 显示：已识别的第三方菜单 + 用户自己添加的菜单（UserAdded 标记）；「展示全部」时含系统内置与未识别项
-            _visibleCmEntries = _cmInventory.Entries.Where(e => _cmAllMode || RogueCleanerViewFilters.MatchesMainMenuList(e)).ToList();
             int resolved = _cmInventory.Entries.Count(e => !e.AdvancedOnly && e.PresentationResolved);
-            int visible = _visibleCmEntries.Count;
             int enabled = _visibleCmEntries.Count(e => e.Enabled);
-            int hiddenSystem = _cmInventory.Entries.Count(e => !e.AdvancedOnly && e.PresentationResolved && !e.IsThirdParty);
-            int hiddenInternal = _cmInventory.Entries.Count - _cmPresentationCandidates;
-            CmSummaryText.Text = "第三方菜单 " + visible + " 项  ·  已显示 " + enabled + "  ·  已隐藏 " + (visible - enabled) + "  ·  系统内置不显示";
-            CmStatusText.Text = resolved < _cmPresentationCandidates
-                ? "正在识别软件来源 " + resolved + " / " + _cmPresentationCandidates + "……"
-                : "已隐藏 " + hiddenSystem + " 项系统菜单、" + hiddenInternal + " 项内部技术记录；" + _cmInventory.Warnings.Count + " 个受保护位置未读取。";
+            if (!string.IsNullOrEmpty(_cmSceneFilter))
+            {
+                int hiddenInScene = _cmInventory.Entries.Count(e =>
+                    e.Scene == _cmSceneFilter && !_cmAllMode && !RogueCleanerViewFilters.MatchesMainMenuList(e));
+                CmSummaryText.Text = "场景「" + _cmSceneFilter + "」：第三方 " + _visibleCmEntries.Count + " 项  ·  已显示 " + enabled
+                    + "  ·  已隐藏 " + (_visibleCmEntries.Count - enabled) + "  ·  同场景另有 " + hiddenInScene + " 项系统/未识别";
+                CmStatusText.Text = "正在按场景分类浏览，点击左侧“全部场景”可查看完整列表。";
+            }
+            else
+            {
+                int hiddenSystem = _cmInventory.Entries.Count(e => !e.AdvancedOnly && e.PresentationResolved && !e.IsThirdParty);
+                int hiddenInternal = _cmInventory.Entries.Count - _cmPresentationCandidates;
+                CmSummaryText.Text = "第三方菜单 " + _visibleCmEntries.Count + " 项  ·  已显示 " + enabled + "  ·  已隐藏 "
+                    + (_visibleCmEntries.Count - enabled) + "  ·  系统内置不显示";
+                CmStatusText.Text = resolved < _cmPresentationCandidates
+                    ? "正在识别软件来源 " + resolved + " / " + _cmPresentationCandidates + "……"
+                    : "已隐藏 " + hiddenSystem + " 项系统菜单、" + hiddenInternal + " 项内部技术记录；" + _cmInventory.Warnings.Count + " 个受保护位置未读取。";
+            }
         }
+
+        // 4) 按场景分区展示：先按固定场景顺序分组，再拍平为“分区标题 + 条目”列表，
+        //    由 CmRowSelector 按项类型选择模板（避免同场景条目在视觉上混在一起）。
         CmList.ItemsSource = null;
-        CmList.ItemsSource = _visibleCmEntries;
+        var flatCmItems = new List<object>();
+        foreach (var sceneGroup in BuildCmSceneGroups(_visibleCmEntries))
+        {
+            flatCmItems.Add(new CmSectionHeaderVm { Key = sceneGroup.Key, Count = sceneGroup.Count });
+            flatCmItems.AddRange(sceneGroup);
+        }
+        CmList.ItemsSource = flatCmItems;
         CmEmptyText.Visibility = _visibleCmEntries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        if (_visibleCmEntries.Count == 0) CmEmptyText.Text = searching ? "没有找到匹配“" + _cmSearchKeyword + "”的右键菜单项目。" : "没有找到已识别的第三方右键菜单。";
+        if (_visibleCmEntries.Count == 0)
+            CmEmptyText.Text = searching
+                ? "没有找到匹配“" + _cmSearchKeyword + "”的右键菜单项目。"
+                : string.IsNullOrEmpty(_cmSceneFilter)
+                    ? "没有找到已识别的第三方右键菜单。"
+                    : "该场景下没有已识别的第三方右键菜单。";
         UpdateCmActions();
         ShowCmDetails();
         UpdateCmFooter();
         UpdateCmSearchHint();
+        UpdateCmSceneNav();
+    }
+
+    /// <summary>左侧“场景分类”导航：从当前搜索/「展示全部」候选集统计各场景数量。</summary>
+    private void UpdateCmSceneNav()
+    {
+        if (_cmInventory == null) return;
+        bool searching = !string.IsNullOrWhiteSpace(_cmSearchKeyword);
+        List<ContextMenuEntry> pool = searching
+            ? _cmInventory.Entries.Where(e => RogueCleanerViewFilters.MatchesKeyword(e, _cmSearchKeyword)).ToList()
+            : _cmInventory.Entries.Where(e => _cmAllMode || RogueCleanerViewFilters.MatchesMainMenuList(e)).ToList();
+
+        var items = new List<CmSceneNavVm> { new() { Key = "全部场景", Scene = "", Count = pool.Count } };
+        items.AddRange(pool
+            .GroupBy(e => e.Scene)
+            .Select(g => new CmSceneNavVm { Key = g.Key, Scene = g.Key, Count = g.Count() })
+            .OrderBy(v => CmSceneRank(v.Scene))
+            .ThenBy(v => v.Key, StringComparer.OrdinalIgnoreCase));
+
+        _syncingCmSceneNav = true;
+        try
+        {
+            CmSceneNavList.ItemsSource = items;
+            CmSceneNavList.SelectedItem = items.FirstOrDefault(v => v.Scene == _cmSceneFilter) ?? items[0];
+        }
+        finally
+        {
+            _syncingCmSceneNav = false;
+        }
+    }
+
+    private void CmSceneNav_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingCmSceneNav) return;
+        _cmSceneFilter = (CmSceneNavList.SelectedItem as CmSceneNavVm)?.Scene ?? "";
+        ApplyCmFilter();
     }
 
     // 列表底部「展示全部」的提示与切换按钮

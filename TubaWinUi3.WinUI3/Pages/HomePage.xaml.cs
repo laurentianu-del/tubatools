@@ -8,6 +8,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Diagnostics;
 using System.Linq;
+using TubaWinUi3.Controls;
 using TubaWinUi3.Models;
 using TubaWinUi3.Pages;
 using TubaWinUi3.Services;
@@ -31,6 +32,14 @@ public sealed partial class HomePage : Page
     private int _lastCacheVersion = -1;
     private int _tagBarCacheVersion = -1;
 
+    // 标签栏：只保存标签名列表；芯片每次布局时按需重建（重建成本极低），
+    // 避免把现成的 UIElement 在“单行 StackPanel / 多行 WrapPanel”两个宿主间搬移
+    // —— WinUI 在跨自定义 Panel 摘挂同一元素时会抛 REGDB_E_CLASSNOTREG。
+    private readonly List<string> _allTags = [];
+    private bool _tagsPopulated;
+    private bool _tagsExpanded;
+    private readonly WrapPanel _tagWrapPanel = new() { Spacing = 6 };
+
     // 编辑排序模式（与收藏页同模式）：专用纵向列表 + 整行自实现拖拽
     private bool _isEditing;
     private const double EditRowHeight = 64;
@@ -49,6 +58,10 @@ public sealed partial class HomePage : Page
         InitializeComponent();
         ToolsGrid.ItemsSource = _tools;
         CompactGrid.ItemsSource = _tools;
+
+        TagWrapScrollViewer.Content = _tagWrapPanel;
+        // 首次布局完成后才可能测出“内容超宽”，用 LayoutUpdated 兜底刷新展开按钮显隐
+        TagBarScrollViewer.LayoutUpdated += (_, _) => UpdateTagExpandButtonState();
 
         _compactMode = CompactModeService.IsCompactModeEnabled();
         ApplyCompactMode();
@@ -223,17 +236,14 @@ public sealed partial class HomePage : Page
 
         if (_category is null)
         {
-            if (ToolCatalog.CacheVersion != _tagBarCacheVersion || TagBarPanel.Children.Count == 0)
+            if (ToolCatalog.CacheVersion != _tagBarCacheVersion || !_tagsPopulated)
                 _ = PopulateTagBarAsync();
             else
-            {
-                TagBarScrollViewer.Visibility = Visibility.Visible;
-                SyncTagBarSelection();
-            }
+                ApplyTagBarLayout();
         }
         else
         {
-            TagBarScrollViewer.Visibility = Visibility.Collapsed;
+            TagBarArea.Visibility = Visibility.Collapsed;
         }
     }
 
@@ -242,15 +252,6 @@ public sealed partial class HomePage : Page
         base.OnNavigatedFrom(e);
         ExitEditMode(); // 离开页面时退出编辑排序并兜底落盘
         UnsubscribeStaticEvents();
-    }
-
-    private void SyncTagBarSelection()
-    {
-        foreach (var child in TagBarPanel.Children)
-        {
-            if (child is RadioButton rb)
-                rb.IsChecked = rb.Tag is null;
-        }
     }
 
     private async Task PopulateTagBarAsync()
@@ -262,43 +263,97 @@ public sealed partial class HomePage : Page
         }
         catch
         {
-            TagBarScrollViewer.Visibility = Visibility.Collapsed;
+            TagBarArea.Visibility = Visibility.Collapsed;
             return;
         }
 
         DispatcherQueue.TryEnqueue(() =>
         {
-            TagBarPanel.Children.Clear();
-
-            var allBtn = new RadioButton
-            {
-                Content = "全部",
-                Tag = null as string,
-                IsChecked = _selectedTag is null,
-                Padding = new Thickness(10, 4, 10, 4),
-                Style = (Style)Resources["TagRadioButtonStyle"]
-            };
-            allBtn.Click += TagRadioButton_Click;
-            TagBarPanel.Children.Add(allBtn);
-
-            TagBarScrollViewer.Visibility = tags.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-
-            foreach (var tag in tags)
-            {
-                var btn = new RadioButton
-                {
-                    Content = tag,
-                    Tag = tag,
-                    IsChecked = tag == _selectedTag,
-                    Padding = new Thickness(10, 4, 10, 4),
-                    Style = (Style)Resources["TagRadioButtonStyle"]
-                };
-                btn.Click += TagRadioButton_Click;
-                TagBarPanel.Children.Add(btn);
-            }
-
+            _tagsExpanded = false;
+            _allTags.Clear();
+            _allTags.AddRange(tags);
+            _tagsPopulated = true;
             _tagBarCacheVersion = ToolCatalog.CacheVersion;
+            ApplyTagBarLayout();
         });
+    }
+
+    /// <summary>
+    /// 依据当前形态（单行横向滚动 / 展开多行换行）重建标签芯片并同步可见性与按钮文案。
+    /// 芯片每次布局时全新创建，不做跨宿主搬移（规避 WinUI 重挂 UIElement 的崩溃）。
+    /// 仅“全部”页（无分类）且存在标签时显示。
+    /// </summary>
+    private void ApplyTagBarLayout()
+    {
+        bool hasTags = _allTags.Count > 0;
+        if (_category is not null || !hasTags)
+        {
+            TagBarArea.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        // 清空两个宿主后按需重建（选中态按 _selectedTag 重新应用）
+        TagBarPanel.Children.Clear();
+        _tagWrapPanel.Children.Clear();
+        var host = _tagsExpanded ? (Panel)_tagWrapPanel : TagBarPanel;
+
+        host.Children.Add(CreateTagChip("全部", null as string, _selectedTag is null));
+        foreach (var tag in _allTags)
+            host.Children.Add(CreateTagChip(tag, tag, tag == _selectedTag));
+
+        if (_tagsExpanded)
+        {
+            TagBarScrollViewer.Visibility = Visibility.Collapsed;
+            TagWrapScrollViewer.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            TagBarScrollViewer.Visibility = Visibility.Visible;
+            TagWrapScrollViewer.Visibility = Visibility.Collapsed;
+        }
+
+        TagBarArea.Visibility = Visibility.Visible;
+        TagExpandIcon.Glyph = _tagsExpanded ? "\uE70E" : "\uE70D";
+        TagExpandText.Text = _tagsExpanded ? "收起" : "展开";
+        UpdateTagExpandButtonState();
+    }
+
+    private RadioButton CreateTagChip(string content, string? tag, bool isChecked)
+    {
+        var chip = new RadioButton
+        {
+            Content = content,
+            Tag = tag,
+            IsChecked = isChecked,
+            Padding = new Thickness(10, 4, 10, 4),
+            Style = (Style)Resources["TagRadioButtonStyle"]
+        };
+        chip.Click += TagRadioButton_Click;
+        return chip;
+    }
+
+    /// <summary>展开/收起按钮显隐：收起态仅在内容确实超宽(可滚动)时出现；展开态始终保留以便收回。</summary>
+    private void UpdateTagExpandButtonState()
+    {
+        if (TagBarArea.Visibility != Visibility.Visible || _allTags.Count == 0)
+        {
+            TagExpandButton.Visibility = Visibility.Collapsed;
+            return;
+        }
+        if (_tagsExpanded)
+        {
+            TagExpandButton.Visibility = Visibility.Visible;
+            return;
+        }
+        TagExpandButton.Visibility = TagBarScrollViewer.ExtentWidth > TagBarScrollViewer.ViewportWidth + 2
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    private void TagExpandButton_Click(object sender, RoutedEventArgs e)
+    {
+        _tagsExpanded = !_tagsExpanded;
+        ApplyTagBarLayout();
     }
 
     private void TagRadioButton_Click(object sender, RoutedEventArgs e)
@@ -306,11 +361,15 @@ public sealed partial class HomePage : Page
         if (sender is RadioButton rb)
         {
             _selectedTag = rb.Tag as string;
-            foreach (var child in TagBarPanel.Children)
+
+            // RadioButton 按父容器分组的自动互斥不可靠，手动取消同宿主内其他选项
+            var host = _tagsExpanded ? (Panel)_tagWrapPanel : TagBarPanel;
+            foreach (var child in host.Children)
             {
                 if (child is RadioButton other && other != rb)
                     other.IsChecked = false;
             }
+
             UpdateTitle();
             _ = LoadToolsAsync();
         }
@@ -501,7 +560,7 @@ public sealed partial class HomePage : Page
         // 隐藏网格与标签栏，切到专用排序列表
         ToolsGrid.Visibility = Visibility.Collapsed;
         CompactGrid.Visibility = Visibility.Collapsed;
-        TagBarScrollViewer.Visibility = Visibility.Collapsed;
+        TagBarArea.Visibility = Visibility.Collapsed;
         EmptyState.Visibility = Visibility.Collapsed;
 
         EditRowsPanel.Children.Clear();
@@ -526,7 +585,7 @@ public sealed partial class HomePage : Page
         UpdateGridVisibility(_tools.Count > 0);
         EmptyState.Visibility = _tools.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         if (_category is null)
-            TagBarScrollViewer.Visibility = TagBarPanel.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            ApplyTagBarLayout();
         UpdateDragReorderState();
     }
 
@@ -1496,19 +1555,121 @@ public sealed partial class HomePage : Page
         }
     }
 
-    private void UninstallDropHook() => Win32DropHelper.FilesDropped -= OnDropFiles;
+    private void UninstallDropHook()
+    {
+        _dropEventSubscribed = false;
+        Win32DropHelper.FilesDropped -= OnDropFiles;
+    }
 
     private void OnDropFiles(IReadOnlyList<string> files)
     {
         var importable = files.FirstOrDefault(f => DropImportableExtensions.Contains(Path.GetExtension(f)));
         if (importable is null) return;
 
-        DispatcherQueue.TryEnqueue(() =>
+        DispatcherQueue.TryEnqueue(() => _ = ImportDroppedFileAsync(importable));
+    }
+
+    /// <summary>拖入文件后弹出导入弹窗；确认后导入、刷新导航与本页工具列表。</summary>
+    private async Task ImportDroppedFileAsync(string filePath)
+    {
+        try
         {
-            CustomToolManagerWindow.PendingImportFilePath = importable;
-            var window = new CustomToolManagerWindow();
-            window.Activate();
-        });
+            await ImportDroppedFileCoreAsync(filePath);
+        }
+        catch (Exception ex)
+        {
+            // 兜底：弹窗链路任何异常都不能静默（旧版开独立窗口不依赖页面状态，
+            // 弹窗必须挂主窗口 XamlRoot 才能保证任何页面状态下都能弹出）
+            ShowStatus("导入失败", ex.Message, InfoBarSeverity.Error);
+        }
+    }
+
+    private async Task ImportDroppedFileCoreAsync(string filePath)
+    {
+        // 弹窗挂主窗口的 XamlRoot（与旧窗口 Content.XamlRoot 等价），
+        // 不依赖 HomePage 是否正处于可视状态（离开首页后 HomePage.XamlRoot 为 null）
+        var xamlRoot = App.MainWindow?.Content?.XamlRoot ?? XamlRoot;
+        if (xamlRoot is null)
+        {
+            ShowStatus("导入失败", "无法获取窗口，请重试", InfoBarSeverity.Error);
+            return;
+        }
+
+        var isZip = Path.GetExtension(filePath).Equals(".zip", StringComparison.OrdinalIgnoreCase);
+
+        IReadOnlyList<ImportableExecutable> executables;
+        try
+        {
+            executables = isZip
+                ? CustomToolPackageService.GetExecutables(filePath)
+                : [new ImportableExecutable(Path.GetFileName(filePath))];
+        }
+        catch (Exception ex)
+        {
+            ShowStatus("无法读取文件", ex.Message, InfoBarSeverity.Error);
+            return;
+        }
+
+        if (executables.Count == 0)
+        {
+            await ShowMessageAsync("未找到可导入工具", "压缩包里需要至少包含一个 .exe 文件。");
+            return;
+        }
+
+        var dialog = new CustomToolImportDialog(xamlRoot, filePath, executables);
+        var request = await dialog.ShowImportAsync();
+        if (request is null) return;
+
+        try
+        {
+            var result = isZip
+                ? await CustomToolPackageService.ImportAsync(request)
+                : await CustomToolPackageService.ImportSingleFileAsync(
+                    filePath,
+                    request.ToolName,
+                    request.Category,
+                    request.Description,
+                    request.Publisher,
+                    request.Tags);
+
+            // 新建分类：记录图标并追加到分类顺序，保持固定位置而非按字母序插入
+            if (dialog.IsNewCategory)
+            {
+                AppSettings.Set($"CategoryGlyph_{request.Category}", dialog.NewCategoryGlyph ?? "\uE8B7");
+                ToolCatalog.AppendCategoryOrder(request.Category);
+            }
+
+            ToolCatalog.InvalidateTagsCache();
+            if (App.MainWindow is MainWindow mainWindow)
+                mainWindow.RefreshToolCategories();
+
+            await LoadToolsAsync();
+            ShowStatus("导入成功", $"已导入 {Path.GetFileName(result.ToolDirectory)}", InfoBarSeverity.Success);
+        }
+        catch (Exception ex)
+        {
+            // 分类下没有工具就删掉：新建分类导入失败时清理留下的空白目录
+            if (ToolCatalog.PruneCategoryIfEmpty(request.Category))
+            {
+                ToolCatalog.InvalidateTagsCache();
+                if (App.MainWindow is MainWindow mainWindow)
+                    mainWindow.RefreshToolCategories();
+            }
+            ShowStatus("导入失败", ex.Message, InfoBarSeverity.Error);
+        }
+    }
+
+    private async Task ShowMessageAsync(string title, string message)
+    {
+        var dialog = new ContentDialog
+        {
+            XamlRoot = App.MainWindow?.Content?.XamlRoot ?? XamlRoot,
+            Title = title,
+            Content = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap },
+            CloseButtonText = "确定",
+            RequestedTheme = ThemeService.CurrentElementTheme
+        };
+        await dialog.ShowAsync();
     }
 
     #endregion

@@ -395,7 +395,7 @@
     {
       "match": "DiskGenius",
       "order": 23,
-      "description": "磁盘分区、数据恢复、坏道检测和分区表维护工具。",
+      "description": "磁盘分区、数据恢复、坏道检测和分区表维护工具。数据恢复功能对固态硬盘（SSD）成功率通常较低。",
       "tutorialUrl": "https://tubawinui3.cn/tutorials/diskgenius",
       "publisher": "Eassos",
       "tags": [
@@ -421,7 +421,7 @@
     {
       "match": "FinalData",
       "order": 25,
-      "description": "数据恢复工具，恢复误删除、格式化或病毒破坏的文件。",
+      "description": "数据恢复工具，恢复误删除、格式化或病毒破坏的文件。注意：固态硬盘（SSD）因 TRIM 自动清理数据，恢复成功率通常较低。",
       "publisher": "FINALDATA Inc.",
       "tags": [
         "硬盘",
@@ -584,7 +584,7 @@
     {
       "match": "魔方数据恢复",
       "order": 38,
-      "description": "文件数据恢复工具，支持误删除、格式化和分区丢失的数据恢复。",
+      "description": "文件数据恢复工具，支持误删除、格式化和分区丢失的数据恢复。注意：固态硬盘（SSD）因 TRIM 自动清理数据，恢复成功率通常较低。",
       "publisher": "青岛软媒",
       "tags": [
         "硬盘",

@@ -229,6 +229,41 @@ public partial class App : Application
         _ = DelayThenRunAsync(TimeSpan.FromSeconds(10), () => { HardwareInfoService.PreloadAsync(); return Task.CompletedTask; });
         _ = Task.Run(() => ConfigManager.AutoMigratePathsIfNeeded());
 
+        // 规则：分类下没有工具就删除。启动时清理历史遗留的空白分类目录
+        // （扫描放后台线程，删除与设置写入回 UI 线程）。
+        _ = Task.Run(async () =>
+        {
+            List<string> emptyCategories;
+            try
+            {
+                emptyCategories = ToolCatalog.FindEmptyCategories();
+            }
+            catch
+            {
+                return;
+            }
+
+            if (emptyCategories.Count == 0 || MainWindow?.DispatcherQueue is null)
+                return;
+
+            MainWindow.DispatcherQueue.TryEnqueue(() =>
+            {
+                var removed = 0;
+                foreach (var name in emptyCategories)
+                {
+                    if (ToolCatalog.PruneCategoryIfEmpty(name))
+                        removed++;
+                }
+
+                if (removed > 0)
+                {
+                    ToolCatalog.InvalidateTagsCache();
+                    if (MainWindow is MainWindow mw)
+                        mw.RefreshToolCategories();
+                }
+            });
+        });
+
         // 主动拦截：若用户开启了主动拦截，自动拉起 NativeAOT 后端（独立常驻进程）。
         // MSIX 沙箱下不支持启动独立后端进程。
         if (!RuntimeHelper.IsMsixPackaged && AppSettings.GetBool("ActiveInterceptEnabled", false))

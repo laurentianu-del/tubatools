@@ -55,6 +55,84 @@ public static class ToolCatalog
         }
     }
 
+    /// <summary>读取用户自定义的分类顺序（AppSettings CategoryOrder），无记录或损坏时返回空列表。</summary>
+    private static List<string> LoadCategoryOrder()
+    {
+        var orderJson = AppSettings.Get("CategoryOrder");
+        if (string.IsNullOrWhiteSpace(orderJson))
+            return [];
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<List<string>>(orderJson) ?? [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    /// <summary>扫描当前没有任何工具的空白分类名列表。纯查询，可后台线程调用。</summary>
+    public static List<string> FindEmptyCategories()
+    {
+        if (!Directory.Exists(ToolsRoot))
+            return [];
+        return GetCategories()
+            .Where(name => GetTools(name).Count == 0)
+            .ToList();
+    }
+
+    /// <summary>
+    /// 分类下没有任何工具时删除其目录（含图标与排序记录），返回是否实际删除。
+    /// 涉及 AppSettings 写入，调用方应在 UI 线程调用。
+    /// </summary>
+    public static bool PruneCategoryIfEmpty(string category)
+    {
+        if (string.IsNullOrWhiteSpace(category))
+            return false;
+
+        var dir = Path.Combine(ToolsRoot, category);
+        if (!Directory.Exists(dir))
+            return false;
+
+        try
+        {
+            if (GetTools(category).Count > 0)
+                return false;
+
+            Directory.Delete(dir, recursive: true);
+
+            AppSettings.Remove($"CategoryGlyph_{category}");
+
+            var order = LoadCategoryOrder();
+            var changed = order.RemoveAll(name => name.Equals(category, StringComparison.CurrentCultureIgnoreCase));
+            if (changed > 0)
+                AppSettings.Set("CategoryOrder", System.Text.Json.JsonSerializer.Serialize(order));
+
+            return true;
+        }
+        catch
+        {
+            // 目录被占用或只读（如打包安装目录）：跳过，不阻断主流程
+            return false;
+        }
+    }
+
+    /// <summary>把新建的分类追加到自定义顺序末尾（先固化当前全部分类顺序，再追加新分类）。</summary>
+    public static void AppendCategoryOrder(string category)
+    {
+        if (string.IsNullOrWhiteSpace(category))
+            return;
+
+        var order = LoadCategoryOrder();
+        if (order.Any(name => name.Equals(category, StringComparison.CurrentCultureIgnoreCase)))
+            return;
+
+        var knownSet = new HashSet<string>(order, StringComparer.CurrentCultureIgnoreCase);
+        order.AddRange(GetCategories().Where(name => !knownSet.Contains(name)));
+        order.Add(category);
+        AppSettings.Set("CategoryOrder", System.Text.Json.JsonSerializer.Serialize(order));
+    }
+
     public static IReadOnlyList<string> GetCategories()
     {
         if (!Directory.Exists(ToolsRoot))
@@ -68,18 +146,9 @@ public static class ToolCatalog
             .Cast<string>()
             .ToList();
 
-        var orderJson = AppSettings.Get("CategoryOrder");
-        List<string>? ordered = null;
-        if (!string.IsNullOrWhiteSpace(orderJson))
-        {
-            try
-            {
-                ordered = System.Text.Json.JsonSerializer.Deserialize<List<string>>(orderJson);
-            }
-            catch { }
-        }
+        var ordered = LoadCategoryOrder();
 
-        if (ordered is not null && ordered.Count > 0)
+        if (ordered.Count > 0)
         {
             var orderedSet = new HashSet<string>(ordered, StringComparer.CurrentCultureIgnoreCase);
             var result = ordered.Where(name => dirs.Contains(name!)).ToList();

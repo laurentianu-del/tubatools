@@ -792,18 +792,18 @@ public static class HardwareInfoService
         {
             var code = Convert.ToUInt16(trimmed, 16);
 
-            // 字节序 1：高位字节在前（[bank+parity][vendor+parity]）
-            var vendor1 = (byte)((code & 0xFF) & 0x7F);
-            var bank1 = (byte)((code >> 8) & 0x7F);
-            var fullCode1 = bank1 * 128 + vendor1;
-            var r1 = JedecVendorFromExtendedCode(fullCode1);
+            // 字节序 1：高位字节在前（[continuation/bank][vendor]，如 "0B12"）
+            // 字节序 2：低位字节在前（[vendor][continuation]，如 "120B"）
+            // 两个字节都去掉奇校验位后，把 [bank][vendor] 打包成 0x0B12 这类 16 位
+            // JEDEC 标识再查扩展表；先试“高位在前”，未命中再试字节序翻转。
+            var hi = (byte)((code >> 8) & 0x7F);
+            var lo = (byte)(code & 0x7F);
+            var packed = ((int)hi << 8) | lo;
+            var r1 = JedecVendorFromExtendedCode(packed);
             if (r1 != null) return r1;
 
-            // 字节序 2：低位字节在前（[vendor+parity][bank+parity]）
-            var vendor2 = (byte)((code >> 8) & 0x7F);
-            var bank2 = (byte)(code & 0x7F);
-            var fullCode2 = bank2 * 128 + vendor2;
-            var r2 = JedecVendorFromExtendedCode(fullCode2);
+            var swapped = ((int)lo << 8) | hi;
+            var r2 = JedecVendorFromExtendedCode(swapped);
             if (r2 != null) return r2;
 
             return null;
@@ -825,16 +825,15 @@ public static class HardwareInfoService
                 {
                     var code = Convert.ToUInt16(hexPart, 16);
 
-                    var vendor1 = (byte)((code & 0xFF) & 0x7F);
-                    var bank1 = (byte)((code >> 8) & 0x7F);
-                    var fullCode1 = bank1 * 128 + vendor1;
-                    var r1 = JedecVendorFromExtendedCode(fullCode1);
+                    // 与上面无前缀分支相同的两字节打包语义，兼容 [bank][vendor] 与字节序翻转
+                    var hi = (byte)((code >> 8) & 0x7F);
+                    var lo = (byte)(code & 0x7F);
+                    var packed = ((int)hi << 8) | lo;
+                    var r1 = JedecVendorFromExtendedCode(packed);
                     if (r1 != null) return r1;
 
-                    var vendor2 = (byte)((code >> 8) & 0x7F);
-                    var bank2 = (byte)(code & 0x7F);
-                    var fullCode2 = bank2 * 128 + vendor2;
-                    var r2 = JedecVendorFromExtendedCode(fullCode2);
+                    var swapped = ((int)lo << 8) | hi;
+                    var r2 = JedecVendorFromExtendedCode(swapped);
                     if (r2 != null) return r2;
 
                     return null;
@@ -917,12 +916,14 @@ public static class HardwareInfoService
 
     internal static string? JedecVendorFromExtendedCode(int fullCode)
     {
-        // fullCode = continuation_count * 128 + vendor_code_low7
-        // 多字节 JEDEC ID（例如 0x0B12 = 金百达 / 0x0653 = Silicon Power）。
+        // fullCode 的两种表示（调用方需保持一致）：
+        //   - 小整数（如 0x2C）：去掉校验位后的单字节厂商码；
+        //   - 两字节打包值（如 0x0B12 / 0x653）：把 [continuation/bank][vendor] 两个字节
+        //     去掉校验位后拼接成的 16 位值，即 WMI Win32_PhysicalMemory.Manufacturer
+        //     多字节 JEDEC ID 的常见形式（"0B12" 大端 / "120B" 小端经翻转后同样命中）。
         // 历史版本曾在此塞进一批与实际 JEP106 不符的“猜测”映射，已清理。
-        // 注意：fallthrough 只在 bank == 0 时才允许——多字节 ID 任意落回单字节
-        // 表会把 e.g. 0x120B (little-endian for Kingbank) 误判为 “东芝(Toshiba)”
-        // 因为 0x0B 恰好命中 Toshiba。
+        // 注意：两字节打包码不得落入单字节表——否则 e.g. 0x120B (little-endian for
+        // Kingbank) 会被 0x0B 误判成“东芝(Toshiba)”。仅小整数（bank==0）才回退单字节表。
         var vendorLow7 = (byte)(fullCode & 0x7F);
         var bank = (fullCode >> 7) & 0x7F;
         return fullCode switch
@@ -937,9 +938,9 @@ public static class HardwareInfoService
             0x1F => "海力士(SK Hynix)",
             0x2C => "金士顿(Kingston)",
             0x30 => "记忆科技(Ramaxel)",
-            // Bank6 + 0x53 = Silicon Power（实际 JEP106 注册地址）
+            // Bank6 + 0x53 = Silicon Power（两字节打包 0x0653）
             0x653 => "广颖电通(Silicon Power)",
-            // Bank11 + 0x12 = 金百达 Kingbank（实际 JEP106 注册地址）
+            // Bank11 + 0x12 = 金百达 Kingbank（两字节打包 0x0B12）
             0x0B12 => "金百达(Kingbank)",
             _ => bank == 0 ? JedecVendorFromCode(vendorLow7) : null
         };

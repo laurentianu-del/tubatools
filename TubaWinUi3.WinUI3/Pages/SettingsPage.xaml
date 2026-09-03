@@ -1204,30 +1204,6 @@
                                     </Grid>
                                 </Border>
 
-                                <Border x:Name="SettingsCustomToolCard" Style="{StaticResource SettingsCardStyle}">
-                                    <Grid ColumnSpacing="16">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <Border Style="{StaticResource IconBorderStyle}">
-                                            <FontIcon FontSize="18" Glyph="&#xE8B7;" />
-                                        </Border>
-                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                            <TextBlock FontWeight="Bold" Text="自定义工具管理" />
-                                            <TextBlock Opacity="1.0" FontSize="13" TextWrapping="Wrap" Text="管理工具分类、导入自定义工具，支持拖拽排序" />
-                                            <TextBlock Opacity="0.7" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" Text="提示：更改分类顺序后，需要重启软件才会生效" />
-                                        </StackPanel>
-                                        <Button x:Name="CustomToolManagerButton" Grid.Column="2" VerticalAlignment="Center" Padding="14,6" Click="CustomToolManagerButton_Click">
-                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <FontIcon FontSize="12" Glyph="&#xE9D9;" />
-                                                <TextBlock Text="管理" />
-                                            </StackPanel>
-                                        </Button>
-                                    </Grid>
-                                </Border>
-
                                 <Border x:Name="SettingsExportAppCard" Style="{StaticResource SettingsCardStyle}">
                                     <Grid ColumnSpacing="16">
                                         <Grid.ColumnDefinitions>
