@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
+using System.Management;
 using System.Net;
 using System.Net.NetworkInformation;
+using System.Text;
 using System.Text.Json;
 using LiveChartsCore;
 using LiveChartsCore.SkiaSharpView;
@@ -11,6 +13,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using SkiaSharp;
+using TubaWinUi3.Models;
 using TubaWinUi3.Services;
 
 namespace TubaWinUi3.Controls;
@@ -54,19 +57,15 @@ public sealed partial class StressTestControl : UserControl
     private readonly List<double> _netTxReport = [];
     private readonly List<double> _netRxReport = [];
 
-    private readonly Aida64WmiReader _reader = new();
-
     private DispatcherTimer? _monitorTimer;
     private DispatcherTimer? _elapsedTimer;
     private DateTime _startTime;
     private int _targetMinutes;
 
-    private Process? _aidaProcess;
+    private Process? _primeProcess;
     private Process? _furmarkProcess;
-    private bool _weStartedAida;
 
     private bool _isRunning;
-    private bool _wmiConnected;
     private bool _settingsReady;
 
     private double _cpuTempPeak, _cpuUsagePeak, _cpuClockPeak, _cpuPowerPeak;
@@ -102,8 +101,6 @@ public sealed partial class StressTestControl : UserControl
     {
         InitializeComponent();
         InitCharts();
-        CheckAida64Wmi();
-        ActualThemeChanged += (_, _) => ApplyAidaStatusColors();
         _settingsReady = true;
         LoadFurMarkSettings();
         UpdateDxt5Availability();
@@ -440,37 +437,8 @@ public sealed partial class StressTestControl : UserControl
         };
     }
 
-    private async void CheckAida64Wmi()
-    {
-        var (data, _) = await Task.Run(() => _reader.Read());
-        if (data is not null)
-        {
-            _wmiConnected = true;
-            AidaStatusIcon.Glyph = "\uE73E";
-            AidaStatusText.Text = "AIDA64 WMI 已连接 — 实时监控已就绪";
-        }
-        else
-        {
-            _wmiConnected = false;
-            AidaStatusIcon.Glyph = "\uE7BA";
-            AidaStatusText.Text = "未检测到 AIDA64 WMI 数据。请启动 AIDA64 并开启：文件 → 设置 → 硬件监控 → 外部应用程序 → 允许将监测数据写入WMI。";
-        }
-        ApplyAidaStatusColors();
-    }
-
-    // 横幅颜色按当前主题取色，避免硬编码浅色配色在深色模式下出现"白字 + 浅色底"
-    private void ApplyAidaStatusColors()
-    {
-        var (accentKey, backgroundKey) = _wmiConnected
-            ? ("SystemFillColorSuccessBrush", "SystemFillColorSuccessBackgroundBrush")
-            : ("SystemFillColorCautionBrush", "SystemFillColorCautionBackgroundBrush");
-
-        var accent = (Brush)Application.Current.Resources[accentKey];
-        AidaStatusBorder.BorderBrush = accent;
-        AidaStatusBorder.Background = (Brush)Application.Current.Resources[backgroundKey];
-        AidaStatusIcon.Foreground = accent;
-        AidaStatusText.Foreground = (Brush)Application.Current.Resources["TextFillColorPrimaryBrush"];
-    }
+    private static bool HasMonitorData(MonitorSample s) =>
+        s.CpuTemp > 0 || s.CpuLoad >= 0 || s.CpuClock > 0 || s.GpuTemp > 0 || s.GpuClock > 0;
 
     private void StartStress_Click(object sender, RoutedEventArgs e) => StartStress();
     private void Stop_Click(object sender, RoutedEventArgs e) => StopStress();
@@ -503,7 +471,6 @@ public sealed partial class StressTestControl : UserControl
         _modeName = BuildModeName(cpuSel, gpuSel, netSel);
 
         _isRunning = true;
-        _weStartedAida = false;
         _monitorRetryCount = 0;
         _sampleCount = 0;
         _cpuTempPeak = _cpuUsagePeak = _cpuClockPeak = _cpuPowerPeak = double.MinValue;
@@ -539,7 +506,7 @@ public sealed partial class StressTestControl : UserControl
             netSel ? netDuration : 0);
 
         var started = new List<string>();
-        if (cpuSel) { started.Add("CPU (AIDA64)"); StartAida64(cpuDuration, cpuStress: true); }
+        if (cpuSel) { started.Add("CPU (Prime95)"); StartPrime95(cpuDuration); }
         if (gpuSel) { started.Add("GPU (FurMark)"); StartFurMarkGpuStress(gpuDuration); }
         if (netSel)
         {
@@ -587,47 +554,47 @@ public sealed partial class StressTestControl : UserControl
         _monitorTimer?.Stop(); _monitorTimer = null;
         _elapsedTimer?.Stop(); _elapsedTimer = null;
 
-        KillAidaBenchmarkModule();
+        KillPrime95();
         KillProcess(ref _furmarkProcess);
-        if (_weStartedAida) KillProcess(ref _aidaProcess);
 
         SetButtonsEnabled(true);
         StopBtn.IsEnabled = false;
         ExportBtn.IsEnabled = _sampleCount > 0;
 
         Log("烤机已停止");
-        CheckAida64Wmi();
         StressStopped?.Invoke(this, EventArgs.Empty);
     }
 
-    private void KillAidaBenchmarkModule()
+    // 终止 Prime95 压力测试进程；进程由本工具以普通权限启动，正常可 Kill，兜底 taskkill
+    private void KillPrime95()
     {
-        foreach (var proc in Process.GetProcesses())
+        var proc = _primeProcess;
+        _primeProcess = null;
+        if (proc is null) return;
+
+        try
+        {
+            if (!proc.HasExited) proc.Kill();
+            Log("Prime95 已停止");
+        }
+        catch
         {
             try
             {
-                var name = proc.ProcessName.ToLowerInvariant();
-                if (name.Contains("aida_bench") || name.Contains("aida64.benchmark") || name.Equals("aidabench") || name.Equals("aidabench64") || name.Equals("aidabench32"))
-                {
-                    proc.Kill();
-                    Log($"已终止烤机进程: {proc.ProcessName} (PID {proc.Id})");
-                }
+                var psi = new ProcessStartInfo("taskkill", $"/PID {proc.Id} /F") { CreateNoWindow = true, UseShellExecute = false };
+                using var tk = Process.Start(psi);
+                tk?.WaitForExit(5000);
+                Log(tk is not null && tk.ExitCode == 0
+                    ? "Prime95 已通过 taskkill 终止"
+                    : "Prime95 仍在运行，请手动关闭其窗口");
             }
-            catch { }
+            catch
+            {
+                Log("Prime95 仍在运行，请手动关闭其窗口");
+            }
         }
 
-        if (_aidaProcess != null && !_aidaProcess.HasExited)
-        {
-            try
-            {
-                foreach (var child in Process.GetProcesses())
-                {
-                    try { if (child.ProcessName.ToLowerInvariant().Contains("aida")) { child.Kill(); Log($"已终止 AIDA64 相关进程: {child.ProcessName} (PID {child.Id})"); } }
-                    catch { }
-                }
-            }
-            catch { }
-        }
+        try { proc.Dispose(); } catch { }
     }
 
     private void ElapsedTimer_Tick(object? sender, object e)
@@ -650,57 +617,55 @@ public sealed partial class StressTestControl : UserControl
     {
         if (!_isRunning) return;
 
-        var (data, error) = await Task.Run(() => _reader.Read());
+        // 与「游戏监控」共用同一硬件监控引擎（LibreHardwareMonitor）
+        var sample = await Task.Run(() => LiteMonitorService.Instance.Read());
 
-        if (data is null)
+        if (!HasMonitorData(sample))
         {
             _monitorRetryCount++;
-            if (!_wmiConnected)
-            {
-                if (_monitorRetryCount == 5) Log("等待 AIDA64 WMI 数据就绪中...");
-                else if (_monitorRetryCount == 15) Log($"WMI 数据仍不可用: {error}");
-            }
-            else { _wmiConnected = false; CheckAida64Wmi(); }
+            if (_monitorRetryCount == 5) Log("等待硬件监控数据就绪中...");
+            else if (_monitorRetryCount == 15) Log("硬件监控数据仍不可用：传感器可能不被当前主板/驱动支持");
             return;
         }
 
         _monitorRetryCount = 0;
         _sampleCount++;
 
-        if (!_wmiConnected) { _wmiConnected = true; CheckAida64Wmi(); Log("AIDA64 WMI 连接成功，实时监控已启动"); }
+        var cpuTemp = sample.CpuTemp; var cpuUsage = sample.CpuLoad; var cpuClock = sample.CpuClock; var cpuPower = sample.CpuPower;
+        var gpuTemp = sample.GpuTemp; var gpuClock = sample.GpuClock; var gpuPower = sample.GpuPower;
 
-        if (data.CpuTemp > 0) { _cpuTempSum += data.CpuTemp; _cpuTempCount++; if (data.CpuTemp > _cpuTempPeak) _cpuTempPeak = data.CpuTemp; }
-        if (data.CpuUsage > 0) { _cpuUsageSum += data.CpuUsage; _cpuUsageCount++; if (data.CpuUsage > _cpuUsagePeak) _cpuUsagePeak = data.CpuUsage; }
-        if (data.CpuClock > 0) { _cpuClockSum += data.CpuClock; _cpuClockCount++; if (data.CpuClock > _cpuClockPeak) _cpuClockPeak = data.CpuClock; }
-        if (data.CpuPower > 0) { _cpuPowerSum += data.CpuPower; _cpuPowerCount++; if (data.CpuPower > _cpuPowerPeak) _cpuPowerPeak = data.CpuPower; }
-        if (data.GpuTemp > 0) { _gpuTempSum += data.GpuTemp; _gpuTempCount++; if (data.GpuTemp > _gpuTempPeak) _gpuTempPeak = data.GpuTemp; }
-        if (data.GpuClock > 0) { _gpuClockSum += data.GpuClock; _gpuClockCount++; if (data.GpuClock > _gpuClockPeak) _gpuClockPeak = data.GpuClock; }
-        if (data.GpuPower > 0) { _gpuPowerSum += data.GpuPower; _gpuPowerCount++; if (data.GpuPower > _gpuPowerPeak) _gpuPowerPeak = data.GpuPower; }
+        if (cpuTemp > 0) { _cpuTempSum += cpuTemp; _cpuTempCount++; if (cpuTemp > _cpuTempPeak) _cpuTempPeak = cpuTemp; }
+        if (cpuUsage > 0) { _cpuUsageSum += cpuUsage; _cpuUsageCount++; if (cpuUsage > _cpuUsagePeak) _cpuUsagePeak = cpuUsage; }
+        if (cpuClock > 0) { _cpuClockSum += cpuClock; _cpuClockCount++; if (cpuClock > _cpuClockPeak) _cpuClockPeak = cpuClock; }
+        if (cpuPower > 0) { _cpuPowerSum += cpuPower; _cpuPowerCount++; if (cpuPower > _cpuPowerPeak) _cpuPowerPeak = cpuPower; }
+        if (gpuTemp > 0) { _gpuTempSum += gpuTemp; _gpuTempCount++; if (gpuTemp > _gpuTempPeak) _gpuTempPeak = gpuTemp; }
+        if (gpuClock > 0) { _gpuClockSum += gpuClock; _gpuClockCount++; if (gpuClock > _gpuClockPeak) _gpuClockPeak = gpuClock; }
+        if (gpuPower > 0) { _gpuPowerSum += gpuPower; _gpuPowerCount++; if (gpuPower > _gpuPowerPeak) _gpuPowerPeak = gpuPower; }
 
-        PushChart(_cpuTempChart, Val(data.CpuTemp));
-        PushChart(_cpuUsageChart, Val(data.CpuUsage));
-        PushChart(_cpuClockChart, Val(data.CpuClock));
-        PushChart(_cpuPowerChart, Val(data.CpuPower));
-        PushChart(_gpuTempChart, Val(data.GpuTemp));
-        PushChart(_gpuClockChart, Val(data.GpuClock));
-        PushChart(_gpuPowerChart, Val(data.GpuPower));
+        PushChart(_cpuTempChart, Val(cpuTemp));
+        PushChart(_cpuUsageChart, Val(cpuUsage));
+        PushChart(_cpuClockChart, Val(cpuClock));
+        PushChart(_cpuPowerChart, Val(cpuPower));
+        PushChart(_gpuTempChart, Val(gpuTemp));
+        PushChart(_gpuClockChart, Val(gpuClock));
+        PushChart(_gpuPowerChart, Val(gpuPower));
 
-        PushReport(_cpuTempReport, Val(data.CpuTemp));
-        PushReport(_cpuUsageReport, Val(data.CpuUsage));
-        PushReport(_cpuClockReport, Val(data.CpuClock));
-        PushReport(_cpuPowerReport, Val(data.CpuPower));
-        PushReport(_gpuTempReport, Val(data.GpuTemp));
-        PushReport(_gpuClockReport, Val(data.GpuClock));
-        PushReport(_gpuPowerReport, Val(data.GpuPower));
+        PushReport(_cpuTempReport, Val(cpuTemp));
+        PushReport(_cpuUsageReport, Val(cpuUsage));
+        PushReport(_cpuClockReport, Val(cpuClock));
+        PushReport(_cpuPowerReport, Val(cpuPower));
+        PushReport(_gpuTempReport, Val(gpuTemp));
+        PushReport(_gpuClockReport, Val(gpuClock));
+        PushReport(_gpuPowerReport, Val(gpuPower));
 
-        CpuTempText.Text = Fi(data.CpuTemp, "°C");
-        CpuUsageText.Text = Fi(data.CpuUsage, "%");
-        CpuClockText.Text = Fi(data.CpuClock, " MHz");
-        CpuPowerText.Text = F(data.CpuPower, "W");
+        CpuTempText.Text = Fi(cpuTemp, "°C");
+        CpuUsageText.Text = Fi(cpuUsage, "%");
+        CpuClockText.Text = Fi(cpuClock, " MHz");
+        CpuPowerText.Text = F(cpuPower, "W");
 
-        GpuTempText.Text = Fi(data.GpuTemp, "°C");
-        GpuClockText.Text = Fi(data.GpuClock, " MHz");
-        GpuPowerText.Text = F(data.GpuPower, "W");
+        GpuTempText.Text = Fi(gpuTemp, "°C");
+        GpuClockText.Text = Fi(gpuClock, " MHz");
+        GpuPowerText.Text = F(gpuPower, "W");
     }
 
     private static void PushChart(ObservableCollection<double> list, double value)
@@ -926,46 +891,132 @@ h1{{font-size:28px;font-weight:600;margin-bottom:4px}}
 <div><div class=""chart-label"">发送速率 (MB/s)</div><div class=""chart-box""><canvas id=""netTxChart""></canvas></div></div>
 <div><div class=""chart-label"">接收速率 (MB/s)</div><div class=""chart-box""><canvas id=""netRxChart""></canvas></div></div>
 </div></div>
-<div class=""footer"">图吧工具箱 WinUI3 · 数据来源: AIDA64 WMI · {DateTime.Now:yyyy/MM/dd}</div>
+<div class=""footer"">图吧工具箱 WinUI3 · 数据来源: LibreHardwareMonitor 传感器（与「游戏监控」同引擎）· {DateTime.Now:yyyy/MM/dd}</div>
 </div>
 <script>{charts}</script></body></html>";
     }
 
     private static double Peak(double v) => v > double.MinValue ? v : 0;
 
-    private void StartAida64(int stressMinutes, bool cpuStress)
+    private void StartPrime95(int stressMinutes)
     {
-        var aidaExe = FindExecutable("aida64.exe", "aida64");
-        if (aidaExe is null)
+        var primeExe = FindExecutable("prime95.exe", "prime95");
+        if (primeExe is null)
         {
-            if (Process.GetProcessesByName("aida64").Length == 0 && Process.GetProcessesByName("aida64c").Length == 0)
-            { Log("未找到 AIDA64，请确保已安装并放入 Tools 目录，或手动启动 AIDA64"); return; }
-            Log("检测到 AIDA64 已在运行，使用现有实例"); return;
+            Log("未找到 Prime95 (Tools/处理器工具/Prime95/prime95.exe)，CPU 烤机已跳过");
+            return;
         }
 
-        if (Process.GetProcessesByName("aida64").Length > 0 || Process.GetProcessesByName("aida64c").Length > 0)
+        // Prime95 按工作目录单实例：已运行实例无法被第二个进程接管，直接跳过避免干扰
+        if (Process.GetProcessesByName("prime95").Length > 0)
         {
-            Log("检测到 AIDA64 已在运行");
-            if (cpuStress)
-            {
-                try
-                {
-                    Process.Start(new ProcessStartInfo { FileName = aidaExe, Arguments = $"/SST CPU /SSTDUR {stressMinutes * 60}", UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(aidaExe) });
-                    Log($"已向 AIDA64 发送 CPU 稳定性测试指令 ({stressMinutes} 分钟)");
-                }
-                catch (Exception ex) { Log($"AIDA64 指令发送失败: {ex.Message}"); }
-            }
+            Log("检测到 Prime95 已在运行，为避免干扰现有实例，CPU 烤机已跳过（可先手动关闭 Prime95 再重试）");
+            return;
+        }
+
+        var workDir = Path.GetDirectoryName(primeExe);
+        if (string.IsNullOrEmpty(workDir) || !Directory.Exists(workDir))
+        {
+            Log($"Prime95 所在目录无效: {workDir}");
             return;
         }
 
         try
         {
-            var args = cpuStress ? $"/SST CPU /SSTDUR {stressMinutes * 60}" : "";
-            _aidaProcess = Process.Start(new ProcessStartInfo { FileName = aidaExe, Arguments = args, UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(aidaExe) });
-            _weStartedAida = true;
-            Log(cpuStress ? $"AIDA64 已启动 (CPU 稳定性测试, {stressMinutes} 分钟)" : "AIDA64 已启动 (仅监控模式)");
+            WritePrime95TortureConfig(workDir, stressMinutes);
         }
-        catch (Exception ex) { Log($"AIDA64 启动失败: {ex.Message}"); }
+        catch (Exception ex)
+        {
+            Log($"写入 Prime95 烤机配置失败: {ex.Message}，将使用 Prime95 上次保存的参数");
+        }
+
+        try
+        {
+            // 实测确认：Prime95 烤机不需要管理员权限，普通权限直接启动即可（也保证停止时能正常 Kill 子进程）
+            _primeProcess = Process.Start(new ProcessStartInfo
+            {
+                FileName = primeExe,
+                Arguments = "-t",
+                UseShellExecute = true,
+                WorkingDirectory = workDir
+            });
+            Log($"Prime95 已启动 (CPU 压力测试, {stressMinutes} 分钟)");
+        }
+        catch (Exception ex)
+        {
+            _primeProcess = null;
+            Log($"Prime95 启动失败: {ex.Message}");
+        }
+    }
+
+    // 将烤机参数合并写入 prime.txt：保留用户已有配置（PrimeNet/Worktodo 等），仅替换烤机相关键。
+    // 键名与 prime95 源码一致（Prime95Doc.cpp / commonb.c tortureTest），prime95.exe -t 启动时读取。
+    private static void WritePrime95TortureConfig(string workDir, int stressMinutes)
+    {
+        var path = Path.Combine(workDir, "prime.txt");
+        var existing = File.Exists(path)
+            ? File.ReadAllLines(path).Where(l => !string.IsNullOrWhiteSpace(l)).ToList()
+            : [];
+
+        var keys = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["TortureCores"] = GetPhysicalCoreCount().ToString(),
+            ["TortureHyperthreading"] = "1",
+            ["MinTortureFFT"] = "4",
+            ["MaxTortureFFT"] = "4096",
+            ["TortureMem"] = (GetTotalRamMb() >= 8192 ? 1024 : GetTotalRamMb() >= 4096 ? 512 : 128).ToString(),
+            ["TortureTime"] = Math.Clamp(stressMinutes, 3, 180).ToString(),
+            ["TortureWeak"] = "0",
+        };
+
+        var result = new List<string>();
+        foreach (var line in existing)
+        {
+            // 跳过将要替换的烤机键；prime.txt 可能含 [Internals] 等无等号的 section 行，原样保留
+            var eq = line.IndexOf('=');
+            if (eq > 0 && keys.ContainsKey(line[..eq].Trim())) continue;
+            result.Add(line);
+        }
+
+        // 实测验证：prime95 的 ini 解析只读取第一个 section（如 [Internals]）之前的全局区，
+        // 键追加到文件末尾会被静默忽略并回退默认值，因此新键必须插到第一个 section 之前
+        var firstSection = result.FindIndex(l => l.StartsWith('['));
+        if (firstSection < 0) firstSection = result.Count;
+        result.InsertRange(firstSection, keys.Select(kv => $"{kv.Key}={kv.Value}"));
+        File.WriteAllLines(path, result, Encoding.UTF8);
+    }
+
+    private static int GetPhysicalCoreCount()
+    {
+        try
+        {
+            using var searcher = new ManagementObjectSearcher("SELECT NumberOfCores FROM Win32_Processor");
+            var cores = 0;
+            foreach (ManagementObject obj in searcher.Get())
+            {
+                cores += Convert.ToInt32(obj["NumberOfCores"]);
+                obj.Dispose();
+            }
+            if (cores > 0) return cores;
+        }
+        catch { }
+        return Math.Max(1, Environment.ProcessorCount / 2);
+    }
+
+    private static long GetTotalRamMb()
+    {
+        try
+        {
+            using var searcher = new ManagementObjectSearcher("SELECT TotalPhysicalMemory FROM Win32_ComputerSystem");
+            foreach (ManagementObject obj in searcher.Get())
+            {
+                var bytes = Convert.ToInt64(obj["TotalPhysicalMemory"]);
+                obj.Dispose();
+                return bytes / 1048576;
+            }
+        }
+        catch { }
+        return 8192; // 未知时按内存充足取值，TortureMem 给到 1024 MB
     }
 
     private void StartFurMarkGpuStress(int minutes)

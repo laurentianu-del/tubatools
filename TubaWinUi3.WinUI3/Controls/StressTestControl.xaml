@@ -12,16 +12,6 @@
         <ScrollViewer HorizontalScrollMode="Disabled" VerticalScrollBarVisibility="Auto" Padding="24,0,24,0">
             <StackPanel Spacing="14" MaxWidth="960" HorizontalAlignment="Center">
 
-                <Border x:Name="AidaStatusBorder" Padding="14,10" BorderThickness="1" CornerRadius="6"
-                        BorderBrush="{ThemeResource SubtleFillColorSecondaryBrush}"
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon x:Name="AidaStatusIcon" FontSize="16" Glyph="&#xE7BA;" />
-                        <TextBlock x:Name="AidaStatusText" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center"
-                                   Text="正在检测 AIDA64 WMI 连接..." />
-                    </StackPanel>
-                </Border>
-
                 <Border Padding="12,8,12,8" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
                     <Grid ColumnSpacing="8">
                         <Grid.ColumnDefinitions>
