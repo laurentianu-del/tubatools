@@ -16,7 +16,8 @@ public sealed record ToolMetadata(
     string? LaunchTarget,
     string? TutorialUrl,
     IReadOnlyList<string>? Tags,
-    int? ToolVersion);
+    int? ToolVersion,
+    int? Order = null);
 
 public sealed record JsonArchVariantResult(string? File, string? Dir, string? Arch);
 
@@ -116,7 +117,8 @@ public static class ToolMetadataService
             jsonMetadata?.LaunchTarget,
             jsonMetadata?.TutorialUrl,
             jsonMetadata?.Tags,
-            jsonMetadata?.ToolVersion);
+            jsonMetadata?.ToolVersion,
+            jsonMetadata?.Order);
     }
 
     public static IReadOnlyList<JsonArchVariantResult> GetArchVariants(string toolPath, string? toolDir = null)
@@ -200,6 +202,41 @@ public static class ToolMetadataService
         catch { }
     }
 
+    /// <summary>
+    /// 把卡片拖拽排序结果写回 tools.json 的 order 字段。
+    /// orderedToolDirs 为工具目录（按期望顺序）；未收录进 tools.json 的自定义工具自动跳过。
+    /// 读取侧（FindJsonMetadataByDir → Order）与写入侧使用同一套匹配规则，保证读写一致。
+    /// </summary>
+    public static void SaveToolOrder(IReadOnlyList<string> orderedToolDirs)
+    {
+        try
+        {
+            var metadataPath = Path.Combine(GetWritableMetadataDir(), "tools.json");
+            if (!File.Exists(metadataPath) || orderedToolDirs.Count == 0) return;
+
+            var doc = JsonNode.Parse(File.ReadAllText(metadataPath));
+            if (doc?["tools"] is not JsonArray tools) return;
+
+            var order = 0;
+            foreach (var dir in orderedToolDirs)
+            {
+                var match = FindJsonMetadataByDir(dir)?.Match;
+                if (string.IsNullOrWhiteSpace(match)) continue;
+
+                var entry = tools
+                    .OfType<JsonObject>()
+                    .FirstOrDefault(item => string.Equals(item["match"]?.GetValue<string>(), match, StringComparison.CurrentCultureIgnoreCase));
+                if (entry is null) continue;
+
+                entry["order"] = order++;
+            }
+
+            File.WriteAllText(metadataPath, doc.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+            _metadata = null; // 立即失效内存缓存，下次读取即为新顺序
+        }
+        catch { }
+    }
+
     public static async Task<IReadOnlyList<RemoteToolVersion>?> FetchRemoteToolsJsonAsync(CancellationToken ct = default)
     {
         try
@@ -276,7 +313,8 @@ public static class ToolMetadataService
             .FirstOrDefault();
     }
 
-    private static bool MatchesFlexible(string? source, string match)
+    /// <summary>目录名/路径与 tools.json match 字段的灵活匹配规则（去空格-下划线-连字符后子串匹配），供目录定位复用。</summary>
+    public static bool MatchesFlexible(string? source, string match)
     {
         if (string.IsNullOrWhiteSpace(source))
             return false;
@@ -293,6 +331,38 @@ public static class ToolMetadataService
 
         return normalizedSource.Contains(normalizedMatch, StringComparison.CurrentCultureIgnoreCase);
     }
+
+    /// <summary>
+    /// 多分类副本/内置挂载声明：tools.json 条目的 categories 含指定分类时返回该条目。
+    /// 真实工具副本用 category(主分类)+categories(副本分类)；内置挂载用 builtin+categories(挂载位置)。
+    /// </summary>
+    public static IReadOnlyList<CategoryPlacement> GetCategoryPlacements(string category)
+    {
+        try
+        {
+            return LoadMetadata()
+                .Where(item => item.Categories is not null &&
+                               item.Categories.Any(c => string.Equals(c, category, StringComparison.OrdinalIgnoreCase)))
+                .Select(item => new CategoryPlacement(
+                    item.Match ?? "",
+                    item.Category,
+                    item.Categories!.Where(c => !string.IsNullOrWhiteSpace(c)).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+                    string.IsNullOrWhiteSpace(item.Builtin) ? null : item.Builtin,
+                    item.Order))
+                .ToList();
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    public sealed record CategoryPlacement(
+        string Match,
+        string? PrimaryCategory,
+        IReadOnlyList<string> Categories,
+        string? BuiltinId,
+        int? Order);
 
     private static IReadOnlyList<JsonToolMetadata> LoadMetadata()
     {
@@ -351,8 +421,20 @@ public static class ToolMetadataService
         return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
     }
 
+    /// <summary>仅供测试使用：直接替代 FindRoot 的返回值（即 Metadata 目录本身，null = 恢复自动查找）。</summary>
+    internal static string? MetadataRootOverride;
+
+    internal static void SetMetadataRootForTests(string? metadataDir)
+    {
+        MetadataRootOverride = metadataDir;
+        _metadata = null;
+    }
+
     private static string FindRoot(string folderName)
     {
+        if (MetadataRootOverride is not null)
+            return MetadataRootOverride;
+
         var appDir = ToolCatalog.AppDirectory;
         var outputRoot = Path.Combine(appDir, folderName);
         if (Directory.Exists(outputRoot))
@@ -429,6 +511,16 @@ public static class ToolMetadataService
         public List<JsonArchVariant>? ArchVariants { get; set; }
         [System.Text.Json.Serialization.JsonPropertyName("version")]
         public int? ToolVersion { get; set; }
+        public int? Order { get; set; }
+
+        /// <summary>主分类：物理目录所在的分类（多分类副本条目声明用）。</summary>
+        public string? Category { get; set; }
+
+        /// <summary>副本分类：工具额外出现的分类列表；内置挂载条目 = 挂载位置列表。</summary>
+        public List<string>? Categories { get; set; }
+
+        /// <summary>内置工具挂载：BuiltinToolRegistry 的工具 id（替代旧 link.json 的 builtin 链接）。</summary>
+        public string? Builtin { get; set; }
     }
 
     private sealed class JsonArchVariant

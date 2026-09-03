@@ -217,6 +217,19 @@
                     Opacity="1.0" />
             </StackPanel>
 
+            <Button
+                x:Name="EditOrderButton"
+                Grid.Column="1"
+                VerticalAlignment="Center"
+                Padding="12,6"
+                Click="EditOrderButton_Click"
+                ToolTipService.ToolTip="进入排序模式，按住卡片上下拖动调整顺序"
+                Visibility="Collapsed">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <FontIcon x:Name="EditOrderIcon" FontSize="12" Glyph="&#xE70F;" />
+                    <TextBlock x:Name="EditOrderButtonText" Text="编辑排序" />
+                </StackPanel>
+            </Button>
 
         </Grid>
 
@@ -237,6 +250,7 @@
                 IsItemClickEnabled="True"
                 ItemClick="ToolsGrid_ItemClick"
                 DoubleTapped="ToolsGrid_DoubleTapped"
+                DragItemsCompleted="Grid_DragItemsCompleted"
                 ItemContainerStyle="{StaticResource ToolCardStyle}"
                 SelectionMode="None"
                 SizeChanged="ToolsGrid_SizeChanged"
@@ -450,6 +464,7 @@
                 IsItemClickEnabled="True"
                 ItemClick="CompactGrid_ItemClick"
                 DoubleTapped="CompactGrid_DoubleTapped"
+                DragItemsCompleted="Grid_DragItemsCompleted"
                 ItemContainerStyle="{StaticResource CompactCardStyle}"
                 SelectionMode="None"
                 SizeChanged="CompactGrid_SizeChanged"
@@ -544,6 +559,38 @@
                         </DataTemplate>
                     </GridView.ItemTemplate>
                 </GridView>
+
+            <!-- 编辑排序模式：专用纵向列表，整行自实现拖拽（与收藏页同模式） -->
+            <ScrollViewer
+                x:Name="EditModeScroll"
+                Visibility="Collapsed">
+                <StackPanel Spacing="12" Margin="0,4,0,0">
+                    <Border
+                        Padding="12,10"
+                        HorizontalAlignment="Center"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon
+                                FontSize="14"
+                                Glyph="&#xE700;"
+                                VerticalAlignment="Center"
+                                Opacity="1.0" />
+                            <TextBlock
+                                Opacity="1.0"
+                                Text="按住任意行上下拖动即可调整顺序，完成后点击右上角“完成”。"
+                                VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                    <StackPanel
+                        x:Name="EditRowsPanel"
+                        Spacing="8"
+                        MaxWidth="720"
+                        HorizontalAlignment="Center" />
+                </StackPanel>
+            </ScrollViewer>
 
             <StackPanel
                 x:Name="EmptyState"

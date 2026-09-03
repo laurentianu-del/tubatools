@@ -427,9 +427,26 @@ public sealed partial class CustomToolManagerWindow : Window
         var category = _categories.FirstOrDefault(c => c.Name == categoryName);
         if (category is null) return;
 
+        // 名字序回退：自定义工具（未收录 tools.json）与旧数据兼容
         var newOrder = category.Tools.Select(t => t.Name).ToList();
         var json = System.Text.Json.JsonSerializer.Serialize(newOrder);
         AppSettings.Set($"ToolOrder_{categoryName}", json);
+
+        // 同步写 tools.json 的 order 字段：收录工具的持久主序（与首页拖拽排序共用一套数据）；
+        // 内置挂载的 Path 本身就是虚拟目录（tools.json builtin 条目），直接参与排序
+        var orderedDirs = category.Tools
+            .Select(t => t.IsBuiltinLink
+                ? t.Path
+                : (System.IO.Directory.Exists(t.Path) ? t.Path : System.IO.Path.GetDirectoryName(t.Path)))
+            .Where(d => !string.IsNullOrWhiteSpace(d))
+            .Select(d => d!)
+            .ToList();
+
+        _ = Task.Run(() =>
+        {
+            ToolMetadataService.SaveToolOrder(orderedDirs);
+            ToolCatalog.InvalidateTagsCache();
+        });
     }
 
     private async void AddCategoryButton_Click(object sender, RoutedEventArgs e)
@@ -1027,12 +1044,14 @@ public sealed class ToolViewModel
     public string Name { get; }
     public string Category { get; }
     public string Path { get; }
+    public bool IsBuiltinLink { get; }
 
     public ToolViewModel(ToolItem item)
     {
         Name = item.Name;
         Category = item.Category;
         Path = item.Path;
+        IsBuiltinLink = item.IsBuiltinLink;
     }
 
     public override string ToString() => Name;

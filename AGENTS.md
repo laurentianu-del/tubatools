@@ -8,7 +8,7 @@ A WinUI 3 (Windows App SDK / .NET 10) Chinese-language PC hardware toolbox ("图
 
 - `TubaWinUi3.WinUI3/` — **the app**. The only project you normally build/run; `dotnet` commands target `TubaWinUi3.WinUI3/TubaWinUi3.csproj`.
 - `TubaWinUI3.BackEnd/` — a small **NativeAOT helper process** (`TubaWinUI3.BackEnd.exe`) used by the 主动拦截 (active intercept) feature; managed by `ActiveInterceptService`. The main csproj's `CopyBackendForBuild` target copies its framework-dependent output after every `dotnet build`, and `PublishBackend` builds/publishes the AOT version during `dotnet publish`.
-- `TubaWinUi3.Compatible/` — a separate **.NET Framework 4.8 WinForms** edition (`图吧工具箱Winui3兼容版.exe`, ReaLTaiizor Crown theme + Costura.Fody single-file). NOT WinUI 3 and NOT .NET 10 — different toolchain, different conventions. Built by CI and bundled into portable zips. Do not mix its patterns into the main app. Supports link.json cross-category (`target`) tools and splits each arch variant (x64/ARM64/x86) into its own tool card; `builtin` links are hidden (WinForms can't run WinUI built-ins).
+- `TubaWinUi3.Compatible/` — a separate **.NET Framework 4.8 WinForms** edition (`图吧工具箱Winui3兼容版.exe`, ReaLTaiizor Crown theme + Costura.Fody single-file). NOT WinUI 3 and NOT .NET 10 — different toolchain, different conventions. Built by CI and bundled into portable zips. Do not mix its patterns into the main app. Supports tools.json cross-category (`category` + `categories`) copies and splits each arch variant (x64/ARM64/x86) into its own tool card; `builtin` placement entries are skipped (WinForms can't run WinUI built-ins).
 - `TubaWinUi3.Tests/` — **xUnit** tests (xUnit 2.9 + coverlet), referencing the main project via `InternalsVisibleTo`.
 
 ## Build, run, test
@@ -18,11 +18,16 @@ dotnet build                                                      # Debug; Runti
 dotnet run                                                        # Unpackaged profile (only profile in launchSettings.json)
 dotnet test                                                       # all tests
 dotnet test --filter "FullyQualifiedName~ToolCatalogTests"        # one class / one test
+.\run-msix.ps1                                                    # PACKAGED (MSIX) run: register build output as dev
+                                                                  #   package 'tubawinui3.dev' (Developer Mode, no signing)
+                                                                  #   → seed LocalState Tools → launch. CLI 版 F5。
+.\run-msix.ps1 -NoBuild -NoLaunch                                 # 只重注册不启动（CI/无头）
 ```
 
 - Platforms x86 / x64 / ARM64; `RuntimeIdentifier` defaults to the current process architecture.
 - `WindowsPackageType=None` + `EnableMsixTooling=false` → runs unpackaged; no MSIX registration for dev.
-- **Requires admin**: `App.OnLaunched` auto-elevates via the `runas` verb and `Exit()`s if not admin (unpackaged mode only). Headless command-line modes skip the window entirely: `EnergyStarStartupService.SilentArg` (EcoQoS throttling), `--copy-path`, `--toast`, `--build-tool-cache`, `--show-active-intercept`.
+- **MSIX 自测**：`run-msix.ps1` 把现有构建输出（`bin/<Config>/<tfm>/win-<arch>`，含 exe/pri/Tools/Metadata/Assets）直接用开发者模式注册为 dev 包（identity `tubawinui3.dev`，与 Store 的 `DA3D64F4.winui3` 互不干扰），再从 `shell:AppsFolder` 激活启动 → 真实包身份。LocalFolder 数据在 `%LOCALAPPDATA%\Packages\tubawinui3.dev_<hash>\LocalState\TubaWinUi3\`。注意：注册的是可写 bin 目录，Store 那种「安装目录 ACL 只读」不模拟；要上架级验证走 `build-msix-store.ps1`。
+- **Requires admin**: `App.OnLaunched` auto-elevates via the `runas` verb and `Exit()`s if not admin (unpackaged mode only). Headless command-line modes skip the window entirely: `EnergyStarStartupService.SilentArg` (EcoQoS throttling), `--copy-path`, `--toast`, `--show-active-intercept`.
 - `AllowUnsafeBlocks=true` (P/Invoke structs in `HardwareInfoService`).
 - Publish is self-contained; `PublishTrimmed=false`, `PublishReadyToRun=true` — trimming is never used.
 - **`.pri` gotcha**: after `dotnet publish`, copy `TubaWinUi3.pri` from `bin/<arch>/Release/.../<rid>/` into the publish output (CI does this; the app misbehaves without it).
@@ -35,8 +40,9 @@ dotnet test --filter "FullyQualifiedName~ToolCatalogTests"        # one class / 
 
 - `App.xaml.cs` → `MainWindow` (custom TitleBar + `NavigationView` + `Frame`); nav categories come from `ToolCatalog.GetCategories()` and `BuiltinToolRegistry.GetCategories()`.
 - **All services are static classes with no DI**, called directly from pages. The single exception is `LiteMonitorService`, a singleton (`Instance`).
-- `ToolCatalog` scans `Tools/` for `.exe .bat .cmd .lnk .msc .ps1 .vbs`, merges x64/x86/ARM64 variants, and resolves the `Tools/` root by walking up from `AppContext.BaseDirectory` (`FindToolsRoot()`).
-- `ToolMetadataService` merges `Metadata/tools.json` + `FileVersionInfo` + `readme.txt`. The `"match"` field is a **case-insensitive substring** against tool filenames/paths.
+- `ToolCatalog` scans `Tools/` for `.exe .bat .cmd .lnk .msc .ps1 .vbs`, merges x64/x86/ARM64 variants, and resolves the `Tools/` root by walking up from `AppContext.BaseDirectory` (`FindToolsRoot()`). No disk cache layer: in-memory cache + single-flight + parallel scan only.
+- `ToolMetadataService` merges `Metadata/tools.json` + `FileVersionInfo` + `readme.txt`. The `"match"` field is a **case-insensitive substring** against tool filenames/paths. tools.json is the single source of truth for: metadata, card order (`"order"`), cross-category copies (`"category"` = physical primary category + `"categories"` = extra categories), and builtin tool placements (`"builtin"` = BuiltinToolRegistry id; virtual dir key `ToolsRoot/分类/目录名` keeps favorites/order-save compatible with the removed link.json dirs). Copy dir resolution scores candidates: exact dir name > flexible match equality > relative-path substring.
+- Sorting: tools.json `"order"` primary → `AppSettings ToolOrder_{category}` fallback for uncatalogued custom tools → name. Drag-reorder (HomePage pure-category view + CustomToolManagerWindow) double-writes via `ToolMetadataService.SaveToolOrder(dirs)`; note `order` is entry-global, so copies share one order across categories.
 - `ToolItem.InitArchOptions()` auto-selects the best arch for the OS (ARM64 > x64 > x86 preference).
 - Built-in tools: see `BuiltinToolRegistry.RegisterDefaults()` (~31 tools). `CommunityToolBuiltinTool` registers only when `!RuntimeHelper.IsMsixPackaged`.
 

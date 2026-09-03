@@ -166,7 +166,8 @@ namespace TubaWinUi3.Compatible.Services
             return best;
         }
 
-        private static bool MatchesFlexible(string source, string match)
+        /// <summary>目录名/路径与 tools.json match 字段的灵活匹配规则（去空格-下划线-连字符后子串匹配）。</summary>
+        public static bool MatchesFlexible(string source, string match)
         {
             if (string.IsNullOrWhiteSpace(source))
                 return false;
@@ -178,6 +179,59 @@ namespace TubaWinUi3.Compatible.Services
             var normalizedMatch = match.Replace(" ", "").Replace("-", "").Replace("_", "");
 
             return normalizedSource.IndexOf(normalizedMatch, StringComparison.CurrentCultureIgnoreCase) >= 0;
+        }
+
+        /// <summary>
+        /// 多分类副本声明：tools.json 条目的 categories 含指定分类时返回该条目。
+        /// （内置挂载条目由调用方识别 BuiltinId 后跳过——兼容版无内置功能实现。）
+        /// </summary>
+        public static IReadOnlyList<CategoryPlacement> GetCategoryPlacements(string category)
+        {
+            try
+            {
+                var result = new List<CategoryPlacement>();
+                foreach (var item in LoadMetadata())
+                {
+                    if (item.Categories == null) continue;
+                    bool hit = false;
+                    foreach (var c in item.Categories)
+                    {
+                        if (string.Equals(c, category, StringComparison.OrdinalIgnoreCase))
+                        {
+                            hit = true;
+                            break;
+                        }
+                    }
+                    if (!hit) continue;
+
+                    var cats = new List<string>();
+                    foreach (var c in item.Categories)
+                    {
+                        if (!string.IsNullOrWhiteSpace(c) && !cats.Contains(c))
+                            cats.Add(c);
+                    }
+                    result.Add(new CategoryPlacement
+                    {
+                        Match = item.Match ?? "",
+                        PrimaryCategory = item.Category,
+                        Categories = cats,
+                        BuiltinId = string.IsNullOrWhiteSpace(item.Builtin) ? null : item.Builtin
+                    });
+                }
+                return result;
+            }
+            catch
+            {
+                return new List<CategoryPlacement>();
+            }
+        }
+
+        public sealed class CategoryPlacement
+        {
+            public string Match { get; set; }
+            public string PrimaryCategory { get; set; }
+            public IReadOnlyList<string> Categories { get; set; }
+            public string BuiltinId { get; set; }
         }
 
         private static IReadOnlyList<JsonToolMetadata> LoadMetadata()
@@ -215,13 +269,24 @@ namespace TubaWinUi3.Compatible.Services
                         DownloadUrl = item.Value<string>("downloadUrl"),
                         DownloadFilter = item.Value<string>("downloadFilter"),
                         WingetId = item.Value<string>("wingetId"),
-                        LaunchTarget = item.Value<string>("launchTarget")
+                        LaunchTarget = item.Value<string>("launchTarget"),
+                        Category = item.Value<string>("category"),
+                        Builtin = item.Value<string>("builtin")
                     };
 
                     var tagsToken = item["tags"];
                     if (tagsToken != null)
                     {
                         meta.Tags = tagsToken.Select(t => t.Value<string>()).ToList();
+                    }
+
+                    var categoriesToken = item["categories"];
+                    if (categoriesToken != null)
+                    {
+                        meta.Categories = categoriesToken
+                            .Select(t => t.Value<string>())
+                            .Where(s => !string.IsNullOrWhiteSpace(s))
+                            .ToList();
                     }
 
                     var variantsToken = item["archVariants"];
@@ -339,6 +404,15 @@ namespace TubaWinUi3.Compatible.Services
             public string LaunchTarget { get; set; }
             public IReadOnlyList<string> Tags { get; set; }
             public List<JsonArchVariant> ArchVariants { get; set; }
+
+            /// <summary>主分类：物理目录所在的分类（多分类副本条目声明用）。</summary>
+            public string Category { get; set; }
+
+            /// <summary>副本分类：工具额外出现的分类列表。</summary>
+            public List<string> Categories { get; set; }
+
+            /// <summary>内置工具挂载 id（兼容版无内置功能实现，仅用于识别后跳过）。</summary>
+            public string Builtin { get; set; }
         }
 
         private sealed class JsonArchVariant

@@ -97,30 +97,53 @@ namespace TubaWinUi3.Compatible.Services
                 return new List<ToolItem>();
 
             var categoryRoot = Path.Combine(ToolsRoot, category);
-            if (!Directory.Exists(categoryRoot))
-                return new List<ToolItem>();
-
-            var toolDirs = Directory.GetDirectories(categoryRoot).ToList();
-            var merged = MergeArchDirectories(toolDirs);
 
             var items = new List<ToolItem>();
-            foreach (var toolDir in merged)
-            {
-                var linkInfo = TryResolveLink(toolDir);
-                if (linkInfo != null)
-                {
-                    // builtin 链接仅存在于主应用内置功能，兼容版不展示
-                    if (linkInfo.IsBuiltin)
-                        continue;
 
-                    items.AddRange(CreateLinkedToolItems(category, categoryRoot, toolDir, linkInfo));
-                }
-                else
+            // tools.json 副本声明：物理扫描需避让同名目录（构建残留的空壳目录
+            // 否则会经 HasDownloadUrl 生成无图标占位条目，与下方合成条目重复）。
+            // 注意：builtin 挂载兼容版不合成条目，物理同名目录需保留扫描，否则工具消失。
+            var placements = ToolMetadataService.GetCategoryPlacements(category);
+            var declaredDirKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var p in placements)
+            {
+                if (string.IsNullOrWhiteSpace(p.Match) ||
+                    !string.IsNullOrEmpty(p.BuiltinId) ||
+                    string.IsNullOrEmpty(p.PrimaryCategory) ||
+                    p.PrimaryCategory.Equals(category, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                declaredDirKeys.Add(p.Match.Replace(" ", "").Replace("-", "").Replace("_", ""));
+            }
+
+            // 物理目录扫描（分类目录可能不存在：纯 tools.json 副本的分类也要能出列表）
+            if (Directory.Exists(categoryRoot))
+            {
+                var toolDirs = Directory.GetDirectories(categoryRoot).ToList();
+                var merged = MergeArchDirectories(toolDirs);
+
+                foreach (var toolDir in merged)
                 {
+                    var dirKey = Path.GetFileName(toolDir).Replace(" ", "").Replace("-", "").Replace("_", "");
+                    if (declaredDirKeys.Contains(dirKey))
+                        continue; // 已由 tools.json 副本/内置挂载声明，物理占位跳过避免重复
+
                     var launchable = FindPrimaryLaunchable(toolDir);
                     if (launchable != null || ToolMetadataService.HasDownloadUrl(category, toolDir))
                         items.AddRange(CreateToolItems(category, categoryRoot, launchable ?? CreatePlaceholderPath(toolDir), toolDir));
                 }
+            }
+
+            // tools.json 多分类副本：由 category+categories 字段声明（旧 link.json 链路已删除）。
+            // 内置挂载条目（builtin）兼容版无内置功能实现，跳过。
+            foreach (var placement in placements)
+            {
+                if (!string.IsNullOrEmpty(placement.BuiltinId))
+                    continue;
+                if (string.IsNullOrEmpty(placement.PrimaryCategory) ||
+                    placement.PrimaryCategory.Equals(category, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                items.AddRange(CreateCategoryCopyItems(placement, category));
             }
 
             var toolOrderJson = AppSettings.Get("ToolOrder_" + category);
@@ -182,47 +205,6 @@ namespace TubaWinUi3.Compatible.Services
             return result;
         }
 
-        /// <summary>目录仅含 link.json 时视为链接目录，解析其指向；builtin 链接在兼容版不可用（返回标记后跳过）。</summary>
-        private sealed class LinkInfo
-        {
-            public string TargetRelativePath { get; set; }
-            public string TargetFullPath { get; set; }
-            public string BuiltinToolId { get; set; }
-            public bool IsBuiltin { get { return !string.IsNullOrWhiteSpace(BuiltinToolId); } }
-        }
-
-        private static LinkInfo TryResolveLink(string toolDir)
-        {
-            var linkPath = Path.Combine(toolDir, "link.json");
-            if (!File.Exists(linkPath)) return null;
-
-            var files = Directory.GetFiles(toolDir);
-            var dirs = Directory.GetDirectories(toolDir);
-            if (files.Length != 1 || dirs.Length != 0) return null;
-
-            try
-            {
-                var root = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(linkPath));
-
-                var builtinVal = root.Value<string>("builtin");
-                if (!string.IsNullOrWhiteSpace(builtinVal))
-                {
-                    // 兼容版无内置功能实现：标记后由调用方跳过
-                    return new LinkInfo { TargetRelativePath = "", TargetFullPath = "", BuiltinToolId = builtinVal };
-                }
-
-                var target = root.Value<string>("target");
-                if (string.IsNullOrWhiteSpace(target)) return null;
-                var targetFull = Path.Combine(ToolsRoot, target.Replace('/', Path.DirectorySeparatorChar));
-                if (!Directory.Exists(targetFull)) return null;
-                return new LinkInfo { TargetRelativePath = target, TargetFullPath = targetFull };
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
         /// <summary>
         /// 多架构模式：目录下发现多个架构变体（x64/x86/ARM64）时，每个架构解析为一个独立工具卡片，
         /// 名称带架构后缀（如 "CPU-Z x64" / "CPU-Z ARM64"）；无变体时保持单个工具。
@@ -279,22 +261,61 @@ namespace TubaWinUi3.Compatible.Services
             };
         }
 
-        /// <summary>跨分类链接：以目标目录（主分类）生成完整工具项，并带上链接分类组成多分类。</summary>
-        private static IReadOnlyList<ToolItem> CreateLinkedToolItems(string category, string categoryRoot, string linkDir, LinkInfo linkInfo)
+        /// <summary>
+        /// 跨分类副本（tools.json category+categories 字段）：以主分类的物理目录生成完整工具项，
+        /// 标记 IsLinked 并组成多分类（替代旧 link.json 的 target 链接；多架构拆卡逻辑与主扫描一致）。
+        /// </summary>
+        private static List<ToolItem> CreateCategoryCopyItems(ToolMetadataService.CategoryPlacement placement, string category)
         {
-            var targetLaunchable = FindPrimaryLaunchable(linkInfo.TargetFullPath);
-            if (targetLaunchable == null && !ToolMetadataService.HasDownloadUrl(category, linkInfo.TargetFullPath))
+            var primaryCategory = placement.PrimaryCategory;
+            var categoryRoot = Path.Combine(ToolsRoot, primaryCategory);
+            if (!Directory.Exists(categoryRoot))
                 return new List<ToolItem>();
 
-            var primaryCategory = Path.GetFileName(Path.GetDirectoryName(linkInfo.TargetRelativePath)) ?? category;
+            // 主分类下定位物理目录：相对路径含 match 或目录名灵活匹配（与 FindJsonMetadataByDir 同规则）。
+            // 多候选时评分择优：目录名精确等于 match > 灵活匹配相等 > 相对路径包含，
+            // 避免 memtest / memtest64 / memtestpro 这类前缀重叠目录误配。
+            string toolDir = null;
+            int bestScore = 0;
+            foreach (var d in Directory.GetDirectories(categoryRoot))
+            {
+                var name = Path.GetFileName(d);
+                int score;
+                if (string.Equals(name, placement.Match, StringComparison.OrdinalIgnoreCase))
+                    score = 3;
+                else if (string.Equals(
+                    name.Replace(" ", "").Replace("-", "").Replace("_", ""),
+                    placement.Match.Replace(" ", "").Replace("-", "").Replace("_", ""),
+                    StringComparison.OrdinalIgnoreCase))
+                    score = 2;
+                else if (PathHelper.GetRelativePath(ToolsRoot, d).IndexOf(placement.Match, StringComparison.CurrentCultureIgnoreCase) >= 0 ||
+                         ToolMetadataService.MatchesFlexible(name, placement.Match))
+                    score = 1;
+                else
+                    continue;
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    toolDir = d;
+                }
+            }
+            if (toolDir == null)
+                return new List<ToolItem>();
+
+            var launchable = FindPrimaryLaunchable(toolDir);
+            if (launchable == null && !ToolMetadataService.HasDownloadUrl(primaryCategory, toolDir))
+                return new List<ToolItem>();
+
             var bases = CreateToolItems(
                 primaryCategory,
-                Path.GetDirectoryName(linkInfo.TargetFullPath) ?? linkInfo.TargetFullPath,
-                targetLaunchable ?? CreatePlaceholderPath(linkInfo.TargetFullPath),
-                linkInfo.TargetFullPath);
+                categoryRoot,
+                launchable ?? CreatePlaceholderPath(toolDir),
+                toolDir);
 
-            var categories = new List<string> { primaryCategory, category }
-                .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var categories = new List<string>(placement.Categories);
+            if (!categories.Contains(primaryCategory))
+                categories.Add(primaryCategory);
 
             var result = new List<ToolItem>();
             foreach (var baseItem in bases)
@@ -328,7 +349,7 @@ namespace TubaWinUi3.Compatible.Services
         }
 
         /// <summary>
-        /// 「全部工具」一览：同名工具（含 link.json 跨分类副本）只保留一份，
+        /// 「全部工具」一览：同名工具（含 tools.json 跨分类副本）只保留一份，
         /// 并把该名称出现的所有分类合并到 Categories 上（与主应用算法一致）。
         /// </summary>
         private static IReadOnlyList<ToolItem> DeduplicateAllTools(IReadOnlyList<ToolItem> allItems)

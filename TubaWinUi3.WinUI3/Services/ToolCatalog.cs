@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using TubaWinUi3.Models;
@@ -17,9 +18,7 @@ public static class ToolCatalog
         ".vbs"
     ];
 
-    private static bool _isLoadingFromCache;
-
-    public static bool IsCacheReady => _cachedAllTools is not null || _isLoadingFromCache;
+    public static bool IsCacheReady => _cachedAllTools is not null;
 
     public static string AppDirectory
     {
@@ -109,42 +108,58 @@ public static class ToolCatalog
         }
 
         var categoryRoot = Path.Combine(ToolsRoot, category);
-        if (!Directory.Exists(categoryRoot))
-        {
-            lock (_cacheLock) { _toolsCache[category] = new CategoryCacheEntry(ToolsRoot, []); }
-            return [];
-        }
+        var items = new ConcurrentBag<ToolItem>();
 
-        var toolDirs = Directory.GetDirectories(categoryRoot).ToList();
-        var merged = MergeArchDirectories(toolDirs);
+        // tools.json 副本/内置挂载声明：物理扫描需避让同名目录（构建残留的空壳目录
+        // 否则会经 HasDownloadUrl 生成无图标占位条目，与下方合成条目重复）
+        var placements = ToolMetadataService.GetCategoryPlacements(category).ToList();
+        var declaredDirKeys = placements
+            .Where(p => !string.IsNullOrWhiteSpace(p.Match) && (
+                !string.IsNullOrWhiteSpace(p.BuiltinId) ||
+                (!string.IsNullOrWhiteSpace(p.PrimaryCategory) &&
+                 !p.PrimaryCategory.Equals(category, StringComparison.OrdinalIgnoreCase))))
+            .Select(p => p.Match.Replace(" ", "").Replace("-", "").Replace("_", ""))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        var items = new List<ToolItem>();
-        foreach (var toolDir in merged)
+        // 物理目录扫描（分类目录可能不存在：纯 tools.json 副本的分类也要能出列表）
+        if (Directory.Exists(categoryRoot))
         {
-            var linkInfo = TryResolveLink(toolDir);
-            if (linkInfo is not null)
+            var toolDirs = Directory.GetDirectories(categoryRoot).ToList();
+            var merged = MergeArchDirectories(toolDirs);
+
+            // 并行扫描各工具目录（递归枚举 + FileVersionInfo 是主要 I/O 开销）
+            Parallel.ForEach(merged, toolDir =>
             {
-                if (linkInfo.IsBuiltin)
-                {
-                    var builtinItem = CreateBuiltinLinkedToolItem(category, toolDir, linkInfo);
-                    if (builtinItem is not null)
-                        items.Add(builtinItem);
-                }
-                else
-                {
-                    var linkedItem = CreateLinkedToolItem(category, categoryRoot, toolDir, linkInfo);
-                    if (linkedItem is not null)
-                        items.Add(linkedItem);
-                }
-            }
-            else
-            {
+                var dirKey = Path.GetFileName(toolDir).Replace(" ", "").Replace("-", "").Replace("_", "");
+                if (declaredDirKeys.Contains(dirKey))
+                    return; // 已由 tools.json 副本/内置挂载声明，物理占位跳过避免重复
+
                 var launchable = FindPrimaryLaunchable(toolDir);
                 if (launchable is not null || ToolMetadataService.HasDownloadUrl(category, toolDir))
                     items.Add(CreateToolItemWithVariants(category, categoryRoot, launchable ?? CreatePlaceholderPath(toolDir), toolDir));
+            });
+        }
+
+        // tools.json 多分类副本与内置挂载：由 category+categories / builtin 字段声明（无 link.json）
+        foreach (var placement in placements)
+        {
+            if (!string.IsNullOrWhiteSpace(placement.BuiltinId))
+            {
+                var builtinItem = CreateBuiltinPlacedItem(placement, category);
+                if (builtinItem is not null)
+                    items.Add(builtinItem);
+            }
+            else if (!string.IsNullOrWhiteSpace(placement.PrimaryCategory) &&
+                     !placement.PrimaryCategory.Equals(category, StringComparison.OrdinalIgnoreCase))
+            {
+                var copyItem = CreateCategoryCopyItem(placement, category);
+                if (copyItem is not null)
+                    items.Add(copyItem);
             }
         }
 
+        // 排序：tools.json 的 order 字段为主序（收录工具按编辑顺序）；
+        // 未收录的自定义工具退回 AppSettings ToolOrder_（旧数据兼容）→ 名称字典序
         var toolOrderJson = AppSettings.Get($"ToolOrder_{category}");
         List<string>? toolOrder = null;
         if (!string.IsNullOrWhiteSpace(toolOrderJson))
@@ -156,18 +171,22 @@ public static class ToolCatalog
             catch { }
         }
 
-        IReadOnlyList<ToolItem> result;
+        var orderedItems = items
+            .Where(item => item.SortOrder.HasValue)
+            .OrderBy(item => item.SortOrder!.Value)
+            .ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        var unorderedItems = items.Where(item => !item.SortOrder.HasValue).ToList();
         if (toolOrder is not null && toolOrder.Count > 0)
-        {
-            result = ReorderByName(items, toolOrder);
-        }
+            unorderedItems = ReorderByName(unorderedItems, toolOrder).ToList();
         else
-        {
-            result = items
+            unorderedItems = unorderedItems
                 .OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
                 .ThenBy(item => item.RelativePath, StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
-        }
+
+        IReadOnlyList<ToolItem> result = orderedItems.Concat(unorderedItems).ToList();
 
         lock (_cacheLock) { _toolsCache[category] = new CategoryCacheEntry(ToolsRoot, result); }
         return result;
@@ -261,7 +280,7 @@ public static class ToolCatalog
 
     private static bool RootsMatch(string? a, string? b)
         => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
-    private static int _cacheVersion = 5; // v5: 缓存存储各分类原始列表（含 link.json 跨分类副本）+ 多分类字段，去重只在内存汇总做
+    private static int _cacheVersion = 6; // v6: 多分类副本/内置挂载来自 tools.json（category/categories/builtin 字段），link.json 链路删除
 
     public static int CacheVersion => _cacheVersion;
 
@@ -283,24 +302,27 @@ public static class ToolCatalog
             if (cached is not null)
                 return cached;
 
-            SetAllToolsCache(ScanAllTools());
-            return _cachedAllTools;
+            var tools = ScanAllTools();
+            SetAllToolsCache(tools);
+            return tools;
         }
     }
 
-    /// <summary>真实扫描整个 Tools 树（不读任何缓存），供 single-flight 与后台刷新使用。</summary>
+    /// <summary>真实扫描整个 Tools 树（各分类并行），供 single-flight 使用。</summary>
     private static IReadOnlyList<ToolItem> ScanAllTools()
     {
         if (!Directory.Exists(ToolsRoot))
             return [];
 
-        var allItems = GetCategories().SelectMany(GetTools).ToList();
-        return DeduplicateAllTools(allItems);
+        var categories = GetCategories();
+        var perCategory = new List<ToolItem>[categories.Count];
+        Parallel.For(0, categories.Count, i => perCategory[i] = GetTools(categories[i]).ToList());
+        return DeduplicateAllTools([.. perCategory.SelectMany(c => c)]);
     }
 
     /// <summary>
     /// 对各分类的原始扫描结果做跨分类去重，生成「全部工具」一览。
-    /// 同名工具（含 link.json 关联副本）只保留一份，并把该名称出现的所有分类合并到 Categories 上。
+    /// 同名工具（含 tools.json 跨分类副本）只保留一份，并把该名称出现的所有分类合并到 Categories 上。
     /// </summary>
     private static IReadOnlyList<ToolItem> DeduplicateAllTools(List<ToolItem> allItems)
     {
@@ -333,201 +355,23 @@ public static class ToolCatalog
         }
 
         SetAllToolsCache(deduped);
-        return _cachedAllTools;
+        return deduped;
     }
 
-    public static async Task<IReadOnlyList<ToolItem>> GetAllToolsAsync()
+    /// <summary>
+    /// 直读 tools.json + 并行全量扫描（single-flight 合并并发调用，结果进内存缓存）。
+    /// 无磁盘缓存层：tools.json 是唯一元数据事实来源，扫描本身并行化保证启动速度。
+    /// </summary>
+    public static Task<IReadOnlyList<ToolItem>> GetAllToolsAsync()
     {
-        var cached = PeekAllToolsCache();
-        if (cached is not null)
-            return cached;
-
-        _isLoadingFromCache = true;
-        try
-        {
-            // ① AppData 运行时缓存（上次扫描/刷新写入，指纹已验证匹配）。
-            //    不再无条件后台重扫：工具内容变化（更新/增删）都会走
-            //    InvalidateTagsCache/RefreshToolsRoot 显式失效，每次启动全量重扫
-            //    只会与首页渲染/图标加载竞争磁盘带宽
-            if (ToolCacheService.TryLoadCache(out var cachedEntries) && cachedEntries.Count > 0)
-            {
-                var cachedTools = BuildFromEntries(cachedEntries);
-                SetAllToolsCache(cachedTools);
-                return cachedTools;
-            }
-
-            // ② 构建时预生成的随包缓存（Metadata/tool_cache.json）→ 首次运行秒出；
-            //    随包数据按发布时 Tools 生成，落到 AppData 并后台真实扫描修正一次
-            if (ToolCacheService.TryLoadBundledCache(out var bundledEntries) && bundledEntries.Count > 0)
-            {
-                var bundledTools = BuildFromEntries(bundledEntries);
-                SetAllToolsCache(bundledTools);
-                _ = Task.Run(() =>
-                {
-                    // 构建工具缓存/测试覆盖模式下不落盘（临时根数据会污染真实 AppData 缓存）
-                    if (_toolsRootOverridden) return;
-                    ToolCacheService.SaveCache(bundledEntries);
-                }); // 落到 AppData，供后续刷新
-                _ = Task.Run(RefreshCacheInBackground);
-                return bundledTools;
-            }
-        }
-        finally
-        {
-            _isLoadingFromCache = false;
-        }
-
-        // ③ 无可用缓存 → 全量扫描（single-flight 合并并发调用），完成后写盘供下次启动秒读。
-        //    写盘必须用各分类原始列表（含 link.json 跨分类副本），不能只存去重后的全部工具一览，
-        //    否则目标分类页会丢失关联工具、多分类信息也无从恢复。
-        var scanned = await Task.Run(() => GetAllToolsCached());
-        _ = Task.Run(() =>
-        {
-            // 构建工具缓存/测试覆盖模式下不落盘（临时根数据会污染真实 AppData 缓存）
-            if (_toolsRootOverridden) return;
-            ToolCacheService.SaveCache(BuildCacheEntries());
-        });
-        return scanned;
+        return Task.Run(GetAllToolsCached);
     }
 
-    /// <summary>从缓存条目恢复 ToolItem：分类缓存按各分类原始列表填充（含 link.json 跨分类副本），「全部工具」一览再跨分类去重并合并多分类。</summary>
-    private static IReadOnlyList<ToolItem> BuildFromEntries(List<ToolCacheEntry> entries)
-    {
-        var tools = entries.Select(e =>
-        {
-            var item = new ToolItem
-            {
-                Name = e.Name,
-                Category = e.Category,
-                PrimaryCategory = e.PrimaryCategory,
-                Categories = e.Categories ?? [],
-                IsLinked = e.IsLinked,
-                Path = e.Path,
-                RelativePath = e.RelativePath,
-                Extension = e.Extension,
-                Description = e.Description,
-                Publisher = e.Publisher,
-                Version = e.Version,
-                DownloadUrl = e.DownloadUrl,
-                WingetId = e.WingetId,
-                IconGlyph = e.IconGlyph,
-                PrimaryArch = e.PrimaryArch,
-                AlternateVersions = e.AlternateVersions.Select(a => new ArchVariant
-                {
-                    Name = a.Name,
-                    Path = a.Path,
-                    Arch = a.Arch
-                }).ToList(),
-                Tags = e.Tags,
-                IsFavorite = FavoritesService.IsFavorite(e.Path), // 收藏实时读取，缓存中的收藏状态可能过期
-                IsBuiltinLink = e.IsBuiltinLink,
-                BuiltinToolId = e.BuiltinToolId,
-                BuiltinKindText = e.BuiltinKindText,
-                TutorialUrl = e.TutorialUrl
-            };
-            item.InitArchOptions();
-            return item;
-        }).ToList();
-
-        FillCategoryCache(tools);
-        return DeduplicateAllTools(tools);
-    }
-
-    private static void FillCategoryCache(IReadOnlyList<ToolItem> tools)
-    {
-        lock (_cacheLock)
-        {
-            var root = ToolsRoot;
-            foreach (var group in tools.GroupBy(t => t.Category, StringComparer.OrdinalIgnoreCase))
-                _toolsCache[group.Key] = new CategoryCacheEntry(root, group.ToList());
-        }
-    }
-
-    /// <summary>扫描结果 → 磁盘缓存条目（后台刷新与构建工具缓存模式共用）。</summary>
-    public static List<ToolCacheEntry> ToCacheEntries(IReadOnlyList<ToolItem> tools)
-    {
-        return tools.Select(t => new ToolCacheEntry
-        {
-            Name = t.Name,
-            Category = t.Category,
-            PrimaryCategory = t.PrimaryCategory,
-            Categories = t.Categories.ToList(),
-            IsLinked = t.IsLinked,
-            Path = t.Path,
-            RelativePath = t.RelativePath,
-            Extension = t.Extension,
-            Description = t.Description,
-            Publisher = t.Publisher,
-            Version = t.Version,
-            DownloadUrl = t.DownloadUrl,
-            WingetId = t.WingetId,
-            IconGlyph = t.IconGlyph,
-            PrimaryArch = t.PrimaryArch,
-            AlternateVersions = t.AlternateVersions.Select(a => new ArchVariantEntry
-            {
-                Name = a.Name,
-                Path = a.Path,
-                Arch = a.Arch
-            }).ToList(),
-            Tags = t.Tags.ToList(),
-            IsFavorite = t.IsFavorite,
-            IsBuiltinLink = t.IsBuiltinLink,
-            BuiltinToolId = t.BuiltinToolId,
-            BuiltinKindText = t.BuiltinKindText,
-            TutorialUrl = t.TutorialUrl
-        }).ToList();
-    }
-
-    /// <summary>仅供构建工具缓存模式使用（--build-tool-cache），覆盖 Tools 根路径。传 null 恢复自动查找。</summary>
+    /// <summary>仅供测试/工具模式使用，覆盖 Tools 根路径。传 null 恢复自动查找。</summary>
     public static void SetToolsRootForBuild(string? toolsRoot)
     {
         _cachedToolsRoot = toolsRoot;
         _toolsRootOverridden = toolsRoot is not null;
-    }
-
-    /// <summary>
-    /// 生成落盘缓存条目：保留各分类的完整原始列表（含 link.json 关联的跨分类副本）。
-    /// 缓存必须存原始列表，跨分类去重只在内存「全部工具」一览中做；
-    /// 若把去重后的列表落盘，关联工具在目标分类页中会直接消失、多分类信息也无法恢复。
-    /// </summary>
-    public static List<ToolCacheEntry> BuildCacheEntries()
-    {
-        if (!Directory.Exists(ToolsRoot))
-            return [];
-        return ToCacheEntries(GetCategories().SelectMany(GetTools).ToList());
-    }
-
-    private static void RefreshCacheInBackground()
-    {
-        try
-        {
-            // 构建工具缓存/测试覆盖模式下不后台刷新：
-            // 覆盖根是临时目录，其结果提交到全局缓存会污染真实 Tools 根的数据
-            if (_toolsRootOverridden) return;
-
-            var rootSnapshot = ToolsRoot;
-            // 真实扫描一次（清空分类缓存强制重读磁盘）修正过期数据，并更新内存与磁盘缓存
-            lock (_cacheLock) { _toolsCache.Clear(); }
-            var raw = GetCategories().SelectMany(GetTools).ToList();
-            if (raw.Count == 0)
-                return;
-
-            var deduped = DeduplicateAllTools(raw);
-            lock (_cacheLock)
-            {
-                // 扫描期间根被切换（RefreshToolsRoot / 测试）→ 丢弃结果，避免陈旧数据覆盖新根
-                if (_toolsRootOverridden
-                    || !string.Equals(rootSnapshot, ToolsRoot, StringComparison.OrdinalIgnoreCase))
-                    return;
-                _cachedAllTools = deduped;
-                _cachedAllToolsRoot = ToolsRoot;
-                var rootNow = ToolsRoot;
-                foreach (var group in raw.GroupBy(t => t.Category, StringComparer.OrdinalIgnoreCase))
-                    _toolsCache[group.Key] = new CategoryCacheEntry(rootNow, group.ToList());
-            }
-            ToolCacheService.SaveCache(ToCacheEntries(raw));
-        }
-        catch { }
     }
 
     public static IReadOnlyList<string> GetAllTags()
@@ -545,12 +389,17 @@ public static class ToolCatalog
         return _cachedTags;
     }
 
+    /// <summary>工具集变化（增删/排序）后调用：清空内存缓存，下次访问按需重扫。不主动重扫。</summary>
+    public static void OnToolsChanged()
+    {
+        lock (_cacheLock) { _toolsCache.Clear(); _cachedAllTools = null; _cachedAllToolsRoot = null; }
+        Interlocked.Increment(ref _cacheVersion);
+    }
+
     public static void InvalidateTagsCache()
     {
         _cachedTags = null;
-        lock (_cacheLock) { _toolsCache.Clear(); _cachedAllTools = null; _cachedAllToolsRoot = null; }
-        Interlocked.Increment(ref _cacheVersion);
-        ToolCacheService.Invalidate();
+        OnToolsChanged();
     }
 
     public static void RefreshToolsRoot()
@@ -704,7 +553,8 @@ public static class ToolCatalog
             Tags = metadata.Tags ?? [],
             IsFavorite = isPlaceholder ? false : FavoritesService.IsFavorite(path),
             PrimaryArch = archDisplay.Length > 0 ? archDisplay : null,
-            AlternateVersions = alternates
+            AlternateVersions = alternates,
+            SortOrder = metadata.Order
         };
         item.InitArchOptions();
         return item;
@@ -746,7 +596,8 @@ public static class ToolCatalog
             WingetId = metadata.WingetId,
             TutorialUrl = metadata.TutorialUrl,
             Tags = metadata.Tags ?? [],
-            IsFavorite = isPlaceholder ? false : FavoritesService.IsFavorite(path)
+            IsFavorite = isPlaceholder ? false : FavoritesService.IsFavorite(path),
+            SortOrder = metadata.Order
         };
         item.InitArchOptions();
         return item;
@@ -1170,57 +1021,17 @@ public static class ToolCatalog
         return null;
     }
 
-    private sealed class LinkInfo
+    /// <summary>
+    /// 内置工具挂载（tools.json builtin 字段）：Path 用虚拟目录 ToolsRoot/分类/目录名，
+    /// 与旧 link.json 目录键完全一致，收藏与拖拽排序的持久化键不受迁移影响。
+    /// </summary>
+    private static ToolItem? CreateBuiltinPlacedItem(ToolMetadataService.CategoryPlacement placement, string category)
     {
-        public required string TargetRelativePath { get; init; }
-        public required string TargetFullPath { get; init; }
-        public string? BuiltinToolId { get; init; }
-        public bool IsBuiltin => !string.IsNullOrWhiteSpace(BuiltinToolId);
-    }
-
-    private static LinkInfo? TryResolveLink(string toolDir)
-    {
-        var linkPath = Path.Combine(toolDir, "link.json");
-        if (!File.Exists(linkPath)) return null;
-
-        var files = Directory.GetFiles(toolDir);
-        var dirs = Directory.GetDirectories(toolDir);
-        if (files.Length != 1 || dirs.Length != 0) return null;
-
-        try
-        {
-            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(linkPath));
-            if (doc.RootElement.TryGetProperty("builtin", out var builtinVal))
-            {
-                var builtinId = builtinVal.GetString();
-                if (string.IsNullOrWhiteSpace(builtinId)) return null;
-                return new LinkInfo
-                {
-                    TargetRelativePath = "",
-                    TargetFullPath = "",
-                    BuiltinToolId = builtinId
-                };
-            }
-            if (doc.RootElement.TryGetProperty("target", out var targetVal))
-            {
-                var target = targetVal.GetString();
-                if (string.IsNullOrWhiteSpace(target)) return null;
-                var targetFull = Path.Combine(ToolsRoot, target);
-                if (!Directory.Exists(targetFull)) return null;
-                return new LinkInfo { TargetRelativePath = target, TargetFullPath = targetFull };
-            }
-        }
-        catch { }
-
-        return null;
-    }
-
-    private static ToolItem? CreateBuiltinLinkedToolItem(string category, string linkDir, LinkInfo linkInfo)
-    {
-        var builtinTool = BuiltinToolRegistry.GetById(linkInfo.BuiltinToolId!);
+        var builtinTool = BuiltinToolRegistry.GetById(placement.BuiltinId!);
         if (builtinTool is null) return null;
 
-        var dirName = Path.GetFileName(linkDir);
+        var dirName = !string.IsNullOrWhiteSpace(placement.Match) ? placement.Match : builtinTool.Name;
+        var placedDir = Path.Combine(ToolsRoot, category, dirName);
         var kindText = builtinTool.Kind switch
         {
             BuiltinToolKind.Dialog => "弹窗",
@@ -1234,34 +1045,67 @@ public static class ToolCatalog
         {
             Name = builtinTool.Name,
             Category = category,
-            Path = linkDir,
-            RelativePath = Path.GetRelativePath(ToolsRoot, linkDir),
+            Path = placedDir,
+            RelativePath = Path.GetRelativePath(ToolsRoot, placedDir),
             Extension = "内置",
             IconGlyph = builtinTool.Glyph,
             Description = builtinTool.Description,
-            IsFavorite = FavoritesService.IsFavorite(linkDir),
+            IsFavorite = FavoritesService.IsFavorite(placedDir),
             IsBuiltinLink = true,
             BuiltinToolId = builtinTool.Id,
             BuiltinKindText = kindText,
-            Tags = []
+            Tags = [],
+            SortOrder = placement.Order
         };
     }
 
-    private static ToolItem? CreateLinkedToolItem(string category, string categoryRoot, string linkDir, LinkInfo linkInfo)
+    /// <summary>
+    /// 跨分类副本（tools.json category+categories 字段）：以主分类的物理目录生成完整工具项，
+    /// 标记 IsLinked 并组成多分类（替代旧 link.json 的 target 链接）。
+    /// </summary>
+    private static ToolItem? CreateCategoryCopyItem(ToolMetadataService.CategoryPlacement placement, string category)
     {
-        var targetLaunchable = FindPrimaryLaunchable(linkInfo.TargetFullPath);
-        if (targetLaunchable is null && !ToolMetadataService.HasDownloadUrl(category, linkInfo.TargetFullPath))
+        var primaryCategory = placement.PrimaryCategory!;
+        var categoryRoot = Path.Combine(ToolsRoot, primaryCategory);
+        if (!Directory.Exists(categoryRoot)) return null;
+
+        // 主分类下定位物理目录：相对路径含 match 或目录名灵活匹配（与 FindJsonMetadataByDir 同规则）。
+        // 多候选时评分择优：目录名精确等于 match > 灵活匹配相等 > 相对路径包含，
+        // 避免 memtest / memtest64 / memtestpro 这类前缀重叠目录误配。
+        var toolDir = Directory.GetDirectories(categoryRoot)
+            .Select(d => new
+            {
+                Dir = d,
+                Score =
+                    string.Equals(Path.GetFileName(d), placement.Match, StringComparison.OrdinalIgnoreCase) ? 3 :
+                    string.Equals(
+                        Path.GetFileName(d).Replace(" ", "").Replace("-", "").Replace("_", ""),
+                        placement.Match.Replace(" ", "").Replace("-", "").Replace("_", ""),
+                        StringComparison.OrdinalIgnoreCase) ? 2 :
+                    Path.GetRelativePath(ToolsRoot, d).Contains(placement.Match, StringComparison.CurrentCultureIgnoreCase) ||
+                    ToolMetadataService.MatchesFlexible(Path.GetFileName(d), placement.Match) ? 1 : 0
+            })
+            .Where(c => c.Score > 0)
+            .OrderByDescending(c => c.Score)
+            .ThenBy(c => Path.GetFileName(c.Dir), StringComparer.OrdinalIgnoreCase)
+            .Select(c => c.Dir)
+            .FirstOrDefault();
+        if (toolDir is null) return null;
+
+        var launchable = FindPrimaryLaunchable(toolDir);
+        if (launchable is null && !ToolMetadataService.HasDownloadUrl(primaryCategory, toolDir))
             return null;
 
-        var primaryCategory = Path.GetFileName(Path.GetDirectoryName(linkInfo.TargetRelativePath)) ?? category;
         var baseItem = CreateToolItemWithVariants(
             primaryCategory,
-            Path.GetDirectoryName(linkInfo.TargetFullPath) ?? linkInfo.TargetFullPath,
-            targetLaunchable ?? CreatePlaceholderPath(linkInfo.TargetFullPath),
-            linkInfo.TargetFullPath);
+            categoryRoot,
+            launchable ?? CreatePlaceholderPath(toolDir),
+            toolDir);
 
-        var categories = new List<string> { primaryCategory, category }
-            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var categories = placement.Categories
+            .Concat([primaryCategory])
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         return new ToolItem
         {
@@ -1287,7 +1131,8 @@ public static class ToolCatalog
             Tags = baseItem.Tags,
             IsFavorite = baseItem.IsFavorite,
             PrimaryArch = baseItem.PrimaryArch,
-            AlternateVersions = baseItem.AlternateVersions
+            AlternateVersions = baseItem.AlternateVersions,
+            SortOrder = placement.Order ?? baseItem.SortOrder
         };
     }
 }

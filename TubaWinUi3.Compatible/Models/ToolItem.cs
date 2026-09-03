@@ -61,13 +61,13 @@ namespace TubaWinUi3.Compatible.Models
         public IReadOnlyList<ArchVariant> AlternateVersions { get; set; } = new List<ArchVariant>();
         public bool HasAlternateVersions { get { return AlternateVersions != null && AlternateVersions.Count > 0; } }
 
-        /// <summary>link.json 关联：真实目录所在分类（目标分类）。</summary>
+        /// <summary>tools.json 跨分类副本：真实目录所在分类（主分类）。</summary>
         public string PrimaryCategory { get; set; }
 
-        /// <summary>该工具出现的所有分类（含 link.json 关联分类），「全部工具」视图去重后合并。</summary>
+        /// <summary>该工具出现的所有分类（含 tools.json categories 声明的副本分类），「全部工具」视图去重后合并。</summary>
         public IReadOnlyList<string> Categories { get; set; } = new List<string>();
 
-        /// <summary>是否由 link.json 跨分类关联产生的副本。</summary>
+        /// <summary>是否由 tools.json 跨分类副本（category+categories）产生的副本。</summary>
         public bool IsLinked { get; set; }
 
         public string CategoriesText { get { return Categories != null && Categories.Count > 0 ? string.Join(" · ", Categories) : Category; } }

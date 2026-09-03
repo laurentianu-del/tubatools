@@ -384,7 +384,7 @@ public static class ConfigManager
         AppSettings.InvalidateCache();
         FavoritesService.InvalidateCache();
         LaunchHistoryService.InvalidateCache();
-        ToolCacheService.Invalidate();
+        ToolCatalog.OnToolsChanged();
     }
 
     private const int CurrentPathMigrationVersion = 1;

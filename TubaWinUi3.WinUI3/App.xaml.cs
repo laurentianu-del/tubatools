@@ -160,33 +160,6 @@ public partial class App : Application
             return;
         }
 
-        // 构建工具缓存模式（publish 时由 GenerateBundledToolCache MSBuild target 调用）：
-        // 扫描 Tools 目录并把结果写入 Metadata/tool_cache.json 随包分发，
-        // 运行时直接读取免去全量扫描。复用全部扫描逻辑，无窗口后台运行。
-        var buildCacheIndex = Array.FindIndex(cmdLine, a => string.Equals(a, "--build-tool-cache", StringComparison.OrdinalIgnoreCase));
-        if (buildCacheIndex >= 0)
-        {
-            var toolsRoot = buildCacheIndex + 1 < cmdLine.Length ? cmdLine[buildCacheIndex + 1] : "";
-            var outJson = buildCacheIndex + 2 < cmdLine.Length ? cmdLine[buildCacheIndex + 2] : "";
-            if (!string.IsNullOrWhiteSpace(toolsRoot) && !string.IsNullOrWhiteSpace(outJson))
-            {
-                try
-                {
-                    ToolCatalog.SetToolsRootForBuild(toolsRoot);
-                    ToolCatalog.GetAllToolsCached(); // 预热扫描（构建环境）
-                    ToolCacheService.SaveCacheTo(ToolCatalog.BuildCacheEntries(), outJson);
-                }
-                catch (Exception ex)
-                {
-                    System.IO.File.WriteAllText(
-                        System.IO.Path.Combine(System.IO.Path.GetTempPath(), "tool_cache_build.log"),
-                        ex.ToString());
-                }
-            }
-            Exit();
-            return;
-        }
-
         // EnergyStar silent auto-start (scheduled-task launched this instance
         // in the background — silently enable EcoQoS without showing the main UI).
         var silentEnergyStar = cmdLine

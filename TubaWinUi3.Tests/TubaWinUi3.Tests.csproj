@@ -26,6 +26,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- xunit 运行配置：禁用集合并行，避免各测试类共享的全局静态
+         （ToolCatalog.ToolsRoot / ConfigManager / AgentToolRegistry）跨集合竞争 -->
+    <None Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- CLI 工具文档：与主项目同源链接，保证测试环境 CliToolboxCatalog.Default 可读 -->
     <Content Include="..\CLI工具使用文档.md" Link="Metadata\CLI工具使用文档.md">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

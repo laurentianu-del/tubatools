@@ -72,6 +72,9 @@ public sealed class ToolItem : INotifyPropertyChanged
 
     public string? TutorialUrl { get; init; }
 
+    /// <summary>tools.json 的 order 字段：卡片排序主键（null = 未收录的自定义工具，排在后面）。</summary>
+    public int? SortOrder { get; init; }
+
     public bool HasTutorial => !string.IsNullOrWhiteSpace(TutorialUrl);
 
     public IReadOnlyList<string> Tags { get; init; } = [];

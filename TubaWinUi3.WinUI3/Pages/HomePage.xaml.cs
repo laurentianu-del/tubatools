@@ -1,6 +1,7 @@
 ﻿using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Navigation;
 using System.Collections.ObjectModel;
@@ -10,6 +11,7 @@ using System.Linq;
 using TubaWinUi3.Models;
 using TubaWinUi3.Pages;
 using TubaWinUi3.Services;
+using Windows.ApplicationModel.DataTransfer;
 
 namespace TubaWinUi3.Pages;
 
@@ -28,6 +30,19 @@ public sealed partial class HomePage : Page
     private string _lastLoadedQuery = string.Empty;
     private int _lastCacheVersion = -1;
     private int _tagBarCacheVersion = -1;
+
+    // 编辑排序模式（与收藏页同模式）：专用纵向列表 + 整行自实现拖拽
+    private bool _isEditing;
+    private const double EditRowHeight = 64;
+    private const double EditRowSpacing = 8;
+    private static double EditRowStride => EditRowHeight + EditRowSpacing;
+    private Border? _dragRow;
+    private uint _dragPointerId;
+    private double _dragStartY; // 按下时指针相对 EditRowsPanel 的 Y
+    private int _dragStartIndex;
+    private int _dragCurrentIndex;
+    private bool _dragging;
+    private TranslateTransform? _dragTranslate;
 
     public HomePage()
     {
@@ -225,6 +240,7 @@ public sealed partial class HomePage : Page
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
         base.OnNavigatedFrom(e);
+        ExitEditMode(); // 离开页面时退出编辑排序并兜底落盘
         UnsubscribeStaticEvents();
     }
 
@@ -341,6 +357,9 @@ public sealed partial class HomePage : Page
 
     private async Task LoadToolsAsync()
     {
+        if (_isEditing)
+            ExitEditMode(); // 数据源变化（工具增删/切换分类）前先退出排序编辑，避免与旧列表错位
+
         _loadCts?.Cancel();
         var cts = new CancellationTokenSource();
         _loadCts = cts;
@@ -353,9 +372,8 @@ public sealed partial class HomePage : Page
         {
             IReadOnlyList<ToolItem> tools = await Task.Run(async () =>
             {
-                // 缓存优先：磁盘/随包缓存命中则秒出并填充分类内存缓存；
-                // 仅当缓存缺失时才 single-flight 全量扫描一次（与 MainWindow 预热共享，
-                // 避免首页的 GetAllToolsCached 绕过磁盘缓存抢先触发全量扫描）
+                // single-flight 扫描：与 MainWindow 预热共享同一次并行扫描，
+                // 并发调用不会重复扫全量
                 await ToolCatalog.GetAllToolsAsync();
 
                 if (query.Length > 0 || _selectedTag is not null)
@@ -373,6 +391,8 @@ public sealed partial class HomePage : Page
             _lastLoadedTag = _selectedTag;
             _lastLoadedQuery = query;
             _lastCacheVersion = ToolCatalog.CacheVersion;
+
+            UpdateDragReorderState();
 
             ToolCountText.Text = _tools.Count > 0 ? $"{_tools.Count} 个工具" : "";
             ToolCountText.Visibility = _tools.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -404,6 +424,278 @@ public sealed partial class HomePage : Page
             }
         }
         catch (OperationCanceledException) { }
+    }
+
+    /// <summary>
+    /// 仅纯分类视图允许拖拽排序 / 编辑排序：搜索 / 标签 / 全部工具视图的顺序是派生结果，不落盘。
+    /// </summary>
+    private void UpdateDragReorderState()
+    {
+        var canReorder = _searchQuery.Length == 0 && _selectedTag is null && _category is not null;
+        foreach (var grid in new[] { ToolsGrid, CompactGrid })
+        {
+            grid.CanDragItems = canReorder;
+            grid.CanReorderItems = canReorder;
+            grid.AllowDrop = canReorder;
+        }
+        // 右上角排序按钮只在可排序的纯分类视图且非编辑态下显示
+        EditOrderButton.Visibility = canReorder && _tools.Count > 0 && !_isEditing
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// 卡片拖拽排序完成：把当前视觉顺序写回 tools.json 的 order 字段（收录工具主序），
+    /// 同时用 AppSettings ToolOrder_{category} 记录完整名字序（自定义工具的回退序）。
+    /// </summary>
+    private void Grid_DragItemsCompleted(ListViewBase sender, DragItemsCompletedEventArgs args)
+    {
+        if (args.DropResult == DataPackageOperation.None) return; // 拖拽被取消
+        if (_searchQuery.Length > 0 || _selectedTag is not null || string.IsNullOrEmpty(_category)) return;
+        PersistToolOrder(_category);
+    }
+
+    /// <summary>把 _tools 当前视觉顺序落盘（卡片拖拽与编辑排序共用）。</summary>
+    private void PersistToolOrder(string category)
+    {
+        // 工具目录序：Path 是可执行文件（或占位路径）取其父目录；
+        // 内置挂载的 Path 本身就是虚拟目录（tools.json builtin 条目），直接参与排序
+        var orderedDirs = _tools
+            .Select(t => t.IsBuiltinLink
+                ? t.Path
+                : (System.IO.Directory.Exists(t.Path) ? t.Path : System.IO.Path.GetDirectoryName(t.Path)))
+            .Where(d => !string.IsNullOrWhiteSpace(d))
+            .Select(d => d!)
+            .ToList();
+
+        // 自定义工具（未收录 tools.json）的相对序：按名字列表回退
+        var nameOrder = _tools.Select(t => t.Name).ToList();
+        AppSettings.Set($"ToolOrder_{category}", System.Text.Json.JsonSerializer.Serialize(nameOrder));
+
+        _ = Task.Run(() =>
+        {
+            ToolMetadataService.SaveToolOrder(orderedDirs);
+            // 仅清内存扫描缓存 + 版本递增，不触发 ToolsChanged 事件（避免本页重载闪烁）；
+            // 下次进入页面时按 CacheVersion 变化按需重扫，自然读到新 order
+            ToolCatalog.InvalidateTagsCache();
+        });
+    }
+
+    /// <summary>编辑排序模式开关（右上角按钮，模式与收藏页一致）。</summary>
+    private void EditOrderButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isEditing)
+            ExitEditMode();
+        else
+            EnterEditMode();
+    }
+
+    private void EnterEditMode()
+    {
+        if (_tools.Count == 0) return;
+        _isEditing = true;
+        EditOrderIcon.Glyph = "\uE73E"; // CheckMark:完成
+        EditOrderButtonText.Text = "完成";
+        EditOrderButton.Visibility = Visibility.Visible;
+
+        // 隐藏网格与标签栏，切到专用排序列表
+        ToolsGrid.Visibility = Visibility.Collapsed;
+        CompactGrid.Visibility = Visibility.Collapsed;
+        TagBarScrollViewer.Visibility = Visibility.Collapsed;
+        EmptyState.Visibility = Visibility.Collapsed;
+
+        EditRowsPanel.Children.Clear();
+        foreach (var tool in _tools)
+            EditRowsPanel.Children.Add(CreateEditRow(tool));
+        EditModeScroll.Visibility = Visibility.Visible;
+    }
+
+    private void ExitEditMode()
+    {
+        if (!_isEditing) return;
+        _isEditing = false;
+        FinishDrag(); // 拖动到一半退出时归位
+        EditOrderIcon.Glyph = "\uE70F"; // Edit:编辑排序
+        EditOrderButtonText.Text = "编辑排序";
+        EditModeScroll.Visibility = Visibility.Collapsed;
+
+        // 纯分类视图下兜底落盘（拖拽过程已实时保存）
+        if (_searchQuery.Length == 0 && _selectedTag is null && _category is not null)
+            PersistToolOrder(_category);
+
+        UpdateGridVisibility(_tools.Count > 0);
+        EmptyState.Visibility = _tools.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (_category is null)
+            TagBarScrollViewer.Visibility = TagBarPanel.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        UpdateDragReorderState();
+    }
+
+    private Border CreateEditRow(ToolItem tool)
+    {
+        var row = new Border
+        {
+            Height = EditRowHeight,
+            Padding = new Thickness(12, 0, 12, 0),
+            Background = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
+            BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Tag = tool
+        };
+        row.PointerPressed += EditRow_PointerPressed;
+        row.PointerMoved += EditRow_PointerMoved;
+        row.PointerReleased += EditRow_PointerReleased;
+        row.PointerCaptureLost += EditRow_PointerCaptureLost;
+
+        var grid = new Grid { ColumnSpacing = 12 };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        // 拖动手柄
+        grid.Children.Add(new FontIcon
+        {
+            Glyph = "\uE700",
+            FontSize = 16,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Opacity = 0.8
+        });
+
+        // 图标(与卡片相同的双元素绑定)
+        var iconGrid = new Grid
+        {
+            Width = 36,
+            Height = 36,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        var image = new Image
+        {
+            Width = 28,
+            Height = 28,
+            Stretch = Stretch.Uniform
+        };
+        image.SetBinding(Image.SourceProperty, new Microsoft.UI.Xaml.Data.Binding
+        {
+            Path = new PropertyPath(nameof(ToolItem.IconPath)),
+            Source = tool,
+            Mode = Microsoft.UI.Xaml.Data.BindingMode.OneWay
+        });
+        image.SetBinding(Image.VisibilityProperty, new Microsoft.UI.Xaml.Data.Binding
+        {
+            Path = new PropertyPath(nameof(ToolItem.IconPath)),
+            Source = tool,
+            Mode = Microsoft.UI.Xaml.Data.BindingMode.OneWay,
+            Converter = (Microsoft.UI.Xaml.Data.IValueConverter)Resources["NullToCollapse"]
+        });
+        var fontIcon = new FontIcon
+        {
+            FontSize = 22,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Glyph = tool.IconGlyph ?? "",
+            Visibility = tool.IconGlyph is not null ? Visibility.Visible : Visibility.Collapsed
+        };
+        iconGrid.Children.Add(image);
+        iconGrid.Children.Add(fontIcon);
+        Grid.SetColumn(iconGrid, 1);
+        grid.Children.Add(iconGrid);
+
+        // 名称 + 描述/分类
+        var textStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 2 };
+        textStack.Children.Add(new TextBlock
+        {
+            Text = tool.Name,
+            FontSize = 15,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis
+        });
+        textStack.Children.Add(new TextBlock
+        {
+            Text = string.IsNullOrWhiteSpace(tool.Description) ? tool.Category : tool.Description,
+            FontSize = 12,
+            Opacity = 0.7,
+            TextTrimming = TextTrimming.CharacterEllipsis
+        });
+        Grid.SetColumn(textStack, 2);
+        grid.Children.Add(textStack);
+
+        row.Child = grid;
+        return row;
+    }
+
+    private void EditRow_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        if (_dragging || sender is not Border row) return;
+        _dragRow = row;
+        _dragPointerId = e.Pointer.PointerId;
+        _dragStartY = e.GetCurrentPoint(EditRowsPanel).Position.Y;
+        _dragStartIndex = EditRowsPanel.Children.IndexOf(row);
+        _dragCurrentIndex = _dragStartIndex;
+        _dragging = false;
+        row.CapturePointer(e.Pointer);
+    }
+
+    private void EditRow_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (_dragRow is null || e.Pointer.PointerId != _dragPointerId) return;
+
+        // 移动超过阈值才开始拖动,避免把普通点击当成拖动
+        var deltaY = e.GetCurrentPoint(EditRowsPanel).Position.Y - _dragStartY;
+        if (!_dragging)
+        {
+            if (Math.Abs(deltaY) < 6) return;
+            _dragging = true;
+            _dragTranslate = new TranslateTransform();
+            _dragRow.RenderTransform = _dragTranslate;
+            _dragRow.Opacity = 0.75;
+        }
+
+        // 限制拖动范围,行不会飞出列表
+        var minDelta = -_dragStartIndex * EditRowStride;
+        var maxDelta = (EditRowsPanel.Children.Count - 1 - _dragStartIndex) * EditRowStride;
+        var clampedDelta = Math.Clamp(deltaY, minDelta, maxDelta);
+
+        // 目标索引变化时实时重排行与数据源
+        var target = _dragStartIndex + (int)Math.Round(clampedDelta / EditRowStride);
+        if (target != _dragCurrentIndex)
+        {
+            EditRowsPanel.Children.Move((uint)_dragCurrentIndex, (uint)target);
+            _tools.Move(_dragCurrentIndex, target);
+            _dragCurrentIndex = target;
+        }
+
+        // 被拖行始终跟随指针:抵消重排带来的布局位移
+        _dragTranslate!.Y = clampedDelta - (_dragCurrentIndex - _dragStartIndex) * EditRowStride;
+    }
+
+    private void EditRow_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (e.Pointer.PointerId == _dragPointerId)
+            FinishDrag();
+    }
+
+    private void EditRow_PointerCaptureLost(object sender, PointerRoutedEventArgs e)
+    {
+        if (e.Pointer.PointerId == _dragPointerId)
+            FinishDrag();
+    }
+
+    private void FinishDrag()
+    {
+        if (_dragRow is null) return;
+        if (_dragging)
+        {
+            _dragRow.RenderTransform = null;
+            _dragRow.Opacity = 1.0;
+            // 顺序已实时同步到 _tools,立即落盘
+            if (_category is not null && _searchQuery.Length == 0 && _selectedTag is null)
+                PersistToolOrder(_category);
+        }
+        _dragRow = null;
+        _dragTranslate = null;
+        _dragging = false;
     }
 
     private void StartHighlight(string toolPath)
