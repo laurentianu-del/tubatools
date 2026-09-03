@@ -9,7 +9,6 @@ public static class BackgroundService
 
     private static BitmapImage? _cachedImage;
     private static string? _cachedPath;
-    private static bool _brandInitialized;
 
     public static string? GetBackgroundPath()
     {
@@ -30,34 +29,6 @@ public static class BackgroundService
     public static double GetBackgroundOpacity() => AppSettings.GetDouble(OpacityKey, 0.15);
 
     public static void SetBackgroundOpacity(double opacity) => AppSettings.Set(OpacityKey, opacity);
-
-    public static void EnsureBrandBackgroundInitialized()
-    {
-        if (_brandInitialized) return;
-        _brandInitialized = true;
-
-        BrandEasterEggService.ApplyBrandBackgroundIfDetected();
-        BrandEasterEggService.StartBackgroundDownload();
-        BrandEasterEggService.BrandBackgroundLoaded += OnBrandBackgroundLoaded;
-    }
-
-    public static async Task EnsureBrandBackgroundInitializedAsync()
-    {
-        if (_brandInitialized) return;
-        _brandInitialized = true;
-
-        await BrandEasterEggService.ApplyBrandBackgroundIfDetectedAsync();
-        await BrandEasterEggService.StartBackgroundDownloadAsync();
-        BrandEasterEggService.BrandBackgroundLoaded += OnBrandBackgroundLoaded;
-    }
-
-    private static void OnBrandBackgroundLoaded(object? sender, BrandEasterEggLoadedEventArgs e)
-    {
-        if (string.IsNullOrEmpty(GetBackgroundPath()))
-        {
-            SetBackgroundPath(e.ImagePath);
-        }
-    }
 
     public static BitmapImage? LoadBackgroundImage()
     {
@@ -84,12 +55,6 @@ public static class BackgroundService
             _cachedPath = null;
             return null;
         }
-    }
-
-    public static async Task<BitmapImage?> LoadBackgroundImageAsync()
-    {
-        await EnsureBrandBackgroundInitializedAsync();
-        return LoadBackgroundImage();
     }
 
     public static List<BackgroundImageEntry> GetImportedBackgrounds()

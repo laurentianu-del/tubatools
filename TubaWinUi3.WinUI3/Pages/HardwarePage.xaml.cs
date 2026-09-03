@@ -154,7 +154,7 @@ public sealed partial class HardwarePage : Page
             if (!_originalValues.ContainsKey(item))
                 _originalValues[item] = item.Value;
             if (item.NicknameValue is null)
-                item.NicknameValue = BrandEasterEggService.ApplyNickname(_originalValues[item]);
+                item.NicknameValue = BrandNicknameService.ApplyNickname(_originalValues[item]);
         }
 
         var summary = _currentSections[0].Items;
@@ -164,7 +164,7 @@ public sealed partial class HardwarePage : Page
             if (!_originalValues.ContainsKey(modelItem))
                 _originalValues[modelItem] = modelItem.Value;
             if (modelItem.NicknameValue is null)
-                modelItem.NicknameValue = BrandEasterEggService.ApplyNickname(_originalValues[modelItem]);
+                modelItem.NicknameValue = BrandNicknameService.ApplyNickname(_originalValues[modelItem]);
         }
 
         var valueTexts = new List<TextBlock>();

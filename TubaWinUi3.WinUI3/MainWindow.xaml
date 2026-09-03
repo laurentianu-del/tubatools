@@ -269,7 +269,6 @@
 
         <StackPanel Grid.Row="1">
             <controls:UpdateBanner x:Name="UpdateBanner" />
-            <controls:BrandBackgroundBanner x:Name="BrandBgBanner" />
             <InfoBar
                 x:Name="ToolUpdateToast"
                 IsClosable="True"

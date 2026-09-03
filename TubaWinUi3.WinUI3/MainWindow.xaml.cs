@@ -168,13 +168,8 @@ public sealed partial class MainWindow : Window
 
         NavigateToDefaultPage();
 
-        // 本地背景立即应用；品牌检测（WMI 查询 + 壁纸下载）延迟到空闲期，不抢启动窗口
+        // 仅应用本地自定义背景（品牌壁纸彩蛋已移除：不再自动检测主板品牌、下载或加载壁纸）
         ApplyBackground();
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(TimeSpan.FromSeconds(15));
-            await BackgroundService.EnsureBrandBackgroundInitializedAsync();
-        });
 
         _ = Task.Run(async () =>
         {
@@ -211,7 +206,6 @@ public sealed partial class MainWindow : Window
         ToolUpdateService.Initialize(DispatcherQueue);
         UpdateDownloadBadge();
 
-        BrandEasterEggService.BrandBackgroundLoaded += OnBrandBackgroundLoaded;
         AppSettings.SettingChanged += OnBackgroundSettingChanged;
 
         await FadeOutSplashAsync();
@@ -367,7 +361,6 @@ public sealed partial class MainWindow : Window
         AppWindow.Changed -= AppWindow_Changed;
         WindowSizeService.SaveWindowSize(this);
         DownloadQueueService.QueueChanged -= OnDownloadQueueChanged;
-        BrandEasterEggService.BrandBackgroundLoaded -= OnBrandBackgroundLoaded;
         AppSettings.SettingChanged -= OnBackgroundSettingChanged;
         NavLayoutModeService.NavLayoutModeChanged -= OnNavLayoutModeChanged;
     }
@@ -375,15 +368,6 @@ public sealed partial class MainWindow : Window
     private void OnDownloadQueueChanged()
     {
         DispatcherQueue.TryEnqueue(UpdateDownloadBadge);
-    }
-
-    private void OnBrandBackgroundLoaded(object? sender, BrandEasterEggLoadedEventArgs e)
-    {
-        DispatcherQueue.TryEnqueue(() =>
-        {
-            ApplyBackground();
-            BrandBgBanner.Show(e.BrandName);
-        });
     }
 
     private void UpdateDownloadBadge()
