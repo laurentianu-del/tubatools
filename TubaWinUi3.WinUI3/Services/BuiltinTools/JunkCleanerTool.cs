@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using TubaWinUi3.Pages;
+using Windows.ApplicationModel.DataTransfer;
 using Windows.UI;
 
 namespace TubaWinUi3.Services;
@@ -26,6 +27,9 @@ public sealed class JunkCleanerTool : IBuiltinTool
     private static readonly Color AccentRed = Color.FromArgb(255, 248, 113, 113);
     private static readonly Color AccentYellow = Color.FromArgb(255, 251, 191, 36);
     private static readonly Color AccentPurple = Color.FromArgb(255, 167, 139, 250);
+
+    // Detail preview shows at most this many file lines; beyond that a hint points at 复制完整列表.
+    private const int DetailFileCap = 800;
 
     private readonly Winapp2Parser _parser = new();
     private readonly DetectionService _detection = new();
@@ -66,6 +70,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
         public required CleanerEntry Entry { get; init; }
         public required ScanResult Result { get; init; }
         public bool Selected { get; set; } = true;
+        public bool Expanded { get; set; }          // 详情面板展开状态（点击条目切换）
         public bool HasRegistry => Result.RegistryToDelete.Count > 0;
         public long SizeBytes => Result.TotalBytes;
     }
@@ -89,6 +94,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
         public Button DeselectAllBtn = null!;
         public Button UpdateDbBtn = null!;
         public StackPanel CategoryList = null!;
+        public TextBlock ListHint = null!;
         public ProgressRing LoadingRing = null!;
         public StackPanel LoadingPanel = null!;
         public TextBlock LoadingText = null!;
@@ -122,7 +128,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
         statsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         var sizeCard = MakeStatCard("可清理大小", totalSizeText, "\uEDA2", AccentBlue);
         var filesCard = MakeStatCard("文件数", totalFilesText, "\uE8C8", AccentGreen);
-        var countCard = MakeStatCard("发现垃圾的项目", itemCountText, "\uE7F4", AccentPurple);
+        var countCard = MakeStatCard("选中项目", itemCountText, "\uE7F4", AccentPurple);
         statsGrid.Children.Add(sizeCard); Grid.SetColumn(sizeCard, 0);
         statsGrid.Children.Add(filesCard); Grid.SetColumn(filesCard, 1);
         statsGrid.Children.Add(countCard); Grid.SetColumn(countCard, 2);
@@ -245,6 +251,16 @@ public sealed class JunkCleanerTool : IBuiltinTool
         var root = new StackPanel { Spacing = 14, MaxWidth = 880 };
         root.Children.Add(contentGrid);
         root.Children.Add(resultText);
+
+        var listHint = new TextBlock
+        {
+            Text = "提示：点击条目可展开查看将要删除的具体文件与注册表项；右侧开关可跳过不想清理的项目。",
+            FontSize = 12,
+            Foreground = new SolidColorBrush(ThemeColors.DimText),
+            TextWrapping = TextWrapping.Wrap,
+            Visibility = Visibility.Collapsed
+        };
+        root.Children.Add(listHint);
         root.Children.Add(categoryList);
 
         // --- 预装应用清理（Winappx.ini） ---
@@ -295,6 +311,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
             DeselectAllBtn = deselectAllBtn,
             UpdateDbBtn = updateDbBtn,
             CategoryList = categoryList,
+            ListHint = listHint,
             LoadingRing = loadingRing,
             LoadingPanel = loadingPanel,
             LoadingText = loadingText,
@@ -356,7 +373,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
         state.LoadingText.Text = "正在更新规则库...";
         state.ScanBtn.IsEnabled = false;
         state.UpdateDbBtn.IsEnabled = false;
-        state.ResultText.Visibility = Visibility.Collapsed;
+        state.ResultText.Text = "";
 
         try
         {
@@ -455,7 +472,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
         state.CleanBtn.IsEnabled = false;
         state.ScanBtn.IsEnabled = false;
         state.UpdateDbBtn.IsEnabled = false;
-        state.ResultText.Visibility = Visibility.Collapsed;
+        state.ResultText.Text = "";
         state.CategoryList.Children.Clear();
         state.ConfirmPanel.Visibility = Visibility.Collapsed;
 
@@ -497,13 +514,13 @@ public sealed class JunkCleanerTool : IBuiltinTool
             _items = items;
             RenderItems(root);
 
-            state.TotalFilesText.Text = items.Sum(x => x.Result.FilesToDelete.Count).ToString();
+            state.TotalFilesText.Text = items.Sum(x => x.Result.FilesToDelete.Count).ToString("N0");
             state.TotalSizeText.Text = ScanResult.FormatBytes(items.Sum(x => x.SizeBytes));
-            state.ItemCountText.Text = items.Count.ToString();
+            state.ItemCountText.Text = items.Count.ToString("N0");
 
             state.ResultText.Text = items.Count > 0
-                ? $"扫描完成：{installedCount} 个已安装应用中，{items.Count} 个项目发现可清理的垃圾。"
-                : $"扫描完成：{installedCount} 个已安装应用，未发现可清理的垃圾。";
+                ? $"扫描完成：发现 {items.Count:N0} 项可清理内容，共 {ScanResult.FormatBytes(items.Sum(x => x.SizeBytes))}。点击条目可预览将删除的文件。"
+                : $"扫描完成：检查了 {installedCount:N0} 个已安装应用，没有发现可清理的垃圾。";
             state.ResultText.Foreground = new SolidColorBrush(items.Count > 0 ? AccentGreen : AccentBlue);
             state.ResultText.Visibility = Visibility.Visible;
         }
@@ -577,7 +594,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
         state.CleanBtn.IsEnabled = false;
         state.ScanBtn.IsEnabled = false;
         state.UpdateDbBtn.IsEnabled = false;
-        state.ResultText.Visibility = Visibility.Collapsed;
+        state.ResultText.Text = "";
         state.LoadingPanel.Visibility = Visibility.Visible;
         state.LoadingRing.IsActive = true;
 
@@ -608,11 +625,13 @@ public sealed class JunkCleanerTool : IBuiltinTool
 
             RenderItems(root);
 
-            state.TotalFilesText.Text = _items.Sum(x => x.Result.FilesToDelete.Count).ToString();
+            state.TotalFilesText.Text = _items.Sum(x => x.Result.FilesToDelete.Count).ToString("N0");
             state.TotalSizeText.Text = ScanResult.FormatBytes(_items.Sum(x => x.SizeBytes));
-            state.ItemCountText.Text = _items.Count.ToString();
+            state.ItemCountText.Text = _items.Count.ToString("N0");
 
-            state.ResultText.Text = $"清理完成！共删除 {totalDeleted} 项，释放 {ScanResult.FormatBytes(totalBytes)} 空间。";
+            state.ResultText.Text = _items.Count > 0
+                ? $"清理完成：已删除 {totalDeleted:N0} 项，释放 {ScanResult.FormatBytes(totalBytes)}。仍有 {_items.Count:N0} 项存在残留（文件被占用或需重启后再清理）。"
+                : $"清理完成：已删除 {totalDeleted:N0} 项，释放 {ScanResult.FormatBytes(totalBytes)} 空间。";
             state.ResultText.Foreground = new SolidColorBrush(AccentGreen);
             state.ResultText.Visibility = Visibility.Visible;
         }
@@ -845,9 +864,8 @@ public sealed class JunkCleanerTool : IBuiltinTool
         if (state is null) return;
 
         state.CategoryList.Children.Clear();
+        state.ListHint.Visibility = _items is { Count: > 0 } ? Visibility.Visible : Visibility.Collapsed;
         if (_items is null || _items.Count == 0) return;
-
-        var registryAny = _items.Any(x => x.HasRegistry);
 
         foreach (var group in _items
                      .GroupBy(x =>
@@ -877,7 +895,11 @@ public sealed class JunkCleanerTool : IBuiltinTool
 
             var list = new StackPanel { Spacing = 6 };
             foreach (var item in group.OrderByDescending(x => x.SizeBytes).ThenBy(x => x.Entry.Name))
+            {
                 list.Children.Add(CreateItemRow(item, root));
+                if (item.Expanded)
+                    list.Children.Add(CreateDetailPanel(item, root));
+            }
             state.CategoryList.Children.Add(list);
         }
 
@@ -909,7 +931,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
 
         var descText = new TextBlock
         {
-            Text = item.Entry.Warning ?? $"{item.Result.FilesToDelete.Count} 个文件 · {item.Result.RegistryToDelete.Count} 项注册表",
+            Text = DescribeResult(item),
             FontSize = 11,
             Foreground = new SolidColorBrush(ThemeColors.DimText),
             TextWrapping = TextWrapping.Wrap,
@@ -925,11 +947,22 @@ public sealed class JunkCleanerTool : IBuiltinTool
             Foreground = new SolidColorBrush(item.SizeBytes > 0 || item.HasRegistry ? accent : ThemeColors.DimText)
         };
 
-        var countText = new TextBlock
+        var chevron = new FontIcon
         {
-            Text = item.HasRegistry ? "含注册表项" : $"{item.Result.FilesToDelete.Count} 个文件",
-            FontSize = 11,
-            Foreground = new SolidColorBrush(item.HasRegistry ? AccentYellow : ThemeColors.DimText)
+            Glyph = item.Expanded ? "\uE70E" : "\uE70D",
+            FontSize = 10,
+            Foreground = new SolidColorBrush(ThemeColors.DimText)
+        };
+        var detailHint = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Children =
+            {
+                chevron,
+                new TextBlock { Text = item.Expanded ? "收起详情" : "查看详情", FontSize = 11, Foreground = new SolidColorBrush(ThemeColors.DimText) }
+            }
         };
 
         var toggle = new ToggleSwitch
@@ -946,7 +979,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
             if (st is not null)
             {
                 st.CleanBtn.IsEnabled = _items?.Any(x => x.Selected) ?? false;
-                st.ItemCountText.Text = _items?.Count(x => x.Selected).ToString() ?? "0";
+                st.ItemCountText.Text = (_items?.Count(x => x.Selected) ?? 0).ToString("N0");
             }
         };
 
@@ -956,7 +989,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
 
         var sizePanel = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
         sizePanel.Children.Add(sizeText);
-        sizePanel.Children.Add(countText);
+        sizePanel.Children.Add(detailHint);
 
         var grid = new Grid { ColumnSpacing = 12 };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });
@@ -968,7 +1001,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
         grid.Children.Add(sizePanel); Grid.SetColumn(sizePanel, 2);
         grid.Children.Add(toggle); Grid.SetColumn(toggle, 3);
 
-        return new Border
+        var row = new Border
         {
             Padding = new Thickness(14, 10, 14, 10),
             Background = new SolidColorBrush(ThemeColors.CardBg),
@@ -977,6 +1010,199 @@ public sealed class JunkCleanerTool : IBuiltinTool
             CornerRadius = new CornerRadius(6),
             Child = grid
         };
+
+        // 点击整行（开关除外）展开/收起删除明细
+        row.Tapped += (_, e) =>
+        {
+            if (_busy) return;
+            if (IsDescendantOf(e.OriginalSource as DependencyObject, toggle)) return;
+            item.Expanded = !item.Expanded;
+            RenderItems(root);
+        };
+
+        ToolTipService.SetToolTip(row, "点击查看 / 收起将删除的文件与注册表项");
+        return row;
+    }
+
+    // --- 删除明细面板 ------------------------------------------------
+
+    private Border CreateDetailPanel(JunkItem item, StackPanel root)
+    {
+        var accent = item.HasRegistry ? AccentYellow : AccentBlue;
+        var fileCount = item.Result.FilesToDelete.Count;
+        var regCount = item.Result.RegistryToDelete.Count;
+
+        var copyBtn = new Button
+        {
+            Content = "复制完整列表",
+            Padding = new Thickness(10, 4, 10, 4),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        copyBtn.Click += async (_, _) =>
+        {
+            copyBtn.IsEnabled = false;
+            copyBtn.Content = "已复制 ✓";
+            CopyAllToClipboard(item);
+            await Task.Delay(1600);
+            copyBtn.IsEnabled = true;
+            copyBtn.Content = "复制完整列表";
+        };
+
+        var titleBlock = new TextBlock
+        {
+            Text = "清理详情",
+            FontSize = 13,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+            Foreground = new SolidColorBrush(ThemeColors.PrimaryText)
+        };
+        var summaryBlock = new TextBlock
+        {
+            Text = $"{fileCount:N0} 个文件 · {regCount:N0} 项注册表 · 共 {ScanResult.FormatBytes(item.SizeBytes)}",
+            FontSize = 11,
+            Foreground = new SolidColorBrush(ThemeColors.DimText)
+        };
+
+        var header = new Grid { ColumnSpacing = 12 };
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var headerText = new StackPanel { Spacing = 2, Children = { titleBlock, summaryBlock } };
+        header.Children.Add(headerText);
+        header.Children.Add(copyBtn); Grid.SetColumn(copyBtn, 1);
+
+        var content = new StackPanel { Spacing = 10 };
+        content.Children.Add(header);
+
+        if (fileCount > 0)
+            content.Children.Add(BuildDetailSection($"将删除的文件（{fileCount:N0} 个）", "\uE8B7", AccentBlue, item.Result.FilesToDelete));
+        if (regCount > 0)
+            content.Children.Add(BuildDetailSection($"将删除的注册表项（{regCount:N0} 项）", "\uE7BA", AccentYellow,
+                item.Result.RegistryToDelete.Select(r => r.ToString()).ToList()));
+
+        if (item.Entry.Warning is not null)
+        {
+            content.Children.Add(new InfoBar
+            {
+                Title = "规则警告（原规则库提示，清理前请注意）",
+                Message = item.Entry.Warning,
+                Severity = InfoBarSeverity.Warning,
+                IsOpen = true,
+                IsClosable = false
+            });
+        }
+
+        if (fileCount == 0 && regCount == 0)
+        {
+            content.Children.Add(new TextBlock
+            {
+                Text = "该条目暂无可删除的内容（可能已被清理，或文件正被占用需稍后重试）。",
+                FontSize = 12,
+                Foreground = new SolidColorBrush(ThemeColors.DimText),
+                TextWrapping = TextWrapping.Wrap
+            });
+        }
+
+        var dimAccent = Color.FromArgb(16, accent.R, accent.G, accent.B);
+        return new Border
+        {
+            Margin = new Thickness(8, 0, 0, 0),
+            Padding = new Thickness(16, 12, 16, 12),
+            Background = new SolidColorBrush(dimAccent),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(70, accent.R, accent.G, accent.B)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Child = content
+        };
+    }
+
+    // 一个带标题和折叠列表的分区（文件 / 注册表项）
+    private static UIElement BuildDetailSection(string title, string glyph, Color accent, IReadOnlyList<string> paths)
+    {
+        var label = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        label.Children.Add(new FontIcon { Glyph = glyph, FontSize = 12, Foreground = new SolidColorBrush(accent) });
+        label.Children.Add(new TextBlock
+        {
+            Text = title,
+            FontSize = 12,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(ThemeColors.PrimaryText)
+        });
+
+        var panel = new StackPanel { Spacing = 1 };
+        var shown = Math.Min(paths.Count, DetailFileCap);
+        for (var i = 0; i < shown; i++)
+        {
+            panel.Children.Add(new TextBlock
+            {
+                Text = paths[i],
+                FontSize = 12,
+                Foreground = new SolidColorBrush(ThemeColors.DimText),
+                TextWrapping = TextWrapping.NoWrap,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                IsTextSelectionEnabled = true
+            });
+        }
+        if (paths.Count > DetailFileCap)
+        {
+            panel.Children.Add(new TextBlock
+            {
+                Text = $"…… 其余 {paths.Count - DetailFileCap:N0} 项未显示，可用上方「复制完整列表」查看全部。",
+                FontSize = 11,
+                Foreground = new SolidColorBrush(ThemeColors.DimText),
+                Margin = new Thickness(0, 4, 0, 0)
+            });
+        }
+
+        var section = new StackPanel { Spacing = 6 };
+        section.Children.Add(label);
+        section.Children.Add(paths.Count > 60
+            ? new ScrollViewer { MaxHeight = 280, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = panel }
+            : panel);
+
+        return section;
+    }
+
+    // 中文摘要：如 "1,234 个文件，共 45.2 MB · 注册表 3 项"
+    private static string DescribeResult(JunkItem item)
+    {
+        var fileCount = item.Result.FilesToDelete.Count;
+        var regCount = item.Result.RegistryToDelete.Count;
+        var parts = new List<string>(2);
+        if (fileCount > 0)
+            parts.Add($"{fileCount:N0} 个文件，共 {ScanResult.FormatBytes(item.Result.TotalBytes)}");
+        if (regCount > 0)
+            parts.Add($"注册表 {regCount:N0} 项");
+        return parts.Count > 0 ? string.Join(" · ", parts) : "暂无可删除内容";
+    }
+
+    // 把删除明细复制到剪贴板（含文件与注册表完整列表）
+    private static void CopyAllToClipboard(JunkItem item)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"{item.Entry.Name}（{ScanResult.FormatBytes(item.SizeBytes)}）");
+        if (item.Result.FilesToDelete.Count > 0)
+        {
+            sb.AppendLine("=== 文件 ===");
+            foreach (var f in item.Result.FilesToDelete) sb.AppendLine(f);
+        }
+        if (item.Result.RegistryToDelete.Count > 0)
+        {
+            sb.AppendLine("=== 注册表 ===");
+            foreach (var r in item.Result.RegistryToDelete) sb.AppendLine(r.ToString());
+        }
+        var data = new DataPackage();
+        data.SetText(sb.ToString());
+        Clipboard.SetContent(data);
+    }
+
+    // 判断点击是否落在某个子元素内（用于屏蔽开关自身的点击）
+    private static bool IsDescendantOf(DependencyObject? node, DependencyObject ancestor)
+    {
+        while (node is not null)
+        {
+            if (node == ancestor) return true;
+            node = VisualTreeHelper.GetParent(node);
+        }
+        return false;
     }
 
     private static UiState? GetState(StackPanel root) => root?.Tag as UiState;

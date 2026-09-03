@@ -11,7 +11,7 @@ public sealed class VolumeShaderTool : IBuiltinTool
     public string Name => "毒蘑菇测试";
     public string Description => "GPU 分形压力测试：轻松 / 中等 / 变态三档压力，超分辨率渲染突破屏幕，实时帧率监控。";
     public string Glyph => "\uE950"; // 显卡图标
-    public string Category => "硬件信息";
+    public string Category => "硬件工具";
     public BuiltinToolKind Kind => BuiltinToolKind.Dialog;
 
     public Task ExecuteAsync(BuiltinToolContext context)

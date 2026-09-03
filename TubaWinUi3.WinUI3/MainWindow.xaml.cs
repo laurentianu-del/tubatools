@@ -436,6 +436,16 @@ public sealed partial class MainWindow : Window
             Content = new AiQuickAskFlyout(),
             Placement = FlyoutPlacementMode.BottomEdgeAlignedRight
         };
+        // FlyoutPresenter 默认 MaxWidth=456（FlyoutThemeMaxWidth），会把内容钳在 456px；
+        // 覆盖 presenter 宽度/高度限制，让 850px 面板完整显示。
+        flyout.FlyoutPresenterStyle = new Style(typeof(FlyoutPresenter))
+        {
+            Setters =
+            {
+                new Setter(FlyoutPresenter.MaxWidthProperty, 880.0),
+                new Setter(FlyoutPresenter.MaxHeightProperty, 810.0)
+            }
+        };
         flyout.ShowAt(AiQuickButton);
     }
 

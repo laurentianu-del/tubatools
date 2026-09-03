@@ -10,7 +10,7 @@ public sealed class StressTestTool : IBuiltinTool
     public string Name => "一键三烤";
     public string Description => "CPU / GPU / 网卡压力测试工具，自由勾选烤机项目（CPU、GPU、网卡），网卡烤机支持自定义数据量与速率参考，实时监控温度、频率、功耗与网卡吞吐。";
     public string Glyph => "\uECAD";
-    public string Category => "硬件信息";
+    public string Category => "硬件工具";
     public BuiltinToolKind Kind => BuiltinToolKind.InstantAction;
 
     public Task ExecuteAsync(BuiltinToolContext context)

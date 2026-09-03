@@ -11,7 +11,7 @@ public sealed class PerformanceBenchmarkTool : IBuiltinTool
 	public string Name => "性能测试";
 	public string Description => "全面测试 CPU/GPU/内存/硬盘/浏览器性能，按比例计算游戏与办公性能评分，导出专业 PDF 报告。";
 	public string Glyph => "\ue9d9";
-	public string Category => "硬件信息";
+	public string Category => "硬件工具";
 	public BuiltinToolKind Kind => BuiltinToolKind.InstantAction;
 
 	public Task ExecuteAsync(BuiltinToolContext context)

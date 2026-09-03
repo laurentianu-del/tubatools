@@ -186,7 +186,7 @@ public sealed partial class SettingsPage : Page
             ? $"版本 {version.Major}.{version.Minor}.{version.Build}"
             : "版本 1.0.0";
 
-        LoadSettingsGif();
+        _ = LoadAppIconAsync();
         InitCompactModeToggle();
         InitNavLayoutComboBox();
         InitDefaultPageComboBox();
@@ -312,16 +312,53 @@ public sealed partial class SettingsPage : Page
         return value;
     }
 
-    private void LoadSettingsGif()
+    /// <summary>
+    /// 加载 AppIcon.ico 中尺寸最大的帧（PNG 压缩）作为「关于」卡片的应用图标。
+    /// </summary>
+    private async Task LoadAppIconAsync()
     {
         try
         {
-            var gifPath = Path.Combine(AppContext.BaseDirectory, "Assets", "settings.gif");
-            if (File.Exists(gifPath))
+            var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico");
+            if (!File.Exists(iconPath)) return;
+
+            // ICO 目录：6 字节头 + 每条 16 字节；帧均为 PNG 压缩，取数据最大的一帧保证清晰度
+            using var fs = File.OpenRead(iconPath);
+            using var reader = new BinaryReader(fs);
+            reader.ReadUInt16(); // reserved
+            reader.ReadUInt16(); // type
+            var count = reader.ReadUInt16();
+            int bestOffset = 0, bestSize = 0;
+            for (var i = 0; i < count; i++)
             {
-                var bitmap = new BitmapImage(new Uri(gifPath)) { AutoPlay = true };
-                SettingsGifImage.Source = bitmap;
+                reader.ReadByte(); // width
+                reader.ReadByte(); // height
+                reader.ReadByte(); // color count
+                reader.ReadByte(); // reserved
+                reader.ReadUInt16(); // planes
+                reader.ReadUInt16(); // bit count
+                var bytesInRes = reader.ReadInt32();
+                var imageOffset = reader.ReadInt32();
+                if (bytesInRes > bestSize)
+                {
+                    bestSize = bytesInRes;
+                    bestOffset = imageOffset;
+                }
             }
+
+            reader.BaseStream.Seek(bestOffset, SeekOrigin.Begin);
+            var pngBytes = reader.ReadBytes(bestSize);
+
+            var bitmap = new BitmapImage();
+            using (var inMemStream = new Windows.Storage.Streams.InMemoryRandomAccessStream())
+            {
+                var winBuffer = System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsBuffer(pngBytes);
+                await inMemStream.WriteAsync(winBuffer);
+                inMemStream.Seek(0);
+                await bitmap.SetSourceAsync(inMemStream);
+            }
+
+            AppIconImage.Source = bitmap;
         }
         catch
         {

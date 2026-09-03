@@ -18,7 +18,7 @@ public sealed class LatencyImageQueryTool : IBuiltinTool
 	public string Name => "核间延迟查询";
 	public string Description => "查看社区上传的核间延迟热力图，对比不同 CPU 的核心间通信延迟。";
 	public string Glyph => "\ue9d9";
-	public string Category => "硬件信息";
+	public string Category => "硬件工具";
 	public BuiltinToolKind Kind => BuiltinToolKind.Dialog;
 
 	public Task ExecuteAsync(BuiltinToolContext context)

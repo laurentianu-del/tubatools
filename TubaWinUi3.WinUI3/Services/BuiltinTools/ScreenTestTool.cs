@@ -15,7 +15,7 @@ public sealed class ScreenTestTool : IBuiltinTool
     public string Name => "屏幕坏点检测";
     public string Description => "全屏播放纯色与检测图案，快速发现屏幕坏点、漏光、色阶问题。";
     public string Glyph => "\uE7F4";
-    public string Category => "外设工具";
+    public string Category => "硬件工具";
     public BuiltinToolKind Kind => BuiltinToolKind.Dialog;
 
     public Task ExecuteAsync(BuiltinToolContext context)

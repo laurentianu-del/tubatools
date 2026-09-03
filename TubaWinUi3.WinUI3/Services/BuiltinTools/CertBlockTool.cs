@@ -15,7 +15,7 @@ public sealed class CertBlockTool : IBuiltinTool
     public string Name => "恶意软件拦截器";
     public string Description => "通过将软件厂商证书加入系统不信任列表，阻止流氓软件安装和运行。";
     public string Glyph => "\uE72E";
-    public string Category => "安全工具";
+    public string Category => "系统工具";
     public BuiltinToolKind Kind => BuiltinToolKind.Dialog;
 
     public Task ExecuteAsync(BuiltinToolContext context)

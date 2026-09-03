@@ -63,6 +63,7 @@ public static class BuiltinToolRegistry
         Register(new WindowsFeatureTool());
 
         Register(new StartupManagerTool());
+        Register(new DigitalLiteracyTestTool());
     }
 
     public static IReadOnlyList<string> GetCategories()

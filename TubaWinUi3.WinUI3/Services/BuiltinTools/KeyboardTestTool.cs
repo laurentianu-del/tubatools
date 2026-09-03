@@ -17,7 +17,7 @@ public sealed class KeyboardTestTool : IBuiltinTool
     public string Name => "键盘测试";
     public string Description => "检测键盘按键是否正常，按键后高亮显示，支持带数字小键盘区的大键盘/无数字区的小键盘(TKL)布局切换，可区分左右 Shift/Ctrl/Alt，支持 Copilot 键。";
     public string Glyph => "\uE92E";
-    public string Category => "外设工具";
+    public string Category => "硬件工具";
     public BuiltinToolKind Kind => BuiltinToolKind.Dialog;
 
     private static readonly Color KeyPressed = Color.FromArgb(255, 66, 133, 244);

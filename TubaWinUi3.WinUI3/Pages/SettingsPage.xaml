@@ -93,7 +93,7 @@
                             </Grid.ColumnDefinitions>
 
                             <Image
-                                x:Name="SettingsGifImage"
+                                x:Name="AppIconImage"
                                 Width="56"
                                 Height="56"
                                 Stretch="UniformToFill" />
@@ -1384,6 +1384,30 @@
                                             <TextBlock FontSize="12" Opacity="1.0" Text="tubawinui3.cn" />
                                         </StackPanel>
                                         <HyperlinkButton Grid.Column="2" VerticalAlignment="Center" NavigateUri="https://tubawinui3.cn" Content="访问官网" />
+                                    </Grid>
+                                </Border>
+
+                                <Border Style="{StaticResource SettingsCardStyle}">
+                                    <Grid ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource IconBorderStyle}">
+                                            <Image
+                                                Width="24"
+                                                Height="24"
+                                                Source="https://nexbox.top/logo/NexBoxB.png"
+                                                Stretch="Uniform"
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                            <TextBlock FontWeight="Bold" Text="新境盒 NexBox" />
+                                            <TextBlock FontSize="12" Opacity="1.0" Text="为现代玩家打造的游戏工具箱 - 特别鸣谢" />
+                                        </StackPanel>
+                                        <HyperlinkButton Grid.Column="2" VerticalAlignment="Center" NavigateUri="https://nexbox.top" Content="访问官网" />
                                     </Grid>
                                 </Border>
 
