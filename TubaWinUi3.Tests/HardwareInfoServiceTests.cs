@@ -75,6 +75,8 @@ public class HardwareInfoServiceTests
     [InlineData("ADATA", "威刚(ADATA)")]
     [InlineData("G.SKILL", "芝奇(G.Skill)")]
     [InlineData("TEAMGROUP", "十铨(TeamGroup)")]
+    [InlineData("Kingbank Technology", "金百达(Kingbank)")]
+    [InlineData("KINGBANK", "金百达(Kingbank)")]
     [InlineData("UnknownBrand", "UnknownBrand")]
     [InlineData(null, null)]
     [InlineData("", null)]
@@ -90,6 +92,8 @@ public class HardwareInfoServiceTests
     [InlineData("11", "Hynix")]
     [InlineData("16", "Kingston")]
     [InlineData("2C", "金士顿(Kingston)")]
+    // 奇校验位：0x92 与 0x12 必须解到同一厂商（Kingbank 的 vendor byte 0x12）
+    [InlineData("92", null)] // 单字节无法区分是哪一 bank 的 vendor，返回 null 让上层走字符串路径
     [InlineData("FF", null)]
     public void DecodeJedecManufacturer_2DigitHex(string raw, string? expected)
     {
@@ -100,7 +104,26 @@ public class HardwareInfoServiceTests
     [InlineData("0x0E", "三星(Samsung)")]
     [InlineData("0x02", "美光(Micron)")]
     [InlineData("0x16", "Kingston")]
+    [InlineData("0x92", null)] // 单字节厂商码去校验后是 0x12，表中无匹配
     public void DecodeJedecManufacturer_0xPrefix2Digit(string raw, string? expected)
+    {
+        Assert.Equal(expected, HardwareInfoService.DecodeJedecManufacturer(raw));
+    }
+
+    [Theory]
+    // Kingbank 的 JEP106 完整编码是 Bank11 + vendor 0x12，十六进制 0x0B12。
+    // Windows 实际返回的两种字节序都要正确解码：
+    [InlineData("0B12", "金百达(Kingbank)")] // 大端：[continuation][vendor]
+    [InlineData("120B", "金百达(Kingbank)")] // 小端：[vendor][continuation]
+    [InlineData("0x0B12", "金百达(Kingbank)")]
+    [InlineData("0x120B", "金百达(Kingbank)")]
+    // Silicon Power：Bank6 + 0x53
+    [InlineData("0653", "广颖电通(Silicon Power)")]
+    [InlineData("5306", "广颖电通(Silicon Power)")]
+    // Bank11 + 0x12 带奇校验位：高位字节 = 0x8B，低位 = 0x92
+    [InlineData("8B92", "金百达(Kingbank)")]
+    [InlineData("928B", "金百达(Kingbank)")]
+    public void DecodeJedecManufacturer_4DigitHex(string raw, string? expected)
     {
         Assert.Equal(expected, HardwareInfoService.DecodeJedecManufacturer(raw));
     }
@@ -113,6 +136,25 @@ public class HardwareInfoServiceTests
         Assert.Equal("海力士(SK Hynix)", HardwareInfoService.JedecVendorFromCode(0x1F));
         Assert.Equal("金士顿(Kingston)", HardwareInfoService.JedecVendorFromCode(0x2C));
         Assert.Null(HardwareInfoService.JedecVendorFromCode(0xFF));
+    }
+
+    [Theory]
+    // 回归：曾经伪造的 0x80-0x95 映射必须全部移除，避免误识别
+    [InlineData((byte)0x80, null)]
+    [InlineData((byte)0x83, null)] // 旧版被误映射到 Kingston
+    [InlineData((byte)0x92, null)] // 旧版被误映射到 Silicon Power（= Kingbank vendor 0x12 带校验）
+    [InlineData((byte)0x95, null)] // 旧版被误映射到 CXMT
+    public void JedecVendorFromCode_FabricatedHighRange_NoLongerMapped(byte code, string? expected)
+    {
+        Assert.Equal(expected, HardwareInfoService.JedecVendorFromCode(code));
+    }
+
+    [Theory]
+    [InlineData(0x0B12, "金百达(Kingbank)")] // Bank11 + 0x12 = Kingbank
+    [InlineData(0x653, "广颖电通(Silicon Power)")] // Bank6 + 0x53 = Silicon Power
+    public void JedecVendorFromExtendedCode_MultiByte(int fullCode, string? expected)
+    {
+        Assert.Equal(expected, HardwareInfoService.JedecVendorFromExtendedCode(fullCode));
     }
 
     [Theory]

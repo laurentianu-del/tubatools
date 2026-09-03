@@ -750,7 +750,7 @@ public static class HardwareInfoService
             "GEIL" => "金邦(Geil)",
             "APACER" => "宇瞻(Apacer)",
             "PATRIOT" => "博帝(Patriot)",
-            "SILICON POWER" => "广颖电通(Silicon Power)",
+            "SILICON POWER" or "S-POWER" or "SP" => "广颖电通(Silicon Power)",
             "KLEVV" => "科赋(Klevv)",
             "BIWIN" => "佰维(Biwin)",
             "GALAX" or "GALAXY" => "影驰(Galax)",
@@ -761,6 +761,12 @@ public static class HardwareInfoService
             "GOODRAM" => "Goodram",
             "RAMAXEL" => "记忆科技(Ramaxel)",
             "CXMT" => "长鑫存储(CXMT)",
+            // 国产 + 国际新晋内存模组厂，BIOS 经常直接以字符串返回
+            "KINGBANK" or "KINGBANK TECHNOLOGY" => "金百达(Kingbank)",
+            "KINGMAX" or "KINGMAX TECHNOLOGY" or "KINGMAX SEMICONDUCTOR" => "胜创(Kingmax)",
+            "ASINT" => "ASint",
+            "V-COLOR" or "VCOLOR" => "V-Color",
+            "GLOWAY" => "光威(Gloway)",
             _ => cleaned
         };
     }
@@ -770,19 +776,37 @@ public static class HardwareInfoService
         if (string.IsNullOrWhiteSpace(raw)) return null;
         var trimmed = raw.Trim();
 
+        // 去掉奇校验位再查表：JEDEC JEP106 中 0x92 与 0x12 是同一厂商。
+        // 此外 BIOS / Windows 把 SPD 字节序列化成 hex 串时常见的两种字节序都要兼容：
+        //   1) 大端：[continuation][vendor]        → "0B12" 表示 bank=11, vendor=0x12
+        //   2) 小端：[vendor][continuation]        → "120B" 同样表示同一厂商
+        // 这两种形式在 WMI Win32_PhysicalMemory.Manufacturer 中都会出现。
         if (trimmed.Length == 2 && IsHex(trimmed))
         {
             var code = Convert.ToByte(trimmed, 16);
-            return JedecVendorFromCode(code);
+            var vendor = (byte)(code & 0x7F);
+            return JedecVendorFromCode(vendor);
         }
 
         if (trimmed.Length == 4 && IsHex(trimmed))
         {
             var code = Convert.ToUInt16(trimmed, 16);
-            var bank = (code >> 8) & 0x7F;
-            var vendor = code & 0x7F;
-            var fullCode = bank * 128 + vendor;
-            return JedecVendorFromExtendedCode(fullCode);
+
+            // 字节序 1：高位字节在前（[bank+parity][vendor+parity]）
+            var vendor1 = (byte)((code & 0xFF) & 0x7F);
+            var bank1 = (byte)((code >> 8) & 0x7F);
+            var fullCode1 = bank1 * 128 + vendor1;
+            var r1 = JedecVendorFromExtendedCode(fullCode1);
+            if (r1 != null) return r1;
+
+            // 字节序 2：低位字节在前（[vendor+parity][bank+parity]）
+            var vendor2 = (byte)((code >> 8) & 0x7F);
+            var bank2 = (byte)(code & 0x7F);
+            var fullCode2 = bank2 * 128 + vendor2;
+            var r2 = JedecVendorFromExtendedCode(fullCode2);
+            if (r2 != null) return r2;
+
+            return null;
         }
 
         if (trimmed.Length >= 4 && trimmed.All(c => char.IsLetterOrDigit(c) || c == '-' || c == '_'))
@@ -794,15 +818,26 @@ public static class HardwareInfoService
                 if (hexPart.Length == 2 && IsHex(hexPart))
                 {
                     var code = Convert.ToByte(hexPart, 16);
-                    return JedecVendorFromCode(code);
+                    var vendor = (byte)(code & 0x7F);
+                    return JedecVendorFromCode(vendor);
                 }
                 if (hexPart.Length == 4 && IsHex(hexPart))
                 {
                     var code = Convert.ToUInt16(hexPart, 16);
-                    var bank = (code >> 8) & 0x7F;
-                    var vendor = code & 0x7F;
-                    var fullCode = bank * 128 + vendor;
-                    return JedecVendorFromExtendedCode(fullCode);
+
+                    var vendor1 = (byte)((code & 0xFF) & 0x7F);
+                    var bank1 = (byte)((code >> 8) & 0x7F);
+                    var fullCode1 = bank1 * 128 + vendor1;
+                    var r1 = JedecVendorFromExtendedCode(fullCode1);
+                    if (r1 != null) return r1;
+
+                    var vendor2 = (byte)((code >> 8) & 0x7F);
+                    var bank2 = (byte)(code & 0x7F);
+                    var fullCode2 = bank2 * 128 + vendor2;
+                    var r2 = JedecVendorFromExtendedCode(fullCode2);
+                    if (r2 != null) return r2;
+
+                    return null;
                 }
             }
         }
@@ -817,6 +852,12 @@ public static class HardwareInfoService
 
     internal static string? JedecVendorFromCode(byte code)
     {
+        // 注意：JEDEC JEP106 厂商 ID 是 7-bit 数据 + 1 位奇校验位。校验位为 1 时，
+        // 实际数据仍只看低 7 位（如 0x92 与 0x12 是同一厂商）。所以本表只覆盖
+        // 0x00-0x7E。0x80-0xFF 段并非有效的“厂商 ID”——它们要么是带校验位的同一
+        // 代码（应按低 7 位解码），要么是字节流的高字节，绝不应被当作单独厂商映射。
+        // 历史上这里曾被错误地塞进一批“猜”的国产模组厂映射，导致像金百达
+        // （JEP106 Bank11 vendor 0x12）这类内存被误识别为 Silicon Power 等。
         return code switch
         {
             0x02 => "美光(Micron)",
@@ -828,7 +869,7 @@ public static class HardwareInfoService
             0x0A => "NEC",
             0x0B => "东芝(Toshiba)",
             0x0E => "三星(Samsung)",
-            0x10 => "三菱(Mitsubishi)",
+            0x10 => "三菱(Micron)",
             0x11 => "Hynix",
             0x13 => "Elpida",
             0x15 => "英飞凌(Infineon)",
@@ -868,35 +909,22 @@ public static class HardwareInfoService
             0x4A => "必恩威(PNY)",
             0x4B => "Goodram",
             0x4C => "长鑫存储(CXMT)",
-            0x80 => "三星(Samsung)",
-            0x81 => "海力士(SK Hynix)",
-            0x82 => "美光(Micron)",
-            0x83 => "金士顿(Kingston)",
-            0x84 => "英睿达(Crucial)",
-            0x85 => "海盗船(Corsair)",
-            0x86 => "芝奇(G.Skill)",
-            0x87 => "威刚(ADATA)",
-            0x88 => "十铨(TeamGroup)",
-            0x89 => "宇瞻(Apacer)",
-            0x8A => "金邦(Geil)",
-            0x8B => "博帝(Patriot)",
-            0x8C => "影驰(Galax)",
-            0x8D => "七彩虹(Colorful)",
-            0x8E => "科赋(Klevv)",
-            0x8F => "佰维(Biwin)",
-            0x90 => "江波龙(Longsys)",
-            0x91 => "朗科(Netac)",
-            0x92 => "广颖电通(Silicon Power)",
-            0x93 => "必恩威(PNY)",
-            0x94 => "Goodram",
-            0x95 => "长鑫存储(CXMT)",
-            0x9E => "记忆科技(Ramaxel)",
+            // JEP106 Bank1 之后各 bank 的高频 DRAM/模组厂（低 7 位去校验后）
+            // 例如 Bank11+0x12（带奇校验 = 0x92）即金百达 Kingbank
             _ => null
         };
     }
 
     internal static string? JedecVendorFromExtendedCode(int fullCode)
     {
+        // fullCode = continuation_count * 128 + vendor_code_low7
+        // 多字节 JEDEC ID（例如 0x0B12 = 金百达 / 0x0653 = Silicon Power）。
+        // 历史版本曾在此塞进一批与实际 JEP106 不符的“猜测”映射，已清理。
+        // 注意：fallthrough 只在 bank == 0 时才允许——多字节 ID 任意落回单字节
+        // 表会把 e.g. 0x120B (little-endian for Kingbank) 误判为 “东芝(Toshiba)”
+        // 因为 0x0B 恰好命中 Toshiba。
+        var vendorLow7 = (byte)(fullCode & 0x7F);
+        var bank = (fullCode >> 7) & 0x7F;
         return fullCode switch
         {
             0x02 => "美光(Micron)",
@@ -909,17 +937,11 @@ public static class HardwareInfoService
             0x1F => "海力士(SK Hynix)",
             0x2C => "金士顿(Kingston)",
             0x30 => "记忆科技(Ramaxel)",
-            0x80 => "三星(Samsung)",
-            0x81 => "海力士(SK Hynix)",
-            0x82 => "美光(Micron)",
-            0x83 => "金士顿(Kingston)",
-            0x84 => "英睿达(Crucial)",
-            0x85 => "海盗船(Corsair)",
-            0x86 => "芝奇(G.Skill)",
-            0x87 => "威刚(ADATA)",
-            0x88 => "十铨(TeamGroup)",
-            0x9E => "记忆科技(Ramaxel)",
-            _ => JedecVendorFromCode((byte)(fullCode & 0xFF))
+            // Bank6 + 0x53 = Silicon Power（实际 JEP106 注册地址）
+            0x653 => "广颖电通(Silicon Power)",
+            // Bank11 + 0x12 = 金百达 Kingbank（实际 JEP106 注册地址）
+            0x0B12 => "金百达(Kingbank)",
+            _ => bank == 0 ? JedecVendorFromCode(vendorLow7) : null
         };
     }
 
