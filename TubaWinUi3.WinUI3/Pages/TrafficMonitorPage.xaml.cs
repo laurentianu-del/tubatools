@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Net;
+using System.Runtime.InteropServices;
 using LiveChartsCore;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
@@ -287,12 +289,16 @@ public sealed partial class TrafficMonitorPage : Page
         _connWindow = null; // 先置空，避免 Closed 事件里递归关闭
         if (w is not null)
         {
+            // 先清窗口 Content 槽位再回挂：槽位不清时 Content=null 会把刚挂回页面的
+            // 元素从宿主里连带摘走（实测），回挂则必抛 0x800F1000（已由 ReattachToPage 兜住）
             w.Content = null;
+            ReattachToPage(ConnListContent, ConnContentHost);
             w.Close();
         }
-        if (ConnListContent.Parent is not null) return; // 已回到主页面
-        ConnListContent.RequestedTheme = ElementTheme.Default;
-        ConnContentHost.Children.Add(ConnListContent);
+        else if (!ReattachToPage(ConnListContent, ConnContentHost))
+        {
+            return; // 摘回失败：内容仍留在独立窗口岛，保持占位提示与禁用弹出按钮
+        }
         ConnPopoutPlaceholder.Visibility = Visibility.Collapsed;
         ConnPopOutBtn.IsEnabled = true;
     }
@@ -319,12 +325,16 @@ public sealed partial class TrafficMonitorPage : Page
         _chartWindow = null; // 先置空，避免 Closed 事件里递归关闭
         if (w is not null)
         {
+            // 先清窗口 Content 槽位再回挂：槽位不清时 Content=null 会把刚挂回页面的
+            // 元素从宿主里连带摘走（实测），回挂则必抛 0x800F1000（已由 ReattachToPage 兜住）
             w.Content = null;
+            ReattachToPage(ChartListContent, ChartContentHost);
             w.Close();
         }
-        if (ChartListContent.Parent is not null) return;
-        ChartListContent.RequestedTheme = ElementTheme.Default;
-        ChartContentHost.Children.Add(ChartListContent);
+        else if (!ReattachToPage(ChartListContent, ChartContentHost))
+        {
+            return; // 摘回失败：内容仍留在独立窗口岛，保持占位提示与禁用弹出按钮
+        }
         ChartPopoutPlaceholder.Visibility = Visibility.Collapsed;
         ChartPopOutBtn.IsEnabled = true;
     }
@@ -335,31 +345,55 @@ public sealed partial class TrafficMonitorPage : Page
         _connWindow = null;
         if (cw is not null)
         {
+            // 先清窗口 Content 槽位再回挂：槽位不清时 Content=null 会把刚挂回页面的
+            // 元素从宿主里连带摘走（实测），回挂则必抛 0x800F1000（已由 ReattachToPage 兜住）
             cw.Content = null;
+            ReattachToPage(ConnListContent, ConnContentHost);
             cw.Close();
         }
         var chw = _chartWindow;
         _chartWindow = null;
         if (chw is not null)
         {
+            // 先清窗口 Content 槽位再回挂（见上）
             chw.Content = null;
+            ReattachToPage(ChartListContent, ChartContentHost);
             chw.Close();
-        }
-        // 内容未移回时直接挂回主页面，避免导航离开后元素丢失
-        if (ConnListContent.Parent is null)
-        {
-            ConnListContent.RequestedTheme = ElementTheme.Default;
-            ConnContentHost.Children.Add(ConnListContent);
-        }
-        if (ChartListContent.Parent is null)
-        {
-            ChartListContent.RequestedTheme = ElementTheme.Default;
-            ChartContentHost.Children.Add(ChartListContent);
         }
         ConnPopoutPlaceholder.Visibility = Visibility.Collapsed;
         ChartPopoutPlaceholder.Visibility = Visibility.Collapsed;
         ConnPopOutBtn.IsEnabled = true;
         ChartPopOutBtn.IsEnabled = true;
+    }
+
+    /// <summary>把弹出窗口里的内容挂回页面宿主；已在宿主中则无事。返回是否已成功挂回。</summary>
+    /// <remarks>
+    /// 实测从独立窗口岛挂回页面面板时，Children.Add 会抛 REGDB_E_CLASSNOTREG
+    /// （0x800F1000「没有检测到已安装的组件」）但元素实际已挂回，故吞掉异常后复查
+    /// Parent 判断真实结果。调用前必须先清掉窗口的 Content 槽位（w.Content = null），
+    /// 否则之后置空槽位会把刚挂回的从宿主里连带摘走。异常一律不许逃逸，避免打断导航/最小化。
+    /// </remarks>
+    private static bool ReattachToPage(FrameworkElement content, Panel host)
+    {
+        if (content.Parent is not null) return true;
+        try
+        {
+            host.Children.Add(content);
+        }
+        catch (COMException ex)
+        {
+            Debug.WriteLine($"[TrafficMonitor] 收回弹出内容时抛错(可能已生效): {ex.Message}");
+        }
+        if (content.Parent is null) return false;
+        try
+        {
+            content.RequestedTheme = ElementTheme.Default;
+        }
+        catch (COMException ex)
+        {
+            Debug.WriteLine($"[TrafficMonitor] 复位弹出内容主题失败: {ex.Message}");
+        }
+        return true;
     }
 
     private Window CreatePopoutWindow(string title, int width, int height)

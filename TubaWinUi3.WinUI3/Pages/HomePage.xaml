@@ -293,6 +293,7 @@
                 DoubleTapped="ToolsGrid_DoubleTapped"
                 DragItemsCompleted="Grid_DragItemsCompleted"
                 ItemContainerStyle="{StaticResource ToolCardStyle}"
+                Footer=""
                 SelectionMode="None"
                 SizeChanged="ToolsGrid_SizeChanged"
                 Visibility="Collapsed"
@@ -498,6 +499,16 @@
                             </Border>
                         </DataTemplate>
                     </GridView.ItemTemplate>
+                    <GridView.FooterTemplate>
+                        <DataTemplate>
+                            <TextBlock
+                                Margin="0,20,0,12"
+                                HorizontalAlignment="Center"
+                                FontSize="12"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="拖入 zip/exe/ps1/bat 可添加自己的工具，右键可以对工具执行更多操作" />
+                        </DataTemplate>
+                    </GridView.FooterTemplate>
                 </GridView>
 
             <GridView
@@ -507,6 +518,7 @@
                 DoubleTapped="CompactGrid_DoubleTapped"
                 DragItemsCompleted="Grid_DragItemsCompleted"
                 ItemContainerStyle="{StaticResource CompactCardStyle}"
+                Footer=""
                 SelectionMode="None"
                 SizeChanged="CompactGrid_SizeChanged"
                 Visibility="Collapsed"
@@ -599,6 +611,16 @@
                             </Border>
                         </DataTemplate>
                     </GridView.ItemTemplate>
+                    <GridView.FooterTemplate>
+                        <DataTemplate>
+                            <TextBlock
+                                Margin="0,16,0,12"
+                                HorizontalAlignment="Center"
+                                FontSize="12"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="拖入 zip/exe/ps1/bat 可添加自己的工具，右键可以对工具执行更多操作" />
+                        </DataTemplate>
+                    </GridView.FooterTemplate>
                 </GridView>
 
             <!-- 编辑排序模式：专用纵向列表，整行自实现拖拽（与收藏页同模式） -->

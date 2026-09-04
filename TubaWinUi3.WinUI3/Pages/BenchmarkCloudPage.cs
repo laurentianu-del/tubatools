@@ -1519,6 +1519,14 @@ public sealed partial class BenchmarkCloudPage : Page
 
 	private async void ShowReportDetailDialog(BenchmarkReportEntry report)
 	{
+		// 新 leaderboard.json 的条目只含摘要，硬件详情拆到了详情文件：
+		// 摘要缺 OS 字段时按需加载补全（旧格式字段齐全则直接跳过）
+		if (string.IsNullOrWhiteSpace(report.OsName) && !string.IsNullOrWhiteSpace(report.DetailsPath))
+		{
+			var detail = await BenchmarkCloudService.GetReportDetailAsync(report);
+			if (detail is not null) report = detail;
+		}
+
 		StackPanel stackPanel = new StackPanel
 		{
 			Spacing = 8.0

@@ -310,7 +310,10 @@ public sealed partial class CommunityToolsPage : Page
             return;
         }
 
-        await InstallToolAsync(tool);
+        // 卡片上的工具只是列表摘要（没有 plugin.json 里的下载源/作者信息），
+        // 先加载详情再安装；详情已缓存时这一步是纯内存操作。
+        var detail = await LoadToolDetailAsync(tool);
+        await InstallToolAsync(detail ?? tool);
     }
 
     private async void DeleteButton_Click(object sender, RoutedEventArgs e)
@@ -525,6 +528,13 @@ public sealed partial class CommunityToolsPage : Page
 
     private async Task InstallToolAsync(CommunityTool tool)
     {
+        if (string.IsNullOrWhiteSpace(tool.DownloadUrl) && string.IsNullOrWhiteSpace(tool.File))
+        {
+            // 兜底：摘要对象缺少下载源时再试一次加载详情（正常入口已加载，命中缓存）
+            var detail = await CommunityToolService.LoadToolDetailAsync(tool);
+            if (detail is not null) tool = detail;
+        }
+
         if (string.IsNullOrWhiteSpace(tool.DownloadUrl) && string.IsNullOrWhiteSpace(tool.File))
         {
             ShowStatus("无法下载", "该工具没有提供下载源", InfoBarSeverity.Warning);

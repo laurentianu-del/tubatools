@@ -30,6 +30,8 @@ public static class BenchmarkCloudService
 	
 	private static readonly string GitHubLeaderboardUrl = "https://raw.githubusercontent.com/luolangaga/tubatoolsPlugin/main/leaderboard.json";
 	private static readonly string GitCodeApiUrl = "https://api.gitcode.com/api/v5/repos/luolangaga/tubatoolsPlugin/contents/leaderboard.json";
+	private static readonly string GitHubLeaderboardDetailsBase = "https://raw.githubusercontent.com/luolangaga/tubatoolsPlugin/main/leaderboard/details";
+	private static readonly string GitCodeLeaderboardDetailsApiBase = "https://api.gitcode.com/api/v5/repos/luolangaga/tubatoolsPlugin/contents/leaderboard/details";
 	private static readonly string GitHubPagedBase = "https://raw.githubusercontent.com/luolangaga/tubatoolsPlugin/main/leaderboard";
 	private static readonly string GitCodePagedApiBase = "https://api.gitcode.com/api/v5/repos/luolangaga/tubatoolsPlugin/contents/leaderboard";
 	
@@ -58,6 +60,7 @@ public static class BenchmarkCloudService
 	private static DateTimeOffset _cacheTime;
 	private static readonly TimeSpan CacheDuration;
 	private static BenchmarkLeaderboardData? _leaderboardCache;
+	private static readonly Dictionary<string, BenchmarkReportEntry> _reportDetailCache = new(StringComparer.OrdinalIgnoreCase);
 	private static DateTimeOffset _leaderboardCacheTime;
 	private static readonly Dictionary<string, int> _pagedTotalPages = new();
 	private static readonly Dictionary<string, int> _pagedTotalEntries = new();
@@ -84,6 +87,7 @@ public static class BenchmarkCloudService
 		_cacheTime = DateTimeOffset.MinValue;
 		_leaderboardCache = null;
 		_leaderboardCacheTime = DateTimeOffset.MinValue;
+		_reportDetailCache.Clear();
 		_latencyListCache = null;
 		_latencyListCacheTime = DateTimeOffset.MinValue;
 		_pagedTotalPages.Clear();
@@ -535,13 +539,39 @@ public static class BenchmarkCloudService
 		try
 		{
 			var leaderboardData = await GetLeaderboardDataAsync(ct);
-			if (leaderboardData != null && leaderboardData.Leaderboards.TryGetValue("gaming", out var gamingList))
+			if (leaderboardData != null)
 			{
-				var reports = gamingList.Select(e => e.ToReportEntry()).ToList();
-				SaveLocalCache(reports);
-				_cache = reports;
-				_cacheTime = DateTimeOffset.UtcNow;
-				return _cache;
+				List<BenchmarkReportEntry>? reports = null;
+
+				// 新结构（单列）：reports 就是全部报告集合（服务器已按综合榜降序）
+				if (leaderboardData.Reports is { Count: > 0 })
+				{
+					reports = leaderboardData.Reports.Select(e => e.ToReportEntry()).ToList();
+				}
+				// 兼容中间版结构：reports 摘要 + boards id 列表
+				else if (leaderboardData.Boards is not null && leaderboardData.Reports is not null &&
+					leaderboardData.Boards.TryGetValue("gaming", out var gamingIds))
+				{
+					var byId = leaderboardData.Reports.ToDictionary(r => r.Id, StringComparer.OrdinalIgnoreCase);
+					reports = gamingIds
+						.Select(id => byId.TryGetValue(id, out var e) ? e : null)
+						.Where(e => e is not null)
+						.Select(e => e!.ToReportEntry())
+						.ToList();
+				}
+				// 旧结构：gaming 榜条目即全量报告
+				else if (leaderboardData.Leaderboards?.TryGetValue("gaming", out var gamingList) == true)
+				{
+					reports = gamingList.Select(e => e.ToReportEntry()).ToList();
+				}
+
+				if (reports is not null)
+				{
+					SaveLocalCache(reports);
+					_cache = reports;
+					_cacheTime = DateTimeOffset.UtcNow;
+					return _cache;
+				}
 			}
 		}
 		catch (Exception ex)
@@ -609,11 +639,43 @@ public static class BenchmarkCloudService
 			var allReports = await GetAllReportsAsync(ct);
 			return ComputeLeaderboard(allReports, sortBy, cpuFilter, gpuFilter);
 		}
-		if (!data.Leaderboards.TryGetValue(sortBy, out var entries))
+
+		IEnumerable<BenchmarkLeaderboardRankEntry> source;
+
+		// 新结构（单列）：reports 只存一份信息，各维度排序由客户端本地算
+		if (data.Reports is { Count: > 0 })
 		{
-			entries = data.Leaderboards.GetValueOrDefault("gaming", []);
+			Func<BenchmarkLeaderboardRankEntry, int> scoreOf = sortBy switch
+			{
+				"office" => static e => e.OfficeScore,
+				"cpu" => static e => e.CpuMultiCoreScore,
+				"gpu" => static e => e.GpuRenderScore,
+				"disk" => static e => e.DiskSeqReadScore,
+				"browser" => static e => e.BrowserTotalScore,
+				_ => static e => e.GamingScore,
+			};
+			source = data.Reports.OrderByDescending(scoreOf);
 		}
-		IEnumerable<BenchmarkLeaderboardRankEntry> source = entries;
+		// 兼容中间版结构：boards 存 id 有序列表，按 id 回查 reports 摘要
+		else if (data.Boards is not null && data.Reports is not null &&
+			data.Boards.TryGetValue(sortBy, out var boardIds))
+		{
+			var byId = data.Reports.ToDictionary(r => r.Id, StringComparer.OrdinalIgnoreCase);
+			source = boardIds
+				.Select(id => byId.TryGetValue(id, out var e) ? e : null)
+				.Where(e => e is not null)
+				.Select(e => e!);
+		}
+		// 旧结构：每条自带全量字段
+		else if (data.Leaderboards?.TryGetValue(sortBy, out var entries) == true)
+		{
+			source = entries;
+		}
+		else
+		{
+			source = data.Leaderboards?.GetValueOrDefault("gaming", []) ?? [];
+		}
+
 		if (!string.IsNullOrWhiteSpace(cpuFilter))
 		{
 			source = source.Where(e => e.CpuName.Contains(cpuFilter, StringComparison.OrdinalIgnoreCase));
@@ -627,6 +689,61 @@ public static class BenchmarkCloudService
 			Rank = i + 1,
 			Report = e.ToReportEntry()
 		}).ToList();
+	}
+
+	/// <summary>
+	/// 按需加载报告详情（leaderboard/details/{id}.json）。
+	/// 新 leaderboard.json 只含摘要，硬件详情（OS/主板/内存/硬盘/显示器）在详情文件里。
+	/// 失败返回 null，调用方回退到摘要字段。
+	/// </summary>
+	public static async Task<BenchmarkReportEntry?> GetReportDetailAsync(BenchmarkReportEntry report, CancellationToken ct = default)
+	{
+		if (report is null || string.IsNullOrWhiteSpace(report.Id)) return null;
+		if (_reportDetailCache.TryGetValue(report.Id, out var cached)) return cached;
+
+		try
+		{
+			var id = Uri.EscapeDataString(report.Id);
+			string json;
+
+			if (_currentSource == LeaderboardSource.GitCode)
+			{
+				using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+				client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-Benchmark");
+				var apiResp = await client.GetAsync($"{GitCodeLeaderboardDetailsApiBase}/{id}.json", ct);
+				if (!apiResp.IsSuccessStatusCode) return null;
+				var apiJson = await apiResp.Content.ReadAsStringAsync(ct);
+				using var apiDoc = JsonDocument.Parse(apiJson);
+				if (!apiDoc.RootElement.TryGetProperty("download_url", out var du) ||
+					du.GetString() is not { Length: > 0 } downloadUrl)
+					return null;
+				json = await client.GetStringAsync(downloadUrl, ct);
+			}
+			else
+			{
+				using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+				client.DefaultRequestHeaders.Add("User-Agent", "TubaWinUi3-Benchmark");
+				var resp = await client.GetAsync($"{GitHubLeaderboardDetailsBase}/{id}.json", ct);
+				if (!resp.IsSuccessStatusCode) return null;
+				json = await resp.Content.ReadAsStringAsync(ct);
+			}
+
+			var detail = JsonSerializer.Deserialize<BenchmarkReportEntry>(json, new JsonSerializerOptions
+			{
+				PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+			});
+			if (detail is null || string.IsNullOrWhiteSpace(detail.Id)) return null;
+
+			// 详情文件里没有 DetailsPath，补上以免二次判空
+			detail.DetailsPath = report.DetailsPath;
+			_reportDetailCache[report.Id] = detail;
+			return detail;
+		}
+		catch (OperationCanceledException) { throw; }
+		catch
+		{
+			return null;
+		}
 	}
 
 	public static async Task<BenchmarkLeaderboardPage?> GetLeaderboardPageAsync(string sortBy, int page, CancellationToken ct)

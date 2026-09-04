@@ -5,16 +5,29 @@ const out = 'C:\\Users\\luolan\\Desktop\\tubawinui3\\benchmark-worker\\seed.sql'
 
 const d = JSON.parse(fs.readFileSync(src, 'utf8'));
 
-// 去重：同一 id 只保留一份
-const seen = new Set();
-const rows = [];
-for (const dim of Object.keys(d.leaderboards)) {
-  for (const e of d.leaderboards[dim]) {
-    if (seen.has(e.id)) continue;
-    seen.add(e.id);
-    rows.push(e);
+// 兼容三种结构：
+// - 新单列：reports 每份报告只存一遍（各维度排序由客户端本地算）
+// - 中间版：reports（摘要）+ boards（各榜 id 有序列表）
+// - 旧结构：leaderboards（各榜全量条目，同一份报告在每个榜重复一遍）
+const collected = [];
+if (Array.isArray(d.reports)) {
+  for (const e of d.reports) collected.push(e);
+} else if (d.leaderboards) {
+  for (const dim of Object.keys(d.leaderboards)) {
+    for (const e of d.leaderboards[dim]) {
+      collected.push(e);
+    }
   }
 }
+// 去重：同一 id 只保留一份（新结构 boards 去重后精确等于 reports；旧结构去掉跨榜重复）
+const seen = new Set();
+const deduped = [];
+for (const e of collected) {
+  if (seen.has(e.id)) continue;
+  seen.add(e.id);
+  deduped.push(e);
+}
+const rows = deduped;
 
 function sqlStr(s) {
   if (s === null || s === undefined) return "''";

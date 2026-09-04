@@ -77,12 +77,12 @@ public class AiProviderStoreTests : IDisposable
     }
 
     [Fact]
-    public void Defaults_Unconfigured_SelectsOpenCodeZenFreeModel()
+    public void Defaults_Unconfigured_SelectsTubaBuiltinModel()
     {
-        // 全新安装/未配置：默认使用 OpenCode Zen 免费模型（匿名可用）
-        Assert.Equal(AiProviderStore.OpenCodeZenProviderId, AiProviderStore.SelectedProviderId);
-        Assert.Equal(AiProviderStore.OpenCodeZenSeedFreeModels[0], AiProviderStore.SelectedModelId);
-        Assert.False(AiService.IsUsingDefaultModel);
+        // 全新安装/未配置：默认使用小图吧自带模型（内置端点，无需 Key）
+        Assert.Equal(AiProviderStore.CustomProviderId, AiProviderStore.SelectedProviderId);
+        Assert.Equal("auto", AiProviderStore.SelectedModelId);
+        Assert.True(AiService.IsUsingDefaultModel);
     }
 
     [Fact]
@@ -142,21 +142,21 @@ public class AiProviderStoreTests : IDisposable
     }
 
     [Fact]
-    public void LegacyMigration_EmptySelectsOpenCodeZen()
+    public void LegacyMigration_EmptySelectsTubaBuiltin()
     {
-        // 旧版未配置任何服务 → 默认使用 OpenCode Zen 免费模型
+        // 旧版未配置任何服务 → 默认使用小图吧自带模型
         var custom = AiProviderStore.GetProvider("custom")!;
         Assert.Equal("", custom.BaseUrl);
         Assert.Equal("", custom.ApiKey);
         Assert.Equal("auto", custom.DefaultModel);
-        Assert.Equal(AiProviderStore.OpenCodeZenProviderId, AiProviderStore.SelectedProviderId);
-        Assert.False(AiService.IsUsingDefaultModel);
+        Assert.Equal(AiProviderStore.CustomProviderId, AiProviderStore.SelectedProviderId);
+        Assert.True(AiService.IsUsingDefaultModel);
     }
 
     [Fact]
-    public void LegacyFile_EmptyCustom_DefaultMigratesToOpenCodeZen()
+    public void LegacyFile_EmptyCustom_KeepsTubaBuiltin()
     {
-        // 模拟旧版文件（无 defaultMigrated 标记）：选中「小图吧自带模型」且未配置 → 迁移到 OpenCode Zen
+        // 模拟旧版文件（无 defaultTubaMigrated 标记）：选中「小图吧自带模型」且未配置 → 保持小图吧默认
         File.WriteAllText(_path, """
             {"version":1,"selectedProviderId":"custom","selectedModelId":"auto","providers":[
               {"id":"custom","name":"小图吧自带模型","baseUrl":"","apiKey":"","isPreset":true,"endpointLocked":false,"defaultModel":"auto","models":[{"id":"auto","label":"自动"}]},
@@ -165,15 +165,15 @@ public class AiProviderStoreTests : IDisposable
             """);
         ResetStore(_path, legacy: null);
 
-        Assert.Equal(AiProviderStore.OpenCodeZenProviderId, AiProviderStore.SelectedProviderId);
-        Assert.Equal("deepseek-v4-flash-free", AiProviderStore.SelectedModelId);
-        Assert.False(AiService.IsUsingDefaultModel);
+        Assert.Equal(AiProviderStore.CustomProviderId, AiProviderStore.SelectedProviderId);
+        Assert.Equal("auto", AiProviderStore.SelectedModelId);
+        Assert.True(AiService.IsUsingDefaultModel);
     }
 
     [Fact]
-    public void LegacyFile_EmptyCustomProvider_DefaultMigratesToOpenCodeZen()
+    public void LegacyFile_EmptyCustomProvider_MigratesToTubaBuiltin()
     {
-        // 旧版选中空白自定义提供商（如「新建自定义」后未填写）→ 同样迁移到 OpenCode Zen
+        // 旧版选中空白自定义提供商（如「新建自定义」后未填写）→ 归位到小图吧自带模型
         File.WriteAllText(_path, """
             {"version":1,"selectedProviderId":"custom-2","selectedModelId":"","providers":[
               {"id":"custom","name":"小图吧自带模型","baseUrl":"","apiKey":"","isPreset":true,"endpointLocked":false,"defaultModel":"auto","models":[{"id":"auto","label":"自动"}]},
@@ -183,8 +183,41 @@ public class AiProviderStoreTests : IDisposable
             """);
         ResetStore(_path, legacy: null);
 
+        Assert.Equal(AiProviderStore.CustomProviderId, AiProviderStore.SelectedProviderId);
+        Assert.Equal("auto", AiProviderStore.SelectedModelId);
+    }
+
+    [Fact]
+    public void LegacyFile_ZenAutoDefault_MigratesBackToTubaBuiltin()
+    {
+        // 旧版一次性迁移留下的 OpenCode Zen 自动默认（无 Key、仍是默认免费模型）→ 归位到小图吧
+        File.WriteAllText(_path, """
+            {"version":1,"selectedProviderId":"opencode","selectedModelId":"deepseek-v4-flash-free","defaultMigrated":true,"providers":[
+              {"id":"custom","name":"小图吧自带模型","baseUrl":"","apiKey":"","isPreset":true,"endpointLocked":false,"defaultModel":"auto","models":[{"id":"auto","label":"自动"}]},
+              {"id":"opencode","name":"OpenCode Zen","baseUrl":"https://opencode.ai/zen/v1","isPreset":true,"endpointLocked":true,"defaultModel":"deepseek-v4-flash-free","models":[{"id":"deepseek-v4-flash-free"},{"id":"mimo-v2.5-free"}]}
+            ]}
+            """);
+        ResetStore(_path, legacy: null);
+
+        Assert.Equal(AiProviderStore.CustomProviderId, AiProviderStore.SelectedProviderId);
+        Assert.Equal("auto", AiProviderStore.SelectedModelId);
+        Assert.True(AiService.IsUsingDefaultModel);
+    }
+
+    [Fact]
+    public void LegacyFile_OpenCodeZenManuallyConfigured_NotMigrated()
+    {
+        // 用户手动选了 OpenCode Zen 的非默认模型 → 不被强制归位
+        File.WriteAllText(_path, """
+            {"version":1,"selectedProviderId":"opencode","selectedModelId":"mimo-v2.5-free","defaultMigrated":true,"providers":[
+              {"id":"custom","name":"小图吧自带模型","baseUrl":"","apiKey":"","isPreset":true,"endpointLocked":false,"defaultModel":"auto","models":[{"id":"auto","label":"自动"}]},
+              {"id":"opencode","name":"OpenCode Zen","baseUrl":"https://opencode.ai/zen/v1","isPreset":true,"endpointLocked":true,"defaultModel":"deepseek-v4-flash-free","models":[{"id":"deepseek-v4-flash-free"},{"id":"mimo-v2.5-free"}]}
+            ]}
+            """);
+        ResetStore(_path, legacy: null);
+
         Assert.Equal(AiProviderStore.OpenCodeZenProviderId, AiProviderStore.SelectedProviderId);
-        Assert.Equal("deepseek-v4-flash-free", AiProviderStore.SelectedModelId);
+        Assert.Equal("mimo-v2.5-free", AiProviderStore.SelectedModelId);
     }
 
     [Fact]

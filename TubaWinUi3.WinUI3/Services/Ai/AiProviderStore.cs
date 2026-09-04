@@ -34,8 +34,8 @@ public static class AiProviderStore
         [JsonPropertyName("version")] public int Version { get; set; } = 1;
         [JsonPropertyName("selectedProviderId")] public string SelectedProviderId { get; set; } = CustomProviderId;
         [JsonPropertyName("selectedModelId")] public string SelectedModelId { get; set; } = "";
-        /// <summary>默认模式是否已迁移到 OpenCode Zen（一次性标记，之后用户手动切换不再被强制覆盖）。</summary>
-        [JsonPropertyName("defaultMigrated")] public bool DefaultMigrated { get; set; }
+        /// <summary>默认模型是否已归位到小图吧自带模型（一次性标记，之后用户手动切换不再被强制覆盖）。</summary>
+        [JsonPropertyName("defaultTubaMigrated")] public bool DefaultTubaMigrated { get; set; }
         [JsonPropertyName("providers")] public List<AiProvider> Providers { get; set; } = [];
     }
 
@@ -267,19 +267,28 @@ public static class AiProviderStore
                 AppSettings.Remove("OpenCodeZenEmail");
                 Save();
             }
-            // 一次性迁移：默认模式从「小图吧自带模型/空白自定义」→ OpenCode Zen 免费模型。
-            // 只执行一次（defaultMigrated 标记），之后用户手动切换不会再被强制覆盖。
-            if (!_cache.DefaultMigrated)
+            // 一次性迁移：默认模型归位到「小图吧自带模型」。
+            // 仍停留在自动默认状态（旧版自动迁移留下的 OpenCode Zen 默认免费模型 / 未配置的空白自定义）
+            // 且从未手动填写过提供商配置的用户，切回小图吧内置端点；手动配置过的用户不受影响。
+            // 只执行一次（defaultTubaMigrated 标记），之后用户手动切换不会再被强制覆盖。
+            if (!_cache.DefaultTubaMigrated)
             {
-                _cache.DefaultMigrated = true;
+                _cache.DefaultTubaMigrated = true;
+                var tubaCustom = _cache.Providers.FirstOrDefault(p => p.Id == CustomProviderId);
                 var selected = _cache.Providers.FirstOrDefault(p => p.Id == _cache.SelectedProviderId);
-                var zen = _cache.Providers.FirstOrDefault(p => p.Id == OpenCodeZenProviderId);
-                if (selected is not null && zen is not null &&
-                    selected.Id != OpenCodeZenProviderId &&
-                    string.IsNullOrWhiteSpace(selected.BaseUrl) && string.IsNullOrWhiteSpace(selected.ApiKey))
+                if (tubaCustom is not null && selected is not null)
                 {
-                    _cache.SelectedProviderId = OpenCodeZenProviderId;
-                    _cache.SelectedModelId = zen.DefaultModel;
+                    var isZenDefault = selected.Id == OpenCodeZenProviderId
+                        && _cache.SelectedModelId == selected.DefaultModel
+                        && string.IsNullOrWhiteSpace(selected.ApiKey);
+                    var isBlankCustom = selected.Id != OpenCodeZenProviderId
+                        && string.IsNullOrWhiteSpace(selected.BaseUrl)
+                        && string.IsNullOrWhiteSpace(selected.ApiKey);
+                    if (isZenDefault || isBlankCustom)
+                    {
+                        _cache.SelectedProviderId = CustomProviderId;
+                        _cache.SelectedModelId = tubaCustom.DefaultModel;
+                    }
                 }
                 Save();
             }
@@ -316,14 +325,13 @@ public static class AiProviderStore
         }
         else
         {
-            // 全新安装/未配置 → 默认使用 OpenCode Zen 免费模型（匿名可用，无需 Key）
-            var zen = _cache.Providers.First(p => p.Id == OpenCodeZenProviderId);
-            _cache.SelectedProviderId = OpenCodeZenProviderId;
-            _cache.SelectedModelId = zen.DefaultModel;
+            // 全新安装/未配置 → 默认使用小图吧自带模型（内置端点，无需 Key）
+            _cache.SelectedProviderId = CustomProviderId;
+            _cache.SelectedModelId = custom.DefaultModel;
         }
 
-        // 全新文件即默认 OpenCode Zen，标记已迁移（避免后续被重复迁移打扰）
-        _cache.DefaultMigrated = true;
+        // 全新文件即默认小图吧自带模型，标记已迁移（避免后续被重复迁移打扰）
+        _cache.DefaultTubaMigrated = true;
         Save();
     }
 

@@ -254,7 +254,7 @@ public sealed class JunkCleanerTool : IBuiltinTool
 
         var listHint = new TextBlock
         {
-            Text = "提示：点击条目可展开查看将要删除的具体文件与注册表项；右侧开关可跳过不想清理的项目。",
+            Text = "提示：点击条目可展开查看将要删除的具体文件与注册表项；右侧开关可跳过不想清理的项目，点「删除」可单独清理某一项。",
             FontSize = 12,
             Foreground = new SolidColorBrush(ThemeColors.DimText),
             TextWrapping = TextWrapping.Wrap,
@@ -567,23 +567,10 @@ public sealed class JunkCleanerTool : IBuiltinTool
 
         var totalSize = selected.Sum(x => x.SizeBytes);
         var registryCount = selected.Count(x => x.HasRegistry);
-        state.ConfirmText.Text = $"即将清理 {selected.Count} 个项目（共 {ScanResult.FormatBytes(totalSize)}）" +
+        var confirmed = await ConfirmAsync(state,
+            $"即将清理 {selected.Count} 个项目（共 {ScanResult.FormatBytes(totalSize)}）" +
             (registryCount > 0 ? $"，其中 {registryCount} 个项目包含注册表清理。" : "。") +
-            "此操作不可撤销，确定继续？";
-        state.ConfirmPanel.Visibility = Visibility.Visible;
-
-        var tcs = new TaskCompletionSource<bool>();
-        void OnYes(object s, RoutedEventArgs e) => tcs.TrySetResult(true);
-        void OnNo(object s, RoutedEventArgs e) => tcs.TrySetResult(false);
-        state.ConfirmYesBtn.Click += OnYes;
-        state.ConfirmNoBtn.Click += OnNo;
-
-        var confirmed = await tcs.Task;
-
-        state.ConfirmYesBtn.Click -= OnYes;
-        state.ConfirmNoBtn.Click -= OnNo;
-        state.ConfirmPanel.Visibility = Visibility.Collapsed;
-
+            "此操作不可撤销，确定继续？");
         if (!confirmed) return;
 
         _busy = true;
@@ -632,6 +619,75 @@ public sealed class JunkCleanerTool : IBuiltinTool
             state.ResultText.Text = _items.Count > 0
                 ? $"清理完成：已删除 {totalDeleted:N0} 项，释放 {ScanResult.FormatBytes(totalBytes)}。仍有 {_items.Count:N0} 项存在残留（文件被占用或需重启后再清理）。"
                 : $"清理完成：已删除 {totalDeleted:N0} 项，释放 {ScanResult.FormatBytes(totalBytes)} 空间。";
+            state.ResultText.Foreground = new SolidColorBrush(AccentGreen);
+            state.ResultText.Visibility = Visibility.Visible;
+        }
+        catch (OperationCanceledException)
+        {
+            state.ResultText.Text = "清理已取消";
+            state.ResultText.Foreground = new SolidColorBrush(ThemeColors.DimText);
+            state.ResultText.Visibility = Visibility.Visible;
+        }
+        catch (Exception ex)
+        {
+            state.ResultText.Text = $"清理失败：{ex.Message}";
+            state.ResultText.Foreground = new SolidColorBrush(AccentRed);
+            state.ResultText.Visibility = Visibility.Visible;
+        }
+        finally
+        {
+            _busy = false;
+            state.LoadingPanel.Visibility = Visibility.Collapsed;
+            state.LoadingRing.IsActive = false;
+            state.ScanBtn.IsEnabled = true;
+            state.UpdateDbBtn.IsEnabled = true;
+            if (GetState(root) is { } st)
+                st.CleanBtn.IsEnabled = _items?.Any(x => x.Selected) ?? false;
+        }
+    }
+
+    // 单独删除某一项：只清理这一个项目，不影响其他项目（含未勾选的）。
+    private async Task DeleteOneAsync(StackPanel root, JunkItem item)
+    {
+        var state = GetState(root);
+        if (state is null || _items is null || _busy) return;
+
+        var confirmed = await ConfirmAsync(state,
+            $"即将单独清理「{item.Entry.Name}」（共 {ScanResult.FormatBytes(item.SizeBytes)}）" +
+            (item.HasRegistry ? "，包含注册表清理。" : "。") +
+            "此操作不可撤销，其他项目不受影响，确定继续？");
+        if (!confirmed) return;
+
+        _busy = true;
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+        var ct = _cts.Token;
+
+        state.CleanBtn.IsEnabled = false;
+        state.ScanBtn.IsEnabled = false;
+        state.UpdateDbBtn.IsEnabled = false;
+        state.ResultText.Text = "";
+        state.LoadingPanel.Visibility = Visibility.Visible;
+        state.LoadingRing.IsActive = true;
+
+        try
+        {
+            state.LoadingText.Text = $"正在清理：{item.Entry.Name}";
+            var progress = CreateUiProgress(state);
+            var (count, bytes) = await _cleaner.CleanAsync(item.Result, progress, ct);
+
+            bool leftover = item.Result.FilesToDelete.Count > 0 && AnyFileLeft(item.Result.FilesToDelete) ||
+                            item.Result.RegistryToDelete.Count > 0 && AnyRegistryLeft(item.Result);
+            if (!leftover) _items.Remove(item);
+
+            RenderItems(root);
+            state.TotalFilesText.Text = _items.Sum(x => x.Result.FilesToDelete.Count).ToString("N0");
+            state.TotalSizeText.Text = ScanResult.FormatBytes(_items.Sum(x => x.SizeBytes));
+            state.ItemCountText.Text = _items.Count.ToString("N0");
+
+            state.ResultText.Text = leftover
+                ? $"已删除 {count:N0} 项，释放 {ScanResult.FormatBytes(bytes)}；「{item.Entry.Name}」仍有残留（文件被占用或需重启后再清理）。"
+                : $"已清理「{item.Entry.Name}」：删除 {count:N0} 项，释放 {ScanResult.FormatBytes(bytes)} 空间。";
             state.ResultText.Foreground = new SolidColorBrush(AccentGreen);
             state.ResultText.Visibility = Visibility.Visible;
         }
@@ -733,22 +789,9 @@ public sealed class JunkCleanerTool : IBuiltinTool
         var selected = _appxItems.Where(x => x.Selected).ToList();
         if (selected.Count == 0) return;
 
-        state.ConfirmText.Text = $"即将卸载 {selected.Count} 个预装应用：{string.Join("、", selected.Select(x => x.Entry.Name))}。" +
-            "此操作不可恢复（可尝试在 Microsoft Store 重新安装），确定继续？";
-        state.ConfirmPanel.Visibility = Visibility.Visible;
-
-        var tcs = new TaskCompletionSource<bool>();
-        void OnYes(object s, RoutedEventArgs e) => tcs.TrySetResult(true);
-        void OnNo(object s, RoutedEventArgs e) => tcs.TrySetResult(false);
-        state.ConfirmYesBtn.Click += OnYes;
-        state.ConfirmNoBtn.Click += OnNo;
-
-        var confirmed = await tcs.Task;
-
-        state.ConfirmYesBtn.Click -= OnYes;
-        state.ConfirmNoBtn.Click -= OnNo;
-        state.ConfirmPanel.Visibility = Visibility.Collapsed;
-
+        var confirmed = await ConfirmAsync(state,
+            $"即将卸载 {selected.Count} 个预装应用：{string.Join("、", selected.Select(x => x.Entry.Name))}。" +
+            "此操作不可恢复（可尝试在 Microsoft Store 重新安装），确定继续？");
         if (!confirmed) return;
 
         _busy = true;
@@ -983,6 +1026,24 @@ public sealed class JunkCleanerTool : IBuiltinTool
             }
         };
 
+        var deleteBtn = new Button
+        {
+            Content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 5,
+                Children =
+                {
+                    new FontIcon { Glyph = "\uE74D", FontSize = 12, Foreground = new SolidColorBrush(AccentRed) },
+                    new TextBlock { Text = "删除", Foreground = new SolidColorBrush(AccentRed) }
+                }
+            },
+            Padding = new Thickness(10, 6, 10, 6),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        deleteBtn.Click += async (_, _) => await DeleteOneAsync(root, item);
+        ToolTipService.SetToolTip(deleteBtn, "单独清理此项目，不影响其他项目");
+
         var infoPanel = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
         infoPanel.Children.Add(nameText);
         infoPanel.Children.Add(descText);
@@ -996,10 +1057,12 @@ public sealed class JunkCleanerTool : IBuiltinTool
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.Children.Add(iconBorder);
         grid.Children.Add(infoPanel); Grid.SetColumn(infoPanel, 1);
         grid.Children.Add(sizePanel); Grid.SetColumn(sizePanel, 2);
         grid.Children.Add(toggle); Grid.SetColumn(toggle, 3);
+        grid.Children.Add(deleteBtn); Grid.SetColumn(deleteBtn, 4);
 
         var row = new Border
         {
@@ -1011,11 +1074,12 @@ public sealed class JunkCleanerTool : IBuiltinTool
             Child = grid
         };
 
-        // 点击整行（开关除外）展开/收起删除明细
+        // 点击整行（开关、删除按钮除外）展开/收起删除明细
         row.Tapped += (_, e) =>
         {
             if (_busy) return;
             if (IsDescendantOf(e.OriginalSource as DependencyObject, toggle)) return;
+            if (IsDescendantOf(e.OriginalSource as DependencyObject, deleteBtn)) return;
             item.Expanded = !item.Expanded;
             RenderItems(root);
         };
@@ -1206,6 +1270,26 @@ public sealed class JunkCleanerTool : IBuiltinTool
     }
 
     private static UiState? GetState(StackPanel root) => root?.Tag as UiState;
+
+    // 弹确认面板等待用户选择，返回是否确认继续
+    private static async Task<bool> ConfirmAsync(UiState state, string text)
+    {
+        state.ConfirmText.Text = text;
+        state.ConfirmPanel.Visibility = Visibility.Visible;
+
+        var tcs = new TaskCompletionSource<bool>();
+        void OnYes(object s, RoutedEventArgs e) => tcs.TrySetResult(true);
+        void OnNo(object s, RoutedEventArgs e) => tcs.TrySetResult(false);
+        state.ConfirmYesBtn.Click += OnYes;
+        state.ConfirmNoBtn.Click += OnNo;
+
+        var confirmed = await tcs.Task;
+
+        state.ConfirmYesBtn.Click -= OnYes;
+        state.ConfirmNoBtn.Click -= OnNo;
+        state.ConfirmPanel.Visibility = Visibility.Collapsed;
+        return confirmed;
+    }
 
     // Progress reporting throttled to ~10 reports/second so per-file scan updates
     // never flood the dispatcher and make the header layout jump around.

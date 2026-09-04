@@ -10,7 +10,16 @@ public sealed class BenchmarkLeaderboardData
 
     public int TotalReports { get; set; }
 
-    public Dictionary<string, List<BenchmarkLeaderboardRankEntry>> Leaderboards { get; set; } = new();
+    /// <summary>新结构：被任一榜单收录的报告并集（摘要，不含硬件详情大字段）。</summary>
+    public List<BenchmarkLeaderboardRankEntry>? Reports { get; set; }
+
+    /// <summary>新结构：各榜 id 有序列表（按下标即名次），详情按需从 DetailsPath 加载。</summary>
+    public Dictionary<string, List<string>>? Boards { get; set; }
+
+    public int TotalListed { get; set; }
+
+    /// <summary>旧结构（兼容旧 leaderboard.json：每条含全量字段）。</summary>
+    public Dictionary<string, List<BenchmarkLeaderboardRankEntry>>? Leaderboards { get; set; }
 }
 
 public sealed class BenchmarkLeaderboardPage
@@ -80,6 +89,9 @@ public sealed class BenchmarkLeaderboardRankEntry
 
     public string RepoPath { get; set; } = "";
 
+    /// <summary>详情文件路径（leaderboard/details/{id}.json），按需加载硬件详情。</summary>
+    public string DetailsPath { get; set; } = "";
+
     public BenchmarkReportEntry ToReportEntry()
     {
         return new BenchmarkReportEntry
@@ -107,6 +119,7 @@ public sealed class BenchmarkLeaderboardRankEntry
             DiskInfo = DiskInfo,
             DisplayInfo = DisplayInfo,
             RepoPath = RepoPath,
+            DetailsPath = DetailsPath,
             SubmittedAt = DateTimeOffset.TryParse(SubmittedAt, out var dt) ? dt : DateTimeOffset.MinValue
         };
     }

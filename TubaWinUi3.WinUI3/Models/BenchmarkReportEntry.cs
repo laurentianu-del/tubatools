@@ -52,6 +52,8 @@ public sealed class BenchmarkReportEntry
 
     public string RepoPath { get; set; } = "";
 
+    public string DetailsPath { get; set; } = "";
+
     public string SubmittedAtShort => SubmittedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm");
 
     public override string ToString()
