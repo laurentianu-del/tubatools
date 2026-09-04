@@ -49,6 +49,7 @@ public sealed partial class GameOverlayPage : Page
     private readonly List<string> _customWindowTitles = new();
     private IntPtr _targetHwnd;
     private bool _isDesktopTarget;
+    private bool _samplingInFlight;
     private double _scalePercent = 100;
     private bool _isDragging;
     private Point _dragStartPoint;
@@ -1359,14 +1360,27 @@ public sealed partial class GameOverlayPage : Page
         }
     }
 
-    private void OnPollTick(object? sender, object e)
+    private async void OnPollTick(object? sender, object e)
     {
+        // 采样（LHM 全硬件树 + WMI + FPS 统计）可能超过 1s：首次 LHM 初始化可阻塞数秒、
+        // 拷机时硬件读取会变慢。上一轮未完成就跳过本 tick，避免 async void 重入叠加。
+        if (_samplingInFlight) return;
+        _samplingInFlight = true;
         try
         {
-            var sample = LiteMonitorService.Instance.Read(fpsEnabled: true);
+            // LHM/WMI 读取放到后台线程，UI 线程只负责把结果绘制到覆盖层
+            var sample = await Task.Run(() => LiteMonitorService.Instance.Read(fpsEnabled: true));
+            if (!_overlayRunning) return; // 覆盖层已停止，丢弃迟到的采样
             GameOverlayWindow.Instance?.UpdateData(sample);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[GameOverlay] 采样失败: {ex.Message}");
+        }
+        finally
+        {
+            _samplingInFlight = false;
+        }
     }
 
     #endregion

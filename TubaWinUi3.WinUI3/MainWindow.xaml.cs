@@ -363,6 +363,8 @@ public sealed partial class MainWindow : Window
         DownloadQueueService.QueueChanged -= OnDownloadQueueChanged;
         AppSettings.SettingChanged -= OnBackgroundSettingChanged;
         NavLayoutModeService.NavLayoutModeChanged -= OnNavLayoutModeChanged;
+        // AppSettings 落盘是去抖的（500ms 合并），退出前同步刷一次避免丢最后变更
+        AppSettings.Flush();
     }
 
     private void OnDownloadQueueChanged()
